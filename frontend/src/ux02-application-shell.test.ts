@@ -12,6 +12,7 @@ const expectedNavigationIds = [
 
 describe('G04.2 UX-02 application shell contract', () => {
   const main = read('main.tsx');
+  const routing = read('routing.ts');
   const shell = read('styles/app-shell.css');
   const tokens = read('styles/tokens.css');
   const responsive = read('styles/responsive-shell.css');
@@ -29,17 +30,17 @@ describe('G04.2 UX-02 application shell contract', () => {
   });
 
   it('keeps role filtering explicit, including Manager access to Approval Center', () => {
-    expect(main).toContain("if (page === 'approvalCenter') return ['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(auth.user?.role || '') && !auth.isViewingAs");
-    expect(main).toContain("if (page === 'leavePending' || page === 'attendanceSupervisor') return ['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(auth.user?.role || '')");
-    expect(main).toContain("if (page === 'attendanceReport') return auth.user?.role === 'ADMIN'");
-    expect(main).toContain("if (page === 'audit') return auth.user?.role === 'ADMIN'");
-    expect(main).toContain("if (page === 'dataQuality') return auth.user?.role === 'ADMIN'");
-    expect(main).toContain("if (page === 'systemHealth') return auth.user?.role === 'ADMIN'");
-    expect(main).toContain("if (page === 'securitySite') return auth.user?.role === 'ADMIN'");
-    expect(main).toContain("if (page === 'settings') return auth.user?.role === 'ADMIN'");
-    expect(main).toContain("if (page === 'users') return ['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(auth.user?.role || '')");
-    expect(main).toContain("if (page === 'quota') return auth.user?.role === 'ADMIN'");
-    expect(main).toContain("if (['licenses', 'reportCenter', 'reports', 'executiveReport'].includes(page)) return ['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(auth.user?.role || '')");
+    expect(routing).toContain("if (page === 'approvalCenter') return ['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(auth.user?.role || '') && !auth.isViewingAs");
+    expect(routing).toContain("if (page === 'leavePending' || page === 'attendanceSupervisor') return ['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(auth.user?.role || '')");
+    expect(routing).toContain("if (page === 'attendanceReport') return auth.user?.role === 'ADMIN'");
+    expect(routing).toContain("if (page === 'audit') return auth.user?.role === 'ADMIN'");
+    expect(routing).toContain("if (page === 'dataQuality') return auth.user?.role === 'ADMIN'");
+    expect(routing).toContain("if (page === 'systemHealth') return auth.user?.role === 'ADMIN'");
+    expect(routing).toContain("if (page === 'securitySite') return auth.user?.role === 'ADMIN'");
+    expect(routing).toContain("if (page === 'settings') return auth.user?.role === 'ADMIN'");
+    expect(routing).toContain("if (page === 'users') return ['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(auth.user?.role || '')");
+    expect(routing).toContain("if (page === 'quota') return auth.user?.role === 'ADMIN'");
+    expect(routing).toContain("if (['licenses', 'reportCenter', 'reports', 'executiveReport'].includes(page)) return ['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(auth.user?.role || '')");
   });
 
   it('uses SmsIcon line SVGs for shell navigation and utility controls', () => {

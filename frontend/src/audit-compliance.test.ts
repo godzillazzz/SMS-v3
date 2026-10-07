@@ -4,6 +4,7 @@ import path from 'node:path';
 
 const read = (file: string) => fs.readFileSync(path.join(__dirname, file), 'utf8').replace(/\r\n/g, '\n');
 const app = read('main.tsx');
+const routing = read('routing.ts');
 const page = read('pages/audit/AuditCompliancePage.tsx');
 const toolbar = read('components/audit/AuditToolbar.tsx');
 const table = read('components/audit/AuditTable.tsx');
@@ -14,7 +15,7 @@ const dataTable = read('components/ResponsiveDataTable.tsx');
 describe('admin audit log viewer contract', () => {
   it('keeps the dedicated page ADMIN-only and uses server-side filter state', () => {
     expect(app).toContain("id: 'audit'");
-    expect(app).toContain("return auth.user?.role === 'ADMIN';");
+    expect(routing).toContain("if (page === 'audit') return auth.user?.role === 'ADMIN'");
     expect(app).toContain('api.auditEvents(auth.token, operationPage, auditPageSize, auditFilters)');
     expect(app).toContain('filters={auditFilters}');
     expect(page).toContain('onFiltersChange');

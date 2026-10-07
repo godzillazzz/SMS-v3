@@ -5,6 +5,7 @@ import path from 'node:path';
 const root = path.resolve(__dirname);
 const read = (relative: string) => fs.readFileSync(path.join(root, relative), 'utf8');
 const main = read('main.tsx');
+const routing = read('routing.ts');
 const client = read('approval-center-client.ts');
 const page = read('pages/approvals/ApprovalCenterPage.tsx');
 const registrationPanel = read('pages/access-management/RegistrationReviewPanel.tsx');
@@ -21,7 +22,7 @@ describe('Approval Center Command Nexus frontend contracts', () => {
   it('keeps Approval Center role scope and the existing aggregate API', () => {
     expect(main).toContain("{ label: 'ตรวจสอบ', items: [");
     expect(main).toContain("{ id: 'approvalCenter', icon: 'bell', label: 'ศูนย์อนุมัติ' }");
-    expect(main).toContain("if (page === 'approvalCenter') return ['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(auth.user?.role || '')");
+    expect(routing).toContain("if (page === 'approvalCenter') return ['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(auth.user?.role || '')");
     expect(client).toContain("approvalCenterRequest(token, '/approval-center/summary')");
     expect(client).toContain("approvalCenterRequest(token, '/approval-center?limit=100')");
   });

@@ -70,13 +70,13 @@ jobs:
       - run: npm --prefix frontend ci
       - name: Install the existing Playwright Chromium browser for local print fixtures
         run: npx playwright install --with-deps chromium
-      - name: Run T29 isolated print and A4 browser regressions
+      - name: Run T29 print and T09 application-routing browser regressions
         run: npx playwright test --config frontend/playwright.print.config.ts
-      - name: Upload T29 print screenshots and HTML report
+      - name: Upload print and application-routing browser artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: t29-print-browser-artifacts
+          name: frontend-browser-regression-artifacts
           path: |
             frontend/test-results/**/*.png
             frontend/test-results/**/*.pdf

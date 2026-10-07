@@ -73,6 +73,7 @@ import { leavePolicyKeys, type LeavePolicyForm } from './components/leave-policy
 import type { LeaveDecisionAction, LeaveDecisionTarget } from './components/LeaveDecisionConfirmation';
 import { registrationResultPresentation } from './components/auth-experience';
 import { sanitizeLicenseDocumentError, type LicenseDocument } from './components/license-document-utils';
+import { canViewRoutePage, navigate, pageFromLocation, routeQueryMonth, routeQueryNumber, ROUTE_CHANGE_EVENT, subscribeToRouteChanges, updateDocumentTitle, updateRouteQuery, type RoutePage, type RouteResolution } from './routing';
 import './styles/license-table.css';
 import './styles/responsive-shell.css';
 import './styles/action-system.css';
@@ -139,7 +140,7 @@ const LeaveDecisionConfirmation = React.lazy(() => import('./components/LeaveDec
 
 type User = { id: string; email: string; displayName: string; role: string; department?: string };
 type Employee = { id: string; employeeCode: string; firstName: string; lastName: string; displayName?: string; email?: string | null; phone?: string | null; department?: string; jobTitle?: string; hiredAt?: string | null; skill?: string | null; isActive: boolean; updatedAt?: string };
-type Page = 'dashboard' | 'employees' | 'approvalCenter' | 'licenses' | 'attendance' | 'attendanceSupervisor' | 'attendanceHistory' | 'employeeSchedule' | 'attendanceDevice' | 'profile' | 'shiftSetup' | 'schedule' | 'approvals' | 'rules' | 'leave' | 'leavePending' | 'leaveHistory' | 'quota' | 'users' | 'audit' | 'dataQuality' | 'systemHealth' | 'reportCenter' | 'reports' | 'executiveReport' | 'attendanceReport' | 'securitySite' | 'settings';
+type Page = RoutePage;
 type Auth = { token?: string; user?: User; originalUser?: User; loading: boolean; error?: string; isViewingAs: boolean; login(email: string, password: string): Promise<void>; passkeyLogin(): Promise<void>; logout(): Promise<void>; beginViewAs(userId: string): Promise<void>; endViewAs(): void };
 type DataRow = Record<string, unknown>;
 type DataResponse = { data?: DataRow[] | DataRow; summary?: { total?: number; critical?: number; warning?: number; info?: number }; meta?: { total?: number; page?: number; pageSize?: number; totalPages?: number; statusCounts?: Record<string, number>; unmatchedLegacyCount?: number } };
@@ -292,6 +293,8 @@ function Logo() {
 
 function readLeaveMonthFromUrl(): string {
   const params = new URLSearchParams(window.location.search);
+  const routeMonth = routeQueryMonth(window.location.search);
+  if (routeMonth) return routeMonth;
   const year = params.get('year');
   const month = params.get('month');
   return normalizeMonthValue(year && month ? `${year}-${month}` : undefined);
@@ -1689,19 +1692,30 @@ function Dashboard() {
   const auth = useContext(AuthContext)!;
   const actionDialog = useActionDialog();
   const pwaShell = useMemo(() => isSmsPwaShellMode(), []);
-  const [activePage, setActivePage] = useState<Page>(() => pwaShell ? initialSmsPwaPage() : 'dashboard');
+  const [activePage, setActivePageState] = useState<Page>(() => {
+    if (pwaShell) return initialSmsPwaPage();
+    const route = pageFromLocation();
+    return route.kind === 'page' ? route.page : 'dashboard';
+  });
+  const setActivePage = (page: Page) => {
+    applyRoutePage(page, false);
+    if (!pwaShell) navigate(page);
+  };
   const [pwaOnline, setPwaOnline] = useState(() => typeof navigator === 'undefined' ? true : navigator.onLine);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [totalCount, setTotalCount] = useState(0);
   const [empLoading, setEmpLoading] = useState(false);
   const [fetchError, setFetchError] = useState<RequestErrorInput>();
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useState(() => new URLSearchParams(window.location.search).get('search') || '');
   const [operationResponseBinding, setOperationResponseBinding] = useState<PageResponseBinding<DataResponse>>();
   const [operationRequestState, setOperationRequestState] = useState<OperationRequestState>();
   const [leavePrintTarget, setLeavePrintTarget] = useState<DataRow>();
   const [leaveDecision, setLeaveDecision] = useState<LeaveDecisionRequest>();
-  const [operationPage, setOperationPage] = useState(1);
-  const [licenseEmployeeStatus, setLicenseEmployeeStatus] = useState<LicenseEmployeeStatus>('ACTIVE');
+  const [operationPage, setOperationPage] = useState(() => pwaShell ? 1 : routeQueryNumber('page'));
+  const [licenseEmployeeStatus, setLicenseEmployeeStatus] = useState<LicenseEmployeeStatus>(() => {
+    const status = new URLSearchParams(window.location.search).get('status');
+    return status === 'INACTIVE' || status === 'ALL' ? status : 'ACTIVE';
+  });
   const [auditPageSize, setAuditPageSize] = useState(25);
   const [auditFilters, setAuditFilters] = useState<AuditFilters>(defaultAuditFilters);
   const [dataQualityPageSize, setDataQualityPageSize] = useState(25);
@@ -1743,6 +1757,7 @@ function Dashboard() {
       if (page === 'attendanceHistory' && options.today) url.searchParams.set('today', '1');
       else url.searchParams.delete('today');
       window.history.replaceState(window.history.state, '', url);
+      window.dispatchEvent(new Event(ROUTE_CHANGE_EVENT));
     }
   };
   const openPwaAttendanceSupervisor = () => {
@@ -1754,6 +1769,7 @@ function Dashboard() {
       url.searchParams.set('page', 'attendanceSupervisor');
       url.searchParams.delete('today');
       window.history.replaceState(window.history.state, '', url);
+      window.dispatchEvent(new Event(ROUTE_CHANGE_EVENT));
     }
   };
   const [mobileUtilityOpen, setMobileUtilityOpen] = useState(false);
@@ -1814,12 +1830,82 @@ function Dashboard() {
   const [dashboardLoading, setDashboardLoading] = useState(false);
   const [dashboardError, setDashboardError] = useState<RequestErrorInput>();
   const [dashboardFilters, setDashboardFilters] = useState<DashboardFilters>(() => { const date = bangkokDateInput(); return { date, month: date.slice(0, 7), department: '' }; });
-  const [scheduleMonth, setScheduleMonth] = useState(currentBangkokMonth);
+  const [scheduleMonth, setScheduleMonth] = useState(() => routeQueryMonth() || currentBangkokMonth());
   const [leaveMonth, setLeaveMonth] = useState(readLeaveMonthFromUrl);
   const [quotaYear, setQuotaYear] = useState(currentBangkokQuotaYear);
+  const leaveMonthRef = useRef(leaveMonth);
+  const quotaYearRef = useRef(quotaYear);
+  leaveMonthRef.current = leaveMonth;
+  quotaYearRef.current = quotaYear;
   const [showLegacyQuotas, setShowLegacyQuotas] = useState(false);
+  const routeAppliedFilterStateRef = useRef(false);
+  const previousOperationFiltersRef = useRef({ leaveMonth, quotaYear, showLegacyQuotas });
   const [legacyQuotaRows, setLegacyQuotaRows] = useState<DataRow[]>([]);
-  const [scheduleDepartment, setScheduleDepartment] = useState('');
+  const [scheduleDepartment, setScheduleDepartment] = useState(() => new URLSearchParams(window.location.search).get('department') || '');
+  const applyRoutePage = (page: Page, syncSearch = true) => {
+    setActivePageState(page);
+    const params = new URLSearchParams(window.location.search);
+    if (!pwaShell) setOperationPage(params.has('page') ? routeQueryNumber('page') : 1);
+    if (page === 'schedule') {
+      const month = routeQueryMonth();
+      if (month) setScheduleMonth(month);
+      setScheduleDepartment(params.get('department') || '');
+    }
+    if (page === 'leaveHistory') {
+      const nextLeaveMonth = readLeaveMonthFromUrl();
+      if (nextLeaveMonth !== leaveMonthRef.current) routeAppliedFilterStateRef.current = true;
+      setLeaveMonth(nextLeaveMonth);
+    }
+    if (page === 'quota') {
+      const requestedYear = Number(params.get('year'));
+      if (Number.isInteger(requestedYear) && requestedYear >= 2000 && requestedYear <= 9999 && requestedYear !== quotaYearRef.current) {
+        routeAppliedFilterStateRef.current = true;
+        setQuotaYear(requestedYear);
+      }
+    }
+    if (page === 'employees' && syncSearch) setSearch(params.get('search') || '');
+    if (page === 'licenses') {
+      const status = params.get('status');
+      setLicenseEmployeeStatus(status === 'INACTIVE' || status === 'ALL' ? status : 'ACTIVE');
+    }
+  };
+  useEffect(() => {
+    const syncBrowserHistory = () => {
+      const route = pageFromLocation();
+      if (route.kind === 'page') applyRoutePage(route.page);
+    };
+    const syncAppNavigation = () => {
+      const route = pageFromLocation();
+      if (route.kind === 'page') setActivePageState(route.page);
+    };
+    window.addEventListener('popstate', syncBrowserHistory);
+    window.addEventListener(ROUTE_CHANGE_EVENT, syncAppNavigation);
+    return () => {
+      window.removeEventListener('popstate', syncBrowserHistory);
+      window.removeEventListener(ROUTE_CHANGE_EVENT, syncAppNavigation);
+    };
+  }, [pwaShell]);
+  useEffect(() => {
+    if (pwaShell) return;
+    const query: Record<string, string | undefined> = { page: operationPage > 1 ? String(operationPage) : undefined };
+    if (activePage === 'schedule') {
+      query.month = scheduleMonth;
+      query.department = scheduleDepartment || undefined;
+      query.year = undefined;
+    }
+    if (activePage === 'leaveHistory') {
+      const urlMonth = new URLSearchParams(window.location.search).get('month') || '';
+      if (!/^\d{4}-(0?[1-9]|1[0-2])$/.test(urlMonth)) {
+        const parsedMonth = parseMonthValue(leaveMonth);
+        query.year = String(parsedMonth.year);
+        query.month = String(parsedMonth.month);
+      }
+    }
+    if (activePage === 'quota') query.year = String(quotaYear);
+    if (activePage === 'employees') query.search = search || undefined;
+    if (['licenses'].includes(activePage)) query.status = licenseEmployeeStatus === 'ACTIVE' ? undefined : licenseEmployeeStatus;
+    updateRouteQuery(query);
+  }, [activePage, licenseEmployeeStatus, leaveMonth, operationPage, pwaShell, scheduleDepartment, scheduleMonth, search]);
   const [leaveSummary, setLeaveSummary] = useState<DataRow>({});
   const [leavePolicy, setLeavePolicy] = useState<DataRow>({ defaultSickDays: 30, defaultPersonalDays: 3, defaultVacationDays: 6, sickAttachmentRequiredAfterDays: 3, managerRetroactiveOnBehalfEnabled: true, managerRetroactiveMaxDaysBack: 0 });
   const [leaveTypes, setLeaveTypes] = useState<LeaveTypeMaster[]>([]);
@@ -2110,8 +2196,19 @@ function Dashboard() {
     return () => { active = false; };
   }, [activePage, auth.token, auth.user?.id, auth.user?.role, operationPage, operationRefresh, scheduleDepartment, scheduleMonth]);
 
-  useEffect(() => { setOperationPage(1); }, [activePage, leaveMonth, quotaYear, showLegacyQuotas]);
-  useEffect(() => { setOperationPage(1); }, [scheduleDepartment, scheduleMonth]);
+  useEffect(() => {
+    const nextFilters = { leaveMonth, quotaYear, showLegacyQuotas };
+    const previousFilters = previousOperationFiltersRef.current;
+    previousOperationFiltersRef.current = nextFilters;
+    if (previousFilters.leaveMonth === leaveMonth
+      && previousFilters.quotaYear === quotaYear
+      && previousFilters.showLegacyQuotas === showLegacyQuotas) return;
+    if (routeAppliedFilterStateRef.current) {
+      routeAppliedFilterStateRef.current = false;
+      return;
+    }
+    setOperationPage(1);
+  }, [leaveMonth, quotaYear, showLegacyQuotas]);
   useEffect(() => { setAutoSchedulePreview(undefined); }, [scheduleMonth]);
 
   const parentPage: Partial<Record<Page, Page>> = { executiveReport: 'reportCenter', reports: 'reportCenter', attendanceReport: 'reportCenter' };
@@ -2149,20 +2246,7 @@ function Dashboard() {
   };
   const initials = auth.user?.displayName?.split(/\s+/).map((part) => part[0]).join('').slice(0, 2).toUpperCase() || 'SM';
   const canManage = !auth.isViewingAs && ['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(auth.user?.role || '');
-  const canViewPage = (page: Page) => {
-    if (page === 'approvalCenter') return ['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(auth.user?.role || '') && !auth.isViewingAs;
-    if (page === 'leavePending' || page === 'attendanceSupervisor') return ['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(auth.user?.role || '');
-    if (page === 'attendanceReport') return auth.user?.role === 'ADMIN';
-    if (page === 'audit') return auth.user?.role === 'ADMIN';
-    if (page === 'dataQuality') return auth.user?.role === 'ADMIN';
-    if (page === 'systemHealth') return auth.user?.role === 'ADMIN';
-    if (page === 'securitySite') return auth.user?.role === 'ADMIN';
-    if (page === 'settings') return auth.user?.role === 'ADMIN';
-    if (page === 'users') return ['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(auth.user?.role || '');
-    if (page === 'quota') return auth.user?.role === 'ADMIN';
-    if (['licenses', 'reportCenter', 'reports', 'executiveReport'].includes(page)) return ['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(auth.user?.role || '');
-    return true;
-  };
+  const canViewPage = (page: Page) => canViewRoutePage(page, auth);
   const visibleNavigation = navigation
     .map((section) => ({ ...section, items: section.items.filter((item) => canViewPage(item.id)) }))
     .filter((section) => section.items.length > 0);
@@ -2797,7 +2881,7 @@ function Dashboard() {
       const monthNameOnly = new Intl.DateTimeFormat('th-TH', { month: 'long', timeZone: 'UTC' }).format(new Date(Date.UTC(Number(yStr), Number(mStr) - 1, 1)));
       const monthLabel = `${monthNameOnly} พ.ศ. ${thaiYearNum}`;
       const departments = Array.from(new Set(employees.map((employee) => employee.department || '').filter(Boolean))).sort();
-      const moveMonth = (delta: number) => { const value = new Date(`${scheduleMonth}-01T00:00:00Z`); value.setUTCMonth(value.getUTCMonth() + delta); setScheduleMonth(value.toISOString().slice(0, 7)); };
+      const moveMonth = (delta: number) => { const value = new Date(`${scheduleMonth}-01T00:00:00Z`); value.setUTCMonth(value.getUTCMonth() + delta); setScheduleMonth(value.toISOString().slice(0, 7)); setOperationPage(1); };
       const previewRows = Array.isArray(autoSchedulePreview?.rows) ? autoSchedulePreview.rows as DataRow[] : [];
       const previewWarnings = Array.isArray(autoSchedulePreview?.warnings) ? autoSchedulePreview.warnings : [];
       const previewSummary = nested(autoSchedulePreview?.summary);
@@ -2891,7 +2975,7 @@ function Dashboard() {
             เลือกเดือนที่จะจัดกะ: {monthLabel} (สูงสุด 1 เดือน)
           </div>
           <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
-            <MonthGridPicker value={scheduleMonth} onChange={setScheduleMonth} />
+            <MonthGridPicker value={scheduleMonth} onChange={(value) => { setScheduleMonth(value); setOperationPage(1); }} />
             <button className="btn-neutral small-action" onClick={() => moveMonth(-1)}>‹ เดือนก่อน</button>
             <button className="btn-neutral small-action" onClick={() => moveMonth(1)}>เดือนถัดไป ›</button>
 
@@ -3107,7 +3191,7 @@ function Dashboard() {
       const results = Array.isArray(ruleCheckResponse.ruleResults) ? ruleCheckResponse.ruleResults as DataRow[] : [];
       const violations = Array.isArray(ruleCheckResponse.violations) ? ruleCheckResponse.violations as DataRow[] : [];
       const metrics = nested(ruleCheckResponse.metrics);
-      return <section className="view-pane"><div className="page-heading"><div><p className="eyebrow">ตารางและกฎการทำงาน</p><h1>Rule Checking</h1><p>ตรวจตารางกะกับกฎการทำงาน</p></div><div className="heading-actions"><label className="month-filter"><span>เดือน</span><select value={scheduleMonth} onChange={(event) => setScheduleMonth(event.target.value)} style={{ padding: '6px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontWeight: 600, fontSize: '13px', backgroundColor: '#0f1d2a', color: '#e2e8f0' }}>{Array.from({ length: 24 }, (_, i) => { const d = new Date(Date.UTC(2025, i, 1)); const val = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`; const name = new Intl.DateTimeFormat('th-TH', { month: 'long', timeZone: 'UTC' }).format(d); const thaiYear = d.getUTCFullYear() + 543; return <option key={val} value={val}>{name} พ.ศ. {thaiYear}</option>; })}</select></label><button className="btn-neutral small-action" onClick={() => setOperationRefresh((value) => value + 1)}>ตรวจสอบอีกครั้ง</button></div></div>
+      return <section className="view-pane"><div className="page-heading"><div><p className="eyebrow">ตารางและกฎการทำงาน</p><h1>Rule Checking</h1><p>ตรวจตารางกะกับกฎการทำงาน</p></div><div className="heading-actions"><label className="month-filter"><span>เดือน</span><select value={scheduleMonth} onChange={(event) => { setScheduleMonth(event.target.value); setOperationPage(1); }} style={{ padding: '6px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontWeight: 600, fontSize: '13px', backgroundColor: '#0f1d2a', color: '#e2e8f0' }}>{Array.from({ length: 24 }, (_, i) => { const d = new Date(Date.UTC(2025, i, 1)); const val = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`; const name = new Intl.DateTimeFormat('th-TH', { month: 'long', timeZone: 'UTC' }).format(d); const thaiYear = d.getUTCFullYear() + 543; return <option key={val} value={val}>{name} พ.ศ. {thaiYear}</option>; })}</select></label><button className="btn-neutral small-action" onClick={() => setOperationRefresh((value) => value + 1)}>ตรวจสอบอีกครั้ง</button></div></div>
         <ErrorAlert message={operationError} />
         <div className="rule-summary-grid"><article><span className={Number(metrics.violations || 0) ? 'rule-state fail' : 'rule-state pass'}>{Number(metrics.violations || 0) ? '!' : '✓'}</span><div><p>รายการขัดกฎทั้งหมด</p><strong>{text(metrics.violations)}</strong></div></article><article><span className="rule-state pass">✓</span><div><p>กฎที่ผ่าน</p><strong>{text(metrics.rulesPassed)} / {text(metrics.rulesChecked)}</strong></div></article><article><span className="rule-state pass">♙</span><div><p>พนักงาน Active</p><strong>{text(metrics.activeEmployees)}</strong></div></article><article><span className="rule-state pass">◷</span><div><p>ชั่วโมงรวม</p><strong>{text(metrics.totalHours)}</strong></div></article></div>
         <RuleCheckingDataSurfaces rules={rules} results={results} violations={violations} loading={operationLoading} canManage={canManage} onAction={(row, action) => handleOperationAction(row, action)} />
@@ -3453,13 +3537,35 @@ function OfflineAttendanceGate() {
   </React.Suspense>;
 }
 
+function RouteNotice({ kind }: { kind: 'not-found' | 'forbidden' }) {
+  const notFound = kind === 'not-found';
+  return <main className="full-loader" role="main">
+    <section aria-labelledby="route-notice-title" style={{ maxWidth: 560, textAlign: 'center', padding: 24 }}>
+      <h1 id="route-notice-title">{notFound ? 'ไม่พบหน้าที่ต้องการ' : 'ไม่มีสิทธิ์เข้าถึงหน้านี้'}</h1>
+      <p>{notFound ? 'ตรวจสอบที่อยู่หน้าเว็บ หรือกลับไปยังภาพรวม' : 'บัญชีนี้ไม่มีสิทธิ์เปิดหน้านี้'}</p>
+      <button type="button" className="btn-primary" onClick={() => navigate('dashboard')}>กลับไปภาพรวม</button>
+    </section>
+  </main>;
+}
+
 function App() {
   const auth = useContext(AuthContext)!;
+  const [route, setRoute] = useState<RouteResolution>(() => pageFromLocation());
+
+  useEffect(() => subscribeToRouteChanges(() => setRoute(pageFromLocation())), []);
+  useEffect(() => {
+    if (auth.loading) return;
+    const forbidden = route.kind === 'page' && Boolean(auth.token) && !canViewRoutePage(route.page, auth);
+    updateDocumentTitle(route.kind === 'page' ? route.page : null, route.kind === 'not-found' ? 'not-found' : forbidden ? 'forbidden' : 'page');
+  }, [auth.isViewingAs, auth.loading, auth.token, auth.user?.role, route]);
+
   if (auth.loading) return <div className="full-loader">กำลังเตรียมระบบ…</div>;
   if (!auth.token) return <OfflineAttendanceGate />;
   if (shouldOpenG06DeviceContextDiagnostic({ authenticated: Boolean(auth.token), diagnosticBuild: __SMSV3_G06_DEVICE_CONTEXT_DIAGNOSTIC__, search: window.location.search })) {
     return <React.Suspense fallback={<div className="full-loader">กำลังเตรียมการตรวจแบบ read-only…</div>}><G06DeviceContextDiagnostic /></React.Suspense>;
   }
+  if (route.kind === 'not-found') return <RouteNotice kind="not-found" />;
+  if (!canViewRoutePage(route.page, auth)) return <RouteNotice kind="forbidden" />;
   return <Dashboard />;
 }
 

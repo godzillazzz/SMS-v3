@@ -27,7 +27,7 @@ describe('MonthGridPicker month behavior', () => {
   });
 
   test('reuses the picker on schedule and leave history with a body portal', () => {
-    expect(mainTsx).toContain('<MonthGridPicker value={scheduleMonth} onChange={setScheduleMonth} />');
+    expect(mainTsx).toContain('<MonthGridPicker value={scheduleMonth} onChange={(value) => { setScheduleMonth(value); setOperationPage(1); }} />');
     expect(mainTsx).toContain('<MonthGridPicker value={historyMonth} onChange={onHistoryMonthChange} />');
     expect(pickerTsx).toContain('createPortal(');
     expect(pickerTsx).toContain("document.getElementById('modal-root')");

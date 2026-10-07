@@ -6,6 +6,7 @@ import crypto from 'node:crypto';
 const root = path.resolve(__dirname);
 const read = (name: string) => fs.readFileSync(path.join(root, name), 'utf8').replace(/\r\n/g, '\n');
 const main = read('main.tsx');
+const routing = read('routing.ts');
 const personnelPage = read('pages/personnel/PersonnelDirectoryPage.tsx');
 const personnelHeader = read('components/personnel/PersonnelDirectoryHeader.tsx');
 const personnelTable = read('components/personnel/PersonnelTable.tsx');
@@ -153,7 +154,7 @@ describe('G04.2 UX-06 Personnel + Access experience contract', () => {
     expect(accessPage).toContain("const manager = ['MANAGER', 'SUPERVISOR'].includes(role);");
     expect(accessPage).toContain('onOpenAudit={() => { closeDetails(); onOpenAudit(); }}');
     expect(accessPage).toContain('ดู Audit &amp; Compliance');
-    expect(main).toContain("if (page === 'users') return ['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(auth.user?.role || '')");
+    expect(routing).toContain("if (page === 'users') return ['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(auth.user?.role || '')");
   });
 
   it('provides foreground-first dialog stacking, Escape suspension, body locking, and focus restoration', () => {

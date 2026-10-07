@@ -7,11 +7,12 @@ const read = (relative: string) => fs.readFileSync(path.join(root, relative), 'u
 
 describe('CFG-01 Configuration Center shell contract', () => {
   const main = read('main.tsx');
+  const routing = read('routing.ts');
   const registry = read('components/ConfigurationRegistryPanel.tsx');
   const api = read('api.ts');
 
   it('keeps Settings ADMIN-only while presenting the Configuration Center shell', () => {
-    expect(main).toContain("if (page === 'settings') return auth.user?.role === 'ADMIN'");
+    expect(routing).toContain("if (page === 'settings') return auth.user?.role === 'ADMIN'");
     expect(main).toContain('<h1>Configuration Center</h1>');
     expect(main).toContain('<ConfigurationRegistryPanel settings={settings} />');
     expect(main).toContain('<AttendancePolicySettingsCard settings={settings} onSave={onSaveAttendancePolicy} onRefresh={onRefresh} />');

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 
 const main = readFileSync(new URL('./main.tsx', import.meta.url), 'utf8');
+const routing = readFileSync(new URL('./routing.ts', import.meta.url), 'utf8');
 const dataSurfaceStyles = readFileSync(new URL('./styles/data-surfaces.css', import.meta.url), 'utf8');
 
 describe('G03.1 annual quota page wiring', () => {
@@ -33,7 +34,7 @@ describe('G03.1 annual quota page wiring', () => {
   });
 
   it('keeps Manager/Viewer out of the quota administration page', () => {
-    expect(main).toContain("if (page === 'quota') return auth.user?.role === 'ADMIN'");
+    expect(routing).toContain("if (page === 'quota') return auth.user?.role === 'ADMIN'");
   });
 
   it('uses the shared responsive table contract without changing quota authority', () => {
