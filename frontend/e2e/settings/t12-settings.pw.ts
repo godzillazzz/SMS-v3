@@ -51,6 +51,7 @@ async function loginAsAdmin(page: Page, target: string) {
   });
 
   await page.goto(target);
+  await expect(page.locator('.nexus-public[data-design="sms-command-nexus-full-bleed"]')).toBeVisible();
   await expect(page.locator('#auth-login-form')).toBeVisible();
   await page.locator('#email').fill('admin@example.test');
   await expect(page.locator('#email')).toHaveValue('admin@example.test');
