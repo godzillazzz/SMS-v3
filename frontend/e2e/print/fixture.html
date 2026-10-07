@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="th">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>T29 local print fixture</title>
+    <style>
+      body { margin: 0; padding: 16px; }
+      .fixture-shell { display: flex; flex-wrap: wrap; gap: 8px; }
+      .fixture-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+      .fixture-actions button { min-height: 44px; }
+      @media screen {
+        #generic-table, .fixture-roster, .t29-reports-print { display: none !important; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="fixture-shell">
+      <aside>Dashboard · เมนูด้านข้าง</aside>
+      <header>Topbar · user badge</header>
+      <nav>เมนูหลัก · Quick nav</nav>
+      <button>ออกจากระบบ</button>
+      <button>Floating action</button>
+      <div role="status">toast</div>
+    </div>
+    <main>
+      <h1>Fixture print controls</h1>
+      <div class="fixture-actions">
+        <button id="trigger-leave" class="btn-info leave-print-button" type="button">พิมพ์ใบลา</button>
+        <button id="trigger-roster" class="btn-info small-action" type="button">พิมพ์ตารางกะ</button>
+        <button id="trigger-table" class="btn-info small-action" type="button">พิมพ์รายงานตาราง</button>
+        <button id="trigger-reports" class="btn-info small-action" type="button">พิมพ์รายงานประกอบ</button>
+      </div>
+      <section id="leave-document" class="leave-print-document" aria-hidden="true">
+        <div class="leave-print-topline"><span>7 ต.ค. 2569 12:00</span><span>แบบบันทึกการลาพนักงาน</span></div>
+        <div class="leave-print-heading"><h1>ใบขออนุมัติลางาน</h1><p>พนักงานรักษาความปลอดภัย</p></div>
+        <div class="leave-print-person"><strong>ชื่อพนักงาน: ตัวอย่าง ทดสอบ</strong><strong>วันที่พิมพ์: 7 ต.ค. 2569</strong></div>
+        <table class="leave-print-table">
+          <thead><tr><th>วันที่ลางาน</th><th>ประเภทการลา</th><th>จำนวนวัน</th><th>ผู้ปฏิบัติงานแทน / รายละเอียด</th></tr></thead>
+          <tbody><tr><td>8 ต.ค. 2569</td><td>ลาพักร้อน</td><td>1 วัน</td><td><div class="leave-print-detail-lines"><strong>ผู้ปฏิบัติงานแทน:</strong> พนักงานแทน<br /><strong>รายละเอียด:</strong> ขอลาหยุดหนึ่งวัน</div></td></tr></tbody>
+        </table>
+        <div class="leave-print-signatures">
+          <div class="leave-print-signature-block"><div class="leave-print-signature-line"><span class="leave-print-sig-label">ลงชื่อ</span><span class="leave-print-dots">........................................</span></div><div class="leave-print-name">(........................................)</div><strong class="leave-print-title">หัวหน้าพนักงานรักษาความปลอดภัย</strong></div>
+          <div class="leave-print-signature-block"><div class="leave-print-signature-line"><span class="leave-print-notice">ทราบ /</span><span class="leave-print-sig-label">ลงชื่อ</span><span class="leave-print-dots">........................................</span></div><div class="leave-print-name">(........................................)</div><strong class="leave-print-title">ผู้จัดการเขต (ผู้อนุมัติ)</strong></div>
+        </div>
+        <footer class="leave-print-footer"><span>Security Management System</span><span>1/1</span></footer>
+      </section>
+      <article class="print-only fixture-roster">
+        <div class="print-page">
+          <div class="print-header">Security Management System - ตารางกะที่อนุมัติแล้ว - ตุลาคม 2569</div>
+          <table class="print-table" id="roster-table">
+            <thead><tr><th>ลำดับ</th><th>ชื่อ-นามสกุล</th><th>ตำแหน่ง</th></tr></thead>
+            <tbody>
+              <tr class="schedule-department-group-row print-department-group-row"><th class="schedule-department-group-sticky" colspan="35">แผนกทดสอบ · 1 คน</th></tr>
+              <tr><td>1</td><td class="emp-name-col">พนักงานตัวอย่าง</td><td class="emp-role-col">พนักงาน</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </article>
+      <table id="generic-table" class="data-table">
+        <thead><tr><th>เลขที่</th><th>ชื่อ</th><th>หน่วยงาน</th><th>ประเภท</th><th>สถานะ</th><th>วันที่</th><th>ผู้ดำเนินการ</th><th>รายละเอียด</th><th class="data-action-column data-action-column--header">ดำเนินการ</th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <article class="print-only t29-reports-print" id="reports-document">
+        <section class="executive-report-print-page">
+          <header><h1>รายงานผู้บริหาร</h1><span>ตุลาคม 2569</span></header>
+          <div class="executive-report-print-kpis"><div><span>พนักงาน</span><strong>100 คน</strong></div></div>
+          <section class="executive-report-print-section"><h2>กำลังพล</h2><p>เนื้อหารายงานผู้บริหาร</p></section>
+        </section>
+        <article class="attendance-report-page">
+          <header class="attendance-report-print-header"><h1>รายงานลงเวลา</h1></header>
+          <table class="attendance-report-table"><thead><tr><th>ลำดับ</th><th>พนักงาน</th><th>หน่วยงาน</th><th>สถานะ</th><th>เข้า</th><th>ออก</th><th>สาย</th><th>ขาด</th><th>ชั่วโมง</th><th>หมายเหตุ</th></tr></thead><tbody></tbody></table>
+          <div class="attendance-report-footer"><span>ลงเวลาทดสอบ</span></div>
+        </article>
+      </article>
+    </main>
+    <script type="module" src="./fixture.ts"></script>
+  </body>
+</html>

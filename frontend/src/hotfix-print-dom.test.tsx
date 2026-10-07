@@ -7,7 +7,7 @@ import path from 'node:path';
 const stylesCss = fs.readFileSync(path.join(__dirname, 'styles.css'), 'utf-8');
 const mainTsx = fs.readFileSync(path.join(__dirname, 'main.tsx'), 'utf-8');
 
-describe('Bug 2 — Leave Request Printing DOM & CSS Rules', () => {
+describe('Leave Request Printing DOM & CSS Rules', () => {
   test('main.tsx renders "ทราบ /" and "ลงชื่อ" in a single signature line in the correct order', () => {
     // Assert DOM markup structure for signature line in LeavePrintDocument
     expect(mainTsx).toContain('className="leave-print-signature-line"');
@@ -26,17 +26,21 @@ describe('Bug 2 — Leave Request Printing DOM & CSS Rules', () => {
     expect(dotsIndex).toBeGreaterThan(labelIndex);
   });
 
-  test('styles.css contains signature line non-wrapping rules and hides app-shell during leave print', () => {
-    expect(stylesCss).toContain('body.printing-leave .app-shell { display: none !important; }');
+  test('leave printing uses an isolated document instead of hiding the application shell', () => {
+    expect(mainTsx).toContain("printDocument('.leave-print-document', 'ใบขออนุมัติลางาน.pdf'");
+    expect(mainTsx).not.toContain('window.print()');
+    expect(mainTsx).not.toContain('printing-leave');
+    expect(stylesCss).not.toContain('body.printing-leave .app-shell');
     expect(stylesCss).toContain('.leave-print-signature-line { display: flex;');
     expect(stylesCss).toContain('white-space: nowrap;');
+    expect(mainTsx).toContain('leaveTypeDisplayText(row)');
   });
 });
 
 describe('Bug 3 — Approved Schedule PDF Export DOM & CSS Rules', () => {
-  test('styles.css hides screen-only shell during schedule print and prevents leading page breaks', () => {
-    expect(stylesCss).toContain('.app-shell, .sidebar, .topbar, .main-area, .content-area, .view-pane');
-    expect(stylesCss).toContain('display: none !important;');
+  test('schedule printing copies only the print document and prevents leading page breaks', () => {
+    expect(mainTsx).toContain("import { printDocument, printScheduleDocument, printTableReport } from './schedule-print';");
+    expect(stylesCss).toContain('.print-only { display: none !important; }');
     expect(stylesCss).toContain('break-before: auto !important;');
     expect(stylesCss).toContain('page-break-before: auto !important;');
   });

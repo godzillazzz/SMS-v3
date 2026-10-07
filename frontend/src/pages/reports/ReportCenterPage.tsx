@@ -89,7 +89,7 @@ export function ReportCenterPage({ token, role, onNavigate, initialTab = 'execut
 
   const exportPdf = () => {
     if (!executiveReport) return;
-    printDocument('.executive-report-print', pdfFilename);
+    void printDocument('.executive-report-print', pdfFilename, { orientation: 'landscape', margin: '12mm' });
   };
 
   return <section className="report-center-page view-pane nexus-report-intelligence" aria-label="Operational Intelligence & Reports">

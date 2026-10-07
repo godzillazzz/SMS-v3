@@ -145,7 +145,7 @@ export function AttendanceOfficialReportPanel({ token, month, enabled }: { token
 
   const exportPdf = async () => {
     if (!report) return;
-    await printDocument('.attendance-official-report-print', `SMS-Attendance-${report.period}-R${report.revision}.pdf`);
+    await printDocument('.attendance-official-report-print', `SMS-Attendance-${report.period}-R${report.revision}.pdf`, { orientation: 'landscape', margin: '0' });
   };
 
   return <>

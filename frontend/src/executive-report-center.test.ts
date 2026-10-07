@@ -46,8 +46,8 @@ describe('Executive Report presentation and export contract', () => {
     expect(page).toContain('className="executive-report-print-page"');
     expect(styles).toContain('break-before:auto');
     expect(styles).toContain('page-break-before:auto');
-    expect(print).toContain('export async function printDocument(selector: string, title: string');
-    expect(page).toContain("printDocument('.executive-report-print', filename)");
+    expect(print).toContain('export async function printDocument(');
+    expect(page).toContain("printDocument('.executive-report-print', filename, { orientation: 'landscape', margin: '12mm' })");
     expect(printSegment).not.toContain('<button');
   });
 });

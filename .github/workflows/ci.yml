@@ -68,6 +68,20 @@ jobs:
       - name: Verify Linux sharp install excludes musl and loads pinned runtime
         run: node scripts/ci/verify-linux-artifact.js node_modules --require-sharp-load
       - run: npm --prefix frontend ci
+      - name: Install the existing Playwright Chromium browser for local print fixtures
+        run: npx playwright install --with-deps chromium
+      - name: Run T29 isolated print and A4 browser regressions
+        run: npx playwright test --config frontend/playwright.print.config.ts
+      - name: Upload T29 print screenshots and HTML report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: t29-print-browser-artifacts
+          path: |
+            frontend/test-results/**/*.png
+            frontend/test-results/**/*.pdf
+            frontend/playwright-report/print/
+          if-no-files-found: ignore
       - name: Audit backend dependencies
         run: npm audit --audit-level=high
       - name: Audit frontend dependencies
@@ -124,3 +138,12 @@ jobs:
           fi
           git diff --check
           test -z "$(git status --porcelain)"
+      - name: Verify integration PR Preview health, readiness, and CORS
+        if: github.event_name == 'pull_request' && github.base_ref == 'fix/serverless-database-reliability'
+        shell: bash
+        env:
+          VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+        run: |
+          set -euo pipefail
+          branch="${GITHUB_HEAD_REF//\//-}"
+          PREVIEW_BASE_URL="https://sms-v3-staging-git-${branch}-godzillazz.vercel.app" node scripts/ci/verify-preview-runtime.js
