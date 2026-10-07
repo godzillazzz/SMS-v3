@@ -9,7 +9,7 @@ export function QuickActionsCard({ canManage, onNavigate }: QuickActionsCardProp
     { icon: 'employees', title: 'ข้อมูลพนักงาน', detail: 'ค้นหาและตรวจสอบข้อมูลบุคลากร', page: 'employees' },
     { icon: 'calendar', title: 'ตารางกะรายเดือน', detail: 'ดูและจัดการตารางกะตามสิทธิ์', page: 'schedule' },
     ...(canManage ? [
-      { icon: 'approval' as SmsIconName, title: 'รออนุมัติ', detail: 'ตรวจสอบคำขอลาที่รอการพิจารณา', page: 'leavePending' as DashboardPage },
+      { icon: 'approval' as SmsIconName, title: 'ศูนย์อนุมัติ', detail: 'ตรวจสอบคำขอที่รอการพิจารณาตามสิทธิ์', page: 'approvalCenter' as DashboardPage },
       { icon: 'license' as SmsIconName, title: 'ใบอนุญาต รปภ.', detail: 'ติดตามสถานะและเอกสารใบอนุญาต', page: 'licenses' as DashboardPage }
     ] : [])
   ];

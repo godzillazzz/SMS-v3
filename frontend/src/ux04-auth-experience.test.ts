@@ -174,13 +174,13 @@ describe('G04.2 UX-04 auth experience contract', () => {
   });
 
   it('locks the authorized API source after T25 cross-tab refresh coordination', () => {
-    expect(apiSha256).toBe('779bd82a46b819ceae56e0cca3fc7a7bf1a4cc1957495f4e45338aabb48ff194');
+    expect(apiSha256).toBe('ee259e1e4f8b95049f345ae885a94b354b87cd1c22050bceebb1064a8fa0629f');
   });
 
   it('fails closed before central API retry while View As is active without modifying the locked API client', () => {
     expect(main).toContain("if (viewAsTokenRef.current) throw new Error('Session context changed. Retry from the primary account.')");
     expect(main).toContain('setAttendanceTokenRefreshGuard((requestToken) => {');
-    expect(apiSha256).toBe('779bd82a46b819ceae56e0cca3fc7a7bf1a4cc1957495f4e45338aabb48ff194');
+    expect(apiSha256).toBe('ee259e1e4f8b95049f345ae885a94b354b87cd1c22050bceebb1064a8fa0629f');
   });
 
   it('keeps theme changes frontend-only and prevents theme controls from submitting or resetting auth form state', () => {

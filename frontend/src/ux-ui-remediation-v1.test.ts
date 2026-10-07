@@ -28,13 +28,14 @@ describe('UXUI-REM-01 audited remediation contracts', () => {
     expect(main).toContain('id="auth-login-form"');
   });
 
-  it('exposes Approval Center selection semantics and dedicated mobile queue/audit tabs', () => {
+  it('exposes Approval Center selection semantics without mixing audit events into the approval queue', () => {
     expect(approval).toContain('aria-pressed={filter ===');
     expect(approval).toContain('aria-pressed={selected?.id === item.id}');
-    expect(approval).toContain("setMobileTab('QUEUE')");
-    expect(approval).toContain("setMobileTab('AUDIT')");
-    expect(approval).toContain('คำขอรออนุมัติ ({visible.length})');
-    expect(approval).toContain('บันทึกเหตุการณ์สด (Live Log)');
+    expect(approval).toContain('summary.total');
+    expect(approval).toContain('summary.byType?.[id]');
+    expect(approval).not.toContain('api.auditEvents');
+    expect(approval).not.toContain('บันทึกเหตุการณ์สด');
+    expect(approval).toContain('ศูนย์อนุมัติ');
     expect(approval).toContain('overflow-x-hidden');
     expect(approvalCss).toContain('.nexus-approval-center{background:#020813!important');
   });

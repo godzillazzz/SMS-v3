@@ -172,7 +172,6 @@ const navigation: Array<{ label: string; items: Array<{ id: Page; icon: SmsIconN
   ] },
   { label: 'การลา', items: [
     { id: 'leave', icon: 'leave', label: 'คำขอลา' },
-    { id: 'leavePending', icon: 'approval', label: 'รออนุมัติ' },
     { id: 'leaveHistory', icon: 'history', label: 'ประวัติการลาทั้งหมด' },
     { id: 'quota', icon: 'quota', label: 'โควต้าวันลา' }
   ] },
@@ -1792,8 +1791,8 @@ function Dashboard() {
     }
   }, [activePage]);
   const [operationRefresh, setOperationRefresh] = useState(0);
-  const [pendingLeaveCount, setPendingLeaveCount] = useState(0);
   const [pendingApprovalCount, setPendingApprovalCount] = useState<number | null>(null);
+  const [registrationReviewInitialRequestId, setRegistrationReviewInitialRequestId] = useState<string>();
   const [approvalCenterRefresh, setApprovalCenterRefresh] = useState(0);
   const [employeeRefresh, setEmployeeRefresh] = useState(0);
   const [shiftTypes, setShiftTypes] = useState<DataRow[]>([]);
@@ -2014,11 +2013,6 @@ function Dashboard() {
       .finally(() => { if (active) setLeaveTypesLoading(false); });
     return () => { active = false; };
   }, [activePage, auth.token, auth.user?.role, operationRefresh]);
-
-  useEffect(() => {
-    if (pwaShell || !auth.token || !['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(auth.user?.role || '')) { setPendingLeaveCount(0); return; }
-    api.leavePendingCount(auth.token).then((result) => setPendingLeaveCount(Number(result?.data?.count || 0))).catch(() => setPendingLeaveCount(0));
-  }, [auth.token, auth.user?.role, operationRefresh, pwaShell]);
 
   useEffect(() => {
     setPendingApprovalCount(null);
@@ -2694,7 +2688,7 @@ function Dashboard() {
                   </div>
                 )}
 
-                {Number(dashboardSummary.pendingLeaves || 0) > 0 && (
+        {Number(dashboardSummary.pendingLeaves || 0) > 0 && (
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px', background: '#eff6ff', border: '1px solid #93c5fd', borderRadius: '12px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                       <span style={{ fontSize: '20px' }}>⏳</span>
@@ -2703,7 +2697,7 @@ function Dashboard() {
                         <p style={{ margin: 0, fontSize: '12px', color: '#1d4ed8' }}>อนุมัติหรือปฏิเสธคำขอลาเข้าสู่ตารางกะ</p>
                       </div>
                     </div>
-                    <button className="btn-info compact action-nowrap" onClick={() => setActivePage('leavePending')}>ตรวจอนุมัติ</button>
+                    <button className="btn-info compact action-nowrap" onClick={() => setActivePage(canManage ? 'approvalCenter' : 'leave')}>{canManage ? 'เปิดศูนย์อนุมัติ' : 'ดูคำขอลา'}</button>
                   </div>
                 )}
 
@@ -2750,7 +2744,7 @@ function Dashboard() {
         </section>
       );
     }
-    if (activePage === 'approvalCenter' && auth.token && ['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(auth.user?.role || '') && !auth.isViewingAs) return <ApprovalCenterPage token={auth.token} role={auth.user?.role || 'VIEWER'} currentEmployeeId={String(leaveSummary.employeeId || '')} refreshKey={approvalCenterRefresh} onChanged={() => { setApprovalCenterRefresh((value) => value + 1); setEmployeeRefresh((value) => value + 1); setOperationRefresh((value) => value + 1); }} onOpenEmployeeChange={(requestId) => { setEmployeeChangeReviewInitialId(requestId); setEmployeeChangeReviewOpen(true); }} onNavigate={(item) => { setActivePage(item.sourcePage); }} onOpenAudit={() => setActivePage('audit')} onLeaveDecision={(item, action) => openLeaveDecision({ id: item.requestId, employeeId: item.employee?.id, employeeNameSnapshot: item.employee?.displayName || item.title, departmentSnapshot: item.employee?.department || item.metadata?.department, leaveTypeNameSnapshot: item.metadata?.leaveType, startDate: item.metadata?.startDate, endDate: item.metadata?.endDate, dayCount: item.metadata?.dayCount, reason: item.metadata?.reason, substitute: item.metadata?.substitute, status: item.status }, action)} />;
+    if (activePage === 'approvalCenter' && auth.token && ['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(auth.user?.role || '') && !auth.isViewingAs) return <ApprovalCenterPage token={auth.token} role={auth.user?.role || 'VIEWER'} currentEmployeeId={String(leaveSummary.employeeId || '')} refreshKey={approvalCenterRefresh} onChanged={() => { setApprovalCenterRefresh((value) => value + 1); setEmployeeRefresh((value) => value + 1); setOperationRefresh((value) => value + 1); }} onOpenEmployeeChange={(requestId) => { setEmployeeChangeReviewInitialId(requestId); setEmployeeChangeReviewOpen(true); }} onNavigate={(item) => { if (item.type === 'REGISTRATION_REQUEST') setRegistrationReviewInitialRequestId(item.requestId); setActivePage(item.sourcePage); }} onLeaveDecision={(item, action) => openLeaveDecision({ id: item.requestId, employeeId: item.employee?.id, employeeNameSnapshot: item.employee?.displayName || item.title, departmentSnapshot: item.employee?.department || item.metadata?.department, leaveTypeNameSnapshot: item.metadata?.leaveType, startDate: item.metadata?.startDate, endDate: item.metadata?.endDate, dayCount: item.metadata?.dayCount, reason: item.metadata?.reason, substitute: item.metadata?.substitute, status: item.status }, action)} />;
     if (activePage === 'employees') return <PersonnelDirectoryPage token={auth.token} refreshKey={employeeRefresh} canManage={canManage} role={auth.user?.role || 'VIEWER'} searchValue={search} onSearchValueChange={setSearch} onAdd={() => openEmployeeEditor()} onReviewChanges={() => { if (auth.user?.role === 'ADMIN' && !auth.isViewingAs) { setEmployeeChangeReviewInitialId(undefined); setEmployeeChangeReviewOpen(true); } }} onEdit={openEmployeeEditor} />;
     if (activePage === 'audit') {
       const auditRows = Array.isArray(operationResponse.data) ? operationResponse.data : [];
@@ -3168,7 +3162,7 @@ function Dashboard() {
             return (response as { data: G06UatProvisionResult }).data;
           }}
         />
-        <RegistrationReviewPanel token={auth.token!} role={auth.user?.role || 'VIEWER'} refreshSignal={operationRefresh} onChanged={() => setOperationRefresh((value) => value + 1)} onOpenEmployeeMaster={() => setActivePage('employees')} />
+        <RegistrationReviewPanel token={auth.token!} role={auth.user?.role || 'VIEWER'} refreshSignal={operationRefresh} initialRequestId={registrationReviewInitialRequestId} onInitialRequestHandled={() => setRegistrationReviewInitialRequestId(undefined)} onChanged={() => setOperationRefresh((value) => value + 1)} onOpenEmployeeMaster={() => setActivePage('employees')} />
       </div>;
     }
     if (activePage === 'securitySite' && auth.token) {
@@ -3238,7 +3232,7 @@ function Dashboard() {
           <button type="button" className="sidebar-close-button" aria-label="ปิดเมนูหลัก" onClick={() => setMobileMenuOpen(false)}><SmsIcon name="close" size={20} /></button>
         </div>
         <nav className="nav-menu" aria-label="เมนูหลัก">{visibleNavigation.map((section) => (
-          <div className="nav-section" key={section.label}><p>{section.label}</p>{section.items.map((item) => <button type="button" key={item.id} className={`nav-item ${navigationPage === item.id ? 'active' : ''}`} onClick={() => { setActivePage(item.id); setMobileMenuOpen(false); }}><span className="nav-icon"><SmsIcon name={item.icon} size={19} /></span><span>{item.label}{item.id === 'leavePending' && pendingLeaveCount > 0 && <b className="nav-count-badge">{pendingLeaveCount}</b>}{item.id === 'approvalCenter' && approvalBadgeText(pendingApprovalCount) && <b className="nav-count-badge">{approvalBadgeText(pendingApprovalCount)}</b>}</span></button>)}</div>
+          <div className="nav-section" key={section.label}><p>{section.label}</p>{section.items.map((item) => <button type="button" key={item.id} className={`nav-item ${navigationPage === item.id ? 'active' : ''}`} onClick={() => { setActivePage(item.id); setMobileMenuOpen(false); }}><span className="nav-icon"><SmsIcon name={item.icon} size={19} /></span><span>{item.label}{item.id === 'approvalCenter' && approvalBadgeText(pendingApprovalCount) && <b className="nav-count-badge">{approvalBadgeText(pendingApprovalCount)}</b>}</span></button>)}</div>
         ))}</nav>
         <div className="sidebar-footer">
           <div className="sidebar-user sidebar-profile"><span className="avatar">{initials}</span><span><b>{auth.user?.displayName || 'ผู้ใช้งาน'}</b><small>{roleDisplayName(auth.user?.role || 'VIEWER')}</small></span></div>

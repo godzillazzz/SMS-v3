@@ -55,9 +55,11 @@ describe('Attendance UX V4 visual acceptance contract', () => {
     expect(page).not.toContain('คลินิกฟัน รักษ์ยิ้ม');
   });
 
-  it('keeps desktop pending-leave polling out of the PWA Attendance shell to avoid a parallel central refresh race', () => {
-    expect(main).toContain("if (pwaShell || !auth.token || !['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(auth.user?.role || ''))");
-    expect(main).toContain('[auth.token, auth.user?.role, operationRefresh, pwaShell]');
+  it('uses the unified Approval Center count instead of a parallel pending-leave poll', () => {
+    expect(main).toContain('getApprovalCenterSummary(auth.token!)');
+    expect(main).toContain('window.setInterval(refreshApprovalCount, 60000)');
+    expect(main).not.toContain('pendingLeaveCount');
+    expect(main).not.toContain('api.leavePendingCount(auth.token)');
   });
 
   it('fails closed on Attendance token refresh for View As or stale principals', () => {

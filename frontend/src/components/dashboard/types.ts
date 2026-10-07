@@ -1,4 +1,4 @@
-export type DashboardPage = 'employees' | 'licenses' | 'schedule' | 'leave' | 'leavePending' | 'leaveHistory' | 'quota' | 'users' | 'rules';
+export type DashboardPage = 'employees' | 'licenses' | 'schedule' | 'leave' | 'leavePending' | 'leaveHistory' | 'quota' | 'users' | 'rules' | 'approvalCenter';
 
 export type DashboardFilters = { date: string; month: string; department: string };
 

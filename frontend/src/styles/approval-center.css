@@ -124,7 +124,7 @@
 .nexus-reject-modal button{-webkit-tap-highlight-color:transparent}
 .nexus-approval-center button,.nexus-approval-center textarea{font-family:'Kanit',sans-serif}
 .nexus-approval-center button{-webkit-tap-highlight-color:transparent}
-.nexus-approval-select,.nexus-approval-select:hover,.nexus-approval-select:active,.nexus-approval-select:focus,.nexus-approval-select:focus-visible{background:transparent!important;background-color:transparent!important;color:inherit!important;-webkit-appearance:none;appearance:none}
+.nexus-approval-select,.nexus-approval-select:hover,.nexus-approval-select:active,.nexus-approval-select:focus,.nexus-approval-select:focus-visible{border:0!important;background:transparent!important;background-color:transparent!important;color:inherit!important;-webkit-appearance:none;appearance:none}
 .nexus-approval-select[aria-pressed="true"]{background:transparent!important;background-color:transparent!important}
 .nexus-approval-select::before,.nexus-approval-select::after{background:transparent!important}
 .nexus-approval-center code,.nexus-approval-center time{font-family:'JetBrains Mono',monospace}
