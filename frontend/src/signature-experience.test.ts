@@ -59,7 +59,7 @@ describe('SMS Signature Experience V1 regression contract', () => {
 
   it('prioritizes the verified priority stream before passive workforce analysis', () => {
     expect(dashboard).toContain('nexus-stream');
-    expect(dashboard).toContain('Attention Required');
+    expect(dashboard).toContain('รายการที่ต้องดำเนินการ');
     expect(dashboard).not.toContain('NO SIMULATED COORDINATES');
     expect(dashboard.indexOf('nexus-stream')).toBeLessThan(dashboard.indexOf('nexus-lower-grid'));
   });

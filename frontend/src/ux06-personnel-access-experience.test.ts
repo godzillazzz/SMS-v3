@@ -57,7 +57,7 @@ describe('G04.2 UX-06 Personnel + Access experience contract', () => {
     expect(governedEditor).toContain('3. การเปลี่ยนแปลง');
   });
 
-  it('keeps Personnel drawer selection and focus restoration while presenting only real Employee Master fields', () => {
+  it('keeps Personnel drawer selection and focus restoration while presenting only real ทะเบียนพนักงาน fields', () => {
     expect(personnelPage).toContain('data-personnel-id');
     expect(personnelPage).toContain('requestAnimationFrame(() => {');
     expect(personnelPage).toContain('.personnel-name-button');
@@ -87,7 +87,7 @@ describe('G04.2 UX-06 Personnel + Access experience contract', () => {
     expect(governedEditor).toContain('acknowledgeWarnings');
     expect(governedEditor).toContain("effectiveMode === 'FUTURE_EFFECTIVE'");
     expect(governedEditor).toContain('api.submitEmployeeChangeRequest');
-    expect(governedEditor).toContain('ส่งคำขอแก้ไขให้ Admin ตรวจสอบแล้ว');
+    expect(governedEditor).toContain('ส่งคำขอแก้ไขให้ผู้ดูแลระบบตรวจสอบแล้ว');
   });
 
   it('keeps accessible Personnel editor and drawer overlay behavior without changing business callbacks', () => {
@@ -213,7 +213,7 @@ describe('G04.2 UX-06 Personnel + Access experience contract', () => {
     expect(reviewPanel).toContain('เลือกพนักงาน');
     expect(reviewPanel).toContain('เปรียบเทียบก่อนจับคู่');
     expect(reviewPanel).toContain('api.matchRegistrationRequest(token, selected.id, employeeId)');
-    expect(reviewPanel).toContain('อนุมัติเป็น VIEWER');
+    expect(reviewPanel).toContain('อนุมัติเป็นผู้ใช้งาน');
     expect(reviewPanel).toContain('role="dialog"');
     expect(reviewPanel).not.toContain('window.prompt');
     expect(reviewPanel).not.toContain('window.confirm');

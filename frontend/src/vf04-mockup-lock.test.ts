@@ -84,7 +84,7 @@ describe('G04.2 VF-04 mockup lock visual contract', () => {
     expect(css).toMatch(/\[data-theme="dark"\] \.registration-review__request\.is-selected \{[\s\S]*?var\(--color-primary\) 27%/);
     expect(review).toContain('api.matchRegistrationRequest(token, selected.id, employeeId)');
     expect(review).toContain('api.approveRegistrationRequest(token, selected.id)');
-    expect(review).toContain('อนุมัติเป็น VIEWER');
+    expect(review).toContain('อนุมัติเป็นผู้ใช้งาน');
     expect(review).not.toContain('window.prompt');
     expect(review).not.toContain('window.confirm');
   });

@@ -91,7 +91,7 @@ describe('G04.2 UX-04 auth experience contract', () => {
     }
     expect(login).toContain('submittedName');
     expect(login).toContain('departmentHint');
-    expect(login).toContain('ข้อมูลนี้ไม่ใช่ข้อมูลยืนยันตัวบุคคลจาก Employee Master');
+    expect(login).toContain('ข้อมูลนี้ไม่ใช่ข้อมูลยืนยันตัวบุคคลจากทะเบียนพนักงาน');
   });
 
   it('does not add demo credentials or fake public security claims', () => {

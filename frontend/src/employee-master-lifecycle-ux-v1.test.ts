@@ -54,7 +54,7 @@ describe('Employee critical change actions V2', () => {
     expect(editor).toContain('ปัจจุบัน');
     expect(editor).toContain('หน่วยงานเดิม');
     expect(editor).toContain('ตำแหน่งเดิม');
-    expect(editor).toContain('ระบบจะคง Employee ID เดิม');
+    expect(editor).toContain('ระบบจะคงรหัสพนักงานเดิม');
     expect(editor).toContain('api.preflightEmployeeMasterEdit');
     expect(editor).toContain('api.updateEmployee');
     expect(editor).not.toContain('createEmployee(');
@@ -63,7 +63,7 @@ describe('Employee critical change actions V2', () => {
   it('department transfer calls out dependent schedule leave site authority and linked account impact review', () => {
     expect(editor).toContain('เวรในอนาคต');
     expect(editor).toContain('ใบลา');
-    expect(editor).toContain('Site/Department authority');
+    expect(editor).toContain('จุดปฏิบัติงาน หน่วยงาน');
     expect(editor).toContain('บัญชีผู้ใช้ที่เชื่อมโยง');
     expect(editor).toContain('preflight.impacts.futureShiftAssignments');
     expect(editor).toContain('preflight.impacts.pendingLeaveRequests');
@@ -75,7 +75,7 @@ describe('Employee critical change actions V2', () => {
     expect(editor).toContain('วันที่มีผล');
     expect(editor).toContain('const criticalReasonRequired = hasCriticalChanges');
     expect(editor).toContain('required={criticalReasonRequired}');
-    expect(editor).toContain('ต้องมีเหตุผลเพื่อบันทึก Audit');
+    expect(editor).toContain('ต้องมีเหตุผลเพื่อบันทึกประวัติการใช้งาน');
   });
 
   it('status change uses the same actions instead of a hidden status selector', () => {

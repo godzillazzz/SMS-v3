@@ -9,7 +9,7 @@ for (const role of ['MANAGER', 'VIEWER']) {
     test(`${role}: allowed dashboard is available and Audit Log stays denied`, async ({ page }) => {
       const monitor = startPageMonitor(page);
       const { accessToken } = await loginAs(page, role);
-      await expect(page.getByRole('heading', { name: 'Executive Operations Dashboard' })).toBeVisible();
+      await expect(page.getByRole('heading', { name: 'ภาพรวมระบบ' })).toBeVisible();
       await expect(page.getByRole('button', { name: /บันทึกการใช้งานระบบ/ })).toHaveCount(0);
       await expect(getAuditEventsStatus(page, accessToken)).resolves.toBe(403);
 

@@ -11,7 +11,7 @@ describe('G04 private registration UI contract', () => {
   const review = read('pages/access-management/RegistrationReviewPanel.tsx');
   const login = main.slice(main.indexOf('function Login() {'), main.indexOf('\nconst text = ', main.indexOf('function Login() {')));
 
-  it('public registration contains no Employee Master roster, search, autocomplete, employeeId, or role authority', () => {
+  it('public registration contains no ทะเบียนพนักงาน roster, search, autocomplete, employeeId, or role authority', () => {
     expect(login).not.toContain('registrationEmployees');
     expect(login).not.toContain('available-employees');
     expect(login).not.toContain('employeeId');
@@ -32,7 +32,7 @@ describe('G04 private registration UI contract', () => {
   it('review UI requires explicit Match and exposes a fixed VIEWER approval with no role picker', () => {
     expect(review).toContain('จับคู่พนักงาน');
     expect(review).toContain('api.matchRegistrationRequest');
-    expect(review).toContain('อนุมัติเป็น VIEWER');
+    expect(review).toContain('อนุมัติเป็นผู้ใช้งาน');
     expect(review).toContain('สิทธิ์เริ่มต้นหลังอนุมัติ');
     expect(review).toContain('<select id="registration-review-status"');
     expect(review).not.toContain('name="role"');
@@ -40,9 +40,9 @@ describe('G04 private registration UI contract', () => {
     expect(review).not.toContain('api.createEmployee');
   });
 
-  it('no-match guidance keeps Employee Master creation separate and ADMIN navigation-only', () => {
-    expect(review).toContain('ไม่พบพนักงานใน Employee Master');
-    expect(review).toContain('ไปที่ Employee Master');
+  it('no-match guidance keeps ทะเบียนพนักงาน creation separate and ADMIN navigation-only', () => {
+    expect(review).toContain('ไม่พบพนักงานในทะเบียนพนักงาน');
+    expect(review).toContain('ไปที่ทะเบียนพนักงาน');
     expect(review).toContain("role === 'ADMIN'");
     expect(review).toContain("setMatchState");
   });

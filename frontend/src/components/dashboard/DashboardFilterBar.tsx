@@ -11,7 +11,7 @@ type DashboardFilterBarProps = {
 
 export function DashboardFilterBar({ filters, departments, role, loading, onChange }: DashboardFilterBarProps) {
   const canChooseDepartment = role === 'ADMIN';
-  return <section className="dashboard-filter-bar" aria-label="ตัวกรอง Dashboard">
+  return <section className="dashboard-filter-bar" aria-label="ตัวกรองภาพรวม">
     <span className="dashboard-filter-bar__icon" aria-hidden="true"><SmsIcon name="calendar" size={17} /></span>
     <div className="dashboard-filter-bar__controls">
       <label><span>วันที่</span><input type="date" value={filters.date} onChange={(event) => onChange({ date: event.target.value, month: event.target.value.slice(0, 7) })} disabled={loading} /></label>

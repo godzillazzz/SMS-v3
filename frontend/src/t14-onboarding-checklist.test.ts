@@ -11,7 +11,7 @@ const app = read('main.tsx');
 
 describe('T14 onboarding checklist', () => {
   it('shows the requested employee domains from their existing server authorities', () => {
-    for (const label of ['บัญชีผู้ใช้เชื่อมโยง', 'ใบอนุญาต Active', 'โควตาวันลา', 'ตารางกะที่อนุมัติ', 'Security Site', 'อุปกรณ์ลงเวลาตามสัญญาระบบ']) {
+    for (const label of ['บัญชีผู้ใช้เชื่อมโยง', 'ใบอนุญาตที่ยังใช้งาน', 'โควตาวันลา', 'ตารางกะที่อนุมัติ', 'จุดรักษาความปลอดภัย', 'อุปกรณ์ลงเวลาตามสัญญาระบบ']) {
       expect(drawer).toContain(label);
     }
     expect(drawer).toContain('api.employeeOnboardingReadiness');

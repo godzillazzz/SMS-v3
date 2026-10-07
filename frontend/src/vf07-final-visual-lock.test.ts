@@ -107,7 +107,7 @@ describe('G04.2 VF-07 visual baseline with Owner brand correction', () => {
     expect(review).toContain('เปรียบเทียบก่อนจับคู่');
     expect(review).toContain('api.matchRegistrationRequest(token, selected.id, employeeId)');
     expect(review).toContain('api.approveRegistrationRequest(token, selected.id)');
-    expect(review).toContain('อนุมัติเป็น VIEWER');
+    expect(review).toContain('อนุมัติเป็นผู้ใช้งาน');
     expect(review).not.toContain('autoMatch');
   });
 

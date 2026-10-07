@@ -10,10 +10,10 @@ describe('EMP-UX governed Edit impact preview and conflict visibility',()=>{
     expect(editor).toContain('สถานะการเปลี่ยนแปลงที่ต้องเห็นก่อนแก้ไข');
     expect(editor).toContain('activeRequest || futureApprovedRequest');
     expect(editor).toContain('อนุมัติแล้ว · รอวันที่มีผล');
-    expect(editor).toContain('backend ยังคงเป็นผู้ตัดสิน conflict/concurrency');
+    expect(editor).toContain('ระบบส่วนกลางยังคงเป็นผู้ตรวจสอบความขัดแย้งและการแก้ไขพร้อมกัน');
   });
   it('groups authoritative preflight output into no impact review and follow-up presentation',()=>{
-    expect(editor).toContain('Impact Preview ก่อนบันทึก');
+    expect(editor).toContain('ตรวจสอบผลกระทบก่อนบันทึก');
     expect(editor).toContain('ไม่กระทบ');
     expect(editor).toContain('ต้องตรวจสอบ');
     expect(editor).toContain('ต้องติดตาม');
@@ -23,7 +23,7 @@ describe('EMP-UX governed Edit impact preview and conflict visibility',()=>{
   it('does not move warning acknowledgement or save authority into client grouping',()=>{
     expect(editor).toContain('preflight.warnings.length > 0 && <label className="employee-warning-confirm"');
     expect(editor).toContain('disabled={busy || !preflight || (preflight.warnings.length > 0 && !acknowledgeWarnings)}');
-    expect(editor).toContain('ไม่ได้สร้างกฎอนุมัติใหม่บน client');
+    expect(editor).toContain('โดยไม่เปลี่ยนกฎหรือสิทธิ์การอนุมัติ');
   });
   it('uses responsive semantic presentation for grouped impact',()=>{
     expect(css).toContain('.employee-impact-groups');

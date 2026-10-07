@@ -47,7 +47,7 @@ describe('Bug 3 — Approved Schedule PDF Export DOM & CSS Rules', () => {
 
   test('main.tsx includes approval revision, approvedBy, and heading in printable schedule DOM', () => {
     expect(mainTsx).toContain('Security Management System - ตารางกะที่อนุมัติแล้ว');
-    expect(mainTsx).toContain('Revision:');
+    expect(mainTsx).toContain('ฉบับแก้ไข:');
     expect(mainTsx).toContain('อนุมัติโดย:');
   });
 });

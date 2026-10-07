@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '../api';
 import { formatRequestErrorMessage } from '../request-error';
+import { roleDisplayName } from '../role-display';
 import {
   getApprovalPolicies,
   updateApprovalPolicy,
@@ -46,7 +47,7 @@ export function ApprovalAuthorityMatrixPanel({ token }: { token: string }) {
       setItems(policies);
       setDrafts(Object.fromEntries(policies.map((policy) => [policy.requestType, clonePolicy(policy)])));
     } catch (error) {
-      setNotice(formatRequestErrorMessage(error, 'อ่าน Approval Authority Matrix ไม่สำเร็จ'));
+      setNotice(formatRequestErrorMessage(error, 'อ่านตารางสิทธิ์อนุมัติไม่สำเร็จ'));
     } finally {
       setLoading(false);
     }
@@ -78,7 +79,7 @@ export function ApprovalAuthorityMatrixPanel({ token }: { token: string }) {
       setNotice(`บันทึกนโยบาย ${draft.label} สำเร็จแล้ว`);
       await load();
     } catch (error) {
-      setNotice(formatRequestErrorMessage(error, 'บันทึก Approval policy ไม่สำเร็จ'));
+      setNotice(formatRequestErrorMessage(error, 'บันทึกนโยบายอนุมัติไม่สำเร็จ'));
     } finally {
       setBusyType('');
     }
@@ -88,16 +89,16 @@ export function ApprovalAuthorityMatrixPanel({ token }: { token: string }) {
     <div className="line-settings-title">
       <span>✓</span>
       <div>
-        <h2>Approval Authority Matrix / SLA</h2>
-        <p>กำหนดผู้มีอำนาจตรวจคำขอและเกณฑ์ SLA รายประเภท ภายใต้ security ceiling ที่ระบบบังคับไว้</p>
+        <h2>ตารางผู้มีอำนาจอนุมัติและกรอบเวลา</h2>
+        <p>กำหนดผู้มีอำนาจตรวจคำขอและกรอบเวลารายประเภท ภายใต้เพดานสิทธิ์ที่ระบบกำหนด</p>
       </div>
     </div>
 
     <div id="approval-policy-governance-note" className="alert alert-info" role="note">
-      Admin authority, การห้ามอนุมัติตนเอง และ escalation ของใบลาเป็นข้อบังคับของระบบ · Configuration ทำได้เฉพาะภายในขอบเขตที่ปลอดภัยและไม่สามารถลด guard เหล่านี้ได้
+      อำนาจของ{roleDisplayName('ADMIN')} การห้ามอนุมัติตนเอง และการส่งต่อคำขอลาเป็นข้อบังคับของระบบ · ตั้งค่าได้เฉพาะภายในขอบเขตที่ปลอดภัยและไม่สามารถลดข้อบังคับเหล่านี้ได้
     </div>
 
-    {loading ? <div className="loading-row" role="status" aria-live="polite">กำลังอ่าน Approval policy…</div> : <>
+    {loading ? <div className="loading-row" role="status" aria-live="polite">กำลังอ่านนโยบายอนุมัติ…</div> : <>
       <div className="table-wrap approval-policy-desktop-table">
         <table className="data-table" aria-describedby="approval-policy-description">
           <caption id="approval-policy-description" className="visually-hidden">ตารางผู้มีอำนาจอนุมัติและเกณฑ์ SLA แยกตามประเภทคำขอ</caption>
@@ -112,7 +113,7 @@ export function ApprovalAuthorityMatrixPanel({ token }: { token: string }) {
               <td><strong>{policy.label}</strong><small className="cell-note">{policy.requestType}</small></td>
               <td>
                 <div className="approval-role-controls">
-                  <label><input type="checkbox" checked disabled /> Admin</label>
+                  <label><input type="checkbox" checked disabled /> {roleDisplayName('ADMIN')}</label>
                   <label>
                     <input
                       type="checkbox"
@@ -121,21 +122,21 @@ export function ApprovalAuthorityMatrixPanel({ token }: { token: string }) {
                       onChange={(event) => updateDraft(policy.requestType, {
                         reviewerRoles: event.target.checked ? [...draft.reviewerRoles.filter((role) => role !== 'MANAGER'), 'MANAGER'] : draft.reviewerRoles.filter((role) => role !== 'MANAGER')
                       })}
-                    /> Supervisor
+                    /> {roleDisplayName('MANAGER')}
                   </label>
-                  {policy.safeReviewerRoles.includes('SUPERVISOR') && <label><input type="checkbox" checked={draft.reviewerRoles.includes('SUPERVISOR')} disabled={busyType === policy.requestType} onChange={(event) => updateDraft(policy.requestType, { reviewerRoles: event.target.checked ? [...draft.reviewerRoles.filter((role) => role !== 'SUPERVISOR'), 'SUPERVISOR'] : draft.reviewerRoles.filter((role) => role !== 'SUPERVISOR') })} /> Manager</label>}
+                  {policy.safeReviewerRoles.includes('SUPERVISOR') && <label><input type="checkbox" checked={draft.reviewerRoles.includes('SUPERVISOR')} disabled={busyType === policy.requestType} onChange={(event) => updateDraft(policy.requestType, { reviewerRoles: event.target.checked ? [...draft.reviewerRoles.filter((role) => role !== 'SUPERVISOR'), 'SUPERVISOR'] : draft.reviewerRoles.filter((role) => role !== 'SUPERVISOR') })} /> {roleDisplayName('SUPERVISOR')}</label>}
                 </div>
-                {!managerAllowed && !policy.safeReviewerRoles.includes('SUPERVISOR') && <small className="cell-note">Admin-only ถูกล็อกโดยระบบ</small>}
+                {!managerAllowed && !policy.safeReviewerRoles.includes('SUPERVISOR') && <small className="cell-note">จำกัดสิทธิ์เฉพาะผู้ดูแลระบบตามข้อบังคับ</small>}
               </td>
               <td><label className="field-group compact-field"><span className="visually-hidden">ใกล้ SLA</span><input aria-label={`ชั่วโมงใกล้ SLA ${policy.label}`} type="number" min={1} max={168} value={draft.dueSoonHours} onChange={(event) => updateDraft(policy.requestType, { dueSoonHours: Number(event.target.value) })} /><small>ชั่วโมง</small></label></td>
               <td><label className="field-group compact-field"><span className="visually-hidden">เกิน SLA</span><input aria-label={`ชั่วโมงเกิน SLA ${policy.label}`} type="number" min={2} max={720} value={draft.overdueHours} onChange={(event) => updateDraft(policy.requestType, { overdueHours: Number(event.target.value) })} /><small>ชั่วโมง</small></label></td>
               <td><small>{policy.protectedInvariants.join(' · ')}</small></td>
               <td><div className="approval-policy-save-cell">{changed && <small className="approval-policy-dirty">มีการแก้ไข</small>}<button className="btn-primary compact" disabled={busyType === policy.requestType || draft.overdueHours <= draft.dueSoonHours} onClick={() => void save(policy.requestType)}>{busyType === policy.requestType ? 'กำลังบันทึก…' : 'บันทึก'}</button></div></td>
             </tr>;
-          }) : <tr><td colSpan={6}><div className="data-state data-state--empty" role="status" aria-live="polite"><strong>ไม่พบ Approval policy ที่กำหนดไว้</strong><span>ระบบยังไม่สามารถแสดงรายการ policy สำหรับบัญชีนี้ได้</span></div></td></tr>}</tbody>
+          }) : <tr><td colSpan={6}><div className="data-state data-state--empty" role="status" aria-live="polite"><strong>ไม่พบนโยบายการอนุมัติที่กำหนดไว้</strong><span>ระบบยังไม่สามารถแสดงรายการนโยบายสำหรับบัญชีนี้ได้</span></div></td></tr>}</tbody>
         </table>
       </div>
-      <div className="approval-policy-mobile-list" aria-label="Approval policy แบบรายการ">
+      <div className="approval-policy-mobile-list" aria-label="รายการนโยบายการอนุมัติ">
         {items.length ? items.map((policy) => {
           const draft = drafts[policy.requestType] || policy;
           const managerAllowed = policy.safeReviewerRoles.includes('MANAGER');
@@ -151,11 +152,11 @@ export function ApprovalAuthorityMatrixPanel({ token }: { token: string }) {
             <section className="approval-policy-mobile-card__section" aria-labelledby={`${key}-reviewer-heading`}>
               <h4 id={`${key}-reviewer-heading`}>ผู้มีอำนาจอนุมัติ</h4>
               <div className="approval-role-controls">
-                <label><input type="checkbox" checked disabled /> Admin <small>จำเป็น</small></label>
-                <label><input type="checkbox" checked={draft.reviewerRoles.includes('MANAGER')} disabled={!managerAllowed || busyType === policy.requestType} onChange={(event) => updateDraft(policy.requestType, { reviewerRoles: event.target.checked ? [...draft.reviewerRoles.filter((role) => role !== 'MANAGER'), 'MANAGER'] : draft.reviewerRoles.filter((role) => role !== 'MANAGER') })} /> Supervisor</label>
-                {policy.safeReviewerRoles.includes('SUPERVISOR') && <label><input type="checkbox" checked={draft.reviewerRoles.includes('SUPERVISOR')} disabled={busyType === policy.requestType} onChange={(event) => updateDraft(policy.requestType, { reviewerRoles: event.target.checked ? [...draft.reviewerRoles.filter((role) => role !== 'SUPERVISOR'), 'SUPERVISOR'] : draft.reviewerRoles.filter((role) => role !== 'SUPERVISOR') })} /> Manager</label>}
+                <label><input type="checkbox" checked disabled /> {roleDisplayName('ADMIN')} <small>จำเป็น</small></label>
+                <label><input type="checkbox" checked={draft.reviewerRoles.includes('MANAGER')} disabled={!managerAllowed || busyType === policy.requestType} onChange={(event) => updateDraft(policy.requestType, { reviewerRoles: event.target.checked ? [...draft.reviewerRoles.filter((role) => role !== 'MANAGER'), 'MANAGER'] : draft.reviewerRoles.filter((role) => role !== 'MANAGER') })} /> {roleDisplayName('MANAGER')}</label>
+                {policy.safeReviewerRoles.includes('SUPERVISOR') && <label><input type="checkbox" checked={draft.reviewerRoles.includes('SUPERVISOR')} disabled={busyType === policy.requestType} onChange={(event) => updateDraft(policy.requestType, { reviewerRoles: event.target.checked ? [...draft.reviewerRoles.filter((role) => role !== 'SUPERVISOR'), 'SUPERVISOR'] : draft.reviewerRoles.filter((role) => role !== 'SUPERVISOR') })} /> {roleDisplayName('SUPERVISOR')}</label>}
               </div>
-              {!managerAllowed && !policy.safeReviewerRoles.includes('SUPERVISOR') && <p className="approval-policy-lock-note">Admin-only ถูกล็อกโดย security ceiling</p>}
+              {!managerAllowed && !policy.safeReviewerRoles.includes('SUPERVISOR') && <p className="approval-policy-lock-note">จำกัดสิทธิ์เฉพาะผู้ดูแลระบบตามเพดานสิทธิ์ที่ระบบกำหนด</p>}
             </section>
             <section className="approval-policy-mobile-card__section" aria-labelledby={`${key}-sla-heading`}>
               <h4 id={`${key}-sla-heading`}>เกณฑ์ SLA</h4>
@@ -171,10 +172,10 @@ export function ApprovalAuthorityMatrixPanel({ token }: { token: string }) {
             </section>
             <footer className="approval-policy-mobile-card__footer">
               <span>{changed ? 'ตรวจสอบค่าที่แก้ไขก่อนบันทึก' : 'ค่าปัจจุบันจากระบบ'}</span>
-              <button className="btn-primary" disabled={busyType === policy.requestType || draft.overdueHours <= draft.dueSoonHours} onClick={() => void save(policy.requestType)}>{busyType === policy.requestType ? 'กำลังบันทึก…' : 'บันทึก policy นี้'}</button>
+              <button className="btn-primary" disabled={busyType === policy.requestType || draft.overdueHours <= draft.dueSoonHours} onClick={() => void save(policy.requestType)}>{busyType === policy.requestType ? 'กำลังบันทึก…' : 'บันทึกนโยบายนี้'}</button>
             </footer>
           </article>;
-        }) : <div className="data-state data-state--empty" role="status" aria-live="polite"><strong>ไม่พบ Approval policy ที่กำหนดไว้</strong><span>ระบบยังไม่สามารถแสดงรายการ policy สำหรับบัญชีนี้ได้</span></div>}
+        }) : <div className="data-state data-state--empty" role="status" aria-live="polite"><strong>ไม่พบนโยบายการอนุมัติที่กำหนดไว้</strong><span>ระบบยังไม่สามารถแสดงรายการนโยบายสำหรับบัญชีนี้ได้</span></div>}
       </div>
     </>}
 
@@ -183,8 +184,8 @@ export function ApprovalAuthorityMatrixPanel({ token }: { token: string }) {
         const selected = drafts.LEAVE_REQUEST[field];
         const known = new Set(positionOptions.map((item) => item.name));
         const legacy = selected.filter((value) => !known.has(value));
-        const title = field === 'additionalSupervisorAliases' ? 'ตำแหน่ง Supervisor เพิ่มเติม' : 'ตำแหน่ง Manager เพิ่มเติม';
-        return <fieldset className="field-group" key={field}><legend>{title}</legend><div className="approval-position-master-options">{positionOptions.map((item) => <label key={item.id}><input type="checkbox" checked={selected.includes(item.name)} onChange={(event) => { const preservedLegacy = selected.filter((value) => !known.has(value)); const selectedKnown = selected.filter((value) => known.has(value) && value !== item.name); updateDraft('LEAVE_REQUEST', { [field]: [...preservedLegacy, ...selectedKnown, ...(event.target.checked ? [item.name] : [])] }); }} />{item.name}</label>)}</div>{legacy.length > 0 && <small>Legacy aliases ที่คงไว้เพื่อ compatibility: {legacy.join(', ')} · เพิ่มค่าใหม่ได้เฉพาะจาก Position Master</small>}<small>{field === 'additionalSupervisorAliases' ? 'Core Supervisor aliases ยังถูกป้องกันและมีผลเสมอ' : 'Core Manager aliases ยังถูกป้องกันและมีผลเสมอ'}</small></fieldset>;
+        const title = field === 'additionalSupervisorAliases' ? `ตำแหน่ง${roleDisplayName('MANAGER')}เพิ่มเติม` : `ตำแหน่ง${roleDisplayName('SUPERVISOR')}เพิ่มเติม`;
+        return <fieldset className="field-group" key={field}><legend>{title}</legend><div className="approval-position-master-options">{positionOptions.map((item) => <label key={item.id}><input type="checkbox" checked={selected.includes(item.name)} onChange={(event) => { const preservedLegacy = selected.filter((value) => !known.has(value)); const selectedKnown = selected.filter((value) => known.has(value) && value !== item.name); updateDraft('LEAVE_REQUEST', { [field]: [...preservedLegacy, ...selectedKnown, ...(event.target.checked ? [item.name] : [])] }); }} />{item.name}</label>)}</div>{legacy.length > 0 && <small>ตำแหน่งเดิมที่เก็บไว้: {legacy.join(', ')} · เพิ่มค่าใหม่ได้เฉพาะจากรายการตำแหน่ง</small>}<small>{field === 'additionalSupervisorAliases' ? 'ตำแหน่งหัวหน้างานหลักยังถูกป้องกันและมีผลเสมอ' : 'ตำแหน่งผู้จัดการหลักยังถูกป้องกันและมีผลเสมอ'}</small></fieldset>;
       })}
     </div>}
 

@@ -33,7 +33,7 @@ describe('admin audit log viewer contract', () => {
   });
 
   it('keeps details read-only, redacted, and usable on mobile', () => {
-    expect(table).toContain('Unknown / Deleted User');
+    expect(table).toContain('ไม่พบผู้ใช้งาน');
     expect(table).toContain('ดูรายละเอียด');
     expect(table).toContain('audit-mobile-cards');
     expect(table).toContain('audit-desktop-table');
@@ -42,14 +42,14 @@ describe('admin audit log viewer contract', () => {
     expect(preview).toContain('ซ่อนข้อมูลที่อ่อนไหว');
     expect(preview).toContain('safeMetadataEntries');
     expect(table).toContain('ไม่สามารถโหลดบันทึกการใช้งานระบบ');
-    expect(table).toContain('ไม่พบรายการ Audit Log ตามเงื่อนไขที่เลือก');
+    expect(table).toContain('ไม่พบรายการตามเงื่อนไขที่เลือก');
     expect(table).toContain('audit-skeleton-row');
     expect(table).not.toContain('data-label=');
   });
 
   it('uses a separate vertical card structure for small screens without changing desktop tables', () => {
     const mobileStyles = read('styles/audit-mobile.css');
-    expect(table).toContain('<table className="audit-table data-surface-table" aria-label="รายการ Audit Log"><thead><tr><th');
+    expect(table).toContain('<table className="audit-table data-surface-table" aria-label="รายการบันทึกการใช้งาน"><thead><tr><th');
     expect(table).toContain('</thead><tbody>');
     expect(table).toContain('<td>{formatAuditTime(row.createdAt)}</td>');
     expect(table).toContain('<article key={safe(row.id, `mobile-event-${index}`)}');

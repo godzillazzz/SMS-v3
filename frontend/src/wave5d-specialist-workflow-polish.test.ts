@@ -19,7 +19,7 @@ describe('WAVE 5D specialist workflow feedback semantics', () => {
 
   it('announces Approval Matrix empty state and exposes busy state on the specialist editor', () => {
     expect(approval).toContain('aria-busy={loading || Boolean(busyType)}');
-    expect(approval).toContain('role="status" aria-live="polite"><strong>ไม่พบ Approval policy');
+    expect(approval).toContain('role="status" aria-live="polite"><strong>ไม่พบนโยบายการอนุมัติ');
     expect(approval).toContain('updateApprovalPolicy(token, requestType, input)');
     expect(approval).toContain("reviewerRoles: draft.reviewerRoles");
   });

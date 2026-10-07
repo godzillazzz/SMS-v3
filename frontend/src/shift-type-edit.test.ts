@@ -14,7 +14,7 @@ describe('CFG-04 Shift Type governed edit controls', () => {
     expect(main).toContain("name: 'hours', label: 'ชั่วโมง'");
     expect(main).toContain("name: 'color', label: 'สี HEX'");
     expect(main).toContain("name: 'isActive', label: 'สถานะใช้งาน'");
-    expect(main).toContain("Shift Code เป็นรหัสอ้างอิงถาวรและแก้ไม่ได้หลังสร้าง");
+    expect(main).toContain("รหัสกะเป็นข้อมูลอ้างอิงถาวรและแก้ไม่ได้หลังสร้าง");
   });
 
   it('locks core active state while allowing governed custom activation changes', () => {
@@ -60,8 +60,8 @@ describe('CFG-04 Shift Type governed edit controls', () => {
   });
 
   it('explains that master edits do not rewrite existing schedule snapshots', () => {
-    expect(main).toContain('การแก้ชื่อ เวลา ชั่วโมง หรือสีจะมีผลกับการจัดกะใหม่เท่านั้น');
-    expect(main).toContain('ตารางเดิมยังเก็บเวลา/ชั่วโมง snapshot เดิม');
+    expect(main).toContain('การแก้ชื่อ เวลา ชั่วโมง หรือสีมีผลกับการจัดกะใหม่เท่านั้น');
+    expect(main).toContain('ตารางเดิมยังคงข้อมูลเวลาและชั่วโมงที่บันทึกไว้');
     expect(main).toContain('บริหารชื่อ เวลา ชั่วโมง สี และสถานะใช้งานของกะ โดยไม่เขียนทับ snapshot ตารางเดิม');
   });
 });

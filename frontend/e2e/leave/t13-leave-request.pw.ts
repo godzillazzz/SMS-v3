@@ -47,7 +47,7 @@ async function openLeaveForm(page: Page, role: 'MANAGER' | 'VIEWER', testInfo: T
   await page.locator('#email').fill(`${role.toLowerCase()}@example.test`);
   await page.locator('#password').fill('fixture-password');
   await page.locator('#auth-login-form button[type="submit"]').click();
-  await expect(page.getByRole('heading', { name: 'ระบบจัดการการลา (Leave Management)' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'คำขอลา', exact: true })).toBeVisible();
   await expect(page.locator('.leave-submit-card')).toBeVisible();
   await page.screenshot({ path: testInfo.outputPath(`t13-leave-${role.toLowerCase()}-form.png`), fullPage: true });
   return { requests, submitted, errors };

@@ -1,16 +1,11 @@
 export const ROLE_DISPLAY_LABEL: Record<string, string> = {
-  ADMIN: 'ADMIN',
-  MANAGER: 'Supervisor',
-  SUPERVISOR: 'Manager',
-  VIEWER: 'VIEWER'
-};
-
-export const ROLE_MANAGEMENT_LABEL: Record<string, string> = {
   ADMIN: 'ผู้ดูแลระบบ',
-  MANAGER: 'Supervisor',
-  SUPERVISOR: 'Manager',
+  MANAGER: 'หัวหน้างาน',
+  SUPERVISOR: 'ผู้จัดการ',
   VIEWER: 'ผู้ใช้งาน'
 };
+
+export const ROLE_MANAGEMENT_LABEL: Record<string, string> = ROLE_DISPLAY_LABEL;
 
 export function roleDisplayName(role?: unknown, fallback = 'ไม่ระบุบทบาท') {
   const value = String(role || '').trim();

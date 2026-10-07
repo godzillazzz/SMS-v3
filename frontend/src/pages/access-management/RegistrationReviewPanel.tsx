@@ -5,6 +5,7 @@ import { acquireDocumentScrollLock } from '../../document-scroll-lock';
 import { SmsIcon } from '../../components/SmsIcon';
 import { DataTablePagination } from '../../components/ResponsiveDataTable';
 import { formatThaiDate } from '../../thai-date-time';
+import { roleDisplayName } from '../../role-display';
 import '../../styles/registration-review.css';
 
 type RequestRow = {
@@ -132,7 +133,7 @@ export function RegistrationReviewPanel({ token, role, refreshSignal, initialReq
       const result = await api.registrationCandidates(token, selected.id, manual ? search.trim() : '');
       setCandidates(Array.isArray(result?.data) ? result.data : []);
       setMatchState(String(result?.meta?.employeeMatchState || ''));
-    } catch (reason) { setError(formatRequestErrorMessage(reason, 'ค้นหา Employee Master ไม่สำเร็จ')); }
+    } catch (reason) { setError(formatRequestErrorMessage(reason, 'ค้นหาทะเบียนพนักงาน ไม่สำเร็จ')); }
     finally { setCandidateLoading(false); }
   };
 
@@ -165,14 +166,14 @@ export function RegistrationReviewPanel({ token, role, refreshSignal, initialReq
   const match = async (employeeId: string) => {
     if (!selected) return;
     setBusy(true); setError(''); setMessage('');
-    try { await api.matchRegistrationRequest(token, selected.id, employeeId); setMessage('จับคู่ Employee Master แล้ว'); setSelectedCandidateId(''); await load(); onChanged(); }
+    try { await api.matchRegistrationRequest(token, selected.id, employeeId); setMessage('จับคู่ทะเบียนพนักงานแล้ว'); setSelectedCandidateId(''); await load(); onChanged(); }
     catch (reason) { setError(formatRequestErrorMessage(reason, 'จับคู่ไม่สำเร็จ')); }
     finally { setBusy(false); }
   };
   const approve = async () => {
     if (!selected) return;
     setBusy(true); setError(''); setMessage('');
-    try { await api.approveRegistrationRequest(token, selected.id); setMessage('อนุมัติบัญชีแล้ว — สิทธิ์เริ่มต้น VIEWER'); await load(); onChanged(); }
+    try { await api.approveRegistrationRequest(token, selected.id); setMessage('อนุมัติบัญชีแล้ว — สิทธิ์เริ่มต้นเป็นผู้ใช้งาน'); await load(); onChanged(); }
     catch (reason) { setError(formatRequestErrorMessage(reason, 'อนุมัติไม่สำเร็จ')); }
     finally { setBusy(false); }
   };
@@ -198,7 +199,7 @@ export function RegistrationReviewPanel({ token, role, refreshSignal, initialReq
 
   return <section className="registration-review" aria-label="คำขอลงทะเบียนแบบส่วนตัว">
     <header className="registration-review__header">
-      <div><h2>คำขอลงทะเบียน</h2><span>ตรวจสอบข้อมูลผู้สมัครและจับคู่กับ Employee Master ก่อนตัดสินใจอนุมัติบัญชี</span></div>
+      <div><h2>คำขอลงทะเบียน</h2><span>ตรวจสอบข้อมูลผู้สมัครและจับคู่กับทะเบียนพนักงานก่อนตัดสินใจอนุมัติบัญชี</span></div>
       <button type="button" className="btn-neutral registration-review__refresh" disabled={loading} onClick={() => void load()}><SmsIcon name="history" size={17} />รีเฟรช</button>
     </header>
     {error && <div className="registration-review__feedback registration-review__feedback--error" role="alert" aria-live="assertive"><SmsIcon name="shield" size={18} /><span>{error}</span></div>}
@@ -219,11 +220,11 @@ export function RegistrationReviewPanel({ token, role, refreshSignal, initialReq
       </aside>
 
       <div className="registration-review__detail">
-        {!selected ? <div className="registration-review__empty registration-review__empty--detail"><SmsIcon name="users" size={24} /><strong>เลือกคำขอเพื่อเริ่มตรวจสอบ</strong><span>เลือกรายการด้านซ้ายเพื่อดูข้อมูลที่ผู้สมัครแจ้งและค้นหา Employee Master</span></div> : <>
+        {!selected ? <div className="registration-review__empty registration-review__empty--detail"><SmsIcon name="users" size={24} /><strong>เลือกคำขอเพื่อเริ่มตรวจสอบ</strong><span>เลือกรายการด้านซ้ายเพื่อดูข้อมูลที่ผู้สมัครแจ้งและค้นหาทะเบียนพนักงาน</span></div> : <>
           <button type="button" className="registration-review__mobile-back" onClick={() => setMobileDetail(false)}>กลับไปรายการคำขอ</button>
           <section className="registration-review__summary" aria-labelledby="registration-review-summary-title">
             <div className="registration-review__summary-heading"><div><h3 id="registration-review-summary-title">ข้อมูลที่ผู้สมัครแจ้ง</h3></div><em className={`registration-review__status registration-review__status--${requestTone[selected.status] || 'neutral'}`}>{requestStatus[selected.status] || selected.status}</em></div>
-            <p className="registration-review__summary-help">ข้อมูลที่ผู้สมัครแจ้ง ใช้ประกอบการตรวจสอบเท่านั้น ไม่ใช่ข้อมูลยืนยันตัวบุคคลจาก Employee Master</p>
+            <p className="registration-review__summary-help">ข้อมูลที่ผู้สมัครแจ้ง ใช้ประกอบการตรวจสอบเท่านั้น ไม่ใช่ข้อมูลยืนยันตัวบุคคลจากทะเบียนพนักงาน</p>
             <dl className="registration-review__facts">
               <div><dt>ชื่อที่ผู้สมัครแจ้ง</dt><dd>{selected.submittedName}</dd></div>
               <div><dt>อีเมล</dt><dd>{selected.email}</dd></div>
@@ -234,9 +235,9 @@ export function RegistrationReviewPanel({ token, role, refreshSignal, initialReq
 
           <ReviewProgress status={selected.status} candidateSelected={Boolean(selectedCandidate)} />
 
-          {selected.matchedEmployee && <section className="registration-review__matched" aria-label="Employee Master ที่จับคู่แล้ว">
+          {selected.matchedEmployee && <section className="registration-review__matched" aria-label="ทะเบียนพนักงานที่จับคู่แล้ว">
             <div className="registration-review__matched-icon"><SmsIcon name="approval" size={20} /></div>
-            <div><span>จับคู่ Employee Master แล้ว</span><strong>{candidateName(selected.matchedEmployee)}</strong><p><b>{selected.matchedEmployee.employeeCode}</b><small>{selected.matchedEmployee.department || '-'} · {selected.matchedEmployee.jobTitle || '-'}</small></p><em>การจับคู่พนักงานยังไม่ใช่การอนุมัติบัญชี</em></div>
+            <div><span>จับคู่ทะเบียนพนักงานแล้ว</span><strong>{candidateName(selected.matchedEmployee)}</strong><p><b>{selected.matchedEmployee.employeeCode}</b><small>{selected.matchedEmployee.department || '-'} · {selected.matchedEmployee.jobTitle || '-'}</small></p><em>การจับคู่พนักงานยังไม่ใช่การอนุมัติบัญชี</em></div>
           </section>}
 
           {terminal ? <section className={`registration-review__terminal registration-review__terminal--${requestTone[selected.status]}`}>
@@ -244,13 +245,13 @@ export function RegistrationReviewPanel({ token, role, refreshSignal, initialReq
             <div><strong>{selected.status === 'APPROVED' ? 'คำขอนี้ได้รับการอนุมัติแล้ว' : 'คำขอนี้ถูกบันทึกว่าไม่อนุมัติแล้ว'}</strong><span>รายการนี้เป็นประวัติการตรวจสอบและไม่มีการดำเนินการเพิ่มเติมจากหน้านี้</span></div>
           </section> : <>
             <section className="registration-review__employee-workspace" aria-labelledby="registration-review-employee-title">
-              <header><div><span>Employee Master</span><h3 id="registration-review-employee-title">ค้นหาและตรวจสอบพนักงาน</h3></div><SmsIcon name="search" size={20} /></header>
-              <label className="registration-review__search-label" htmlFor="registration-employee-search">ค้นหา Employee Master</label>
+              <header><div><span>ทะเบียนพนักงาน</span><h3 id="registration-review-employee-title">ค้นหาและตรวจสอบพนักงาน</h3></div><SmsIcon name="search" size={20} /></header>
+              <label className="registration-review__search-label" htmlFor="registration-employee-search">ค้นหาทะเบียนพนักงาน</label>
               <div className="registration-review__search"><input id="registration-employee-search" placeholder="ค้นหาชื่อหรือรหัสพนักงาน (อย่างน้อย 2 ตัวอักษร)" value={search} onChange={(event) => setSearch(event.target.value)} /><button type="button" className="btn-neutral" disabled={candidateLoading || search.trim().length < 2} onClick={() => void runSearch(true)}>{candidateLoading ? 'กำลังค้นหา…' : 'ค้นหา'}</button></div>
 
-              {matchState === 'EMPLOYEE_NOT_FOUND' && <div className="registration-review__not-found" role="status"><SmsIcon name="search" size={20} /><div><strong>ไม่พบพนักงานใน Employee Master</strong><p>คำขอยังคงรอตรวจสอบ กรุณาสร้างพนักงานผ่าน Employee Master ตามสิทธิ์ปกติ แล้วกลับมารีเฟรชหรือค้นหาใหม่</p>{role === 'ADMIN' && <button type="button" className="btn-neutral" onClick={onOpenEmployeeMaster}>ไปที่ Employee Master</button>}</div></div>}
+              {matchState === 'EMPLOYEE_NOT_FOUND' && <div className="registration-review__not-found" role="status"><SmsIcon name="search" size={20} /><div><strong>ไม่พบพนักงานในทะเบียนพนักงาน</strong><p>คำขอยังคงรอตรวจสอบ กรุณาสร้างพนักงานผ่านทะเบียนพนักงาน ตามสิทธิ์ปกติ แล้วกลับมารีเฟรชหรือค้นหาใหม่</p>{role === 'ADMIN' && <button type="button" className="btn-neutral" onClick={onOpenEmployeeMaster}>ไปที่ทะเบียนพนักงาน</button>}</div></div>}
 
-              {candidateLoading ? <p className="registration-review__loading" role="status">กำลังค้นหา Employee Master…</p> : candidates.length > 0 && <div className="registration-review__candidates" aria-label="ผลการค้นหา Employee Master">{candidates.map((candidate) => {
+              {candidateLoading ? <p className="registration-review__loading" role="status">กำลังค้นหาทะเบียนพนักงาน…</p> : candidates.length > 0 && <div className="registration-review__candidates" aria-label="ผลการค้นหาทะเบียนพนักงาน">{candidates.map((candidate) => {
                 const isSelected = candidate.id === selectedCandidateId;
                 return <article key={candidate.id} className={isSelected ? 'is-selected' : ''}>
                   <div className="registration-review__candidate-main"><span className="registration-review__candidate-avatar" aria-hidden="true"><SmsIcon name="users" size={18} /></span><div><strong>{candidateName(candidate)}</strong><span>{candidate.employeeCode}</span><small>{candidate.department || '-'} · {candidate.jobTitle || '-'}</small></div></div>
@@ -260,17 +261,17 @@ export function RegistrationReviewPanel({ token, role, refreshSignal, initialReq
             </section>
 
             {selectedCandidate && <section className="registration-review__comparison" aria-labelledby="registration-review-comparison-title">
-              <header><div><h3 id="registration-review-comparison-title">เปรียบเทียบก่อนจับคู่</h3></div><p>ตรวจสอบข้อมูลทั้งสองฝั่งก่อนยืนยันการเชื่อมโยงกับ Employee Master</p></header>
+              <header><div><h3 id="registration-review-comparison-title">เปรียบเทียบก่อนจับคู่</h3></div><p>ตรวจสอบข้อมูลทั้งสองฝั่งก่อนยืนยันการเชื่อมโยงกับทะเบียนพนักงาน</p></header>
               <div className="registration-review__compare-grid">
                 <article><span>ข้อมูลผู้สมัคร</span><dl><div><dt>ชื่อที่แจ้ง</dt><dd>{selected.submittedName}</dd></div><div><dt>หน่วยงานที่แจ้ง</dt><dd>{selected.departmentHint || '-'}</dd></div></dl></article>
-                <article><span>Employee Master</span><dl><div><dt>ชื่อพนักงาน</dt><dd>{candidateName(selectedCandidate)}</dd></div><div><dt>หน่วยงาน</dt><dd>{selectedCandidate.department || '-'}</dd></div><div><dt>รหัสภายใน</dt><dd>{selectedCandidate.employeeCode}</dd></div><div><dt>ตำแหน่ง</dt><dd>{selectedCandidate.jobTitle || '-'}</dd></div></dl></article>
+                <article><span>ทะเบียนพนักงาน</span><dl><div><dt>ชื่อพนักงาน</dt><dd>{candidateName(selectedCandidate)}</dd></div><div><dt>หน่วยงาน</dt><dd>{selectedCandidate.department || '-'}</dd></div><div><dt>รหัสภายใน</dt><dd>{selectedCandidate.employeeCode}</dd></div><div><dt>ตำแหน่ง</dt><dd>{selectedCandidate.jobTitle || '-'}</dd></div></dl></article>
               </div>
               <div className="registration-review__match-action"><p><SmsIcon name="shield" size={16} />การเลือกนี้เป็นการตรวจสอบโดยผู้มีสิทธิ์ ไม่ใช่การยืนยันตัวตนอัตโนมัติ</p><button type="button" className="btn-primary" disabled={busy} onClick={() => void match(selectedCandidate.id)}>{busy ? 'กำลังจับคู่…' : 'จับคู่พนักงาน'}</button></div>
             </section>}
 
             <section className="registration-review__approval" aria-labelledby="registration-review-approval-title">
-              <div className="registration-review__role-note"><span>สิทธิ์เริ่มต้นหลังอนุมัติ</span><strong id="registration-review-approval-title">VIEWER</strong><small>การเปลี่ยนสิทธิ์ภายหลังดำเนินการผ่านเมนูผู้ใช้และสิทธิ์</small></div>
-              <div className="registration-review__actions"><button ref={rejectTriggerRef} type="button" className="registration-review__reject" disabled={busy} onClick={(event) => openReject(event.currentTarget)}>ไม่อนุมัติ</button><button type="button" className="btn-success" disabled={approvalDisabled} onClick={() => void approve()}>อนุมัติเป็น VIEWER</button></div>
+              <div className="registration-review__role-note"><span>สิทธิ์เริ่มต้นหลังอนุมัติ</span><strong id="registration-review-approval-title">{roleDisplayName('VIEWER')}</strong><small>การเปลี่ยนสิทธิ์ภายหลังดำเนินการผ่านเมนูผู้ใช้และสิทธิ์</small></div>
+              <div className="registration-review__actions"><button ref={rejectTriggerRef} type="button" className="registration-review__reject" disabled={busy} onClick={(event) => openReject(event.currentTarget)}>ไม่อนุมัติ</button><button type="button" className="btn-success" disabled={approvalDisabled} onClick={() => void approve()}>อนุมัติเป็นผู้ใช้งาน</button></div>
             </section>
           </>}
         </>}
@@ -279,7 +280,7 @@ export function RegistrationReviewPanel({ token, role, refreshSignal, initialReq
 
     {rejectOpen && selected && <div className="registration-review__dialog-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) closeReject(); }}>
       <section className="registration-review__dialog" role="dialog" aria-modal="true" aria-labelledby="registration-reject-title" aria-describedby="registration-reject-context">
-        <header><div><span>REJECT REGISTRATION REQUEST</span><h2 id="registration-reject-title">ไม่อนุมัติคำขอ</h2></div><button type="button" className="registration-review__dialog-close" onClick={closeReject} aria-label="ปิดหน้าต่างไม่อนุมัติคำขอ"><SmsIcon name="close" size={19} /></button></header>
+        <header><div><span>ตรวจสอบคำขอลงทะเบียน</span><h2 id="registration-reject-title">ไม่อนุมัติคำขอ</h2></div><button type="button" className="registration-review__dialog-close" onClick={closeReject} aria-label="ปิดหน้าต่างไม่อนุมัติคำขอ"><SmsIcon name="close" size={19} /></button></header>
         <div className="registration-review__dialog-body">
           <div className="registration-review__dialog-context" id="registration-reject-context"><span>คำขอของ</span><strong>{selected.submittedName}</strong><small>{selected.email}</small></div>
           <label htmlFor="registration-reject-reason">เหตุผลที่ไม่อนุมัติ</label>
