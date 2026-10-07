@@ -36,9 +36,9 @@ for (const viewport of [{ width: 1366, height: 768, label: 'desktop' }, { width:
     await expect(dialog).toBeVisible();
     const checklist = dialog.getByRole('list', { name: 'รายการเตรียมความพร้อมของพนักงาน' });
     await expect(checklist).toContainText('บัญชีผู้ใช้เชื่อมโยง');
-    await expect(checklist).toContainText('Active 1 รายการ');
+    await expect(checklist).toContainText('ยังใช้งาน 1 รายการ');
     await expect(checklist).toContainText('ป่วย 28 · ธุระ 3 · พักร้อน 6 วัน');
-    await expect(checklist).toContainText('Security Site');
+    await expect(checklist).toContainText('จุดรักษาความปลอดภัย');
     await expect(checklist).toContainText('อุปกรณ์ลงเวลาตามสัญญาระบบ');
     await expect(checklist).toContainText('ยังไม่พบ');
     await expect(checklist).not.toContainText('Reference Photo');
