@@ -1,29 +1,60 @@
 # MASTER HANDOFF
 
-## HOTFIX — R1B release-control and Production status (7 ตุลาคม 2569 เวลาไทย)
+## Current release status — R2 blocked before Technical Smoke (7 ตุลาคม 2569)
 
-**สถานะ: OPEN — เจ้าของระบบแจ้งว่าเรียบร้อยแล้ว แต่ยังไม่มีหลักฐาน run/deployment สำหรับบันทึกผล Production**
+**สถานะ: OPEN — R2 PRs merged and exact-SHA CI passed; release stopped before Technical Smoke because the exact Preview deployment metadata and workflow dispatch capability are unavailable through the connected tools. Production was not touched in this work.**
 
-สถานะนี้เป็นข้อมูลล่าสุด; เนื้อหาด้านล่างเป็นบันทึกประวัติ ณ วันที่ 6 ตุลาคม และไม่ใช่สถานะปัจจุบันของ R1B.
+### Production now — R1B
 
-### R1B และ release-control
+- Production source SHA: `31b17868642b3b653630ad5356b8d26c08fde55d`.
+- Production workflow: [run 37561130901](https://github.com/godzillazzz/SMS-v3/actions/runs/37561130901) completed successfully. Both jobs succeeded; the exact-source, governance, database-target, CORS baseline, rollback-checkpoint, Linux artifact, immutable-candidate, promote/canonical-verification, and release-summary steps passed. Automatic rollback steps were skipped.
+- Production deployment: `dpl_ExgyPfG7tYcby5PYDUVwn4iqrygE`, URL `https://sms-v3-staging-wl7nutl57-godzillazz.vercel.app`.
+- R1B application CI: run `37557051194` succeeded; Technical Smoke: run `37557641064` succeeded; release-control PR #482 merged as `aa8e8bb42ffd7f920fb4275e3c4aea9be69c582b`.
+- Owner confirmed the authenticated R1 screen checks passed. This is the current Production and rollback reference for a future R2 release.
+- Previous `f63c785` / `dpl_F4E5kVXqpYuhQjcQSDP49ViJJvpK` is the historical pre-R1B checkpoint, not the current R2 rollback target.
 
-- R1B release-control PR #482 merged into `fix/serverless-database-reliability` as merge commit `aa8e8bb42ffd7f920fb4275e3c4aea9be69c582b`; R1B application source remains SHA `31b17868642b3b653630ad5356b8d26c08fde55d`.
-- PR #481 แก้ Linux `libc` metadata ของ sharp 0.35.5; R1B source SHA `31b17868642b3b653630ad5356b8d26c08fde55d`, tree `24e8cd0052818c41cb6e0dd17a19f333b342baa0`.
-- CI exact SHA ของ R1B: run `37557051194` สำเร็จ. Vercel status ของ R1B เป็น success: https://vercel.com/godzillazz/sms-v3-staging/9iVQBHyiTUzffBBqCtHncbAzSjR9.
-- R1B Preview: https://sms-v3-staging-chd2sa7ey-godzillazz.vercel.app, deployment `dpl_9iVQBHyiTUzffBBqCtHncbAzSjR9`.
-- Technical Smoke run `37557641064` สำเร็จ; workflow ยืนยัน source SHA, target URL และ deployment ID ข้างต้นตรงกัน. ผล Playwright: 11 ผ่าน, 23 ข้าม.
-- Release-control PR #482 merged; head `852773e07c4e55764a22991c67b9438afe88d319`, merge SHA `aa8e8bb42ffd7f920fb4275e3c4aea9be69c582b`. PR CI run `37560247568` ผ่าน และ Vercel status เป็น success: https://vercel.com/godzillazz/sms-v3-staging/2ZTV7Jrffroc5L4xxEVXrZFznubo.
-- Manifest ที่ merge แล้วชี้ R1B SHA/tree, application PR #481, CI run `37557051194`, Technical Smoke run `37557641064`, Preview deployment ข้างต้น และ `schedule_large_batch_postgres_batch_size = 500`. Policy เดิมยังคงอยู่: `NO_DATABASE_CHANGES`, schema/data mutation `NONE`, `NO_ENVIRONMENT_CHANGES`, secrets `NONE`.
+### R2 — application PRs merged
 
-### Production release evidence
+All four PRs were updated by merge (no rebase/force-push), passed CI on their updated heads, had a successful Vercel Preview status, and were then merged in order.
 
-- Production release run `37555538076` ก่อนหน้า R1B ล้มที่ step `Build exact prebuilt Production artifact` เพราะพบแพ็กเกจ sharp musl บน Linux/glibc. ตามรายงานในงานนั้น Production ไม่ถูกแตะ.
-- หลังได้รับแจ้งว่า manifest พร้อม เจ้าของระบบตอบว่า “เรียบร้อยแล้ว”. ข้อความนั้นไม่ได้ให้ Production workflow run ID, deployment ID/SHA ที่ปล่อยจริง หรือผลตรวจหลังปล่อย.
-- Codex ไม่ได้ dispatch Production workflow ในขั้นตอนนี้ และยังไม่ได้ตรวจ canonical หรือทำ post-release checks หลังข้อความดังกล่าว. ดังนั้นสถานะ Production หลังการดำเนินการของเจ้าของระบบยังเป็น `UNKNOWN` ใน handoff นี้; “เรียบร้อยแล้ว” เป็นรายงานจากเจ้าของระบบ ไม่ใช่ผลตรวจอิสระ.
-- Manifest เก็บ pre-release checkpoint เป็น source `f63c785e8af1d63f3d27754c66709e6a0d9b3443` / deployment `dpl_F4E5kVXqpYuhQjcQSDP49ViJJvpK`. ใช้เป็น rollback reference ก่อนปล่อยเท่านั้น; ยังยืนยันไม่ได้ว่าเป็น canonical หรือ rollback target ปัจจุบันหลังการปล่อยที่เจ้าของระบบรายงาน.
-- ปิดสถานะ release ได้เมื่อบันทึก workflow run ID, ผล gate, deployment ID/native SHA และผลตรวจหลังปล่อยแบบ read-only จากหลักฐานที่ตรวจสอบได้. ไม่มีการเขียน/ลบข้อมูล Production, แก้ secret/env/schema หรือ dispatch release workflow ในขั้นตอนนี้.
+| PR | Head before → updated head | Exact-head CI | Vercel Preview | Merge commit |
+|---|---|---|---|---|
+| #475 | `116dd0a92b7377a2b570d09f144f8f3b4215cd61` → `9bb5d3a098a671ee6a14631546c03ce420f355af` | `37567238651` success | READY — https://sms-v3-staging-git-fix-ux-t01-loading-state-n-77d77f-godzillazz.vercel.app | `5f1f1f72df019fdffbf24d5fd8c221e70a6c5a2e` |
+| #476 | `b817d8a9eaa4c148c6541e2a399b3d5338732ab0` → `fdf903408a7d1e5d0658869b7fd7520d85523865` | `37567479738` success | READY — https://sms-v3-staging-git-fix-ux-t02-attendance-page-e7112f-godzillazz.vercel.app | `57e81ee9fab3590164da37a7e40e2b902d3149de` |
+| #477 | `6b6a488462f2098f79d47cc7470ec968dbc98bfa` → `442ef0562a2d13d27e51e5279a317b0572795af6` | `37567934048` success | READY — https://sms-v3-staging-git-fix-ux-t03-remove-dev-copy-dfd2f3-godzillazz.vercel.app | `3ae26fc39c2c914c75d26daabe1945c946deafae` |
+| #478 | `22c1209c74440626b9862941fca033bec88216ac` → `0b392472f1c56aa785b72e8f161ffd137534fbf9` | `37568236186` success | READY — https://sms-v3-staging-git-fix-ux-t06-login-20261006-godzillazz.vercel.app | `ad0cc766bf2e24d81ee025d19cdb9301b0f32809` |
 
+- R2 application RELEASE_SHA / integration head after these four merges: `ad0cc766bf2e24d81ee025d19cdb9301b0f32809`.
+- Exact-SHA CI run `37568415124` succeeded, including clean `npm ci`, Linux sharp/musl artifact guard, root and frontend audits, tests, integration tests, TypeScript, and frontend build.
+- Exact-SHA Vercel status is success: https://vercel.com/godzillazz/sms-v3-staging/7AFHKtuPEfTUnJksbU51PryrYexY. The status feedback links to Preview host `https://sms-v3-staging-git-fix-serverless-database-re-662e13-godzillazz.vercel.app`.
+
+### R2 — release gate results
+
+- P1: PASS at the time the four application PRs were merged; `ad0cc766bf2e24d81ee025d19cdb9301b0f32809` was the integration head and exact-SHA CI passed.
+- P2: BLOCKED. The available evidence shows the Vercel status and Preview host, but the GitHub Deployment record fields `environment_url` and exact Vercel `dpl_...` ID for this SHA could not be retrieved through the connected GitHub interface. Those values are required to bind Technical Smoke to the exact deployment.
+- P3: NOT RUN. The connected tools expose GitHub read operations but no Actions workflow-dispatch action. Technical Smoke was not dispatched without verified P2 provenance.
+- P4: Current rollback reference is R1B Production deployment `dpl_ExgyPfG7tYcby5PYDUVwn4iqrygE` / source `31b17868642b3b653630ad5356b8d26c08fde55d`.
+- P5–P8: NOT REACHED. No R2 manifest PR was created, no Environment review was sent, no Production workflow was dispatched, and no R2 post-release checks or rollback occurred.
+- No Production business data, secret, environment, schema, or migration was changed.
+
+### R3 and remaining checks
+
+- R3 has not started because R2 did not pass P8. T25 token-reuse/audit inspection, T24 region/performance work, T26 unknown approval-label query, and T27/T28 UI work are all pending.
+- There is no conclusion yet about refresh-token reuse or leakage. No session revocation or account suspension was performed.
+- T24 DB/function-region comparison and before/after Preview timings have not been collected; no region or infrastructure change was made.
+- Protected UI checks requiring an authenticated session remain “ยังไม่ได้ตรวจ (ไม่มี session)”; no credential was requested or created.
+
+### T22 benchmark and next unblock
+
+- T22 was not benchmarked. The 15-second target remains unmeasured before release; no benchmark data was written to any database.
+- To resume R2, the execution path needs to expose the exact GitHub Deployment `environment_url` and Vercel deployment ID for the release SHA and an authorized Actions dispatch operation. No approval or policy gate should be changed.
+- Because this handoff is recorded through a documentation PR, if it is merged after this entry, rerun P1 against the resulting integration HEAD before preparing any release manifest.
+
+---
+
+## Historical handoff
+
+The dated sections below record prior phases and are retained as historical context; they do not supersede the current R1B Production and R2 gate status above.
 ---
 
 
