@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { actionLabel, entityLabel, filterAuditEvents, formatAuditTime, isSensitiveMetadataKey, safeMetadataEntries, summarizeAuditEvents } from './audit-utils';
+import { actionLabel, auditEventLabel, auditRoleLabel, entityLabel, filterAuditEvents, formatAuditTime, isSensitiveMetadataKey, moduleLabel, safeMetadataEntries, summarizeAuditEvents } from './audit-utils';
 const rows = [
   { id: 'review-a', action: 'LOGIN', entityType: 'User', createdAt: '2026-01-01T00:00:00Z', actor: { displayName: 'ผู้ตรวจสอบตัวอย่าง', role: 'ADMIN' } },
   { id: 'review-b', action: 'UPDATE', entityType: 'Employee', createdAt: '2026-01-02T00:00:00Z', actor: { displayName: 'ผู้ตรวจสอบตัวอย่าง', role: 'ADMIN' } },
@@ -11,8 +11,18 @@ describe('audit presentation utilities', () => {
   it('formats Bangkok timestamps and redacts sensitive metadata before presentation', () => {
     expect(formatAuditTime('2026-08-10T00:30:00.000Z')).toContain('2569');
     expect(actionLabel('LOGIN_FAILED')).toBe('เข้าสู่ระบบไม่สำเร็จ');
-    expect(entityLabel('DepartmentMaster')).toBe('Department Master');
-    expect(entityLabel('SecuritySiteDepartment')).toBe('Department ↔ Site');
+    expect(entityLabel('DepartmentMaster')).toBe('ข้อมูลแผนก');
+    expect(entityLabel('SecuritySiteDepartment')).toBe('แผนกประจำจุดปฏิบัติงาน');
+    expect(moduleLabel('USER_ACCESS')).toBe('ผู้ใช้และสิทธิ์');
+    expect(auditRoleLabel('ADMIN')).toBe('ผู้ดูแลระบบ');
+    expect(auditEventLabel('TOKEN_REUSE')).toBe('ตรวจพบการใช้โทเค็นซ้ำ');
+    expect(actionLabel('UNRECOGNIZED_ACTION')).toBe('เหตุการณ์อื่น');
+    expect(safeMetadataEntries({ status: 'PENDING_APPROVAL', requestType: 'INITIAL', event: 'DEVICE_PROOF_VERIFIED' })).toEqual([
+      ['status', 'รออนุมัติ'],
+      ['requestType', 'ลงทะเบียนอุปกรณ์เครื่องแรก'],
+      ['event', 'ยืนยันอุปกรณ์แล้ว']
+    ]);
+    expect(safeMetadataEntries({ status: 'UNRECOGNIZED_STATUS_ENUM' })).toEqual([['status', 'ค่าอื่นในระบบ']]);
     expect(isSensitiveMetadataKey('refresh_token')).toBe(true);
     expect(safeMetadataEntries({ note: 'safe', nested: { password: 'never-show' } })).toEqual([['note', 'safe'], ['nested.password', '[REDACTED]']]);
   });

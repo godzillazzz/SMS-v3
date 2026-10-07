@@ -9,7 +9,7 @@ vi.mock('../../api', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../api')>();
   return {
     ...actual,
-    api: { ...actual.api, attendanceDeviceState: vi.fn(), createAttendanceDeviceRequest: vi.fn() }
+    api: { ...actual.api, attendanceDeviceState: vi.fn(), attendanceDeviceRequests: vi.fn(), createAttendanceDeviceRequest: vi.fn() }
   };
 });
 vi.mock('../../pages/attendance/attendance-client', () => ({
@@ -54,6 +54,49 @@ afterEach(() => cleanup());
 beforeEach(() => vi.clearAllMocks());
 
 describe('AttendanceDevicePage local key readiness', () => {
+  it('does not show zero-valued admin counts before queue data has loaded', async () => {
+    vi.mocked(api.attendanceDeviceState).mockImplementation(() => new Promise(() => undefined) as never);
+    vi.mocked(api.attendanceDeviceRequests).mockImplementation(() => new Promise(() => undefined) as never);
+    const attendanceClient = await import('../../pages/attendance/attendance-client');
+    vi.mocked(attendanceClient.attendanceDeviceAdminOverview).mockImplementation(() => new Promise(() => undefined));
+
+    const { container } = render(<AttendanceDevicePage token="test" role="ADMIN" />);
+
+    expect(container.querySelectorAll('.attendance-device-queue-count')).toHaveLength(0);
+    expect(screen.getByText('กำลังโหลดคิวอนุมัติ…')).toBeTruthy();
+    expect(screen.getByText('กำลังโหลดประวัติอุปกรณ์…')).toBeTruthy();
+  });
+
+  it('shows device request, status, and audit enums in Thai', async () => {
+    vi.mocked(api.attendanceDeviceState).mockResolvedValue({ data: { employeeId: 'employee-1', activeDevice: null, activeRequest: null } } as never);
+    vi.mocked(api.attendanceDeviceRequests).mockResolvedValue({ data: [] } as never);
+    const attendanceClient = await import('../../pages/attendance/attendance-client');
+    vi.mocked(attendanceClient.attendanceDeviceAdminOverview).mockResolvedValue([{
+      employeeId: 'employee-1',
+      employee: { id: 'employee-1', displayName: 'พนักงานตัวอย่าง' },
+      activeDevice: null,
+      activeRequest: {
+        id: 'request-1', employeeId: 'employee-1', requestType: 'REPLACEMENT', status: 'RETURNED_FOR_CORRECTION',
+        requestedByUserId: 'user-1', candidateDeviceEnrollmentId: 'device-2', createdAt: '2026-10-07T00:00:00.000Z', reason: null
+      },
+      history: [{
+        id: 'device-1', employeeId: 'employee-1', displayName: 'โทรศัพท์เดิม', keyAlgorithm: 'ECDSA', status: 'REVOKED', revokedAt: '2026-10-06T00:00:00.000Z'
+      }],
+      recentAudit: [{ id: 'audit-1', action: 'UPDATE', entityType: 'AttendanceDeviceEnrollment', entityId: 'device-1', metadata: { event: 'ADMIN_REVOKE_CURRENT' }, createdAt: '2026-10-06T00:00:00.000Z', actor: { id: 'user-2', displayName: 'ผู้ดูแล' } }]
+    }] as never);
+    const keyModule = await import('../../lib/attendance-device-key');
+    vi.mocked(keyModule.listAttendanceDeviceKeyIds).mockResolvedValue(inventory([]));
+
+    render(<AttendanceDevicePage token="test" role="ADMIN" />);
+
+    expect(await screen.findByText('เปลี่ยนอุปกรณ์ · ส่งกลับให้แก้ไข')).toBeTruthy();
+    expect(await screen.findByText('ยกเลิกการใช้งาน')).toBeTruthy();
+    expect(await screen.findByText('ผู้ดูแลยกเลิกอุปกรณ์ปัจจุบัน')).toBeTruthy();
+    expect(screen.queryByText('REPLACEMENT')).toBeNull();
+    expect(screen.queryByText('RETURNED_FOR_CORRECTION')).toBeNull();
+    expect(screen.queryByText('REVOKED')).toBeNull();
+  });
+
   it('shows READY_LOCAL_KEY only when the active server ID is present in this browser storage', async () => {
     vi.mocked(api.attendanceDeviceState).mockResolvedValue({ data: { employeeId: 'employee-1', activeDevice: active, activeRequest: null } } as never);
     const keys = inventory([present(active.id)]);
@@ -66,9 +109,9 @@ describe('AttendanceDevicePage local key readiness', () => {
     await waitFor(() => expect(device.getAttribute('data-local-key-state')).toBe('READY_LOCAL_KEY'));
     expect(screen.getByText('คีย์ลับพร้อมใช้งานบนอุปกรณ์นี้')).toBeTruthy();
     expect(screen.getByText(/พร้อมยืนยันอุปกรณ์/)).toBeTruthy();
-    expect(screen.getByText('SERVER_ACTIVE_DEVICE')).toBeTruthy();
-    expect(screen.getByText('LOCAL_PRIVATE_KEY_PRESENT')).toBeTruthy();
-    expect(screen.getByText('VERIFICATION_DEVICE_ID_MATCH')).toBeTruthy();
+    expect(screen.getByText('อุปกรณ์หลักในระบบ')).toBeTruthy();
+    expect(screen.getByText('มีคีย์ส่วนตัวในอุปกรณ์นี้')).toBeTruthy();
+    expect(screen.getByText('ผลการตรวจสอบรหัสอุปกรณ์')).toBeTruthy();
   });
 
   it('shows a warning and never presents READY when the active server ID is absent locally', async () => {
@@ -81,8 +124,8 @@ describe('AttendanceDevicePage local key readiness', () => {
     const device = await screen.findByTestId('attendance-active-device');
     await waitFor(() => expect(device.getAttribute('data-local-key-state')).toBe('MISSING_LOCAL_KEY'));
     expect(screen.getByText('ระบบระบุว่าอุปกรณ์ใช้งานอยู่ แต่ยังไม่พบคีย์ในอุปกรณ์นี้')).toBeTruthy();
-    expect(screen.getByText('LOCAL_PRIVATE_KEY_PRESENT')).toBeTruthy();
-    expect(screen.getByText('VERIFICATION_DEVICE_ID_MATCH')).toBeTruthy();
+    expect(screen.getByText('มีคีย์ส่วนตัวในอุปกรณ์นี้')).toBeTruthy();
+    expect(screen.getByText('ผลการตรวจสอบรหัสอุปกรณ์')).toBeTruthy();
     expect(screen.getByText(/ระบบจะหยุดการลงเวลาก่อนยืนยันอุปกรณ์/)).toBeTruthy();
     expect(screen.queryByText('คีย์ลับพร้อมใช้งานบนอุปกรณ์นี้')).toBeNull();
   });
@@ -108,7 +151,7 @@ describe('AttendanceDevicePage local key readiness', () => {
       expect(activeDevice.getAttribute('data-local-key-state')).toBe('READY_LOCAL_KEY');
       expect(candidate.getAttribute('data-local-key-state')).toBe('PRESENT');
     });
-    expect(screen.getByText('SERVER_ACTIVE_DEVICE')).toBeTruthy();
+    expect(screen.getByText('อุปกรณ์หลักในระบบ')).toBeTruthy();
     expect(screen.getByText('รหัสอุปกรณ์ที่รอพิจารณา')).toBeTruthy();
   });
 

@@ -112,4 +112,13 @@ describe('Approval Center Command Nexus frontend contracts', () => {
     expect(css).toContain('.nexus-audit-dot--critical');
     expect(page).not.toContain('backend ยังคงตรวจสอบสิทธิ์อีกชั้นหนึ่ง');
   });
+
+  it('keeps request UUIDs internal while showing an icon and the submitter in both queue layouts', () => {
+    expect(page).not.toContain('{item.requestId}');
+    expect(page).not.toContain('{rejecting.requestId}');
+    expect(page).toContain('<SmsIcon name="users" size={17}');
+    expect(page).toContain('<SmsIcon name="users" size={18}');
+    expect(page).toContain('ผู้ส่ง: {senderName(item)}');
+    expect(page).toContain('auditRoleLabel(item.requestedBy.role)');
+  });
 });
