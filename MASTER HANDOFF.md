@@ -2,7 +2,7 @@
 
 ## Autonomous UX Remediation Checkpoint — 2026-10-07
 
-This current checkpoint supersedes older release-source and production-status summaries elsewhere in this historical handoff. No Production deployment, promotion, Environment approval, or Production data mutation was performed for T29 or the active T07 work.
+This current checkpoint supersedes older release-source and production-status summaries elsewhere in this historical handoff. No Production deployment, promotion, Environment approval, or Production data mutation was performed for T29, T07, T09, or the handoff maintenance work.
 
 ### Last reported Production state
 
@@ -41,12 +41,25 @@ This current checkpoint supersedes older release-source and production-status su
 - Decision memo / API proposal: Owner must choose whether to authorize a separate server-authority design for immutable schedule-revision data and a read-only approval-detail API (including the prior-approved link, requester/latest editor, revision-bound impact/warnings), or defer schedule detail until that authority exists. Any schema migration would require separate explicit Owner approval; none is proposed for this task.
 - No T08 UI/API/schema/auth/RBAC implementation was made. T08 remains BLOCKED until the authority decision is resolved.
 
+### T09 — URL Routing / Deep Links — MERGED
+
+- Isolated worktree/branch: `.worktrees/t09-url-routing` / `codex/t09-url-routing-20261007`.
+- Base SHA: `a4557d3a7ea40a3260d3c78c025f050c3fa1f593`.
+- PR #501 head: `97948f87cccc6b5ef49c906474a441d51eb86b1a`; merged into `fix/serverless-database-reliability` as `c2039b6194b0b886b604a0d07dd8173d8fa4fcca` using a normal merge.
+- Exact-head CI run `37602743331` passed. An earlier CI run `37602156746` failed only on an obsolete root source guard expecting the old direct MonthGridPicker handler; the guard was updated to match the current page-reset handler, and the follow-up exact-head run passed.
+- Preview for the final PR head: `https://sms-v3-staging-git-codex-t09-url-routing-20261007-godzillazz.vercel.app`; Vercel deployment record `8qmAAXU27Nm22ksa7UFUHsnZGthc`, Ready. CI's `Verify integration PR Preview health, readiness, and CORS` step passed for this Preview.
+- Added `frontend/src/routing.ts` and `routing.test.ts`: stable History API paths for all current pages, Thai document titles, URL query helpers, PWA route compatibility, browser history events, and the existing page-permission predicates moved without changing their conditions. `main.tsx` now resolves direct URLs, restores route filters, preserves relevant query state, and renders Thai in-app 403/404 notices before protected page loaders mount.
+- Browser regressions cover login return to a protected settings URL (desktop 1366×768), unknown-route 404 (mobile 375×812), and schedule month/department/page query restoration. Existing T29 print browser tests still run in the same CI browser job.
+- Local checks: `npm --prefix frontend test` passed (148 files / 894 tests); `npm --prefix frontend run build` passed (TypeScript + Vite); Playwright passed (7/7); targeted root legacy parity guard passed (5/5); `git diff --check` passed. The local root `npm test` command could not complete in this container because its database-backed tests require `DATABASE_URL` and `JWT_SECRET`; the exact-head GitHub CI run executed and passed `npm test`, integration tests, the full frontend suite, build, and Preview runtime gates.
+- No API, business policy, RBAC condition, schema, authentication policy, Production configuration, or Production data was changed. Production deployment: none.
+
 ### Backlog execution state
 
 - T29: MERGED (#497).
 - T07: MERGED (#499; #498 superseded and closed unmerged).
 - T08: BLOCKED by missing server-authoritative schedule-revision diff; decision memo recorded above.
-- T09–T20: NOT STARTED; each remains subject to current-head audit and its own isolated worktree/branch/PR.
+- T09: MERGED (#501).
+- T10–T20: NOT STARTED; T16 is next in the requested execution order after the independent T09 work. Each task remains subject to current-head audit and its own isolated worktree/branch/PR.
 - Production release is outside this master run.
 
 ## SMS V3 — Enterprise Evolution Production Release
