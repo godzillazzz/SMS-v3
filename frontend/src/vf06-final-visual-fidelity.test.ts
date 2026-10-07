@@ -37,7 +37,7 @@ describe('G04.2 VF-06 final visual fidelity closure contract', () => {
   it('makes only real Quick Access launchers visually richer', () => {
     expect(vf06).toMatch(/\[data-theme="dark"\] \.dashboard-quick-actions__grid button \{[\s\S]*?--quick-accent\) 30%[\s\S]*?--quick-accent\) 12%/);
     expect(vf06).toMatch(/\[data-theme="dark"\] \.dashboard-quick-actions__grid button > span \{[\s\S]*?--quick-accent\) 38%[\s\S]*?--quick-accent\) 31%/);
-    for (const title of ['ข้อมูลพนักงาน', 'ตารางกะรายเดือน', 'รออนุมัติ', 'ใบอนุญาต รปภ.']) expect(quick).toContain(title);
+    for (const title of ['ข้อมูลพนักงาน', 'ตารางกะรายเดือน', 'ศูนย์อนุมัติ', 'ใบอนุญาต รปภ.']) expect(quick).toContain(title);
     for (const fake of ['Payroll', 'Recruitment', 'Training', 'Benefits', 'เงินเดือน', 'สรรหา']) expect(quick).not.toContain(fake);
   });
 
@@ -72,6 +72,6 @@ describe('G04.2 VF-06 final visual fidelity closure contract', () => {
   });
 
   it('locks the authorized API source after T25 cross-tab refresh coordination', () => {
-    expect(apiSha256).toBe('779bd82a46b819ceae56e0cca3fc7a7bf1a4cc1957495f4e45338aabb48ff194');
+    expect(apiSha256).toBe('ee259e1e4f8b95049f345ae885a94b354b87cd1c22050bceebb1064a8fa0629f');
   });
 });

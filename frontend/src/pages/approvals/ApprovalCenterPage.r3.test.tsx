@@ -3,9 +3,9 @@ import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ApprovalCenterPage } from './ApprovalCenterPage';
 
-const mocks = vi.hoisted(() => ({ getApprovalCenter: vi.fn() }));
+const mocks = vi.hoisted(() => ({ getApprovalCenter: vi.fn(), getApprovalCenterSummary: vi.fn() }));
 
-vi.mock('../../approval-center-client', () => ({ getApprovalCenter: mocks.getApprovalCenter }));
+vi.mock('../../approval-center-client', () => ({ getApprovalCenter: mocks.getApprovalCenter, getApprovalCenterSummary: mocks.getApprovalCenterSummary }));
 vi.mock('../../pages/attendance-supervisor/attendance-adjustment-client', () => ({
   approveAttendanceAdjustment: vi.fn(),
   rejectAttendanceAdjustment: vi.fn()
@@ -33,6 +33,7 @@ describe('ApprovalCenterPage R3 queue display', () => {
       }],
       summary: { total: 1, dueSoon: 0, overdue: 0 }
     });
+    mocks.getApprovalCenterSummary.mockResolvedValue({ summary: { total: 1, byType: { SCHEDULE_APPROVAL: 1 } } });
 
     const { container } = render(<ApprovalCenterPage
       token="test-token"
@@ -46,6 +47,7 @@ describe('ApprovalCenterPage R3 queue display', () => {
     expect(await screen.findAllByText('ผู้ส่ง: ผู้ส่งตัวอย่าง')).toHaveLength(2);
     expect(screen.getAllByText('พนักงานตัวอย่าง')).toHaveLength(2);
     await waitFor(() => expect(mocks.getApprovalCenter).toHaveBeenCalledTimes(1));
+    expect(mocks.getApprovalCenterSummary).toHaveBeenCalledTimes(1);
     expect(container.textContent).not.toContain(requestUuid);
     expect(container.querySelectorAll('.nexus-approval-select svg')).toHaveLength(2);
   });

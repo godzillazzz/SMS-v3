@@ -21,7 +21,6 @@ export function DashboardPage({ summary, loading, error, user, canManage, filter
   const active = asNumber(summary.activeEmployees);
   const onDuty = asNumber(summary.onDutyToday ?? summary.workingToday);
   const leave = asNumber(summary.leaveToday);
-  const pending = asNumber(summary.pendingLeaves);
   const expiring = asNumber(summary.expiringLicenses);
   // Keep the established dashboard data contract intact while presenting it through the Command Nexus shell.
   const pendingLicenseDocuments = asNumber(summary.pendingLicenseDocuments);
@@ -66,7 +65,7 @@ export function DashboardPage({ summary, loading, error, user, canManage, filter
     <section className="nexus-kpis" aria-label="Operational metrics">
       <button type="button" onClick={() => onNavigate('employees')}><span>ACTIVE PERSONNEL</span><strong>{numberText(active)}<small> / {numberText(total)}</small></strong><em>{total ? Math.round(active/total*100) : 0}% READY</em></button>
       <button type="button" onClick={() => onNavigate('schedule')}><span>ON DUTY TODAY</span><strong>{numberText(onDuty)}</strong><em>VERIFIED SCHEDULE</em></button>
-      <button type="button" onClick={() => onNavigate('leavePending')}><span>LEAVE / PENDING</span><strong>{numberText(leave)}<small> / {numberText(pending)}</small></strong><em>WORKFORCE FLOW</em></button>
+      <button type="button" onClick={() => onNavigate('leave')}><span>LEAVE TODAY</span><strong>{numberText(leave)}</strong><em>บุคลากรที่ลาในวันที่เลือก</em></button>
       <button type="button" onClick={() => onNavigate('licenses')}><span>LICENSE WATCH</span><strong>{numberText(expiring)}</strong><em>{expiring ? 'REQUIRES REVIEW' : 'NO EXPIRY ALERT'}</em></button>
     </section>
 

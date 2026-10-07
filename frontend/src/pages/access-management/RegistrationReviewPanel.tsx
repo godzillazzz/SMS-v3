@@ -30,6 +30,8 @@ type Props = {
   token: string;
   role: string;
   refreshSignal: number;
+  initialRequestId?: string;
+  onInitialRequestHandled?(): void;
   onChanged(): void;
   onOpenEmployeeMaster(): void;
 };
@@ -60,7 +62,7 @@ function ReviewProgress({ status, candidateSelected }: { status: RequestRow['sta
   </div>;
 }
 
-export function RegistrationReviewPanel({ token, role, refreshSignal, onChanged, onOpenEmployeeMaster }: Props) {
+export function RegistrationReviewPanel({ token, role, refreshSignal, initialRequestId, onInitialRequestHandled, onChanged, onOpenEmployeeMaster }: Props) {
   const [rows, setRows] = useState<RequestRow[]>([]);
   const [page, setPage] = useState(1);
   const [pageMeta, setPageMeta] = useState({ total: 0, totalPages: 1 });
@@ -79,6 +81,7 @@ export function RegistrationReviewPanel({ token, role, refreshSignal, onChanged,
   const [rejectReason, setRejectReason] = useState('');
   const [rejectValidation, setRejectValidation] = useState('');
   const [mobileDetail, setMobileDetail] = useState(false);
+  const initialRequestRef = useRef(initialRequestId || '');
   const rejectTriggerRef = useRef<HTMLButtonElement | null>(null);
   const rejectTextareaRef = useRef<HTMLTextAreaElement | null>(null);
   const selected = useMemo(() => rows.find((row) => row.id === selectedId), [rows, selectedId]);
@@ -92,8 +95,29 @@ export function RegistrationReviewPanel({ token, role, refreshSignal, onChanged,
       const nextTotalPages = Math.max(1, Number(result?.meta?.totalPages || 1));
       setPageMeta({ total: Number(result?.meta?.total || 0), totalPages: nextTotalPages });
       if (page > nextTotalPages) { setPage(nextTotalPages); return; }
-      setRows(next);
-      setSelectedId((current) => next.some((row) => row.id === current) ? current : next[0]?.id || '');
+      const focusedRequestId = initialRequestRef.current;
+      let focusedRequest: RequestRow | undefined;
+      if (focusedRequestId) {
+        try {
+          const response = await api.registrationRequest(token, focusedRequestId);
+          focusedRequest = response?.data as RequestRow | undefined;
+        } catch {
+          // Keep the existing request list usable if a pending item changed while navigating.
+        }
+      }
+      const rowsWithFocus = focusedRequest && !next.some((row) => row.id === focusedRequest?.id)
+        ? [focusedRequest, ...next.slice(0, 19)]
+        : next;
+      setRows(rowsWithFocus);
+      const preferredId = focusedRequest?.id || focusedRequestId;
+      setSelectedId((current) => preferredId && rowsWithFocus.some((row) => row.id === preferredId)
+        ? preferredId
+        : rowsWithFocus.some((row) => row.id === current) ? current : rowsWithFocus[0]?.id || '');
+      if (focusedRequestId) {
+        setMobileDetail(Boolean(focusedRequest));
+        initialRequestRef.current = '';
+        onInitialRequestHandled?.();
+      }
     } catch (reason) { setError(formatRequestErrorMessage(reason, 'โหลดคำขอลงทะเบียนไม่สำเร็จ')); }
     finally { setLoading(false); }
   };

@@ -21,7 +21,9 @@ describe('executive dashboard contract', () => {
     expect(metrics).toContain('onNavigate');
     for (const label of ['กำลังปฏิบัติงาน', 'ลาวันนี้', 'รออนุมัติ', 'ต้องติดตาม']) expect(metrics).toContain(label);
     expect(metrics).toContain('dashboard-secondary-metrics');
-    expect(page).toContain('pendingLeaves');
+    expect(page).toContain('leaveToday');
+    expect(page).toContain('pendingApprovalCount != null && pendingApprovalCount > 0');
+    expect(page).not.toContain('summary.pendingLeaves');
     expect(page).toContain('dashboard-command-grid');
     expect(actions).toContain('rows');
     expect(actions).toContain('ดูทั้งหมด');

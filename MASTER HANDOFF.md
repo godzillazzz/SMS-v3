@@ -1,5 +1,42 @@
 # MASTER HANDOFF
 
+## Autonomous UX Remediation Checkpoint — 2026-10-07
+
+This current checkpoint supersedes older release-source and production-status summaries elsewhere in this historical handoff. No Production deployment, promotion, Environment approval, or Production data mutation was performed for T29 or the active T07 work.
+
+### Last reported Production state
+
+- Owner-reported Production release: R2, source SHA `2d9a21c9c8d940fbd5c3c8c9dadceae073f0a9ea`, workflow run `37572338555` succeeded and owner confirmed the post-release screen check passed.
+- Owner-reported current rollback reference: deployment `dpl_FbXBhBdjcNLvYEpN9sXs3EV6VEuh`, source SHA `2d9a21c9c8d940fbd5c3c8c9dadceae073f0a9ea`.
+- These Production facts are carried forward from the owner’s report; they were not re-queried or changed in the T29/T07 work.
+
+### T29 — Printing / A4 — MERGED
+
+- Isolated worktree/branch: `.worktrees/t29-printing-a4` / `codex/t29-printing-a4-20261007`.
+- Base SHA: `fd4c7a1b110bee9a9ee77bc5eb2510cb772ee40b`.
+- PR #497 merged as `eaa880753efd3476233caf8dce306f27b7eb2e4f`; PR head `3c93e672ef428b47ba7ee19b5e13448e6ab863b6`; exact-SHA CI run `37591241274` passed.
+- Preview: `https://sms-v3-staging-git-codex-t29-printing-a4-20261007-godzillazz.vercel.app`, Vercel deployment record `4TQLNtPH3SKtZQKQqC2aqfVn1mnt`; exact PR SHA provenance and Preview health/readiness/CORS checks passed in CI.
+- Dedicated print iframe isolates print documents; global `frontend/src/styles.css` no longer declares an app-wide orientation `@page` rule. Leave uses A4 portrait with 12 mm margins; generic table, roster, and report print documents define their own geometry.
+- Playwright PDF evidence: artifact `11468442270` (`t29-print-browser-artifacts`). Leave PDF: one A4 portrait page with Thai title and no shell leakage. Roster fixture: one A4 landscape page with all 31 days. Generic table: 8 landscape pages; executive/attendance report fixtures: 4 landscape pages. Header repetition, row breaks, compact roster layout, source guard, and report clipping regressions passed.
+- T29 Production deployment: none.
+
+### T07 — Unified Approval Inbox — IN PROGRESS, READY FOR PR
+
+- Isolated worktree/branch: `.worktrees/t07-unified-approval-inbox` / `codex/t07-unified-approval-inbox-20261007`.
+- Base SHA: `eaa880753efd3476233caf8dce306f27b7eb2e4f` (T29 integration merge).
+- Implementation and regression coverage are complete locally; PR has not yet been opened at this checkpoint.
+- Frontend regression: 147 test files and 887 tests passed. TypeScript + Vite production build passed. `git diff --check` passed.
+- Browser checks passed at 1366×768 and 375×812 using fixture-backed API responses; both layouts had no JavaScript errors or horizontal page overflow.
+- The inbox now uses server `byType`/total summary authority for visible positive-count filters and shared pending counts, with a 60-second visible-page refresh. The live audit stream was removed from the queue. Thai type/requester/age/date summaries and direct schedule/registration destinations are covered by tests. Existing action authorization and decision APIs remain unchanged.
+- No backend, database, RBAC, authentication-policy, or Production changes were made. Exact-SHA CI, Preview provenance/readiness, and merge are pending PR creation.
+
+### Backlog execution state
+
+- T29: MERGED (#497).
+- T07: implementation complete; PR and authoritative gates pending.
+- T08–T20: NOT STARTED; each remains subject to current-head audit and its own isolated worktree/branch/PR.
+- Production release is outside this master run.
+
 ## SMS V3 — Enterprise Evolution Production Release
 
 **Release date:** 2026-09-27 (ICT)
@@ -91,7 +128,7 @@ Enterprise Evolution is released to Production. The release artifact, canonical 
 - No API, Permission, or RBAC behavior was changed by this hotfix.
 - Rollback reference: prior Ready Production deployment `dpl_3U9vmhUPwH4t2dZtaWUSa5Tyi7eK` (`https://sms-v3-staging-o35tu0low-godzillazz.vercel.app`).
 
-## Final Theme Fix Production Closure � 2026-09-28
+## Final Theme Fix Production Closure — 2026-09-28
 
 - Source branch: `preview/enterprise-evolution-20260927`
 - Release source commit: `b22ac2d` (`fix(frontend): restore dark personnel card surfaces`), including prior Light Roster fix `669fe99`.
@@ -106,7 +143,7 @@ Enterprise Evolution is released to Production. The release artifact, canonical 
 - No database migration/change. No intentional API, Permission, or RBAC behavior change.
 - Release scope closed: Light Roster surfaces and Dark Mode employee/personnel card surfaces are included in the same verified Production release.
 
-## Enterprise Quality Closure � 2026-09-28
+## Enterprise Quality Closure — 2026-09-28
 
 - Source commit: `d2a8b7e` (`feat(frontend): harden enterprise mobile accessibility`).
 - Performance audit confirmed Security Site panel and MapLibre picker remain route/map lazy. Production build still reports `SecuritySiteManagementPanel` 61.53 kB, main `index` 500.76 kB, and lazy `SecuritySiteMapPicker` 1,040.09 kB; no risky Dashboard contract change was made.
@@ -123,7 +160,7 @@ Enterprise Evolution is released to Production. The release artifact, canonical 
 - No DB migration/change and no intentional API, Permission, or RBAC behavior change.
 - Rollback reference: previous Production `dpl_8XXKhUajEKkBeqA6yWgUjAzCinQE` (`https://sms-v3-staging-k4p9m9r3b-godzillazz.vercel.app`).
 
-## Production Hardening Release Gate � 2026-09-28
+## Production Hardening Release Gate — 2026-09-28
 
 - Source commit: `44496f5` (`ci: enforce production hardening release gates`).
 - CI now runs on `preview/enterprise-evolution-20260927` and enforces frontend build verification.
@@ -142,7 +179,7 @@ Enterprise Evolution is released to Production. The release artifact, canonical 
 - No DB migration/change and no intentional API, Permission, or RBAC behavior change.
 - Rollback reference: previous Production `dpl_DqtuNmZXbd52RX5bUWQrhMsjaRwY` (`https://sms-v3-staging-8oxgyvzu1-godzillazz.vercel.app`).
 
-## Observability + Performance Optimization Release � 2026-09-28
+## Observability + Performance Optimization Release — 2026-09-28
 
 - Source commit: `8903e55` (`perf(frontend): cut GIS and main bundle weight`).
 - Observability: existing read-only System Health remains the production operational dashboard for API p50/p95, HTTP 5xx, database latency, slow routes, warnings, deployment host/SHA and runtime sample scope; its regression contracts remain green. No third-party telemetry secret or DB change was introduced.
@@ -162,7 +199,7 @@ Enterprise Evolution is released to Production. The release artifact, canonical 
 - No DB migration/change and no intentional API, Permission, or RBAC behavior change.
 - Rollback reference: previous Production `dpl_CRMfif9bYWb2g2bGsocUgFMMaqCm` (`https://sms-v3-staging-1wxrgfi84-godzillazz.vercel.app`).
 
-## Production Operations Acceptance Closure � 2026-09-28
+## Production Operations Acceptance Closure — 2026-09-28
 
 - Source commit: `b892487` (`ops: establish production health acceptance baseline`).
 - Added `docs/PRODUCTION_SYSTEM_HEALTH_RUNBOOK.md` with actionable Watch/Incident thresholds for HTTP 5xx, API p95, DB latency, route p95, dropped samples, safe triage, and rollback rules.

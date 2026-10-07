@@ -50,7 +50,7 @@ describe('G04.2 VF-02 owner visual fidelity correction contract', () => {
   it('uses the approved Command Nexus hierarchy with four operational KPIs before deeper signals', () => {
     expect(dashboardPage).toContain('Command Overview');
     expect(dashboardPage).toContain('nexus-command__grid');
-    for (const label of ['ACTIVE PERSONNEL', 'ON DUTY TODAY', 'LEAVE / PENDING', 'LICENSE WATCH']) expect(dashboardPage).toContain(label);
+    for (const label of ['ACTIVE PERSONNEL', 'ON DUTY TODAY', 'LEAVE TODAY', 'LICENSE WATCH']) expect(dashboardPage).toContain(label);
     expect(dashboardPage).not.toContain('GIS INTEGRATION PENDING');
     expect(dashboardPage).toContain('nexus-kpis');
     expect(dashboardPage.indexOf('nexus-kpis')).toBeLessThan(dashboardPage.indexOf('nexus-lower-grid'));
@@ -130,6 +130,6 @@ describe('G04.2 VF-02 owner visual fidelity correction contract', () => {
   });
 
   it('locks the authorized API source after T25 cross-tab refresh coordination', () => {
-    expect(apiSha256).toBe('779bd82a46b819ceae56e0cca3fc7a7bf1a4cc1957495f4e45338aabb48ff194');
+    expect(apiSha256).toBe('ee259e1e4f8b95049f345ae885a94b354b87cd1c22050bceebb1064a8fa0629f');
   });
 });
