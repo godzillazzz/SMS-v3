@@ -8,7 +8,7 @@
 
 ### R1B และ release-control
 
-- Integration branch `fix/serverless-database-reliability` ปัจจุบันอยู่ที่ merge commit `aa8e8bb42ffd7f920fb4275e3c4aea9be69c582b` จาก PR #482.
+- R1B release-control PR #482 merged into `fix/serverless-database-reliability` as merge commit `aa8e8bb42ffd7f920fb4275e3c4aea9be69c582b`; R1B application source remains SHA `31b17868642b3b653630ad5356b8d26c08fde55d`.
 - PR #481 แก้ Linux `libc` metadata ของ sharp 0.35.5; R1B source SHA `31b17868642b3b653630ad5356b8d26c08fde55d`, tree `24e8cd0052818c41cb6e0dd17a19f333b342baa0`.
 - CI exact SHA ของ R1B: run `37557051194` สำเร็จ. Vercel status ของ R1B เป็น success: https://vercel.com/godzillazz/sms-v3-staging/9iVQBHyiTUzffBBqCtHncbAzSjR9.
 - R1B Preview: https://sms-v3-staging-chd2sa7ey-godzillazz.vercel.app, deployment `dpl_9iVQBHyiTUzffBBqCtHncbAzSjR9`.
