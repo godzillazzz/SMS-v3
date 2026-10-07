@@ -1,10 +1,14 @@
 import { TableActionCell, TableActionHeader } from '../TableActionColumn';
 import { DataTableSkeletonCards, DataTableSkeletonRows, DataTableState, ResponsiveDataTable } from '../ResponsiveDataTable';
 import type { PersonnelRecord } from './types';
+import type { EmployeeReadinessStatus, EmployeeReadinessViewState } from './AttendanceReadinessCenter';
 
 type Props = {
   rows: PersonnelRecord[];
   canManage: boolean;
+  canViewReadiness: boolean;
+  readinessByEmployeeId: Record<string, EmployeeReadinessStatus>;
+  readinessState: EmployeeReadinessViewState;
   selectedId?: string;
   onSelect(employee: PersonnelRecord): void;
   onEdit(employee: PersonnelRecord): void;
@@ -15,11 +19,20 @@ type Props = {
   emptyAction?: { label: string; onClick(): void };
 };
 
-export function PersonnelTable({ rows, canManage, selectedId, onSelect, onEdit, loading = false, error = false, onRetry, hasActiveFilters = false, emptyAction }: Props) {
+function readinessLabel(status: EmployeeReadinessStatus | undefined, state: EmployeeReadinessViewState) {
+  if (status === 'READY') return 'พร้อม';
+  if (status === 'NOT_READY') return 'ไม่พร้อม';
+  if (state === 'loading') return 'กำลังตรวจ';
+  if (state === 'error') return 'ตรวจสอบไม่ได้';
+  return 'ไม่มีผลตรวจ';
+}
+
+export function PersonnelTable({ rows, canManage, canViewReadiness, readinessByEmployeeId, readinessState, selectedId, onSelect, onEdit, loading = false, error = false, onRetry, hasActiveFilters = false, emptyAction }: Props) {
+  const columnCount = 5 + Number(canManage) + Number(canViewReadiness);
   const desktop = <div className="personnel-table-scroll data-table-scroll">
       <table className="personnel-table data-surface-table" aria-label="รายการบุคลากร">
-        <thead><tr><th scope="col">พนักงาน</th><th scope="col">รหัสภายใน</th><th scope="col">หน่วยงาน</th><th scope="col">ตำแหน่ง</th><th scope="col">สถานะ</th>{canManage && <TableActionHeader label="จัดการ" />}</tr></thead>
-        <tbody>{error ? <tr><td colSpan={canManage ? 6 : 5} className="personnel-no-rows data-table-empty-cell"><DataTableState variant="error" announce={false} title="ไม่สามารถโหลดข้อมูลบุคลากร" description="ระบบไม่พร้อมใช้งานชั่วคราว กรุณาลองใหม่อีกครั้ง" action={onRetry ? { label: 'ลองใหม่', onClick: onRetry } : undefined} /></td></tr> : loading ? <DataTableSkeletonRows columnCount={canManage ? 6 : 5} rowCount={5} rowClassName="personnel-skeleton-row" /> : rows.length ? rows.map((employee) => <tr
+        <thead><tr><th scope="col">พนักงาน</th><th scope="col">รหัสภายใน</th><th scope="col">หน่วยงาน</th><th scope="col">ตำแหน่ง</th><th scope="col">สถานะ</th>{canViewReadiness && <th scope="col">ความพร้อม</th>}{canManage && <TableActionHeader label="จัดการ" />}</tr></thead>
+        <tbody>{error ? <tr><td colSpan={columnCount} className="personnel-no-rows data-table-empty-cell"><DataTableState variant="error" announce={false} title="ไม่สามารถโหลดข้อมูลบุคลากร" description="ระบบไม่พร้อมใช้งานชั่วคราว กรุณาลองใหม่อีกครั้ง" action={onRetry ? { label: 'ลองใหม่', onClick: onRetry } : undefined} /></td></tr> : loading ? <DataTableSkeletonRows columnCount={columnCount} rowCount={5} rowClassName="personnel-skeleton-row" /> : rows.length ? rows.map((employee) => <tr
           key={employee.id}
           data-personnel-id={employee.id}
           className={selectedId === employee.id ? 'is-selected personnel-record-row' : 'personnel-record-row'}
@@ -29,10 +42,11 @@ export function PersonnelTable({ rows, canManage, selectedId, onSelect, onEdit, 
           <td>{employee.department || '—'}</td>
           <td>{employee.jobTitle || '—'}</td>
           <td><span className={`status-badge ${employee.isActive ? 'active status-badge--success' : 'inactive status-badge--neutral'}`}>{employee.isActive ? 'ใช้งาน' : 'ไม่ใช้งาน'}</span></td>
+          {canViewReadiness && <td><span className={`status-badge ${readinessByEmployeeId[employee.id] === 'READY' ? 'status-badge--success' : readinessByEmployeeId[employee.id] === 'NOT_READY' ? 'status-badge--warning' : 'status-badge--neutral'}`} data-readiness-status={readinessByEmployeeId[employee.id] || 'UNKNOWN'}>{readinessLabel(readinessByEmployeeId[employee.id], readinessState)}</span></td>}
           {canManage && <TableActionCell className="personnel-row-actions data-row-actions" onClick={(event) => event.stopPropagation()}>
             <button type="button" className="data-row-primary-action" aria-label={`แก้ไขข้อมูล ${employee.firstName} ${employee.lastName}`} onClick={() => onEdit(employee)}>แก้ไขข้อมูล</button>
           </TableActionCell>}
-        </tr>) : <tr><td colSpan={canManage ? 6 : 5} className="personnel-no-rows data-table-empty-cell"><DataTableState variant="empty" title={hasActiveFilters ? 'ไม่พบผลการค้นหา' : 'ยังไม่พบข้อมูลบุคลากร'} description={hasActiveFilters ? 'ลองล้างตัวกรองหรือใช้คำค้นหาอื่น' : 'ระบบยังไม่พบข้อมูลที่สามารถแสดงภายใต้หน่วยงานและสิทธิ์ของบัญชีนี้'} action={emptyAction} /></td></tr>}</tbody>
+        </tr>) : <tr><td colSpan={columnCount} className="personnel-no-rows data-table-empty-cell"><DataTableState variant="empty" title={hasActiveFilters ? 'ไม่พบผลการค้นหา' : 'ยังไม่พบข้อมูลบุคลากร'} description={hasActiveFilters ? 'ลองล้างตัวกรองหรือใช้คำค้นหาอื่น' : 'ระบบยังไม่พบข้อมูลที่สามารถแสดงภายใต้หน่วยงานและสิทธิ์ของบัญชีนี้'} action={emptyAction} /></td></tr>}</tbody>
       </table>
     </div>;
   const mobile = <div className="personnel-mobile-records" aria-label="รายการพนักงานสำหรับอุปกรณ์เคลื่อนที่">
@@ -41,6 +55,7 @@ export function PersonnelTable({ rows, canManage, selectedId, onSelect, onEdit, 
         <span className="personnel-mobile-record__meta"><small>รหัสภายใน</small><b>{employee.employeeCode}</b></span>
         <span className="personnel-mobile-record__meta"><small>หน่วยงาน</small><b>{employee.department || 'ไม่ระบุ'}</b></span>
         <span className="personnel-mobile-record__meta personnel-mobile-record__wide"><small>ตำแหน่ง</small><b>{employee.jobTitle || 'ไม่ระบุ'}</b></span>
+        {canViewReadiness && <span className="personnel-mobile-record__meta"><small>ความพร้อม</small><b className="personnel-mobile-readiness" data-readiness-status={readinessByEmployeeId[employee.id] || 'UNKNOWN'}>{readinessLabel(readinessByEmployeeId[employee.id], readinessState)}</b></span>}
         <em>แตะเพื่อเปิดรายละเอียด</em>
       </button>) : <DataTableState variant="empty" title={hasActiveFilters ? 'ไม่พบผลการค้นหา' : 'ยังไม่พบข้อมูลบุคลากร'} description={hasActiveFilters ? 'ลองล้างตัวกรองหรือใช้คำค้นหาอื่น' : 'ระบบยังไม่พบข้อมูลที่สามารถแสดงภายใต้หน่วยงานและสิทธิ์ของบัญชีนี้'} action={emptyAction} />}
     </div>;
