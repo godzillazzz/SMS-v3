@@ -68,6 +68,21 @@ if (process.env.RUN_INTEGRATION_TESTS !== 'true') {
     };
   }
 
+  test('annual quota read can be scoped to one employee without exposing other quota rows', async () => {
+    await seed({ activation: 'true' });
+    const t = await tokens();
+    await prisma.leaveQuota.createMany({ data: [
+      { sourceFingerprint: fp('employee-filter-a'), employeeId: ids.employeeA, quotaYear: 2026, employeeNameSnapshot: 'G031 Alpha Annual', sickLeave: 30, personalLeave: 3, vacationLeave: 6, matchStatus: 'MATCHED' },
+      { sourceFingerprint: fp('employee-filter-b'), employeeId: ids.employeeB, quotaYear: 2026, employeeNameSnapshot: 'G031 Bravo Annual', sickLeave: 30, personalLeave: 3, vacationLeave: 6, matchStatus: 'MATCHED' }
+    ] });
+    const response = await request(app).get(`/api/v1/leave-quotas?year=2026&employeeId=${ids.employeeB}`).set('Authorization', `Bearer ${t.manager}`);
+    assert.equal(response.status, 200);
+    assert.equal(response.body.meta.total, 1);
+    assert.deepEqual(response.body.data.map((row) => row.employeeId), [ids.employeeB]);
+    assert.equal(await prisma.leaveQuota.count({ where: { quotaYear: 2026, employeeId: { in: [ids.employeeA, ids.employeeB] } } }), 2);
+    await cleanup();
+  });
+
   test('activation defaults inactive in PostgreSQL; base-year creates while missing non-base years are blocked and existing non-base rows remain readable', async () => {
     await seed({ activation: null });
     assert.equal(await isMultiYearWriteActivated(prisma), false);

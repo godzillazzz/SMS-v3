@@ -1631,7 +1631,10 @@ router.get('/leave-quotas', authorize('ADMIN', 'MANAGER', 'SUPERVISOR'), async (
     const { page, pageSize } = paging.parse(req.query);
     const legacy = String(req.query.legacy || '') === 'true';
     const quotaYear = legacy ? null : (req.query.year === undefined ? bangkokQuotaYear() : validateQuotaYear(req.query.year));
-    const where = legacy ? { quotaYear: null } : { quotaYear };
+    const employeeId = req.query.employeeId === undefined ? undefined : uuid.parse(req.query.employeeId);
+    const where = legacy
+      ? { quotaYear: null, ...(employeeId ? { employeeId } : {}) }
+      : { quotaYear, ...(employeeId ? { employeeId } : {}) };
     const [total, quotas, unmatchedLegacyCount] = await prisma.$transaction([
       prisma.leaveQuota.count({ where }),
       prisma.leaveQuota.findMany({
