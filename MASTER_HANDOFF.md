@@ -1,5 +1,42 @@
 # MASTER HANDOFF
 
+## ACTIVE — Safe Production readiness / T17 continuation — 7 ตุลาคม 2569
+
+**สถานะ: OPEN / BLOCKED BEFORE PRODUCTION RELEASE.** คำสั่งล่าสุดของ Owner อนุญาตให้ดำเนิน release ผ่าน governance ปกติได้ แต่ห้ามข้าม CI, provenance, Preview, rollback หรือ GitHub Environment protection. รอบนี้ยังไม่มี Production deploy/promote/Environment approval และไม่มี Production data/schema/secret/env/RBAC/auth/business-policy mutation.
+
+### Current source and T17 recovery
+
+- ใช้ `origin/fix/serverless-database-reliability` เท่านั้น; remote HEAD ณ การตรวจคือ `d2977e351ff1688e1609a8e8e44866f690b5f9ee`. SHA Production ล่าสุดที่ handoff บันทึก `2d9a21c9c8d940fbd5c3c8c9dadceae073f0a9ea` เป็น ancestor ของ HEAD นี้. Diff จาก Production source ดังกล่าวไม่มี `prisma/schema.prisma` หรือ `prisma/migrations`.
+- `codex/t17-a11y-1007` บน origin ยังชี้ `d2977e…`; PR/T17 implementation commit ไม่ได้อยู่บน remote.
+- ตามข้อมูลจาก Owner, T17 local state คือ base `d2977e…`, implementation `259f794e21a512b65f8a8de6c4f22be8714085e1`, handoff `9d0b7d6aba719031b62847abf7429e5b0298b7d3`, และ clean worktree `/workspace/SMS-v3/.worktrees/t17-a11y`. Worktree/branch/ref และ commit objects เหล่านี้ไม่มีใน workspace ปัจจุบัน; GitHub commit/PR search ไม่พบ และ `git fetch` commit SHA ตอบ `not our ref`. ดังนั้น test evidence ที่ Owner ให้ไว้ (Playwright 19/19, frontend 154 files / 916 tests, audit 0 vulnerabilities, TypeScript/build, bundle guard, axe และ Lighthouse 100) ยังไม่ได้ตรวจซ้ำบน artifact ที่กู้คืนได้. T17 ยังไม่มี PR, merge SHA, exact-head CI หรือ Preview ที่ตรวจได้ใน session นี้.
+
+### Production release readiness — candidate `d2977e…`
+
+- Latest recorded Production release: protected workflow #37572338555 — SUCCESS; source `2d9a21c9c8d940fbd5c3c8c9dadceae073f0a9ea`; rollback `dpl_FbXBhBdjcNLvYEpN9sXs3EV6VEuh`. Current Production was not freshly re-queried: direct runtime access from this environment returned HTTP 403 before usable health/readiness evidence.
+- Exact candidate CI run #37633962744 — SUCCESS on `d2977e…`, including `npm test`, PostgreSQL integration, frontend tests, production build/bundle, Prisma and hygiene. The integration-PR Preview runtime step was skipped on this push event.
+- Vercel status for the exact candidate completed successfully; deployment `dpl_28pZRExgZBT7PeSCmDDrjq6SXTBS`, Preview `https://sms-v3-staging-7jilnxz50-godzillazz.vercel.app`.
+- Exact-source technical smoke run #37652582109 — FAILURE. Health/readiness, Vite assets and credentialed trusted/untrusted CORS checks passed; 10 tests passed, 1 failed, 23 skipped. Desktop Login at 1440px failed twice (initial attempt and retry): `Primary login control must have a viewport box` at `e2e/smoke/technical.spec.js:112`. Credentialed UAT was not established and remains UNKNOWN. This is a release blocker until resolved and rerun on the final exact source.
+- `.github/releases/approved-production.json` still targets the earlier R3 SHA `b3e70834977a1b29b367e8a1d3b3cfebac0d74c8`, not `d2977e…`; no release-control PR for `d2977e…` was prepared. `Deploy Approved Production Manifest V2` is `workflow_dispatch` only. The local GitHub CLI is unauthenticated and no Actions-dispatch operation is exposed by the connected GitHub tools, so dispatch and normal Environment review were unavailable here. No attempt was made to bypass them.
+
+### Final audit status / next gates
+
+| Work item | Status | Evidence / remaining gate |
+|---|---|---|
+| T29, T07, T09, T16, T10–T15 | MERGED to integration; not promoted by this session | PR, merge SHA, exact CI, Preview, tests and task-specific gaps remain recorded in the table/details below. |
+| T08 Approval Detail | BLOCKED — Owner/API decision | Keep client-side schedule-revision diff out. Owner must choose an authoritative immutable revision-diff/read API or defer schedule detail; any schema work needs separate authorization. |
+| T17 Accessibility | BLOCKED — exact local worktree/commit missing | Restore the exact branch/commit or recreate from the approved base; then open its PR, pass exact-head CI and Preview, merge, fetch and reread this handoff. |
+| T19 | NOT STARTED | Wait for the T17 gate and current-HEAD audit. |
+| T18 | NOT STARTED | Verify the task scope from an authoritative plan before implementation; `PLAN.md` is absent from the current allowlisted branch. |
+| T24 | PARTIAL / VERIFY-FIRST | Prior batching/query work #489 is recorded as complete. Readiness/dashboard query work, DB/function region comparison and before/after Preview timing remain unverified/deferred; do not label the whole task closed. |
+| T20 | NOT STARTED | Wait for preceding tasks and audit its then-current HEAD. |
+| G06.1 Phase 0 | NOT STARTED / NEXT SECURITY AUDIT | Architecture, threat-model and device-compatibility audit only; no implementation, Production data/schema/config/auth mutation. Preserve the no-client-schedule-diff rule for T08. |
+
+Required instructions were re-read from `AGENTS.md`, this canonical `MASTER_HANDOFF.md`, and `.agents/skills/sms-v3-autonomous-operator/SKILL.md`. `PLAN.md` is absent. The separate legacy file `MASTER HANDOFF.md` (with a space) has a conflicting checkpoint; `AGENTS.md` designates this underscore-named file as the sole current-state handoff, so that legacy copy was not edited.
+
+No Production mutation occurred in this session. Do not advance to T19 until the exact T17 commit is restored/merged; do not release `d2977e…` while the exact-source Login smoke remains failed. After a passing final candidate and corrected manifest, re-verify current canonical/rollback and use only the protected Production workflow.
+
+---
+
 ## ACTIVE — Master UX Remediation (7 ตุลาคม 2569)
 
 **สถานะ: OPEN.** งานนี้ทำเฉพาะ code, tests, PRs และ Vercel Previews ตาม scope ที่อนุญาต ไม่มี Production deploy/promote/Environment approval และไม่มีการแก้ Production data, DB schema/migration, secret/environment หรือ security/business policy. T15 PR `#518` merge แล้วเป็น `9e533b2501bdc7ac1e63c98e09783f563b407479` จาก source `66ee6c7bf15fa6d0e7c9413192aa86829885db5c` บน base `62a3c242caf6559e0bf0b7d8bd9f57e347bf0fe0`; integration HEAD ปัจจุบัน `9e533b2501bdc7ac1e63c98e09783f563b407479`.
