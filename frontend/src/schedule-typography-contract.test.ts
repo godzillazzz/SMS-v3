@@ -12,7 +12,7 @@ describe('monthly roster font contract', () => {
   it('keeps the schedule-only guard after the legacy roster styles', () => {
     expect(css.lastIndexOf(marker)).toBeGreaterThan(css.indexOf('.nexus-roster-workspace{'));
     expect(main).toContain('className="view-pane schedule-calendar-page nexus-roster-workspace"');
-    expect(main).toContain('<table className="schedule-grid">');
+    expect(main).toContain('className={`schedule-grid schedule-grid--compact${showScheduleTimes ?');
     expect(contract).not.toMatch(/font-family\s*:[^;}]*\b(?:Inter|Noto Sans Thai|IBM Plex Mono|Arial)\b/i);
   });
 

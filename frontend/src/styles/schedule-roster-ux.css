@@ -1,0 +1,14 @@
+.schedule-calendar-page .calendar-card>.schedule-grid-scroll{max-height:min(68vh,720px);overflow:auto!important;overscroll-behavior:contain}
+.schedule-calendar-page .schedule-grid thead th{position:sticky;top:0;z-index:5}
+.schedule-calendar-page .schedule-grid thead th.employee-sticky{z-index:8}
+.schedule-calendar-page .schedule-grid--compact :is(th,td):not(.employee-sticky){box-sizing:border-box;width:62px!important;min-width:62px!important;max-width:62px!important;height:58px;padding:3px!important}
+.schedule-calendar-page .schedule-grid--compact .calendar-shift{width:48px;min-width:0;padding:3px}
+.schedule-calendar-page .schedule-grid--compact .calendar-shift b{font-size:12px;line-height:1.1}
+.schedule-calendar-page .schedule-grid--compact .schedule-time{display:none!important}
+.schedule-calendar-page .schedule-grid--show-times .schedule-time{display:block!important}
+.schedule-calendar-page .schedule-day-count{display:block;margin-top:2px;font-size:10px;font-weight:750;line-height:1}
+.schedule-calendar-page .schedule-grid :is(th,td).weekend:not(.today){box-shadow:inset 0 0 0 999px rgba(239,68,68,.07)}
+.schedule-calendar-page .schedule-grid :is(th,td).today{box-shadow:inset 0 0 0 2px #f59e0b!important}
+.schedule-calendar-page .schedule-grid thead th.today{border-top:3px solid #f59e0b!important}
+.schedule-calendar-page .schedule-time-toggle{min-height:40px}
+@media(max-width:700px){.schedule-calendar-page .calendar-card>.schedule-grid-scroll{max-height:min(62dvh,600px)}}
