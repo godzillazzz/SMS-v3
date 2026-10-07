@@ -20,21 +20,33 @@ This current checkpoint supersedes older release-source and production-status su
 - Playwright PDF evidence: artifact `11468442270` (`t29-print-browser-artifacts`). Leave PDF: one A4 portrait page with Thai title and no shell leakage. Roster fixture: one A4 landscape page with all 31 days. Generic table: 8 landscape pages; executive/attendance report fixtures: 4 landscape pages. Header repetition, row breaks, compact roster layout, source guard, and report clipping regressions passed.
 - T29 Production deployment: none.
 
-### T07 — Unified Approval Inbox — IN PROGRESS, READY FOR PR
+### T07 — Unified Approval Inbox — MERGED
 
-- Isolated worktree/branch: `.worktrees/t07-unified-approval-inbox` / `codex/t07-unified-approval-inbox-20261007`.
 - Base SHA: `eaa880753efd3476233caf8dce306f27b7eb2e4f` (T29 integration merge).
-- Implementation and regression coverage are complete locally; PR has not yet been opened at this checkpoint.
-- Frontend regression: 147 test files and 887 tests passed. TypeScript + Vite production build passed. `git diff --check` passed.
-- Browser checks passed at 1366×768 and 375×812 using fixture-backed API responses; both layouts had no JavaScript errors or horizontal page overflow.
-- The inbox now uses server `byType`/total summary authority for visible positive-count filters and shared pending counts, with a 60-second visible-page refresh. The live audit stream was removed from the queue. Thai type/requester/age/date summaries and direct schedule/registration destinations are covered by tests. Existing action authorization and decision APIs remain unchanged.
-- No backend, database, RBAC, authentication-policy, or Production changes were made. Exact-SHA CI, Preview provenance/readiness, and merge are pending PR creation.
+- PR #499, branch `codex/t07-inbox-20261007`, head `6a6a1552ef7fb39a2600f6b0f5ac9700fa37aff2`, merged to integration as `b2d6250b93f8aaddc98846bb487f5884f7b0e062`.
+- Exact-head CI run `37596463287` passed, including frontend/backend/integration tests, TypeScript/build/bundle, Linux artifact verification, T29 browser regression job, and Preview runtime health/readiness/CORS step.
+- Vercel Preview status succeeded for exact head SHA; record `CmSN7H2DCxLD21Tt6ixZ2JTGGqdA`; runtime target `https://sms-v3-staging-git-codex-t07-inbox-20261007-godzillazz.vercel.app`.
+- Local frontend regression: 147 files / 887 tests passed. TypeScript + Vite build and `git diff --check` passed. Fixture-backed browser checks passed at 1366×768 and 375×812 with no JS errors or horizontal document overflow.
+- PR #498 was closed unmerged after its generated Preview hostname had a 71-character DNS label, beyond the 63-character DNS limit, and the Preview runtime fetch failed twice. The same commit was retained on the shorter PR #499 branch; CI and Preview gates passed there.
+- The inbox uses server `byType`/total summary authority for visible positive-count filters and shared pending counts; the live audit stream was removed from the queue; types/requesters/ages/dates are localized and schedule/registration destinations are direct. Existing approval action authorization and decision APIs were unchanged.
+- No Production deployment, data mutation, backend change, DB change, RBAC change, or authentication-policy change was made.
+
+### T08 — Standard Approval Detail — BLOCKED: OWNER/API DECISION REQUIRED
+
+- Capability audit base SHA: `b2d6250b93f8aaddc98846bb487f5884f7b0e062` (T07 integration merge).
+- STOPPED before UI implementation because the server does not expose an authoritative schedule-revision diff or immutable revision snapshot. No client-side diff was derived.
+- Evidence: `GET /api/v1/schedule-approvals` returns revision metadata (`id`, `month`, `status`, `revision`, `changeType`, `changedAt`, `approvedAt`, approver identity, note, and `isLatestRevision`); it does not return changed-by identity or a server-selected prior-approved revision. `GET /api/v1/approval-center` returns the current pending schedule row and revision metadata only.
+- The `ScheduleApproval` model stores status/revision/change metadata and `scheduleHash`, but no assignment snapshot. `ScheduleApprovalEvent` records lifecycle metadata and has no current read route. Shift-assignment audit rows are not linked to a complete, immutable schedule revision, so reconstructing old→new content or warnings from them would be an unsafe guess.
+- Other available detail is limited: pending leave rows include request fields and snapshots; `GET /api/v1/leave-quotas` exposes current server-computed entitlement/used/remaining totals, but no request-specific quota-impact or schedule-impact result; leave approval recalculates quota inside its decision transaction. Attendance-device request detail exists behind the existing Admin-only route and includes candidate/current device identifiers and safe device metadata. This task did not broaden that route’s authorization.
+- Decision memo / API proposal: Owner must choose whether to authorize a separate server-authority design for immutable schedule-revision data and a read-only approval-detail API (including the prior-approved link, requester/latest editor, revision-bound impact/warnings), or defer schedule detail until that authority exists. Any schema migration would require separate explicit Owner approval; none is proposed for this task.
+- No T08 UI/API/schema/auth/RBAC implementation was made. T08 remains BLOCKED until the authority decision is resolved.
 
 ### Backlog execution state
 
 - T29: MERGED (#497).
-- T07: implementation complete; PR and authoritative gates pending.
-- T08–T20: NOT STARTED; each remains subject to current-head audit and its own isolated worktree/branch/PR.
+- T07: MERGED (#499; #498 superseded and closed unmerged).
+- T08: BLOCKED by missing server-authoritative schedule-revision diff; decision memo recorded above.
+- T09–T20: NOT STARTED; each remains subject to current-head audit and its own isolated worktree/branch/PR.
 - Production release is outside this master run.
 
 ## SMS V3 — Enterprise Evolution Production Release
