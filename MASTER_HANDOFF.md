@@ -1,5 +1,26 @@
 # MASTER HANDOFF
 
+## ACTIVE — Master UX Remediation (7 ตุลาคม 2569)
+
+**สถานะ: OPEN.** งานนี้ทำเฉพาะ code, tests, PRs และ Vercel Previews ตาม scope ที่อนุญาต ไม่มี Production deploy/promote/Environment approval และไม่มีการแก้ Production data, DB schema/migration, secret/environment หรือ security/business policy. Integration HEAD ล่าสุดที่ยืนยันหลัง T16 คือ `092acf1700d3cc2c40ed5570945f7075293cd640`.
+
+| Task | Status | PR / merge SHA | Exact-head CI | Preview |
+|---|---|---|---|---|
+| T29 Printing / A4 | MERGED | #497 / `eaa880753efd3476233caf8dce306f27b7eb2e4f` | `37591241274` success | READY — https://sms-v3-staging-git-codex-t29-printing-a4-20261007-godzillazz.vercel.app; Vercel record `4TQLNtPH3SKtZQKQqC2aqfVn1mnt` |
+| T07 Unified Approval Inbox | MERGED | #499 / `b2d6250b93f8aaddc98846bb487f5884f7b0e062` | `37596463287` success | READY — https://sms-v3-staging-git-codex-t07-inbox-20261007-godzillazz.vercel.app; Vercel record `CmSN7H2DCxLD21Tt6ixZ2JTGGqdA` |
+| T08 Approval Detail | BLOCKED — Owner/API decision | #500 decision memo / `a4557d3a7ea40a3260d3c78c025f050c3fa1f593` | `37597496396` success | READY — https://sms-v3-staging-git-codex-t08-memo-20261007-godzillazz.vercel.app; Vercel record `2ETgdtznJjq8fYJS3BkkqjZsiyf8` |
+| T09 URL Routing / Deep Links | MERGED | #501 / `c2039b6194b0b886b604a0d07dd8173d8fa4fcca` | `37602743331` success | READY — https://sms-v3-staging-git-codex-t09-url-routing-20261007-godzillazz.vercel.app; Vercel record `8qmAAXU27Nm22ksa7UFUHsnZGthc` |
+| T09 handoff closeout | MERGED | #503 / `8e47a96b84d01ee75a734b4c6682274223c62c83` | `37603802657` success | READY — https://sms-v3-staging-git-codex-handoff-t09-godzillazz.vercel.app; Vercel record `8mPibk1G7tsXehPW561cdg4pWEkZ` |
+| T16 Thai Date/Time Foundation | MERGED | #504 / `092acf1700d3cc2c40ed5570945f7075293cd640` | `37605739766` success | READY — https://sms-v3-staging-git-codex-t16-date-time-20261007-godzillazz.vercel.app; Vercel record `FaMMCdsMkaJZFf38h5MFZCkp5gbB` |
+
+T16 added shared Thai/Bangkok/Buddhist-year date, month, and date-time formatting while keeping API/storage ISO/Gregorian. Date-only values preserve their calendar day. Verification: focused tests 19/19; frontend suite 149 files / 900 tests; TypeScript/build and `git diff --check` passed; exact-head CI includes health/readiness/database/CORS checks and passed. Authenticated Production pages were not accessed. No Production action occurred.
+
+T08 current-source audit found no server-authoritative immutable schedule revision diff or previous-approved-revision detail API. Client-side derivation would violate the approval authority contract, so T08 remains blocked pending an Owner/API decision; memo PR #500 records the evidence. Independent tasks continue.
+
+**Next task:** T10 Personnel Readiness, beginning from a fresh fetch of the integration branch. Remaining sequence: T10 → T11 → T12 → T13 → T14 → T15 → T17 → T19 → T18/T24 verify-first → T20 → G06.1 Phase 0 architecture/threat model only. Production status in this remediation is unchanged; the last recorded Production state in the historical handoff below is R2 source `2d9a21c9c8d940fbd5c3c8c9dadceae073f0a9ea`, deployment `dpl_FbXBhBdjcNLvYEpN9sXs3EV6VEuh`. This is the last recorded reference, not a fresh live Production verification.
+
+---
+
 ## Current engineering task — T29 Printing / A4 (7 ตุลาคม 2569)
 
 **สถานะ: OPEN — PR #497 อยู่บน branch `codex/t29-printing-a4-20261007` จาก integration base `fd4c7a1b110bee9a9ee77bc5eb2510cb772ee40b`. Implementation SHA `adbec6c71c7763e43055c9a8937d3a1359ff7a40` ผ่าน exact-head CI run `37590710095` และ Vercel Preview check success/READY. Preview: https://sms-v3-staging-git-codex-t29-printing-a4-20261007-godzillazz.vercel.app; project `sms-v3-staging` (`prj_XwhNUOB2zLSPZ6UgQcfyOKBYJ75s`), Vercel dashboard deployment `8PFaxFsSSdYdwCPSoBUMC2rz3bkF` (connector ไม่คืน `dpl_` id). Production ไม่ถูก deploy/promote และยังคง R2 ตามด้านล่าง.**
