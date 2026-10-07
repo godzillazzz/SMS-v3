@@ -159,8 +159,8 @@ describe('G04.2 UX-05 Registration Review workbench contract', () => {
     expect(css).toContain('max-height: 92dvh;');
   });
 
-  it('locks the authorized API source after Attachment Optimizer V1 and preserves all five Registration Review API signatures', () => {
-    expect(apiSha256).toBe('ff0cc5aed002645202239ff621257b592a9e12983327dee3bd3c29382dfb771e');
+  it('locks the authorized API source after T25 cross-tab refresh coordination and preserves all five Registration Review API signatures', () => {
+    expect(apiSha256).toBe('779bd82a46b819ceae56e0cca3fc7a7bf1a4cc1957495f4e45338aabb48ff194');
     expect(api).toContain('registrationRequests: (token: string, options: string | { page?: number; pageSize?: number; status?: string } = {})');
     expect(api).toContain('registrationCandidates: (token: string, id: string, search = \'\')');
     expect(api).toContain('matchRegistrationRequest: (token: string, id: string, employeeId: string)');

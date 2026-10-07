@@ -1,4 +1,5 @@
 import { optimizeUploadFile } from './lib/attachment-optimizer';
+import { withAuthRefreshLock } from './auth-refresh-lock';
 
 const baseUrl = import.meta.env.VITE_API_BASE_URL || '/api/v1';
 const csrf = () => document.cookie.split('; ').find((item) => item.startsWith('smsv3_csrf='))?.split('=')[1];
@@ -40,9 +41,17 @@ export type ScheduleBatchWriteResult = {
   failureCount: number;
 };
 
-let isRefreshing = false;
 let refreshPromise: Promise<any> | null = null;
 let onTokenRefreshed: ((token: string, user: any) => void) | null = null;
+
+export function refreshAuth() {
+  if (!refreshPromise) {
+    refreshPromise = api.refresh().finally(() => {
+      refreshPromise = null;
+    });
+  }
+  return refreshPromise;
+}
 
 export type SecuritySiteQrCredential = {
   id: string;
@@ -130,14 +139,7 @@ async function call(path: string, init: RequestInit = {}, isRetry = false): Prom
   if (!response.ok) {
     if (response.status === 401 && !isRetry && !path.startsWith('/auth/')) {
       try {
-        if (!isRefreshing) {
-          isRefreshing = true;
-          refreshPromise = api.refresh().finally(() => {
-            isRefreshing = false;
-            refreshPromise = null;
-          });
-        }
-        const refreshResult = await refreshPromise;
+        const refreshResult = await refreshAuth();
         if (refreshResult?.accessToken) {
           if (onTokenRefreshed) onTokenRefreshed(refreshResult.accessToken, refreshResult.user);
           headers.set('Authorization', `Bearer ${refreshResult.accessToken}`);
@@ -162,14 +164,7 @@ async function binaryCall(path: string, init: RequestInit = {}, isRetry = false)
   if (!response.ok) {
     if (response.status === 401 && !isRetry && !path.startsWith('/auth/')) {
       try {
-        if (!isRefreshing) {
-          isRefreshing = true;
-          refreshPromise = api.refresh().finally(() => {
-            isRefreshing = false;
-            refreshPromise = null;
-          });
-        }
-        const refreshResult = await refreshPromise;
+        const refreshResult = await refreshAuth();
         if (refreshResult?.accessToken) {
           if (onTokenRefreshed) onTokenRefreshed(refreshResult.accessToken, refreshResult.user);
           headers.set('Authorization', `Bearer ${refreshResult.accessToken}`);
@@ -217,7 +212,7 @@ export const api = {
   verifyRegistrationOtp: (email: string, code: string) => call('/auth/register/verify-otp', { method: 'POST', body: JSON.stringify({ email, code }) }),
   requestPasswordResetOtp: (email: string) => call('/auth/password-reset/request-otp', { method: 'POST', body: JSON.stringify({ email }) }),
   completePasswordReset: (email: string, code: string, newPassword: string) => call('/auth/password-reset/complete', { method: 'POST', body: JSON.stringify({ email, code, newPassword }) }),
-  refresh: () => call('/auth/refresh', { method: 'POST', body: JSON.stringify({ clientType: 'browser' }) }),
+  refresh: () => withAuthRefreshLock(() => call('/auth/refresh', { method: 'POST', body: JSON.stringify({ clientType: 'browser' }) })),
   logout: () => call('/auth/logout', { method: 'POST', body: JSON.stringify({ clientType: 'browser' }) }),
   logoutAll: (accessToken: string) => call('/auth/logout-all', { method: 'POST', body: JSON.stringify({ clientType: 'browser' }), headers: { Authorization: `Bearer ${accessToken}` } }),
   dashboard: (token: string, filters: { date?: string; month?: string; department?: string } = {}) => {

@@ -103,7 +103,7 @@ describe('G04.2 VF-04 mockup lock visual contract', () => {
     for (const token of ['--pastel-page-lavender', '--pastel-page-sky', '--pastel-page-mint', '--pastel-page-blush']) expect(mobile).toContain(`var(${token})`);
   });
 
-  it('locks the authorized API source after the Attachment Optimizer V1 upload boundary', () => {
-    expect(apiSha256).toBe('ff0cc5aed002645202239ff621257b592a9e12983327dee3bd3c29382dfb771e');
+  it('locks the authorized API source after T25 cross-tab refresh coordination', () => {
+    expect(apiSha256).toBe('779bd82a46b819ceae56e0cca3fc7a7bf1a4cc1957495f4e45338aabb48ff194');
   });
 });

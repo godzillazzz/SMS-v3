@@ -71,7 +71,7 @@ describe('G04.2 VF-06 final visual fidelity closure contract', () => {
     expect(vf06).toMatch(/@media \(max-width: 760px\)[\s\S]*?\[data-theme="light"\] \.content-area[\s\S]*?--pastel-page-lavender[\s\S]*?--pastel-page-sky[\s\S]*?--pastel-page-blush[\s\S]*?--pastel-page-peach/);
   });
 
-  it('locks the authorized API source after the Attachment Optimizer V1 upload boundary', () => {
-    expect(apiSha256).toBe('ff0cc5aed002645202239ff621257b592a9e12983327dee3bd3c29382dfb771e');
+  it('locks the authorized API source after T25 cross-tab refresh coordination', () => {
+    expect(apiSha256).toBe('779bd82a46b819ceae56e0cca3fc7a7bf1a4cc1957495f4e45338aabb48ff194');
   });
 });
