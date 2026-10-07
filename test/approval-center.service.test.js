@@ -12,6 +12,25 @@ const model = (rows) => ({
   findMany: async () => rows
 });
 
+function scheduleApprovalDelegate(rows = []) {
+  const latestRows = () => {
+    const revisionsByMonth = new Map();
+    for (const row of rows) {
+      const month = new Date(row.month).getTime();
+      revisionsByMonth.set(month, Math.max(revisionsByMonth.get(month) || 0, row.revision));
+    }
+    return [...revisionsByMonth].map(([month, revision]) => ({ month: new Date(month), _max: { revision } }));
+  };
+  const matchingRows = (where) => rows.filter((row) => row.status === where.status && where.OR.some((condition) =>
+    new Date(row.month).getTime() === new Date(condition.month).getTime() && row.revision === condition.revision
+  ));
+  return {
+    groupBy: async () => latestRows(),
+    count: async ({ where }) => matchingRows(where).length,
+    findMany: async ({ where, take }) => matchingRows(where).slice(0, take)
+  };
+}
+
 function approvalPolicyRows(overrides = {}) {
   const rows = [];
   for (const definition of REQUEST_TYPE_DEFINITIONS) {
@@ -49,6 +68,7 @@ function adminPrisma() {
       proposedLicenseNumber: 'LIC-NEW', version: 2, safeDisplayFileName: 'license.pdf', employee: employee('e3', 'E003'),
       uploadedBy: { id: 'm3', displayName: 'Manager 3', role: 'MANAGER' }, license: { licenseType: 'รปภ.', licenseNumber: 'LIC-OLD' }
     }]),
+    scheduleApproval: scheduleApprovalDelegate(),
     attendanceDeviceChangeRequest: model([{
       id: 'device-1', status: 'PENDING_APPROVAL', requestType: 'REPLACEMENT', reason: 'replace phone',
       createdAt: new Date('2026-08-27T22:00:00.000Z'), employee: employee('e4', 'E004'),
@@ -136,6 +156,35 @@ test('Approval Center summary uses count-only queries for Admin badge polling', 
   assert.equal(result.summary.total, 8);
   assert.equal(result.summary.byType.ATTENDANCE_ADJUSTMENT_REQUEST, 1);
   assert.equal(result.summary.byType.LEAVE_REQUEST, 1);
+});
+
+test('Approval Center counts and lists only the latest pending schedule revision per month', async () => {
+  const month = new Date('2026-08-01T00:00:00.000Z');
+  const changedAt = new Date('2026-08-27T12:34:00.000Z');
+  const prisma = adminPrisma();
+  prisma.scheduleApproval = scheduleApprovalDelegate([
+    { id: 'schedule-old-1', month, revision: 1, status: 'PENDING', changedAt: new Date('2026-08-01T00:00:00.000Z'), createdAt: month, changeType: 'UPDATE_SHIFT' },
+    { id: 'schedule-old-2', month, revision: 2, status: 'PENDING', changedAt: new Date('2026-08-10T00:00:00.000Z'), createdAt: month, changeType: 'UPDATE_SHIFT' },
+    { id: 'schedule-latest', month, revision: 3, status: 'PENDING', changedAt, createdAt: month, changeType: 'BATCH_UPDATE_SHIFT' }
+  ]);
+  const service = createApprovalCenterService({
+    prisma,
+    clock: () => now,
+    attendanceAdjustmentList: async () => ({ data: [], meta: { total: 0 } })
+  });
+
+  const summary = await service.summary({ actor: { role: 'ADMIN', sub: 'admin-1' } });
+  const result = await service.list({ actor: { role: 'ADMIN', sub: 'admin-1' }, limit: 100 });
+
+  assert.equal(summary.summary.byType.SCHEDULE_APPROVAL, 1);
+  assert.equal(result.summary.byType.SCHEDULE_APPROVAL, 1);
+  assert.equal(result.summary.scheduleApprovals, 1);
+  const scheduleItems = result.data.filter((item) => item.type === 'SCHEDULE_APPROVAL');
+  assert.equal(scheduleItems.length, 1);
+  assert.equal(scheduleItems[0].requestId, 'schedule-latest');
+  assert.match(scheduleItems[0].title, /^ตารางกะ .+ ฉบับที่ 3$/);
+  assert.equal(scheduleItems[0].submittedAt, changedAt);
+  assert.equal(scheduleItems[0].sourcePage, 'approvals');
 });
 
 test('Approval Center summary preserves Manager leave authority while using only minimal leave rows', async () => {

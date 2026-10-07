@@ -37,6 +37,7 @@ describe('Approval Center Command Nexus frontend contracts', () => {
       'EMPLOYEE_MASTER_CHANGE',
       'EMPLOYEE_REFERENCE_PHOTO',
       'LICENSE_DOCUMENT',
+      'SCHEDULE_APPROVAL',
       'ATTENDANCE_DEVICE_REQUEST',
       'ATTENDANCE_ADJUSTMENT_REQUEST',
       'REGISTRATION_REQUEST',
@@ -54,6 +55,11 @@ describe('Approval Center Command Nexus frontend contracts', () => {
     expect(page).toContain('rejectAttendanceAdjustment(token, item.requestId, reason)');
     expect(page).toContain('api.approveRegistrationRequest');
     expect(page).toContain('api.rejectRegistrationRequest');
+    expect(page).toContain("SCHEDULE_APPROVAL: 'อนุมัติตารางกะ'");
+    expect(page).toContain("type ApprovalSourcePage = 'employees' | 'licenses' | 'approvals'");
+    expect(page).toContain("if (item.type === 'SCHEDULE_APPROVAL')");
+    expect(page).toContain('เปิดอนุมัติตารางกะ');
+    expect(page).toContain('onClick={() => onNavigate(item)}');
     expect(page).toContain("api.updateUser(token, item.requestId, { accountStatus: 'ACTIVE', isActive: true })");
     expect(page).toContain("api.updateUser(token, item.requestId, { accountStatus: 'REJECTED', isActive: false })");
   });
