@@ -128,14 +128,18 @@ test('leave cancellation uses state-specific Owner authority and approved Admin 
 test('approved leave prints a dedicated A4 leave form rather than the application screen', () => {
   const frontend = read('frontend/src/main.tsx');
   const styles = read('frontend/src/styles.css');
+  const printHelper = read('frontend/src/schedule-print.ts');
 
   assert.match(frontend, /function LeavePrintDocument/);
   assert.match(frontend, /ใบขออนุมัติลางาน/);
   assert.match(frontend, /ผู้ปฏิบัติงานแทน \/ รายละเอียด/);
   assert.match(frontend, /onPrint=\{setLeavePrintTarget\}/);
-  assert.match(frontend, /window\.setTimeout\(\(\) => window\.print\(\), 80\)/);
-  assert.match(frontend, /size: A4 portrait/);
-  assert.match(styles, /body\.printing-leave \.leave-print-document/);
+  assert.match(frontend, /printDocument\('\.leave-print-document', 'ใบขออนุมัติลางาน\.pdf', \{ orientation: 'portrait', margin: '12mm' \}\)/);
+  assert.match(printHelper, /frameWindow\.print\(\)/);
+  assert.match(printHelper, /@page \{ size: A4 \$\{orientation\}; margin: \$\{margin\}; \}/);
+  assert.doesNotMatch(frontend, /body\.printing-leave/);
+  assert.doesNotMatch(styles, /@page/i);
+  assert.doesNotMatch(styles, /body\.printing-leave \.app-shell/);
 });
 
 test('approved schedule PDF keeps the shift legend directly below the roster and spaces signatures for review', () => {

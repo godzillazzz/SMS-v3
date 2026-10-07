@@ -104,7 +104,7 @@ function sourceRegressionContracts() {
     'executive-report-grid',
     'executive-report-attention',
     'ExecutiveReportPrint',
-    "printDocument('.executive-report-print', filename)"
+    "printDocument('.executive-report-print', filename, { orientation: 'landscape', margin: '12mm' })"
   ], 'EXECUTIVE_REPORT_RENDERER_CONTRACT_FAILED');
   requireIncludes(executiveReportStyles, [
     '.executive-report-kpis { display:grid;',
