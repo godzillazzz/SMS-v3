@@ -21,19 +21,19 @@ describe('CFG-06 Approval Authority Matrix / SLA', () => {
   it('places an Admin-only matrix in Configuration Center', () => {
     expect(settingsPage).toContain("const ApprovalAuthorityMatrixPanel = React.lazy(() => import('../../components/ApprovalAuthorityMatrixPanel')");
     expect(settingsPage).toContain('<ApprovalAuthorityMatrixPanel token={token} />');
-    expect(panel).toContain('Approval Authority Matrix / SLA');
-    expect(panel).toContain('Admin-only ถูกล็อกโดยระบบ');
-    expect(panel).toContain('security ceiling');
+    expect(panel).toContain('ตารางผู้มีอำนาจอนุมัติและกรอบเวลา');
+    expect(panel).toContain('จำกัดสิทธิ์เฉพาะผู้ดูแลระบบ');
+    expect(panel).toContain('เพดานสิทธิ์ที่ระบบกำหนด');
   });
 
   it('keeps Admin mandatory and permits Manager or Supervisor only when the safe reviewer ceiling allows it', () => {
-    expect(panel).toContain('<input type="checkbox" checked disabled /> Admin');
+    expect(panel).toContain("roleDisplayName('ADMIN')");
     expect(panel).toContain("policy.safeReviewerRoles.includes('MANAGER')");
     expect(panel).toContain("policy.safeReviewerRoles.includes('SUPERVISOR')");
     expect(panel).toContain("draft.reviewerRoles.filter((role) => role !== 'MANAGER')");
     expect(panel).toContain("draft.reviewerRoles.filter((role) => role !== 'SUPERVISOR')");
-    expect(panel).toContain('/> Supervisor');
-    expect(panel).toContain('/> Manager</label>');
+    expect(panel).toContain("roleDisplayName('MANAGER')");
+    expect(panel).toContain("roleDisplayName('SUPERVISOR')");
   });
 
   it('edits SLA per request type and blocks invalid threshold ordering in the UI', () => {
@@ -52,7 +52,7 @@ describe('CFG-06 Approval Authority Matrix / SLA', () => {
     expect(panel).toContain('ผู้มีอำนาจอนุมัติ');
     expect(panel).toContain('เกณฑ์ SLA');
     expect(panel).toContain('ข้อบังคับที่ลดไม่ได้');
-    expect(panel).toContain('aria-label="Approval policy แบบรายการ"');
+    expect(panel).toContain('aria-label="รายการนโยบายการอนุมัติ"');
     expect(panel).toContain('role="alert"');
   });
 
@@ -65,13 +65,13 @@ describe('CFG-06 Approval Authority Matrix / SLA', () => {
   });
 
   it('selects additive leave position aliases from Position Master and states protected invariants', () => {
-    expect(panel).toContain('ตำแหน่ง Supervisor เพิ่มเติม');
-    expect(panel).toContain('ตำแหน่ง Manager เพิ่มเติม');
+    expect(panel).toContain("roleDisplayName('MANAGER')");
+    expect(panel).toContain("roleDisplayName('SUPERVISOR')");
     expect(panel).toContain('api.personnelMasters(token, true)');
     expect(panel).toContain('positionOptions.map');
-    expect(panel).toContain('Legacy aliases ที่คงไว้เพื่อ compatibility');
+    expect(panel).toContain('ตำแหน่งเดิมที่เก็บไว้');
     expect(panel).not.toContain('placeholder=\"เช่น หัวหน้าชุด');
     expect(panel).not.toContain('placeholder=\"เช่น section lead');
-    expect(panel).toContain('ไม่สามารถลด guard เหล่านี้ได้');
+    expect(panel).toContain('ไม่สามารถลดข้อบังคับเหล่านี้ได้');
   });
 });

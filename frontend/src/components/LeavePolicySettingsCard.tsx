@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { formatRequestErrorMessage } from '../request-error';
+import { roleDisplayName } from '../role-display';
 import { defaultLeavePolicy, leavePolicyKeys, type LeavePolicyForm } from './leave-policy-contract';
 export { defaultLeavePolicy, leavePolicyKeys, type LeavePolicyForm } from './leave-policy-contract';
 
@@ -80,7 +81,7 @@ export function LeavePolicySettingsCard({ settings, onSave, onRefresh }: {
       <label className="field-group">
         <span>สิทธิ์ลาพักร้อนเริ่มต้น (วัน/ปี)</span>
         <input type="number" min={0} max={999} value={form.defaultVacationDays} onChange={(event) => updateNumber('defaultVacationDays', event.target.value)} />
-        <small>ใช้เป็นค่า default ในหน้าสร้างโควตา Admin ด้วย</small>
+        <small>ใช้เป็นค่าเริ่มต้นในหน้าสร้างโควตาของ {roleDisplayName('ADMIN')} ด้วย</small>
       </label>
       <label className="field-group">
         <span>บังคับเอกสารเมื่อลาป่วยเกิน (วัน)</span>
@@ -88,22 +89,22 @@ export function LeavePolicySettingsCard({ settings, onSave, onRefresh }: {
         <small>0 = ลาป่วยทุกจำนวนวันต้องแนบเอกสาร</small>
       </label>
       <label className="field-group">
-        <span>Manager บันทึกลาย้อนหลังแทนพนักงาน</span>
+        <span>{roleDisplayName('MANAGER')} บันทึกลาย้อนหลังแทนพนักงาน</span>
         <select value={form.managerRetroactiveOnBehalfEnabled ? 'true' : 'false'} onChange={(event) => setForm((current) => ({ ...current, managerRetroactiveOnBehalfEnabled: event.target.value === 'true' }))}>
           <option value="true">อนุญาต</option>
           <option value="false">ไม่อนุญาต</option>
         </select>
-        <small>Manager ยังห้ามบันทึกย้อนหลังให้ตัวเองเสมอ</small>
+        <small>{roleDisplayName('MANAGER')} ยังห้ามบันทึกย้อนหลังให้ตนเองเสมอ</small>
       </label>
       <label className="field-group">
-        <span>Manager ย้อนได้สูงสุด (วัน)</span>
+        <span>{roleDisplayName('MANAGER')} ย้อนได้สูงสุด (วัน)</span>
         <input type="number" min={0} max={3650} value={form.managerRetroactiveMaxDaysBack} onChange={(event) => updateNumber('managerRetroactiveMaxDaysBack', event.target.value)} />
-        <small>0 = ไม่จำกัดระยะย้อนหลัง; Admin authority ไม่ถูกลดด้วยค่านี้</small>
+        <small>0 = ไม่จำกัดระยะย้อนหลัง; ค่านี้ไม่ลดอำนาจของ{roleDisplayName('ADMIN')}</small>
       </label>
     </div>
 
     <div className="alert alert-info">
-      Invariant ที่แก้จากหน้านี้ไม่ได้: Viewer ย้อนหลังไม่ได้, Manager ห้ามย้อนหลังให้ตัวเอง, การลาย้อนหลังต้องมีเหตุผล, และห้ามอนุมัติคำขอของตนเอง
+      ข้อบังคับที่แก้จากหน้านี้ไม่ได้: {roleDisplayName('VIEWER')} บันทึกย้อนหลังไม่ได้, {roleDisplayName('MANAGER')} ห้ามบันทึกย้อนหลังให้ตนเอง, การลาย้อนหลังต้องมีเหตุผล และห้ามอนุมัติคำขอของตนเอง
     </div>
 
     {notice && <div className={notice.includes('สำเร็จ') ? 'settings-notice success' : 'settings-notice error'}>{notice}</div>}
@@ -112,6 +113,6 @@ export function LeavePolicySettingsCard({ settings, onSave, onRefresh }: {
       <button className="btn-neutral small-action" disabled={saving} onClick={() => { setForm(defaultLeavePolicy); setNotice(undefined); }}>คืนค่าเริ่มต้น</button>
       <button className="btn-neutral small-action" disabled={saving} onClick={onRefresh}>↻ รีเฟรช</button>
     </div>
-    <p className="line-settings-footnote">การเปลี่ยนนโยบายมีผลกับการตัดสินใจและการสร้างข้อมูลใหม่หลังบันทึกเท่านั้น ส่วนข้อมูลย้อนหลังไม่ถูกแก้ไข และทุกการเปลี่ยนแปลงถูกบันทึก Audit ตามกฎของ Configuration Center</p>
+    <p className="line-settings-footnote">การเปลี่ยนนโยบายมีผลกับการตัดสินใจและการสร้างข้อมูลใหม่หลังบันทึกเท่านั้น ส่วนข้อมูลย้อนหลังไม่ถูกแก้ไข และทุกการเปลี่ยนแปลงมีบันทึกตรวจสอบตามกฎของการตั้งค่าระบบ</p>
   </section>;
 }

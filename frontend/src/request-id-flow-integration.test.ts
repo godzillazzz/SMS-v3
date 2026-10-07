@@ -9,7 +9,7 @@ function source(relative: string) {
 describe('Request ID visibility representative flow wiring', () => {
   it('Employee governed Edit preserves structured API error metadata and renders the shared reference UI', () => {
     const editor = source('components/personnel/EmployeeGovernedEditModal.tsx');
-    expect(editor).toContain("toRequestErrorState(cause, 'บันทึกการแก้ไข Employee Master ไม่สำเร็จ')");
+    expect(editor).toContain("toRequestErrorState(cause, 'บันทึกการแก้ไขข้อมูลพนักงานไม่สำเร็จ')");
     expect(editor).toContain('<RequestErrorContent error={error} />');
     expect(editor).not.toContain("'\\nรหัสอ้างอิง: '");
   });

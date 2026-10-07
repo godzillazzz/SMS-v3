@@ -43,13 +43,13 @@ describe('Dashboard partial-data warning presentation contract', () => {
   it('does not show a warning for a healthy complete payload', () => {
     const markup = renderDashboard([]);
     expect(markup).not.toContain('dashboard-data-warning');
-    expect(markup).not.toContain('ข้อมูลบางส่วนยังไม่พร้อม');
+    expect(markup).not.toContain('ข้อมูลบางส่วนไม่พร้อม');
   });
 
   it('shows the warning only when partialErrors contains a real section failure', () => {
     const markup = renderDashboard(['licenseOverview']);
     expect(markup).toContain('dashboard-data-warning');
-    expect(markup).toContain('ข้อมูลบางส่วนยังไม่พร้อม');
+    expect(markup).toContain('ข้อมูลบางส่วนไม่พร้อม');
   });
 
   it('keeps the fatal error state separate from the partial-data warning', () => {

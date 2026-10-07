@@ -20,8 +20,8 @@ describe('CFG-02 Leave Policy configuration contract', () => {
     expect(main).toContain('leavePolicyKeys.sickAttachmentRequiredAfterDays');
     expect(main).toContain('leavePolicyKeys.managerRetroactiveOnBehalfEnabled');
     expect(main).toContain('leavePolicyKeys.managerRetroactiveMaxDaysBack');
-    expect(card).toContain('Viewer ย้อนหลังไม่ได้');
-    expect(card).toContain('Manager ห้ามย้อนหลังให้ตัวเอง');
+    expect(card).toContain("roleDisplayName('VIEWER')");
+    expect(card).toContain("roleDisplayName('MANAGER')}");
     expect(card).toContain('ห้ามอนุมัติคำขอของตนเอง');
   });
 
@@ -42,8 +42,8 @@ describe('CFG-02 Leave Policy configuration contract', () => {
     expect(main).toContain('leavePolicy.managerRetroactiveOnBehalfEnabled');
     expect(main).toContain('leavePolicy.managerRetroactiveMaxDaysBack');
     expect(main).toContain('managerRetroactiveBlocked');
-    expect(main).toContain('Manager ไม่สามารถบันทึกการลาย้อนหลังให้ตนเองได้');
-    expect(main).toContain('นโยบายปัจจุบันไม่อนุญาตให้ Manager บันทึกการลาย้อนหลังแทนพนักงาน');
+    expect(main).toContain("roleDisplayName('MANAGER')} ไม่สามารถบันทึกการลาย้อนหลังให้ตนเองได้");
+    expect(main).toContain("roleDisplayName('MANAGER')} บันทึกการลาย้อนหลังแทนพนักงาน");
     expect(main).not.toContain("form.leaveType.includes('ป่วย') && days > 3");
   });
 

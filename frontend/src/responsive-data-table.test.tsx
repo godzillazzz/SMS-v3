@@ -8,13 +8,13 @@ import type { PersonnelRecord } from './components/personnel/types';
 
 describe('WAVE 3 ResponsiveDataTable contract', () => {
   it('provides a labelled desktop/mobile surface and announces loading without fabricating rows', () => {
-    const html = renderToStaticMarkup(<ResponsiveDataTable ariaLabel="รายการ Audit Log" loading loadingLabel="กำลังโหลด Audit Log…" hasRows={false} className="audit-table-card" desktop={<table><tbody><DataTableSkeletonRows columnCount={6} rowCount={3} /></tbody></table>} mobile={<div><DataTableSkeletonCards count={2} /></div>} />);
+    const html = renderToStaticMarkup(<ResponsiveDataTable ariaLabel="รายการบันทึกการใช้งานระบบ" loading loadingLabel="กำลังโหลดบันทึกการใช้งานระบบ…" hasRows={false} className="audit-table-card" desktop={<table><tbody><DataTableSkeletonRows columnCount={6} rowCount={3} /></tbody></table>} mobile={<div><DataTableSkeletonCards count={2} /></div>} />);
     expect(html).toContain('class="data-table-shell data-surface-card audit-table-card"');
-    expect(html).toContain('aria-label="รายการ Audit Log"');
+    expect(html).toContain('aria-label="รายการบันทึกการใช้งานระบบ"');
     expect(html).toContain('aria-busy="true"');
     expect(html).toContain('role="status"');
     expect(html).toContain('aria-live="polite"');
-    expect(html).toContain('กำลังโหลด Audit Log…');
+    expect(html).toContain('กำลังโหลดบันทึกการใช้งานระบบ…');
     expect(html).toContain('class="data-table-desktop"');
     expect(html).toContain('class="data-table-mobile"');
     expect((html.match(/class="data-table-skeleton-row/g) ?? []).length).toBe(3);
@@ -45,8 +45,8 @@ describe('WAVE 3 ResponsiveDataTable contract', () => {
   });
 
   it('normalizes pagination labels, current-page announcement and disabled boundaries', () => {
-    const pageOne = renderToStaticMarkup(<DataTablePagination page={1} totalPages={3} onChange={vi.fn()} ariaLabel="แบ่งหน้า Audit Log" />);
-    expect(pageOne).toContain('aria-label="แบ่งหน้า Audit Log"');
+    const pageOne = renderToStaticMarkup(<DataTablePagination page={1} totalPages={3} onChange={vi.fn()} ariaLabel="แบ่งหน้าบันทึกการใช้งานระบบ" />);
+    expect(pageOne).toContain('aria-label="แบ่งหน้าบันทึกการใช้งานระบบ"');
     expect(pageOne).toContain('aria-label="หน้าก่อนหน้า" disabled');
     expect(pageOne).toContain('หน้า 1 จาก 3');
     expect(pageOne).not.toContain('aria-label="หน้าถัดไป" disabled');
@@ -63,7 +63,7 @@ describe('WAVE 3 ResponsiveDataTable contract', () => {
     const row: AuditEvent = { id: 'audit-1', createdAt: '2026-09-04T02:12:02.599Z', actor: { displayName: 'ผู้ดูแลระบบที่มีชื่อยาวเพื่อทดสอบการตัดบรรทัด', role: 'ADMIN' }, module: 'EMPLOYEE', action: 'UPDATE', entityType: 'Employee', entityId: 'employee-1', metadata: { note: 'รายละเอียดภาษาไทยยาวที่ต้องอ่านได้ครบผ่านรายละเอียดเหตุการณ์' } };
     const html = renderToStaticMarkup(<AuditTable rows={[row]} loading={false} hasActiveFilters={false} onSelect={vi.fn()} />);
     expect((html.match(/<th scope="col"/g) ?? []).length).toBe(6);
-    expect(html).toContain('aria-label="รายการ Audit Log"');
+    expect(html).toContain('aria-label="รายการบันทึกการใช้งาน"');
     expect(html).toContain('ผู้ดูแลระบบที่มีชื่อยาวเพื่อทดสอบการตัดบรรทัด');
     expect(html).toContain('data-table-scroll');
     expect(html).toContain('audit-mobile-cards');
@@ -74,7 +74,7 @@ describe('WAVE 3 ResponsiveDataTable contract', () => {
     expect(loading).toContain('data-table-skeleton-row');
 
     const filteredEmpty = renderToStaticMarkup(<AuditTable rows={[]} loading={false} hasActiveFilters onSelect={vi.fn()} />);
-    expect(filteredEmpty).toContain('ไม่พบรายการ Audit Log ตามเงื่อนไขที่เลือก');
+    expect(filteredEmpty).toContain('ไม่พบรายการตามเงื่อนไขที่เลือก');
     expect(filteredEmpty).toContain('ลองเปลี่ยนตัวกรองหรือขยายช่วงวันที่');
   });
 

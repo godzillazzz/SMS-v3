@@ -22,7 +22,7 @@ describe('Employee single-entry governed changes', () => {
     expect(app).toContain('EmployeeGovernedEditModal');
   });
 
-  it('keeps all important Employee Master fields in the same governed editor', () => {
+  it('keeps all important ทะเบียนพนักงาน fields in the same governed editor', () => {
     for (const label of ['รหัสพนักงาน', 'ชื่อ', 'นามสกุล', 'อีเมลติดต่อ', 'โทรศัพท์', 'หน่วยงาน', 'ตำแหน่ง', 'วันที่เริ่มงาน', 'ทักษะ / คุณสมบัติ']) {
       expect(editor).toContain(label);
     }
@@ -38,7 +38,7 @@ describe('Employee single-entry governed changes', () => {
     expect(editor).toContain("selectCriticalAction('EMPLOYMENT_TERMINATION')");
     expect(editor).toContain("selectCriticalAction('REHIRE')");
     expect(editor).toContain("effectiveMode === 'FUTURE_EFFECTIVE'");
-    expect(editor).toContain('การเปลี่ยนชื่อ ย้ายหน่วยงาน เปลี่ยนตำแหน่ง ลาออก และกลับเข้าทำงาน ต้องมีเหตุผลเพื่อบันทึก Audit');
+    expect(editor).toContain('การเปลี่ยนชื่อ ย้ายหน่วยงาน เปลี่ยนตำแหน่ง ลาออก และกลับเข้าทำงาน ต้องมีเหตุผลเพื่อบันทึกประวัติการใช้งาน');
   });
 
   it('keeps Admin preflight, impact acknowledgement, optimistic concurrency, and audited mutation', () => {
@@ -57,7 +57,7 @@ describe('Employee single-entry governed changes', () => {
     expect(editor).toContain('api.saveEmployeeChangeDraft');
     expect(editor).toContain('api.submitEmployeeChangeRequest');
     expect(editor).toContain('api.resubmitEmployeeChangeRequest');
-    expect(editor).toContain('ส่งคำขอแก้ไขให้ Admin ตรวจสอบแล้ว');
+    expect(editor).toContain('ส่งคำขอแก้ไขให้ผู้ดูแลระบบตรวจสอบแล้ว');
     expect(editor).toContain("const isAdmin = role === 'ADMIN'");
   });
 

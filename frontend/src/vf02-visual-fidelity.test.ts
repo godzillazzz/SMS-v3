@@ -48,9 +48,9 @@ describe('G04.2 VF-02 owner visual fidelity correction contract', () => {
   });
 
   it('uses the approved Command Nexus hierarchy with four operational KPIs before deeper signals', () => {
-    expect(dashboardPage).toContain('Command Overview');
+    expect(dashboardPage).toContain('<h1>ภาพรวมระบบ</h1>');
     expect(dashboardPage).toContain('nexus-command__grid');
-    for (const label of ['ACTIVE PERSONNEL', 'ON DUTY TODAY', 'LEAVE TODAY', 'LICENSE WATCH']) expect(dashboardPage).toContain(label);
+    for (const label of ['พนักงานปฏิบัติงาน', 'ทำงานวันนี้', 'ลาวันนี้', 'ใบอนุญาตใกล้หมดอายุ']) expect(dashboardPage).toContain(label);
     expect(dashboardPage).not.toContain('GIS INTEGRATION PENDING');
     expect(dashboardPage).toContain('nexus-kpis');
     expect(dashboardPage.indexOf('nexus-kpis')).toBeLessThan(dashboardPage.indexOf('nexus-lower-grid'));
@@ -78,7 +78,7 @@ describe('G04.2 VF-02 owner visual fidelity correction contract', () => {
     expect(review).not.toContain('REQUEST LIST');
     expect(review).not.toContain('APPLICANT SUBMISSION');
     expect(review).not.toContain('HUMAN REVIEW');
-    expect(review).toContain('Employee Master');
+    expect(review).toContain('ทะเบียนพนักงาน');
   });
 
   it('allows the desktop Sidebar subtitle to wrap instead of truncating', () => {
@@ -100,7 +100,7 @@ describe('G04.2 VF-02 owner visual fidelity correction contract', () => {
     expect(usersBlock.indexOf('<AccessManagementPage')).toBeLessThan(usersBlock.indexOf('<RegistrationReviewPanel'));
     expect(review).toContain('api.matchRegistrationRequest(token, selected.id, employeeId)');
     expect(review).toContain('api.approveRegistrationRequest(token, selected.id)');
-    expect(review).toContain('อนุมัติเป็น VIEWER');
+    expect(review).toContain('อนุมัติเป็นผู้ใช้งาน');
     expect(review).toContain('role="dialog"');
     expect(review).not.toContain('window.prompt');
     expect(review).not.toContain('window.confirm');

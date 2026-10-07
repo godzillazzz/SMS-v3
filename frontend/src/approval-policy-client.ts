@@ -44,7 +44,7 @@ async function callApprovalPolicy(path: string, token: string, init: RequestInit
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
     throw new ApiRequestError(
-      payload?.error || 'Approval policy operation failed',
+      payload?.error || 'ดำเนินการกับนโยบายการอนุมัติไม่สำเร็จ',
       response.status,
       requestId(response, payload),
       payload?.details

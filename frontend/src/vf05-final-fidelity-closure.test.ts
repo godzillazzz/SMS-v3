@@ -53,7 +53,7 @@ describe('G04.2 VF-05 final mockup fidelity closure contract', () => {
     expect(vf05).toMatch(/\[data-theme="dark"\] \.registration-review__employee-workspace \{[\s\S]*?--color-success[\s\S]*?--color-primary/);
     expect(review).toContain('api.matchRegistrationRequest(token, selected.id, employeeId)');
     expect(review).toContain('api.approveRegistrationRequest(token, selected.id)');
-    expect(review).toContain('อนุมัติเป็น VIEWER');
+    expect(review).toContain('อนุมัติเป็นผู้ใช้งาน');
     expect(review).not.toContain('window.prompt');
     expect(review).not.toContain('window.confirm');
   });

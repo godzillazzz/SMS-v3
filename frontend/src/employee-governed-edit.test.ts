@@ -19,7 +19,7 @@ function managerOnlySource() {
   return editor.slice(start, end);
 }
 
-describe('Employee Master Governed Edit V1 frontend contracts', () => {
+describe('ทะเบียนพนักงาน Governed Edit V1 frontend contracts', () => {
   it('wires existing Employee edit action to the governed modal instead of a parallel page', () => {
     expect(main).toContain("setEmployeeGovernedEditTarget(employee)");
     expect(main).toContain('<EmployeeGovernedEditModal');
@@ -85,8 +85,8 @@ describe('Employee Master Governed Edit V1 frontend contracts', () => {
 
   it('Department and Position critical actions use active Master selectors and fail closed', () => {
     expect(editor).toContain('api.personnelMasters(token, true)');
-    expect(editor).toContain('เลือก Department Master');
-    expect(editor).toContain('เลือก Position Master');
+    expect(editor).toContain('เลือกหน่วยงาน');
+    expect(editor).toContain('เลือกตำแหน่ง');
     expect(editor).toContain('personnelMasters.departments.map');
     expect(editor).toContain('personnelMasters.positions.map');
     expect(editor).toContain('Boolean(personnelMastersError)');
@@ -105,10 +105,10 @@ describe('Employee Master Governed Edit V1 frontend contracts', () => {
 
   it('RETURNED flow shows reviewer comment, current authoritative context, and resubmits Revision N+1 intent', () => {
     expect(editor).toContain('activeRequest.lastReviewerComment');
-    expect(editor).toContain('ข้อมูล Employee Master ปัจจุบัน');
+    expect(editor).toContain('ข้อมูลทะเบียนพนักงานปัจจุบัน');
     expect(editor).toContain("['DRAFT', 'PENDING_APPROVAL', 'RETURNED_FOR_CORRECTION'].includes(active.status)");
     expect(editor).toContain('api.resubmitEmployeeChangeRequest');
-    expect(editor).toContain('Revision ก่อนหน้ายังคงไม่เปลี่ยนแปลง');
+    expect(editor).toContain('ฉบับก่อนหน้ายังคงไม่เปลี่ยนแปลง');
   });
 
   it('Admin review queue is wired from Personnel header and defaults to the server actionable queue', () => {
@@ -122,14 +122,14 @@ describe('Employee Master Governed Edit V1 frontend contracts', () => {
   });
 
   it('Admin review presents identity requester role timestamp revision status effective timing reason and impact', () => {
-    for (const marker of ['requestOwnerRoleSnapshot', 'Revision {revision.revision}', 'selected.status', 'revision.effectiveMode', 'revision.effectiveDate', 'revision.reason', 'futureShiftAssignments', 'pendingLeaveRequests', 'approvedFutureLeaveRequests', 'activeLicenses']) {
+    for (const marker of ['requestOwnerRoleSnapshot', 'ฉบับที่ {revision.revision}', 'requestStatusLabels[selected.status]', 'revision.effectiveMode', 'revision.effectiveDate', 'revision.reason', 'futureShiftAssignments', 'pendingLeaveRequests', 'approvedFutureLeaveRequests', 'activeLicenses']) {
       expect(review).toContain(marker);
     }
   });
 
   it('Admin review shows changed-fields BEFORE to AFTER and no editable proposal fields', () => {
-    expect(review).toContain('BEFORE');
-    expect(review).toContain('AFTER');
+    expect(review).toContain('ก่อนเปลี่ยน');
+    expect(review).toContain('หลังเปลี่ยน');
     expect(review).toContain('revision.changedFields.map');
     expect(review).toContain('revision.beforeSnapshot[field]');
     expect(review).toContain('revision.afterSnapshot[field]');
@@ -153,7 +153,7 @@ describe('Employee Master Governed Edit V1 frontend contracts', () => {
 
   it('stale conflict shows Owner-locked Thai UX and never auto-retries approval', () => {
     expect(review).toContain('EMPLOYEE_CHANGE_STALE_MASTER');
-    expect(review).toContain('ข้อมูล Employee Master มีการเปลี่ยนแปลงหลังจากส่งคำขอ');
+    expect(review).toContain('ข้อมูลทะเบียนพนักงานมีการเปลี่ยนแปลงหลังจากส่งคำขอ');
     expect(review).toContain('โปรดส่งกลับให้ผู้ขอทบทวนข้อมูลล่าสุด');
     const catchBlock = review.slice(review.indexOf("if (code === 'EMPLOYEE_CHANGE_STALE_MASTER')"), review.indexOf('finally', review.indexOf("if (code === 'EMPLOYEE_CHANGE_STALE_MASTER')")));
     expect(catchBlock).not.toContain('approveEmployeeChangeRequest(');

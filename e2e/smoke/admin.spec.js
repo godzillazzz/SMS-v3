@@ -12,7 +12,7 @@ test('ADMIN: dashboard is complete and stable after refresh', async ({ page }) =
   await expect(page.getByRole('region', { name: 'Executive snapshot' })).toBeVisible();
   await expect(page.getByText('ข้อมูลบางส่วนยังไม่พร้อม', { exact: false })).toHaveCount(0);
   await page.reload();
-  await expect(page.getByRole('heading', { name: 'Executive Operations Dashboard' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'ภาพรวมระบบ' })).toBeVisible();
   await expect(page.getByText('ข้อมูลบางส่วนยังไม่พร้อม', { exact: false })).toHaveCount(0);
   expect(monitor.responses.some((response) => response.path === '/api/v1/dashboard' && response.status >= 200 && response.status < 300)).toBe(true);
   monitor.assertClean();
@@ -43,7 +43,7 @@ test('ADMIN: Audit Log remains read-only and can open an existing detail safely'
     await detailButtons.first().click();
     await expect(page.locator('.audit-preview-panel')).toBeVisible();
   } else {
-    await expect(auditPage.getByText('ไม่พบรายการ Audit Log ตามเงื่อนไขที่เลือก', { exact: false })).toBeVisible();
+    await expect(auditPage.getByText('ไม่พบรายการตามเงื่อนไขที่เลือก', { exact: false })).toBeVisible();
   }
   monitor.assertClean();
 });

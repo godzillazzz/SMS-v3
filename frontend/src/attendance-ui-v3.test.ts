@@ -25,7 +25,7 @@ describe('Attendance UI V3 mockup-aligned employee surface', () => {
   it('shows only real account context and authority-safe schedule/site placeholders instead of mockup sample data', () => {
     expect(main).toContain('department={auth.user?.department}');
     expect(page).toContain("displayName || 'ผู้ใช้งาน SMS'");
-    expect(page).toContain("department || 'หน่วยงานตาม Employee Master'");
+    expect(page).toContain("department || 'หน่วยงานตามทะเบียนพนักงาน'");
     expect(page).toContain('ตามตารางที่อนุมัติ');
     expect(page).toContain('เซิร์ฟเวอร์ตรวจอัตโนมัติ');
     expect(page).not.toContain('540368');

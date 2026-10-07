@@ -9,7 +9,7 @@ const css = read('styles/personnel-directory.css');
 
 describe('EMP-UX Employee 360 summary contract', () => {
   it('reuses one Personnel drawer and one governed Edit entry point', () => {
-    expect(drawer).toContain('Employee 360');
+    expect(drawer).toContain('<p>ข้อมูลพนักงาน</p>');
     expect(drawer).toContain('onEdit');
     expect(drawer).not.toContain('EmployeeLifecycleModal');
     expect(page).toContain('<PersonnelDetailDrawer');
@@ -22,16 +22,16 @@ describe('EMP-UX Employee 360 summary contract', () => {
   });
   it('shows authoritative states without inventing account device or Site state', () => {
     expect(drawer).toContain('คำขอเปลี่ยนแปลง');
-    expect(drawer).toContain('Future-effective');
+    expect(drawer).toContain('<span>รายการรอมีผล</span>');
     expect(drawer).toContain('รูปอ้างอิงใบหน้า');
-    expect(drawer).toContain('อ้างอิงจาก Schedule / Security Site authority');
+    expect(drawer).toContain('อ้างอิงจากตารางกะและจุดรักษาความปลอดภัย');
     expect(drawer).toContain('ไม่คาดเดาสถานะจาก client');
   });
   it('presents domain sections and immutable lifecycle timeline', () => {
     expect(drawer).toContain('ภาพรวมและข้อมูลทั่วไป');
     expect(drawer).toContain('การจ้างงานและโครงสร้าง');
-    expect(drawer).toContain('Change History Timeline');
-    expect(drawer).toContain('ประวัติ lifecycle แบบอ่านอย่างเดียว');
+    expect(drawer).toContain('ประวัติการเปลี่ยนแปลง</h3>');
+    expect(drawer).toContain('ประวัติช่วงการเปลี่ยนแปลงแบบอ่านอย่างเดียว');
   });
   it('passes authenticated token from app to the Employee 360 drawer and keeps mobile layout', () => {
     expect(main).toContain('token={auth.token}');

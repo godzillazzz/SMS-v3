@@ -16,7 +16,7 @@ type MetricsGridProps = {
 };
 
 export function MetricsGrid({ totalEmployees, activeEmployees, workingToday, leaveToday, pendingLeaves, attentionCount, expiringLicenses, pendingLicenseDocuments, notScheduledToday, loading, onNavigate }: MetricsGridProps) {
-  const workingContext = activeEmployees ? 'จาก ' + formatMetric(activeEmployees) + ' คนที่ active' : 'ยังไม่มีข้อมูลกำลังพล';
+  const workingContext = activeEmployees ? 'จาก ' + formatMetric(activeEmployees) + ' คน' : 'ยังไม่มีข้อมูลกำลังพล';
   return <section className="dashboard-kpi-section" aria-label="ตัวชี้วัดสำคัญ">
     <div className="dashboard-kpi-heading">
       <div><h2>ภาพรวมวันนี้</h2></div>
@@ -31,8 +31,8 @@ export function MetricsGrid({ totalEmployees, activeEmployees, workingToday, lea
     <div className="dashboard-secondary-metrics" aria-label="ข้อมูลประกอบ">
       <button type="button" className="dashboard-secondary-metric" onClick={() => onNavigate('employees')}><span>พนักงานทั้งหมด</span><strong>{loading ? '—' : formatMetric(totalEmployees)}</strong><small>ในขอบเขตสิทธิ์</small></button>
       <button type="button" className="dashboard-secondary-metric" onClick={() => onNavigate('licenses')}><span>ใบอนุญาตใกล้หมดอายุ</span><strong>{loading ? '—' : formatMetric(expiringLicenses)}</strong><small>ภายใน 30 วัน</small></button>
-      <button type="button" className="dashboard-secondary-metric" onClick={() => onNavigate('licenses')}><span>เอกสารรอตรวจ</span><strong>{loading ? '—' : formatMetric(pendingLicenseDocuments)}</strong><small>สถานะ PENDING</small></button>
-      <button type="button" className="dashboard-secondary-metric" onClick={() => onNavigate('schedule')}><span>ยังไม่มีกะวันนี้</span><strong>{loading ? '—' : formatMetric(notScheduledToday)}</strong><small>active แต่ไม่พบกะ</small></button>
+      <button type="button" className="dashboard-secondary-metric" onClick={() => onNavigate('licenses')}><span>เอกสารรอตรวจ</span><strong>{loading ? '—' : formatMetric(pendingLicenseDocuments)}</strong><small>สถานะรอตรวจ</small></button>
+      <button type="button" className="dashboard-secondary-metric" onClick={() => onNavigate('schedule')}><span>ยังไม่มีกะวันนี้</span><strong>{loading ? '—' : formatMetric(notScheduledToday)}</strong><small>ไม่มีตารางกะ</small></button>
     </div>
   </section>;
 }

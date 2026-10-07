@@ -22,7 +22,7 @@ async function loginAs(page, role) {
   const payload = await response.json();
   expect(payload?.user?.role, 'UAT identity must match its expected role.').toBe(role);
   expect(typeof payload?.accessToken, 'Login must establish an access token.').toBe('string');
-  await expect(page.getByRole('heading', { name: 'Executive Operations Dashboard' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'ภาพรวมระบบ' })).toBeVisible();
 
   return { accessToken: payload.accessToken };
 }

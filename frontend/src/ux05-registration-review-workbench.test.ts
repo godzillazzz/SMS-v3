@@ -38,7 +38,7 @@ describe('G04.2 UX-05 Registration Review workbench contract', () => {
     expect(panel).toContain("{isSelected ? 'เลือกแล้ว' : 'เลือกพนักงาน'}");
     expect(panel).toContain('เปรียบเทียบก่อนจับคู่');
     expect(panel).toContain('ข้อมูลผู้สมัคร');
-    expect(panel).toContain('Employee Master');
+    expect(panel).toContain('ทะเบียนพนักงาน');
     expect(panel).toContain("await api.matchRegistrationRequest(token, selected.id, employeeId)");
     expect(panel).toContain("onClick={() => void match(selectedCandidate.id)}");
     expect(panel).toContain("'จับคู่พนักงาน'");
@@ -56,9 +56,9 @@ describe('G04.2 UX-05 Registration Review workbench contract', () => {
     expect(panel).toContain('ไม่ใช่การยืนยันตัวตนอัตโนมัติ');
   });
 
-  it('clearly distinguishes applicant submission from authoritative Employee Master information', () => {
+  it('clearly distinguishes applicant submission from authoritative ทะเบียนพนักงาน information', () => {
     expect(panel).toContain('ข้อมูลที่ผู้สมัครแจ้ง');
-    expect(panel).toContain('ใช้ประกอบการตรวจสอบเท่านั้น ไม่ใช่ข้อมูลยืนยันตัวบุคคลจาก Employee Master');
+    expect(panel).toContain('ใช้ประกอบการตรวจสอบเท่านั้น ไม่ใช่ข้อมูลยืนยันตัวบุคคลจากทะเบียนพนักงาน');
     expect(panel).toContain('ชื่อที่ผู้สมัครแจ้ง');
     expect(panel).toContain('รหัสภายใน');
     expect(panel).not.toContain('employeeCode เป็นตัวตน');
@@ -66,14 +66,14 @@ describe('G04.2 UX-05 Registration Review workbench contract', () => {
 
   it('presents the current matched Employee and explicitly separates matching from account approval', () => {
     expect(panel).toContain('selected.matchedEmployee');
-    expect(panel).toContain('จับคู่ Employee Master แล้ว');
+    expect(panel).toContain('จับคู่ทะเบียนพนักงานแล้ว');
     expect(panel).toContain('selected.matchedEmployee.employeeCode');
     expect(panel).toContain('การจับคู่พนักงานยังไม่ใช่การอนุมัติบัญชี');
   });
 
-  it('preserves Employee-not-found behavior and ADMIN-only Employee Master navigation', () => {
+  it('preserves Employee-not-found behavior and ADMIN-only ทะเบียนพนักงาน navigation', () => {
     expect(panel).toContain("matchState === 'EMPLOYEE_NOT_FOUND'");
-    expect(panel).toContain('ไม่พบพนักงานใน Employee Master');
+    expect(panel).toContain('ไม่พบพนักงานในทะเบียนพนักงาน');
     expect(panel).toContain('คำขอยังคงรอตรวจสอบ');
     expect(panel).toContain("role === 'ADMIN'");
     expect(panel).toContain('onClick={onOpenEmployeeMaster}');
@@ -93,7 +93,7 @@ describe('G04.2 UX-05 Registration Review workbench contract', () => {
     expect(panel).toContain('await api.approveRegistrationRequest(token, selected.id)');
     expect(panel).toContain('สิทธิ์เริ่มต้นหลังอนุมัติ');
     expect(panel).toContain('VIEWER');
-    expect(panel).toContain('อนุมัติเป็น VIEWER');
+    expect(panel).toContain('อนุมัติเป็นผู้ใช้งาน');
     expect(panel).toContain('id="registration-review-status"');
     expect(panel).not.toContain('name="role"');
   });
@@ -127,8 +127,8 @@ describe('G04.2 UX-05 Registration Review workbench contract', () => {
 
   it('keeps refresh, match, approve, reject, and onChanged mutation sequencing intact', () => {
     expect(panel).toContain('onClick={() => void load()}');
-    expect(panel).toContain("setMessage('จับคู่ Employee Master แล้ว'); setSelectedCandidateId(''); await load(); onChanged();");
-    expect(panel).toContain("setMessage('อนุมัติบัญชีแล้ว — สิทธิ์เริ่มต้น VIEWER'); await load(); onChanged();");
+    expect(panel).toContain("setMessage('จับคู่ทะเบียนพนักงานแล้ว'); setSelectedCandidateId(''); await load(); onChanged();");
+    expect(panel).toContain("setMessage('อนุมัติบัญชีแล้ว — สิทธิ์เริ่มต้นเป็นผู้ใช้งาน'); await load(); onChanged();");
     expect(panel).toContain("setMessage('บันทึกการไม่อนุมัติแล้ว')");
     expect(panel).toContain('await load(); onChanged();');
   });

@@ -105,7 +105,7 @@ const readinessCopy: Record<string, Copy> = {
   },
   SITE_NOT_READY: {
     title: 'จุดปฏิบัติงานยังไม่พร้อม',
-    detail: 'Security Site ของกะนี้ไม่สามารถใช้เป็น authority สำหรับ Attendance ได้',
+    detail: 'จุดรักษาความปลอดภัยของกะนี้ใช้เป็นข้อมูลอ้างอิงสำหรับการลงเวลาไม่ได้',
     tone: 'blocked'
   },
   QR_STEP_UP_REQUIRED: {
@@ -1392,7 +1392,7 @@ export function AttendancePage({ token, displayName, department, readOnly = fals
         <div className="attendance-v3-identity-copy">
           <span className="attendance-v3-kicker">SMS EMPLOYEE</span>
           <h1>{displayName || 'ผู้ใช้งาน SMS'}</h1>
-          <p>{department || 'หน่วยงานตาม Employee Master'}</p>
+          <p>{department || 'หน่วยงานตามทะเบียนพนักงาน'}</p>
         </div>
         <div className="attendance-v3-assignment-grid">
           <div>

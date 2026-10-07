@@ -29,7 +29,7 @@ describe('WAVE 4B Schedule Approval History responsive surface', () => {
   it('preserves schedule approval authority and meaningful row identity', () => {
     expect(main).toContain("approvals: api.scheduleApprovals");
     expect(main).toContain("const approvalRowLabel = (row: DataRow) => `เปิดรายละเอียดการอนุมัติตาราง");
-    expect(main).toContain('Revision ${text(row.revision)}');
+    expect(main).toContain('ฉบับแก้ไข ${text(row.revision)}');
     expect(main).toContain("const canEditRows = canManage && (page !== 'approvals' || role === 'ADMIN')");
   });
 

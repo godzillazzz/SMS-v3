@@ -102,7 +102,7 @@ describe('G04.2 VF-03 colorful pastel + midnight dark visual contract', () => {
     for (const tone of ['warning', 'info', 'success', 'danger']) expect(css).toContain(`.registration-review__request--${tone}`);
     expect(review).toContain('api.matchRegistrationRequest(token, selected.id, employeeId)');
     expect(review).toContain('api.approveRegistrationRequest(token, selected.id)');
-    expect(review).toContain('อนุมัติเป็น VIEWER');
+    expect(review).toContain('อนุมัติเป็นผู้ใช้งาน');
     expect(review).toContain('role="dialog"');
     expect(review).not.toContain('window.prompt');
     expect(review).not.toContain('window.confirm');

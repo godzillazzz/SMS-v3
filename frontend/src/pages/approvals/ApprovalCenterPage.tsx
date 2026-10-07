@@ -210,7 +210,7 @@ export function ApprovalCenterPage({
       setSelectedId((current) => next.some((item) => item.id === current) ? current : next[0]?.id || '');
     } catch (cause) {
       setSummaryAvailable(false);
-      setError(toRequestErrorState(cause, 'ไม่สามารถโหลด Approval Center ได้'));
+      setError(toRequestErrorState(cause, 'ไม่สามารถโหลดศูนย์อนุมัติได้'));
     } finally {
       setLoading(false);
     }
