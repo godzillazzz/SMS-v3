@@ -23,7 +23,7 @@ describe('EMP-UX Employee 360 summary contract', () => {
   it('shows authoritative states without inventing account device or Site state', () => {
     expect(drawer).toContain('คำขอเปลี่ยนแปลง');
     expect(drawer).toContain('Future-effective');
-    expect(drawer).toContain('Reference Photo');
+    expect(drawer).toContain('รูปอ้างอิงใบหน้า');
     expect(drawer).toContain('อ้างอิงจาก Schedule / Security Site authority');
     expect(drawer).toContain('ไม่คาดเดาสถานะจาก client');
   });

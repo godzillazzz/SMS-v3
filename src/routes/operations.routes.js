@@ -89,7 +89,7 @@ const licenseInputBase = z.object({ employeeId: uuid, licenseType: z.string().tr
 const validLicenseDates = (value) => !value.issueDate || !value.expiryDate || value.issueDate <= value.expiryDate;
 const licenseInput = licenseInputBase.refine(validLicenseDates, { message: 'Issue date must not be after expiry date.', path: ['expiryDate'] });
 const licenseUpdateInput = licenseInputBase.omit({ employeeId: true }).partial().refine(validLicenseDates, { message: 'Issue date must not be after expiry date.', path: ['expiryDate'] });
-const licenseListQuery = paging.extend({ employeeStatus: z.enum(['ACTIVE', 'INACTIVE', 'ALL']).default('ACTIVE') });
+const licenseListQuery = paging.extend({ employeeStatus: z.enum(['ACTIVE', 'INACTIVE', 'ALL']).default('ACTIVE'), employeeId: uuid.optional() });
 const shiftTypeInput = z.object({
   code: z.string().trim().toUpperCase().regex(/^[A-Z0-9_-]{1,12}$/),
   name: z.string().trim().min(1).max(150),
@@ -437,8 +437,8 @@ router.post('/internal/license-reconciliation', async (req, res, next) => {
 
 router.get('/licenses', authorize('ADMIN', 'MANAGER', 'SUPERVISOR'), async (req, res, next) => {
   try {
-    const { page, pageSize, employeeStatus } = licenseListQuery.parse(req.query);
-    const where = licenseEmployeeWhere(employeeStatus);
+    const { page, pageSize, employeeStatus, employeeId } = licenseListQuery.parse(req.query);
+    const where = { ...licenseEmployeeWhere(employeeStatus), ...(employeeId ? { employeeId } : {}) };
     const [total, licenses] = await prisma.$transaction([
       prisma.employeeLicense.count({ where }),
       prisma.employeeLicense.findMany({

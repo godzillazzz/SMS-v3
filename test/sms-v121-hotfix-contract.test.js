@@ -18,7 +18,7 @@ test('License operational status contract defaults to active and preserves expli
   assert.match(operations, /if \(employeeStatus === 'ALL'\) return \{\};/);
   assert.match(operations, /if \(employeeStatus === 'INACTIVE'\) return \{ employee: \{ is: \{ OR:/);
   assert.match(operations, /employee: \{ is: \{ isActive: true, deletedAt: null \} \}/);
-  assert.match(operations, /const where = licenseEmployeeWhere\(employeeStatus\);/);
+  assert.match(operations, /const where = \{ \.\.\.licenseEmployeeWhere\(employeeStatus\), \.\.\.\(employeeId \? \{ employeeId \} : \{\}\) \};/);
 });
 
 test('inactive License mutations fail with a domain code while reads and G05 remain separate', () => {
