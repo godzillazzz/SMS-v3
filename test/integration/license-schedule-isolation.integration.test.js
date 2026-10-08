@@ -59,7 +59,7 @@ if (process.env.RUN_INTEGRATION_TESTS !== 'true') {
     const documentIds = [...created.documentIds];
     const approvalIds = [...created.scheduleApprovalIds];
     const eventIds = [...created.scheduleApprovalEventIds];
-    const auditEntityIds = [...licenseIds, ...documentIds, ...assignmentIds];
+    const auditEntityIds = [...licenseIds, ...documentIds];
 
     if (userIds.length || auditEntityIds.length) {
       await prisma.auditLog.deleteMany({
