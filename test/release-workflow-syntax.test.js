@@ -123,7 +123,8 @@ test("Production verifier checks native Git provenance and immutable runtime bef
     /verify_public_runtime \"\$EXPECTED_CANONICAL_URL\" CANONICAL_PRODUCTION/,
   );
   assert.match(script, /approval\.status !== 401/);
-  assert.match(script, /Approval Authority Matrix \/ SLA/);
+  assert.match(script, /ตารางผู้มีอำนาจอนุมัติและกรอบเวลา/);
+  assert.match(script, /เกณฑ์ SLA/);
   assert.match(script, /การเปลี่ยนแปลงสำคัญ/);
   assert.match(script, /เปลี่ยนชื่อ/);
   assert.match(script, /ย้ายหน่วยงาน \/ แผนก/);
@@ -132,7 +133,7 @@ test("Production verifier checks native Git provenance and immutable runtime bef
   assert.match(script, /รัน Cleanup รอบถัดไป/);
   assert.match(script, /SUPPORT_SITE/);
   assert.match(script, /ช่วยปฏิบัติงาน/);
-  assert.match(workflow, /Critical UI sentinels: PASS \(19\/19\)/);
+  assert.match(workflow, /Critical UI sentinels: PASS \(20\/20\)/);
 });
 
 test("Production runtime verification includes the G06 Simple Attendance contract", () => {
@@ -154,7 +155,7 @@ test("Production runtime verification includes the G06 Simple Attendance contrac
     assert.ok(runtime.includes(sentinel), `missing G06 runtime sentinel: ${sentinel}`);
   }
   assert.match(runtime, /SENTINELS=\$\{sentinels\.length\}/);
-  assert.match(workflow, /Critical UI sentinels: PASS \(19\/19\)/);
+  assert.match(workflow, /Critical UI sentinels: PASS \(20\/20\)/);
 });
 
 
