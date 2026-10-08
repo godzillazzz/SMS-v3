@@ -3,7 +3,10 @@
 
 ## ACTIVE — R4 Production release of completed Integration work — 8 ตุลาคม 2569
 
-**สถานะ: Release-Control กำลังเตรียม; Production ยังไม่ได้เปลี่ยน.** ผู้ใช้สั่งให้ทำเฉพาะ release ของงานที่เสร็จและ Merge เข้า Integration แล้ว และหยุดหลัง Production verification. Source ที่ freeze คือ `origin/fix/serverless-database-reliability` SHA `59a7e944b4481292b9b297608a676f3f3eb2f862`, tree `f24c334ff2da8d025382cf9bcefb30cd9d5a6b04`. Source นี้เป็น descendant ของ Production SHA เดิม `b3e70834977a1b29b367e8a1d3b3cfebac0d74c8` และ workflow จะยืนยัน ancestry/tree ซ้ำก่อนสร้าง candidate.
+**สถานะ: Release-Control PR #532 เปิดอยู่; Production ยังไม่ได้เปลี่ยน.** ผู้ใช้สั่งให้ทำเฉพาะ release ของงานที่เสร็จและ Merge เข้า Integration แล้ว และหยุดหลัง Production verification. Source ที่ freeze คือ `origin/fix/serverless-database-reliability` SHA `59a7e944b4481292b9b297608a676f3f3eb2f862`, tree `f24c334ff2da8d025382cf9bcefb30cd9d5a6b04`. Source นี้เป็น descendant ของ Production SHA เดิม `b3e70834977a1b29b367e8a1d3b3cfebac0d74c8` และ workflow จะยืนยัน ancestry/tree ซ้ำก่อนสร้าง candidate.
+
+- PR #532 head `00df723dd94e5e47265b68991eb476af9f2a596b` created successfully. Its Preview `dpl_AyL4L7DxfRdixSfF5izSpqh3bYyV` is READY with exact PR-head SHA/ref.
+- First PR CI [run 37726108786](https://github.com/godzillazzz/SMS-v3/actions/runs/37726108786) failed at `npm test`: 1,337 passed / 1 failed. The sole failure was the stale R3 assertion in `test/attendance-time-policy-application-release.test.js` expecting `b3e708...` as the release SHA; it reported actual R4 `59a7e944...`. Browser regressions, dependency audits, environment contract, Prisma format/validate/generate, test migrations/seed, and migration status steps passed before that failure. The assertion now matches the R4 manifest; focused release checks pass 18/18 and the manifest guard passes. A local full `npm test` attempt could not initialize the shared workspace Prisma client; hosted CI is the required full-suite evidence. PR merge and Production remain blocked pending fresh exact-head CI SUCCESS and Preview runtime checks.
 
 ### Release scope — merged only
 
