@@ -17,8 +17,8 @@ function rosterFixture() {
   const dates = Array.from({ length: lastDay }, (_, index) => `${monthKey}-${String(index + 1).padStart(2, '0')}`);
   const today = `${monthKey}-${day}`;
   const employees = Array.from({ length: 20 }, (_, index) => {
-    const department = index < 10 ? 'AN1' : 'AN2';
-    const employeeCode = `E${String(index + 1).padStart(3, '0')}`;
+    const department = index < 4 ? 'AN1' : index === 4 ? 'AN1,AN2,AN3' : index < 10 ? 'AN2' : index < 15 ? 'AN3' : 'AN10';
+    const employeeCode = ['E10', 'E2', 'E2', 'E1'][index] || `E${String(index + 1).padStart(3, '0')}`;
     const shifts = index < 2 ? [{
       id: `shift-${index + 1}`,
       employeeId: `employee-${index + 1}`,
@@ -46,7 +46,7 @@ function rosterFixture() {
     dates,
     employees,
     response: {
-      data: { month: monthKey, dates, approval: { status: 'DRAFT', revision: 1 }, employees },
+      data: { month: monthKey, dates, approval: { status: 'DRAFT', revision: 1 }, employees: [...employees].reverse() },
       meta: { page: 1, pageSize: 20, total: employees.length, totalPages: 1 }
     }
   };
@@ -60,13 +60,11 @@ async function openAdminRoster(page: Page, testInfo: TestInfo) {
     const pathname = new URL(request.url()).pathname;
     apiMethods.push(`${request.method()} ${pathname}`);
     if (pathname === '/api/v1/auth/refresh') {
-      return route.fulfill({ status: 401, contentType: 'application/json', body: JSON.stringify({ message: 'No active session' }) });
+      // Synthetic existing ADMIN session; no login or business write is sent.
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ accessToken: 'fixture-access-token', user: { id: 'fixture-admin', email: 'admin@example.test', displayName: 'Admin Fixture', role: 'ADMIN' } }) });
     }
     if (pathname === '/api/v1/auth/passkeys/config') {
       return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ enabled: false }) });
-    }
-    if (pathname === '/api/v1/auth/login') {
-      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ accessToken: 'fixture-access-token', user: { id: 'fixture-admin', email: 'admin@example.test', displayName: 'Admin Fixture', role: 'ADMIN' } }) });
     }
     if (pathname === '/api/v1/schedule-calendar') {
       return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(fixture.response) });
@@ -80,11 +78,6 @@ async function openAdminRoster(page: Page, testInfo: TestInfo) {
 
   const target = `/app/roster?month=${fixture.monthKey}`;
   await page.goto(target);
-  await expect(page.locator('.nexus-public[data-design="sms-command-nexus-full-bleed"]')).toBeVisible();
-  await expect(page.locator('#auth-login-form')).toBeVisible();
-  await page.locator('#email').fill('admin@example.test');
-  await page.locator('#password').fill('fixture-password');
-  await page.locator('#auth-login-form button[type="submit"]').click();
   await expect(page.getByRole('heading', { name: 'ตารางกะรายเดือน' })).toBeVisible();
   await expect(page).toHaveURL(target);
   await expect(page.locator('.schedule-grid tbody tr')).toHaveCount(20);
@@ -93,16 +86,29 @@ async function openAdminRoster(page: Page, testInfo: TestInfo) {
   return { fixture, apiMethods };
 }
 
-test('monthly roster keeps classic visible shift times, flat department ordering, today, weekend, lock and sticky controls on desktop', async ({ page }, testInfo) => {
+for (const theme of ['light', 'dark'] as const) {
+test(`monthly roster keeps classic visible shift times, natural department order and sticky controls on desktop (${theme})`, async ({ page }, testInfo) => {
   const errors: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
+  page.on('console', (message) => { if (message.type() === 'error') errors.push(message.text()); });
   await page.setViewportSize({ width: 1366, height: 768 });
+  await page.emulateMedia({ colorScheme: theme });
+  await page.addInitScript((value) => localStorage.setItem('sms-v3-theme', value), theme);
   const { fixture, apiMethods } = await openAdminRoster(page, testInfo);
+  await expect(page.locator('html')).toHaveAttribute('data-theme', theme);
 
   const grid = page.locator('.schedule-grid');
   await expect(grid).not.toHaveClass(/schedule-grid--compact/);
   await expect(grid.locator('tbody tr')).toHaveCount(20);
   await expect(grid.locator('.schedule-department-group-row')).toHaveCount(0);
+  await expect(grid.locator('tbody .employee-sticky small')).toHaveText([
+    'E1 · AN1', 'E2 · AN1', 'E2 · AN1', 'E10 · AN1', 'E005 · AN1,AN2,AN3',
+    'E006 · AN2', 'E007 · AN2', 'E008 · AN2', 'E009 · AN2', 'E010 · AN2',
+    'E011 · AN3', 'E012 · AN3', 'E013 · AN3', 'E014 · AN3', 'E015 · AN3',
+    'E016 · AN10', 'E017 · AN10', 'E018 · AN10', 'E019 · AN10', 'E020 · AN10'
+  ]);
+  await expect(grid.locator('tbody tr').nth(1)).toContainText('พนักงาน2 ทดสอบ');
+  await expect(grid.locator('tbody tr').nth(2)).toContainText('พนักงาน3 ทดสอบ');
   await expect(grid.locator('.calendar-shift b').first()).toHaveText('D');
   await expect(grid.locator('.schedule-time').first()).toBeVisible();
   await expect(grid.locator('.schedule-shift-kind')).toHaveCount(0);
@@ -143,16 +149,26 @@ test('monthly roster keeps classic visible shift times, flat department ordering
     return employeeHeader.getBoundingClientRect().left - container.getBoundingClientRect().left;
   });
   expect(Math.abs(stickyLeft)).toBeLessThanOrEqual(2);
+  const employeeCell = grid.locator('tbody .employee-sticky').first();
+  await expect(employeeCell).toHaveCSS('position', 'sticky');
+  expect(Math.abs(await employeeCell.evaluate((element) => element.getBoundingClientRect().left - document.querySelector('.schedule-grid-scroll')!.getBoundingClientRect().left))).toBeLessThanOrEqual(2);
   await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(1366);
   expect(errors).toEqual([]);
-  expect(apiMethods.some((entry) => /^POST \/api\/v1\/schedule\//.test(entry))).toBe(false);
+  // The existing session refresh is mocked; every business API read remains GET-only.
+  expect(apiMethods.filter((entry) => entry === 'POST /api/v1/auth/refresh')).toHaveLength(1);
+  expect(apiMethods.filter((entry) => !entry.startsWith('GET ') && entry !== 'POST /api/v1/auth/refresh')).toEqual([]);
+  await page.screenshot({ path: testInfo.outputPath(`roster-desktop-${theme}-scrolled.png`), fullPage: true });
 });
 
-test('monthly roster remains usable at 375px with internal horizontal scroll and fixed employee corner', async ({ page }, testInfo) => {
+test(`monthly roster remains usable at 375px with internal horizontal scroll and fixed employee corner (${theme})`, async ({ page }, testInfo) => {
   const errors: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
+  page.on('console', (message) => { if (message.type() === 'error') errors.push(message.text()); });
   await page.setViewportSize({ width: 375, height: 812 });
-  await openAdminRoster(page, testInfo);
+  await page.emulateMedia({ colorScheme: theme });
+  await page.addInitScript((value) => localStorage.setItem('sms-v3-theme', value), theme);
+  const { apiMethods } = await openAdminRoster(page, testInfo);
+  await expect(page.locator('html')).toHaveAttribute('data-theme', theme);
 
   const grid = page.locator('.schedule-grid');
   const scroll = page.locator('.schedule-grid-scroll');
@@ -177,6 +193,14 @@ test('monthly roster remains usable at 375px with internal horizontal scroll and
     return employeeHeader.getBoundingClientRect().left - container.getBoundingClientRect().left;
   });
   expect(Math.abs(stickyLeft)).toBeLessThanOrEqual(2);
+  const employeeCell = grid.locator('tbody .employee-sticky').first();
+  await expect(employeeCell).toHaveCSS('position', 'sticky');
+  expect(Math.abs(await employeeCell.evaluate((element) => element.getBoundingClientRect().left - document.querySelector('.schedule-grid-scroll')!.getBoundingClientRect().left))).toBeLessThanOrEqual(2);
   await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(375);
   expect(errors).toEqual([]);
+  // The existing session refresh is mocked; every business API read remains GET-only.
+  expect(apiMethods.filter((entry) => entry === 'POST /api/v1/auth/refresh')).toHaveLength(1);
+  expect(apiMethods.filter((entry) => !entry.startsWith('GET ') && entry !== 'POST /api/v1/auth/refresh')).toEqual([]);
+  await page.screenshot({ path: testInfo.outputPath(`roster-mobile-${theme}-scrolled.png`), fullPage: true });
 });
+}
