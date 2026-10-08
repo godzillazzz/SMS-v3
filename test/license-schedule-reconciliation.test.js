@@ -2,7 +2,7 @@ process.env.NODE_ENV = 'test';
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { licenseStateForWorkDate, buildLicenseAuthorityByEmployee } = require('../src/services/license-state.service');
-const { buildLicenseScheduleReconciliation, applyReconciliationUpdates, touchApproval } = require('../src/services/license-schedule-reconciliation.service');
+const { buildLicenseScheduleReconciliation, applyReconciliationUpdates, bangkokToday, reconcileEmployeeLicenseSchedules } = require('../src/services/license-schedule-reconciliation.service');
 
 const shifts = [
   { id: 'd', code: 'D', startTime: '08:00', endTime: '20:00', hours: 12 },
@@ -60,7 +60,7 @@ test('historical documents do not bypass an administratively revoked license', (
   assert.equal(licenseStateForWorkDate(authority, new Date('2026-09-02T00:00:00Z')).valid, false);
 });
 
-test('reconciliation can restore a historical shift that was incorrectly blocked after license renewal', () => {
+test('reconciliation preserves a past License Block even when document history now proves validity', () => {
   const employeeId = 'employee-restore';
   const licenseId = 'license-restore';
   const authority = buildLicenseAuthorityByEmployee([
@@ -69,17 +69,16 @@ test('reconciliation can restore a historical shift that was incorrectly blocked
     { employeeId, licenseId, status: 'SUPERSEDED', proposedStartDate: new Date('2025-09-01T00:00:00Z'), proposedExpiryDate: new Date('2026-08-31T00:00:00Z') },
     { employeeId, licenseId, status: 'APPROVED', proposedStartDate: new Date('2026-09-01T00:00:00Z'), proposedExpiryDate: new Date('2027-08-31T00:00:00Z') }
   ]).get(employeeId);
-  const plan = buildLicenseScheduleReconciliation({ licenses: authority, shiftTypes: shifts, assignments: [
+  const plan = buildLicenseScheduleReconciliation({ licenses: authority, shiftTypes: shifts, now: new Date('2026-09-01T00:00:00Z'), assignments: [
     { id: 'aug-31', workDate: new Date('2026-08-31T00:00:00Z'), shiftTypeId: 'off', shiftType: { code: 'OFF' }, licenseStatus: 'EXPIRED', licenseOverride: false, remark: 'License Block', licenseBlockedFromShiftTypeId: 'd', licenseBlockedFromRemark: 'historical D shift' }
   ] });
-  assert.equal(plan.summary.restored, 1);
-  assert.equal(plan.updates[0].data.shiftTypeId, 'd');
-  assert.equal(plan.updates[0].data.remark, 'historical D shift');
-  assert.equal(plan.updates[0].data.licenseStatus, 'VALID');
+  assert.equal(plan.summary.restored, 0);
+  assert.equal(plan.summary.skippedPast, 1);
+  assert.deepEqual(plan.updates, []);
 });
 test('reconciliation blocks invalid work days, preserves Admin overrides, and restores after renewal', () => {
   const plan = buildLicenseScheduleReconciliation({
-    licenses: [oldLicense, renewedLicense], shiftTypes: shifts,
+    licenses: [oldLicense, renewedLicense], shiftTypes: shifts, now: new Date('2026-07-23T00:00:00Z'),
     assignments: [
       { id: 'valid-before-expiry', workDate: new Date('2026-07-23T00:00:00Z'), shiftTypeId: 'd', shiftType: { code: 'D' }, licenseStatus: 'EXPIRED', licenseOverride: false, remark: null },
       { id: 'admin-override', workDate: new Date('2026-07-24T00:00:00Z'), shiftTypeId: 'n', shiftType: { code: 'N' }, licenseStatus: 'OVERRIDDEN', licenseOverride: true, remark: 'Admin approved coverage' },
@@ -123,37 +122,56 @@ test('batched reconciliation fails closed when the database updates fewer assign
     /License reconciliation update count mismatch/
   );
 });
-test('license reconciliation creates the next pending schedule revision after an approved month', async () => {
-  const month = new Date('2026-09-01T00:00:00Z');
-  const calls = [];
-  const tx = {
-    scheduleApproval: {
-      findFirst: async ({ where }) => where.status === 'APPROVED' ? { revision: 4 } : null,
-      create: async ({ data }) => { calls.push({ type: 'create', data }); return { id: 'pending-5', ...data }; },
-      update: async ({ where, data }) => { calls.push({ type: 'update', where, data }); return { id: where.id, ...data }; }
-    }
-  };
-  const result = await touchApproval(tx, month, 'admin-1');
-  assert.equal(result.status, 'PENDING');
-  assert.equal(result.revision, 5);
-  assert.equal(calls.length, 1);
-  assert.equal(calls[0].type, 'create');
-  assert.equal(calls[0].data.changeType, 'LICENSE_RECONCILIATION');
+
+test('Bangkok midnight advances the immutable historical boundary', () => {
+  assert.equal(bangkokToday('2026-10-08T16:59:59.999Z').toISOString(), '2026-10-08T00:00:00.000Z');
+  assert.equal(bangkokToday('2026-10-08T17:00:00.000Z').toISOString(), '2026-10-09T00:00:00.000Z');
+  assert.throws(() => bangkokToday('invalid'), /Valid reconciliation time/);
+  const assignments = [8, 9, 10].map((day) => ({ id: String(day), workDate: new Date('2026-10-' + String(day).padStart(2, '0') + 'T00:00:00Z'), shiftTypeId: 'd', shiftType: { code: 'D' } }));
+  const before = buildLicenseScheduleReconciliation({ licenses: [], assignments, shiftTypes: shifts, now: new Date('2026-10-08T16:59:59.999Z') });
+  const after = buildLicenseScheduleReconciliation({ licenses: [], assignments, shiftTypes: shifts, now: new Date('2026-10-08T17:00:00.000Z') });
+  assert.deepEqual(before.updates.map((row) => row.id), ['8', '9', '10']);
+  assert.deepEqual(after.updates.map((row) => row.id), ['9', '10']);
 });
 
-test('license reconciliation reuses an existing pending schedule approval instead of creating a duplicate revision', async () => {
-  const month = new Date('2026-09-01T00:00:00Z');
-  const calls = [];
-  let lookup = 0;
+test('AL, ordinary OFF and Admin overrides remain outside automatic blocking', () => {
+  const assignments = ['AL', 'OFF', 'N'].map((code) => ({ id: code, workDate: new Date('2026-10-09T00:00:00Z'), shiftTypeId: code.toLowerCase(), shiftType: { code }, licenseOverride: code === 'N' }));
+  const plan = buildLicenseScheduleReconciliation({ licenses: [], assignments, shiftTypes: shifts, now: new Date('2026-10-09T00:00:00Z') });
+  assert.deepEqual(plan.updates, []);
+  assert.equal(plan.summary.skippedLeave, 1);
+  assert.equal(plan.summary.preservedOverrides, 1);
+});
+
+test('reconciliation never accesses approval or Attendance models and audits each change', async () => {
+  const now = new Date('2026-10-08T17:00:00.000Z');
+  const assignment = { id: 'today', workDate: new Date('2026-10-09T00:00:00Z'), shiftTypeId: 'd', shiftType: { code: 'D' }, remark: 'original schedule' };
+  const writes = [];
+  const audits = [];
   const tx = {
-    scheduleApproval: {
-      findFirst: async () => (++lookup === 1 ? { revision: 4 } : { id: 'pending-5' }),
-      create: async ({ data }) => { calls.push({ type: 'create', data }); return data; },
-      update: async ({ where, data }) => { calls.push({ type: 'update', where, data }); return { id: where.id, status: 'PENDING', revision: 5, ...data }; }
-    }
+    employeeLicense: { findMany: async () => [] },
+    employeeLicenseDocument: { findMany: async () => [] },
+    shiftType: { findMany: async () => shifts },
+    shiftAssignment: {
+      findMany: async ({ where }) => { assert.deepEqual(where, { employeeId: 'employee-1', workDate: { gte: bangkokToday(now) } }); return [assignment]; },
+      updateMany: async (input) => { writes.push(input); return { count: input.where.id.in.length }; }
+    },
+    auditLog: { create: async ({ data }) => { audits.push(data); return data; } },
+    get scheduleApproval() { throw new Error('ScheduleApproval must remain isolated'); },
+    get scheduleApprovalEvent() { throw new Error('ScheduleApprovalEvent must remain isolated'); },
+    get attendanceEvent() { throw new Error('Attendance must remain isolated'); }
   };
-  const result = await touchApproval(tx, month, 'admin-1');
-  assert.equal(result.id, 'pending-5');
-  assert.equal(calls.length, 1);
-  assert.equal(calls[0].type, 'update');
+  const result = await reconcileEmployeeLicenseSchedules(tx, 'employee-1', null, { now });
+  assert.equal(result.blocked, 1);
+  assert.equal(result.affectedAssignments, 1);
+  assert.deepEqual(writes[0].where.workDate, { gte: bangkokToday(now) });
+  assert.equal(audits[0].entityType, 'LicenseScheduleReconciliation');
+  assert.equal(audits[0].metadata.scheduleApprovalChanged, false);
+  assert.equal(audits[0].metadata.cutoffDate, '2026-10-09');
+  assert.equal(audits[0].metadata.changes[0].before.shiftTypeId, 'd');
+  assert.equal(audits[0].metadata.changes[0].after.shiftTypeId, 'off');
+  Object.assign(assignment, writes[0].data, { shiftType: { code: 'OFF' } });
+  const repeated = await reconcileEmployeeLicenseSchedules(tx, 'employee-1', null, { now });
+  assert.equal(repeated.affectedAssignments, 0);
+  assert.equal(writes.length, 1);
+  assert.equal(audits.length, 1);
 });

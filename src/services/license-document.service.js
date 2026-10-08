@@ -210,8 +210,8 @@ function workflowAuditMetadata({ document, requestUser, transition, revision, fr
   };
 }
 
-function createLicenseDocumentService({ prisma, storage, audit }) {
-  if (!prisma || !storage || !audit) throw new Error('License document service dependencies are required.');
+function createLicenseDocumentService({ prisma, storage, audit, reconcileSchedules }) {
+  if (!prisma || !storage || !audit || !reconcileSchedules) throw new Error('License document service dependencies are required.');
 
   async function canAccess(_tx, requestUser, employeeId) {
     if (requestUser.role === 'ADMIN') return true;
@@ -305,6 +305,7 @@ function createLicenseDocumentService({ prisma, storage, audit }) {
         const approved = await tx.employeeLicenseDocument.update({ where: { id }, data: { status: 'APPROVED', isCurrent: true, reviewedById: requestUser.sub, reviewedAt, rejectionReason: null } });
         await tx.employeeLicense.update({ where: { id: document.licenseId }, data: { licenseNumber: currentRevision.proposedLicenseNumber || license.licenseNumber, issueDate: currentRevision.proposedStartDate, expiryDate: currentRevision.proposedExpiryDate } });
         await audit.log({ actorUserId: requestUser.sub, action: 'UPDATE', entityType: 'EmployeeLicenseDocument', entityId: id, metadata: workflowAuditMetadata({ document, requestUser, transition: APPROVAL_TRANSITIONS.APPROVE, revision: currentRevision.revision, fromStatus: 'PENDING', toStatus: 'APPROVED', timestamp: reviewedAt, extra: { uploadedById: document.uploadedById, reviewedById: requestUser.sub, selfApproved: document.uploadedById === requestUser.sub } }) }, tx);
+        await reconcileSchedules(tx, license.employeeId, requestUser.sub);
         return approved;
       }, APPROVAL_TRANSACTION_OPTIONS);
     } catch (error) {
