@@ -1,8 +1,8 @@
 # MASTER HANDOFF
 
-## ACTIVE — T17 closeout / T19 and T18-T24 verify-first — 8 ตุลาคม 2569
+## ACTIVE — T19 scope audit / remediation checkpoint — 8 ตุลาคม 2569
 
-**สถานะ: OPEN.** Current Integration is b10223153b26188c328cbfc56b4eeaee4af6af35 on origin/fix/serverless-database-reliability. T17 is merged. T19 and T18 lack authoritative task scope; T24 has source-level batching evidence but no measured Preview timing or database-region evidence. PLAN.md is absent at this Integration SHA. No Production deployment, promotion, Environment approval, Production data, schema/migration, secret/env, RBAC, authentication, or business-policy mutation occurred.
+**สถานะ: OPEN.** Current Integration at this checkpoint is d727f5ce01dbefdf06bdb3e8f6b61a27432933fd on origin/fix/serverless-database-reliability. The T19 audit used exact base HEAD d727f5ce01dbefdf06bdb3e8f6b61a27432933fd. T17 is merged. T19 and T18 lack authoritative task scope; T24 has source-level batching evidence but no measured Preview timing or database-region evidence. PLAN.md is absent at this Integration SHA. No Production deployment, promotion, Environment approval, Production data, schema/migration, secret/env, RBAC, authentication, or business-policy mutation occurred.
 
 ### T17 — merged and verified
 
@@ -11,10 +11,16 @@
 - Exact merge CI [run 37716078657](https://github.com/godzillazzz/SMS-v3/actions/runs/37716078657) completed SUCCESS on merge SHA b10223153b26188c328cbfc56b4eeaee4af6af35. Its push-triggered Preview runtime step was skipped. Exact-SHA Integration Preview dpl_38Hm1Y3rXVhMtsAUcxDoLSji6SVv is READY in project prj_XwhNUOB2zLSPZ6UgQcfyOKBYJ75s, with exact source SHA b10223153b26188c328cbfc56b4eeaee4af6af35 and ref fix/serverless-database-reliability; read-only health returned 200 and readiness returned 200 / database=ok. CORS passed on the exact PR head but was not separately verified on the merge SHA.
 - Local T17 verification recorded before merge: frontend Vitest 154 files / 916 tests; configured Playwright 19/19; axe serious/critical violations 0 on Login and a synthetic Dashboard; root and frontend npm audit 0; TypeScript/build/bundle guard passed; Lighthouse accessibility 100/100 on those local pages. No Production data was used.
 
+### PR #528 — T24 verify-first handoff update
+
+- PR [#528](https://github.com/godzillazzz/SMS-v3/pull/528), head d9a9ac93fe17ce76fbb10aaaecddded05a343d6b, merged normally as d727f5ce01dbefdf06bdb3e8f6b61a27432933fd.
+- Exact PR-head CI [run 37717085869](https://github.com/godzillazzz/SMS-v3/actions/runs/37717085869) completed SUCCESS. Preview dpl_74h1WBjHxjT27m7gAMNRrziGnrgT was READY with exact head SHA/ref; health and readiness returned 200 / database=ok, and CI Preview health/readiness/CORS step passed.
+- Exact merge CI [run 37717449006](https://github.com/godzillazzz/SMS-v3/actions/runs/37717449006) completed SUCCESS on d727f5ce01dbefdf06bdb3e8f6b61a27432933fd. Its push-triggered Preview runtime step was skipped. Exact Integration Preview dpl_2cYSZocQaDsQbB7LuwP3jGVESody is READY in project prj_XwhNUOB2zLSPZ6UgQcfyOKBYJ75s, with githubCommitSha d727f5ce01dbefdf06bdb3e8f6b61a27432933fd and ref fix/serverless-database-reliability; read-only health returned 200 and readiness returned 200 / database=ok. CORS was not separately checked on this merge SHA.
+
 ### T19, T18, T24 — current-head audit
 
-- T19 is BLOCKED before implementation: PLAN.md is absent, this handoff contains no T19 scope or acceptance criteria, and repository issue/PR searches returned no T19 record. Required Owner action: provide the authoritative T19 task definition and acceptance criteria.
-- T18 is BLOCKED before implementation for the same missing-plan/scope reason; repository issue/PR searches returned no T18 record. Do not infer its intended behavior.
+- T19 is BLOCKED before implementation: PLAN.md is absent, this handoff contains no T19 scope or acceptance criteria, repository issue search returned no result, and the only T19 PR search hit is PR #528, which documents that the scope is missing but defines no task. Current Integration source and commit history contain no T19 implementation or task definition. Required Owner action: provide the authoritative T19 task definition and acceptance criteria.
+- T18 is BLOCKED before implementation for the same missing-plan/scope reason; issue search returned no result, and PR search found only PR #528, which mentions T18 while recording that the scope is missing. No task-specific T18 requirements are available. Do not infer its intended behavior.
 - T24 verify-first audit at exact HEAD b10223153b26188c328cbfc56b4eeaee4af6af35 found existing readiness-center batching: the list is capped at 50 employees, uses one employee query with related records and upcoming assignment, batches approval reads by month, and caches default-site resolution per department. Explicit schedule sites are selected with the assignments. The existing test “readiness center batches fifty employees without per-employee DB lookups” asserts zero per-employee employee/shift lookups, one approval batch read, and one site resolution for a 50-person, single-department fixture. A distinct-department workload can still issue one default-site query per department; this workload was not measured.
 - Dashboard source already uses grouped workforce/leave/license aggregates when supported, caps per-request query concurrency at 2, and emits performance_stage timings when request IDs are present. The existing normal-path test asserts 13 mocked operations and peak overlap no greater than 2. Exact merge CI run 37716078657 passed npm test, integration, frontend tests, typecheck, and build.
 - Exact Integration Preview metadata reports function region iad1; database region is UNKNOWN and was not inferred from or retrieved from a secret. A 30-minute runtime-log query scoped to dpl_38Hm1Y3rXVhMtsAUcxDoLSji6SVv found no performance_stage entries. No authenticated dashboard timing run or before/after Preview comparison is available, so T24 remains PARTIAL / VERIFY-FIRST.
@@ -27,12 +33,12 @@
 | T08 Approval Detail | BLOCKED — Owner/API decision | Do not infer schedule-revision diffs client-side. Owner must choose an authoritative immutable revision-diff/read API or defer the detail. |
 | T17 Accessibility | MERGED | PR #525 / merge b10223153b26188c328cbfc56b4eeaee4af6af35; PR-head CI 37715743778 and merge CI 37716078657 SUCCESS; exact Preview source/READY and health/readiness verified. |
 | T19 | BLOCKED — missing authoritative scope | Owner must provide task definition and acceptance criteria. |
-| T18 | BLOCKED — missing authoritative scope | PLAN.md, issue, PR, or handoff task requirements are absent. |
+| T18 | BLOCKED — missing authoritative scope | No T18 task definition in PLAN.md, an issue, a task-specific PR, or the handoff; PR #528 only records the missing scope. |
 | T24 | PARTIAL — verify-first | Readiness/dashboard batching exists in source and passed exact merge CI; distinct-department default-site query fanout, database region, and before/after Preview timing remain unresolved. |
 | T20 | NOT STARTED / SCOPE UNKNOWN | No task scope is recorded; preserve sequence after T19 and T18/T24. |
 | G06.1 Phase 0 | NOT STARTED | Audit only. Roadmap PR #465 merged as b9fcc2259e72e4256ccda7aa23c22a3dcc1ec2ae; preserve its non-biometric-first threat/compatibility boundary. |
 
-Technical Smoke for current Integration SHA b10223153b26188c328cbfc56b4eeaee4af6af35 has not been verified. Current Production canonical/rollback, approved manifest, immutable candidate, Environment protection, and workflow dispatch eligibility were not freshly verified in this checkpoint. Production was not attempted. Do not promote until the ordered batch and every exact-source protected-release gate pass. Keep T08 blocked pending Owner/API decision and never infer schedule revision diffs client-side.
+Technical Smoke for current Integration SHA d727f5ce01dbefdf06bdb3e8f6b61a27432933fd has not been verified. Current Production canonical/rollback, approved manifest, immutable candidate, Environment protection, and workflow dispatch eligibility were not freshly verified in this checkpoint. Production was not attempted. Do not promote until the ordered batch and every exact-source protected-release gate pass. Keep T08 blocked pending Owner/API decision and never infer schedule revision diffs client-side.
 
 ## HISTORICAL — T17 recovery checkpoint before merge — 8 ตุลาคม 2569 (superseded by ACTIVE section above)
 
