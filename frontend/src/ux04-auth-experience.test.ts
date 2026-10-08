@@ -103,7 +103,7 @@ describe('G04.2 UX-04 auth experience contract', () => {
 
   it('keeps password values local, masked by default, and uses an accessible SVG toggle without Unicode eye symbols', () => {
     expect(login).toContain("type={showPassword ? 'text' : 'password'}");
-    expect(login).toContain("aria-label={showPassword ? 'ซ่อนรหัสผ่าน' : 'แสดงรหัสผ่าน'}");
+    expect(login).toContain("aria-label={showPassword ? 'ซ่อน' : 'แสดง'}");
     expect(login).toContain('onMouseDown={(event) => event.preventDefault()}');
     expect(login).toContain("<SmsIcon name={showPassword ? 'eyeOff' : 'eye'}");
     expect(iconSource).toContain("| 'eye' | 'eyeOff'");
