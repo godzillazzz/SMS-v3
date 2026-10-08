@@ -381,7 +381,7 @@ if (process.env.RUN_INTEGRATION_TESTS !== 'true') {
     const expiringDocument = await documentService.upload({
       licenseId: expiredLicense.id,
       requestUser: { sub: admin.id, role: 'ADMIN' },
-      file: { buffer: Buffer.from('%PDF-1.7\nexpired fixture'), mimetype: 'application/pdf', originalname: 'expired.pdf', size: 26 },
+      file: { buffer: Buffer.from('%PDF-1.7\n% license document fixture\n%%EOF\n'), mimetype: 'application/pdf', originalname: 'expired.pdf', size: Buffer.byteLength('%PDF-1.7\n% license document fixture\n%%EOF\n') },
       input: {
         licenseNumber: 'LN-' + runToken.slice(0, 16) + '-expired',
         proposedStartDate: new Date('2019-01-01'),
