@@ -17,10 +17,13 @@ async function signIn(page: Page, target: string, role: 'ADMIN' | 'MANAGER' | 'S
   }));
 
   await page.goto(target);
-  await expect(page.locator('#auth-login-form')).toBeVisible();
+  // Wait for the real lazy login surface; filling its Suspense fallback can lose input.
+  await expect(page.locator('.nexus-public #auth-login-form')).toBeVisible();
   await page.locator('#email').fill(`${role.toLowerCase()}@example.test`);
   await page.locator('#password').fill('fixture-password');
+  const loginResponse = page.waitForResponse((response) => new URL(response.url()).pathname === '/api/v1/auth/login' && response.request().method() === 'POST');
   await page.locator('#auth-login-form button[type="submit"]').click();
+  expect((await loginResponse).status()).toBe(200);
 }
 
 test('Admin can open schedule approvals from the native sidebar on desktop', async ({ page }, testInfo: TestInfo) => {
