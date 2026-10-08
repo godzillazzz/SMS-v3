@@ -1,0 +1,196 @@
+{
+  "source_sha": "51c5c828689ce543067c687e204eba7918577bb9",
+  "deployment_id": "dpl_8GYCcNwVfGg8AWvv8pBK8xctZqRW",
+  "base_url": "https://sms-v3-staging-1venkdc5s-godzillazz.vercel.app",
+  "method": "Read-only authenticated Vercel Connector GET; repository verify-public-runtime traversal patterns and bounds",
+  "assets": [
+    {
+      "path": "/assets/index-Cm98i7Sp.js",
+      "bytes": 397452
+    },
+    {
+      "path": "/assets/es-CjhjPywI.js",
+      "bytes": 420013
+    },
+    {
+      "path": "/assets/AwardPublicExperience-B5Gg_0N1.js",
+      "bytes": 18359
+    },
+    {
+      "path": "/assets/ReportCenterPage-BGa62Wj6.js",
+      "bytes": 22817
+    },
+    {
+      "path": "/assets/SettingsPage-jdzudrGY.js",
+      "bytes": 11915
+    },
+    {
+      "path": "/assets/PersonnelDirectoryPage-Nkx7rwUr.js",
+      "bytes": 41035
+    },
+    {
+      "path": "/assets/EmployeeGovernedEditModal-B45aRl_B.js",
+      "bytes": 44494
+    },
+    {
+      "path": "/assets/EmployeeChangeReviewModal-WWRjC5J5.js",
+      "bytes": 10377
+    },
+    {
+      "path": "/assets/ApprovalCenterPage-DLoHgZRd.js",
+      "bytes": 22118
+    },
+    {
+      "path": "/assets/AuditCompliancePage-B8JBtJG7.js",
+      "bytes": 18294
+    },
+    {
+      "path": "/assets/DataQualityCenterPage-CMqqiuNc.js",
+      "bytes": 11243
+    },
+    {
+      "path": "/assets/SystemHealthPage-BZZf-chg.js",
+      "bytes": 11616
+    },
+    {
+      "path": "/assets/AccessManagementPage-C4TcCKvV.js",
+      "bytes": 32289
+    },
+    {
+      "path": "/assets/AttendanceDevicePage-CVH1W-un.js",
+      "bytes": 40548
+    },
+    {
+      "path": "/assets/SecuritySiteManagementPanel-ourhHE8-.js",
+      "bytes": 61397
+    },
+    {
+      "path": "/assets/PwaProfilePage-BKI4upSP.js",
+      "bytes": 6467
+    },
+    {
+      "path": "/assets/AttendanceHistoryPwaPage-MEQHcCWK.js",
+      "bytes": 9086
+    },
+    {
+      "path": "/assets/AttendanceSchedulePwaPage-BeRxRD2C.js",
+      "bytes": 5421
+    },
+    {
+      "path": "/assets/AttendanceSimplePage-CXhRBxeo.js",
+      "bytes": 29819
+    },
+    {
+      "path": "/assets/AttendanceSupervisorPage-gGf_NUpc.js",
+      "bytes": 54228
+    },
+    {
+      "path": "/assets/RegistrationReviewPanel-MhUk_XBs.js",
+      "bytes": 20992
+    },
+    {
+      "path": "/assets/PasskeySecurityPanel-Dhs_Qu-Z.js",
+      "bytes": 8258
+    },
+    {
+      "path": "/assets/RuleCheckingDataSurfaces-Dht27s7Y.js",
+      "bytes": 7431
+    },
+    {
+      "path": "/assets/OperationalRecordDrawer-8gGIhHaD.js",
+      "bytes": 3895
+    },
+    {
+      "path": "/assets/DataRowActionMenu-CSi5nDMf.js",
+      "bytes": 2358
+    },
+    {
+      "path": "/assets/TableActionColumn-DG7hbpsC.js",
+      "bytes": 557
+    },
+    {
+      "path": "/assets/LeaveDecisionConfirmation-DlfqZiSd.js",
+      "bytes": 8257
+    },
+    {
+      "path": "/assets/SearchableEmployeeCombobox-BwY3rjUl.js",
+      "bytes": 3611
+    },
+    {
+      "path": "/assets/G06DeviceContextDiagnosticPage-B7RaLnoD.js",
+      "bytes": 13801
+    },
+    {
+      "path": "/assets/AttendancePolicySettingsCard-6d0nR8wD.js",
+      "bytes": 6683
+    },
+    {
+      "path": "/assets/AttendanceTimePolicySettingsCard-TOyrubRc.js",
+      "bytes": 11963
+    },
+    {
+      "path": "/assets/LeavePolicySettingsCard-C8JYmLd6.js",
+      "bytes": 6638
+    },
+    {
+      "path": "/assets/LeaveTypeMasterPanel-jzbFfg4o.js",
+      "bytes": 11120
+    },
+    {
+      "path": "/assets/AutoSchedulePatternPanel-DpYtmqiS.js",
+      "bytes": 14476
+    },
+    {
+      "path": "/assets/ApprovalAuthorityMatrixPanel-5dhJJWn4.js",
+      "bytes": 14955
+    },
+    {
+      "path": "/assets/PersonnelMasterPanel-DxE_0qAO.js",
+      "bytes": 10681
+    },
+    {
+      "path": "/assets/DataRetentionCenterPanel-D4qILh2H.js",
+      "bytes": 14038
+    },
+    {
+      "path": "/assets/ConfigurationRegistryPanel-mxltU5_G.js",
+      "bytes": 10094
+    },
+    {
+      "path": "/assets/NotificationCenterPanel-ClgMIG5S.js",
+      "bytes": 3641
+    },
+    {
+      "path": "/assets/SecuritySiteMapPicker-D-54EA1v.js",
+      "bytes": 151947
+    }
+  ],
+  "total_bytes": 1594384,
+  "sentinels": {
+    "เข้าสู่ระบบด้วย Passkey": "/assets/index-Cm98i7Sp.js",
+    "ลงเวลา": "/assets/index-Cm98i7Sp.js",
+    "อุปกรณ์ลงเวลา": "/assets/index-Cm98i7Sp.js",
+    "ลงเวลาแทนพนักงาน": "/assets/index-Cm98i7Sp.js",
+    "SUPPORT_SITE": "/assets/index-Cm98i7Sp.js",
+    "เปลี่ยนชื่อ": "/assets/PersonnelDirectoryPage-Nkx7rwUr.js",
+    "เปลี่ยนตำแหน่ง": "/assets/PersonnelDirectoryPage-Nkx7rwUr.js",
+    "การเปลี่ยนแปลงสำคัญ": "/assets/EmployeeGovernedEditModal-B45aRl_B.js",
+    "ย้ายหน่วยงาน / แผนก": "/assets/EmployeeGovernedEditModal-B45aRl_B.js",
+    "Security Site": "/assets/SecuritySiteManagementPanel-ourhHE8-.js",
+    "ช่วยปฏิบัติงาน": "/assets/AttendanceHistoryPwaPage-MEQHcCWK.js",
+    "GPS / GEOFENCE": "/assets/AttendanceSimplePage-CXhRBxeo.js",
+    "เครื่องแรกจะผูกอัตโนมัติ": "/assets/AttendanceSimplePage-CXhRBxeo.js",
+    "ใช้อุปกรณ์อื่น · ต้องตรวจ": "/assets/AttendanceSimplePage-CXhRBxeo.js",
+    "ออฟไลน์พร้อมใช้งาน": "/assets/AttendanceSimplePage-CXhRBxeo.js",
+    "รอ ADMIN ยืนยันก่อนนับ": "/assets/AttendanceSimplePage-CXhRBxeo.js",
+    "นโยบายเวลาลงงาน": "/assets/AttendanceTimePolicySettingsCard-TOyrubRc.js",
+    "ผ่อนผันการมาสาย (นาที)": "/assets/AttendanceTimePolicySettingsCard-TOyrubRc.js",
+    "latestCheckInEnabled": "/assets/AttendanceTimePolicySettingsCard-TOyrubRc.js",
+    "ตารางผู้มีอำนาจอนุมัติและกรอบเวลา": "/assets/ApprovalAuthorityMatrixPanel-5dhJJWn4.js",
+    "เกณฑ์ SLA": "/assets/ApprovalAuthorityMatrixPanel-5dhJJWn4.js",
+    "Data Retention Center / การเก็บรักษาข้อมูล": "/assets/DataRetentionCenterPanel-D4qILh2H.js",
+    "รัน Cleanup รอบถัดไป": "/assets/DataRetentionCenterPanel-D4qILh2H.js"
+  },
+  "missing": [],
+  "status": "PASS"
+}
