@@ -7,7 +7,11 @@ const path = require('node:path');
 const { DEFAULT_SENTINELS, verifyArtifact } = require('../scripts/ci/verify-release-artifact');
 
 test('release sentinels include CFG-06 authority UI and Employee Critical Changes', () => {
-  assert.ok(DEFAULT_SENTINELS.includes('Approval Authority Matrix / SLA'));
+  assert.ok(DEFAULT_SENTINELS.includes('ตารางผู้มีอำนาจอนุมัติและกรอบเวลา'));
+  assert.ok(DEFAULT_SENTINELS.includes('เกณฑ์ SLA'));
+  const panel = fs.readFileSync(path.join(__dirname, '../frontend/src/components/ApprovalAuthorityMatrixPanel.tsx'), 'utf8');
+  assert.ok(panel.includes('ตารางผู้มีอำนาจอนุมัติและกรอบเวลา'));
+  assert.ok(panel.includes('เกณฑ์ SLA'));
   assert.ok(DEFAULT_SENTINELS.includes('การเปลี่ยนแปลงสำคัญ'));
 });
 

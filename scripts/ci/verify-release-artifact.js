@@ -9,7 +9,8 @@ const DEFAULT_SENTINELS = [
   'อุปกรณ์ลงเวลา',
   'Security Site',
   'ลงเวลาแทนพนักงาน',
-  'Approval Authority Matrix / SLA',
+  'ตารางผู้มีอำนาจอนุมัติและกรอบเวลา',
+  'เกณฑ์ SLA',
   'การเปลี่ยนแปลงสำคัญ',
 ];
 
