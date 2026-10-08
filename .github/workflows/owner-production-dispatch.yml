@@ -1,0 +1,128 @@
+name: SMS-v3 Owner Production Dispatch
+
+# Public comment events are deliberately limited to a single dedicated issue.
+# All security-sensitive checks run in reviewed default-branch code.
+# This workflow ONLY dispatches the original protected Production workflow.
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  actions: write
+  issues: write
+
+concurrency:
+  group: sms-v3-owner-production-dispatch
+  cancel-in-progress: false
+
+jobs:
+  authorize-and-dispatch:
+    if: >-
+      github.repository == 'godzillazzz/SMS-v3' &&
+      github.event.issue.number == 548 &&
+      github.event.issue.pull_request == null &&
+      github.event.comment.user.login == 'godzillazzz' &&
+      startsWith(github.event.comment.body, '/sms-v3-dispatch ')
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Checkout reviewed default-branch dispatch policy
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Verify the owner event and the exact Batch/SHA command
+        id: owner
+        shell: bash
+        env:
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          node scripts/ci/owner-production-dispatch-bridge.cjs event "$GITHUB_EVENT_PATH" >> "$GITHUB_OUTPUT"
+
+      - name: Verify Integration HEAD, release manifest and exact-SHA CI
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BATCH: ${{ steps.owner.outputs.batch }}
+          CONTROL_SHA: ${{ steps.owner.outputs.control }}
+          APPLICATION_SHA: ${{ steps.owner.outputs.application }}
+          SOURCE_BRANCH: fix/serverless-database-reliability
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          ACTUAL_SHA=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/$SOURCE_BRANCH" --jq '.object.sha')
+          export ACTUAL_SHA
+          test "$ACTUAL_SHA" = "$CONTROL_SHA"
+
+          gh api "repos/$GITHUB_REPOSITORY/contents/.github/releases/approved-production.json?ref=$SOURCE_BRANCH" \
+            --jq '.content' | base64 --decode > /tmp/approved-production.json
+          node scripts/ci/owner-production-dispatch-bridge.cjs manifest /tmp/approved-production.json
+
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$APPLICATION_SHA&status=success&per_page=100" > /tmp/app-ci.json
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$CONTROL_SHA&status=success&per_page=100" > /tmp/control-ci.json
+          node scripts/ci/owner-production-dispatch-bridge.cjs ci /tmp/app-ci.json /tmp/control-ci.json
+          echo "Owner command, frozen source, Integration control and both exact-SHA CI checks: PASS"
+
+      - name: Fail closed on any active release or prior dispatch for this Control SHA
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CONTROL_SHA: ${{ steps.owner.outputs.control }}
+        run: |
+          set -euo pipefail
+          repository="$GITHUB_REPOSITORY"
+          for page in $(seq 1 20); do
+            gh api "repos/$repository/actions/workflows/deploy-approved-production-v2.yml/runs?per_page=100&page=$page" > /tmp/production-runs.json
+            node scripts/ci/owner-production-dispatch-bridge.cjs duplicate /tmp/production-runs.json
+            count=$(jq -r '.workflow_runs | length' /tmp/production-runs.json)
+            if [ "$count" -lt 100 ]; then
+              echo "Production dispatch duplicate and active-run preflight: PASS"
+              exit 0
+            fi
+          done
+          echo "Too many production runs to check for duplicates. Fail closed."
+          exit 1
+
+      - name: Dispatch existing protected workflow at exact Integration SHA
+        id: dispatch
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CONTROL_SHA: ${{ steps.owner.outputs.control }}
+          APPLICATION_SHA: ${{ steps.owner.outputs.application }}
+          BATCH: ${{ steps.owner.outputs.batch }}
+        run: |
+          set -euo pipefail
+          start_time=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          gh api -X POST "repos/$GITHUB_REPOSITORY/actions/workflows/deploy-approved-production-v2.yml/dispatches" \
+            -f ref="fix/serverless-database-reliability"
+          echo "DISPATCH_ACCEPTED=YES"
+          echo "GitHub Environment protection remains mandatory."
+
+          run_url=""
+          for attempt in $(seq 1 15); do
+            gh api "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$CONTROL_SHA&per_page=20" > /tmp/release-dispatch-runs.json || break
+            run_url=$(jq -r --arg sha "$CONTROL_SHA" --arg since "$start_time" \
+              '[.workflow_runs[] | select(.event == "workflow_dispatch" and .head_sha == $sha and .created_at >= $since)] | sort_by(.created_at) | last | .html_url // empty' \
+              /tmp/release-dispatch-runs.json)
+            if [ -n "$run_url" ]; then break; fi
+            sleep 2
+          done
+
+          {
+            echo "### Production Dispatch Accepted"
+            echo "- Batch: $BATCH"
+            echo "- Control SHA: $CONTROL_SHA"
+            echo "- Frozen Application SHA: $APPLICATION_SHA"
+            echo "- Official workflow: https://github.com/$GITHUB_REPOSITORY/actions/workflows/deploy-approved-production-v2.yml"
+            if [ -n "$run_url" ]; then echo "- Run: $run_url"; fi
+            echo "- Next gate: GitHub protected production-sms-v3-staging Environment review"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [ -n "$run_url" ]; then
+            gh api -X POST "repos/$GITHUB_REPOSITORY/issues/548/comments" \
+              -f body="Dispatch accepted for $BATCH. Official protected Production run: $run_url (Control $CONTROL_SHA, Application $APPLICATION_SHA). Environment review is still required." \
+              >/dev/null || true
+          fi
