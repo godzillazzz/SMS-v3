@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [fix/serverless-database-reliability, test/automated-uat-v3-authenticated]
+    branches: [fix/serverless-database-reliability]
   pull_request:
-    branches: [main, fix/serverless-database-reliability, test/automated-uat-v3-authenticated]
+    branches: [main, fix/serverless-database-reliability]
 
 permissions:
   contents: read

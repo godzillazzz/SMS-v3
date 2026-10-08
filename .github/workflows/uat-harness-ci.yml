@@ -1,0 +1,36 @@
+name: Trusted UAT Harness CI
+
+on:
+  push:
+    branches: [test/automated-uat-v3-authenticated]
+  pull_request:
+    branches: [test/automated-uat-v3-authenticated]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: trusted-uat-harness-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Check technical smoke syntax
+        run: node --check e2e/smoke/technical.spec.js
+      - name: Run isolated UAT harness and artifact-safety tests
+        run: >-
+          node --test
+          test/uat-config.test.js
+          test/uat-stage.test.js
+          test/uat-v3-artifact-preflight.test.js
+          test/uat-target-contract.test.js
+          test/uat-target-scope.test.js
