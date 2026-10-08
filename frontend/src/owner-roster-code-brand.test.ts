@@ -41,22 +41,19 @@ describe('Owner-approved roster and brand contracts', () => {
       .toEqual([['AN1,AN2,AN3', 1], ['AN2', 3], ['AN10', 1], ['', 1]]);
   });
 
-  it('sorts on-screen and printed schedule by department with grouped on-screen headings', () => {
+  it('keeps the classic flat roster grid while ordering by department and employee code', () => {
     expect(main.match(/sortScheduleEmployeesByDepartment\(rawCalendarEmployees\)/g)).toHaveLength(2);
-    expect(main).toContain('schedule-department-group-row');
-    expect(main).toContain('scope="rowgroup"');
-    expect(main).toContain("departmentGroup.employees.length} คน");
+    expect(main).toContain('className="schedule-grid"');
+    expect(main).not.toContain('className="schedule-department-group-row"');
+    expect(main).not.toContain('schedule-grid--compact');
+    expect(main).not.toContain('calendarDepartmentStartByEmployeeId');
+    expect(main).not.toContain('schedule-time-toggle');
     expect(main).not.toMatch(/getScheduleRosterOrder|updateScheduleRosterOrder|ScheduleRosterOrderModal|canReorderRoster|rosterOrderDepartment|จัดลำดับพนักงาน/);
-    expect(main).toContain('className={`schedule-grid schedule-grid--compact${showScheduleTimes ?');
     expect(main).toContain('`แสดง ${calendarEmployees.length} จาก ${allCalendarEmployees.length} คน`');
     expect(main).not.toContain('แสดง {calendarEmployees.length} จาก {operationResponse.meta?.total || 0} คน');
   });
 
-  it('styles department group rows distinctly, with a sticky label in light, dark and print layouts', () => {
-    expect(operational).toContain('.schedule-grid tbody .schedule-department-group-row');
-    expect(operational).toContain('position: sticky;');
-    expect(operational).toContain('[data-theme="light"] .app-shell:not(.pwa-shell) .schedule-grid tbody .schedule-department-group-row');
-    expect(operational).toContain('[data-theme="dark"] .app-shell .schedule-grid tbody .schedule-department-group-row');
+  it('preserves existing printed department headings without inserting rows in the on-screen grid', () => {
     expect(operational).toContain('@media print');
     expect(operational).toContain('.print-table tbody .print-department-group-row > .schedule-department-group-sticky');
     expect(main).toContain('className="schedule-department-group-row print-department-group-row"');
