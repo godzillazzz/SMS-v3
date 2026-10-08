@@ -1,7 +1,23 @@
 # MASTER HANDOFF
 
+## R4 PRODUCTION LIVE / VERIFIED — 8 ตุลาคม 2569
 
-## ACTIVE — R4 Production release of completed Integration work — 8 ตุลาคม 2569
+**Authoritative current Production checkpoint.** R4 is deployed and verified on the canonical URL `https://sms-v3-staging-ten.vercel.app`. This section supersedes all earlier R4 pre-release / STOP statements below; those sections are historical evidence, not live status.
+
+- **Release ID:** `sms-v3-prod-59fb7f9ea4de-20261008`.
+- **Application SHA/tree (immutable manifest source):** `59fb7f9ea4de1ab3403d16f1a750aec01c66de91` / `f6c59d08c982707206f170283efd652bbb9fee65`. Native Git ref `fix/serverless-database-reliability`.
+- **Release-control workflow dispatch SHA:** `0c36e2fbc65d115c92bbd13402e96c95b4c6f06a` (merged PR #536). Latest exact integration control-plane CI [#37733349855](https://github.com/godzillazzz/SMS-v3/actions/runs/37733349855) SUCCESS.
+- **Source CI:** [#37729673741](https://github.com/godzillazzz/SMS-v3/actions/runs/37729673741) SUCCESS; **exact source Technical Smoke:** [#37730571924](https://github.com/godzillazzz/SMS-v3/actions/runs/37730571924) SUCCESS (credential-optional; authenticated ADMIN/MANAGER/VIEWER suites were not fully executed). **Native READY source Preview:** `dpl_BuwNdL5oW8NFfrTwMiMtaXA4PvUp`.
+- **Protected Production workflow:** [#37733703819](https://github.com/godzillazzz/SMS-v3/actions/runs/37733703819), SUCCESS; `production-sms-v3-staging` environment approval by authorized Owner. Immutable candidate creation, native source/provenance, ready check, governed promotion, post-deploy runtime/CORS verification, and release summary succeeded.
+- **Current Production canonical deployment:** `dpl_J8ss5NqiDZu33QpAc8Bfrt9DvX1x` — READY, target `production`, canonical alias verified with Vercel API, application SHA exact match. Canonical `/api/v1/health` HTTP 200 (`ok`); `/api/v1/ready` HTTP 200 (`ready`, `database=ok`). Protected workflow confirms candidate/canonical trusted+untrusted CORS PASS and runtime sentinels **23/23 PASS** (20 base + 3 Attendance Time Policy).
+- **Rollback checkpoint:** previous R3 deployment `dpl_AuwFqQcpUCvbuPaj1w78JBAzVLuo` remains READY in native Vercel Production deployment list. Previous R4 attempts failed closed before or after candidate verification and retained/restored R3; final run #37733703819 succeeded without triggering rollback.
+- **Change policy:** `NO_DATABASE_CHANGES`, `run_migrations=false`; no Production data mutation, schema/migration, secret, environment, authentication/RBAC, device/offline/GPS policy or ScheduleApproval business-rule change was made to release. Source scope is previously merged T29, T07, T09, T16, T10, T11, T12, T13, T14, T15, T17 and approved associated fixes; no open PR source was included.
+- **Unreleased / follow-up:** T19 PR #530 and other unmerged work remain excluded; T08 awaits Owner/API decision; T18/T24 evidence work, T20 proposal, and G06.1 Phase 0 are not silently included. Authenticated role-level UAT is a separate acceptance follow-up and must not be claimed PASS by credential-optional Technical Smoke.
+- **Root causes closed:** obsolete CFG-06 English sentinel in build verification fixed by PR #534 (Thai heading + SLA), release manifest re-pinned and tested in PR #535, runtime sentinel and related tests corrected in PR #536. Earlier production attempts [#37728468528](https://github.com/godzillazzz/SMS-v3/actions/runs/37728468528), [#37729971433](https://github.com/godzillazzz/SMS-v3/actions/runs/37729971433), [#37731997942](https://github.com/godzillazzz/SMS-v3/actions/runs/37731997942) were unsuccessful; the final protected run above is the only R4 LIVE/VERIFIED evidence.
+- **This closeout change is documentation-only.** Do not dispatch another R4 deployment or advance application SHA as part of recording the verified release.
+
+---
+## HISTORICAL — R4 pre-release checkpoint (superseded) — 8 ตุลาคม 2569
 
 **สถานะ: Release-Control PR #532 เปิดอยู่; Production ยังไม่ได้เปลี่ยน.** ผู้ใช้สั่งให้ทำเฉพาะ release ของงานที่เสร็จและ Merge เข้า Integration แล้ว และหยุดหลัง Production verification. Source ที่ freeze คือ `origin/fix/serverless-database-reliability` SHA `59a7e944b4481292b9b297608a676f3f3eb2f862`, tree `f24c334ff2da8d025382cf9bcefb30cd9d5a6b04`. Source นี้เป็น descendant ของ Production SHA เดิม `b3e70834977a1b29b367e8a1d3b3cfebac0d74c8` และ workflow จะยืนยัน ancestry/tree ซ้ำก่อนสร้าง candidate.
 
