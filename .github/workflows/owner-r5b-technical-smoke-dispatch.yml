@@ -1,0 +1,109 @@
+name: R5-B One-Time Owner Technical Smoke Dispatch
+
+# Dispatches a reviewed technical *Preview* smoke only. No Production deployment.
+# One-shot command bound to immutable R5-B application, UAT harness and Vercel deployment.
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  actions: write
+  issues: write
+
+concurrency:
+  group: r5b-owner-preview-smoke-once
+  cancel-in-progress: false
+
+jobs:
+  dispatch:
+    if: >-
+      github.repository == 'godzillazzz/SMS-v3' &&
+      github.event.issue.number == 551 &&
+      github.event.issue.pull_request == null &&
+      github.event.comment.user.login == 'godzillazzz' &&
+      startsWith(github.event.comment.body, '/sms-v3-smoke-r5-b ')
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPO: godzillazzz/SMS-v3
+      SOURCE_BRANCH: fix/serverless-database-reliability
+      APP_SHA: 77641a2657aa4fd05276afe645dd32648f5cc56b
+      HARNESS_BRANCH: test/automated-uat-v3-authenticated
+      HARNESS_SHA: 166e438c5d9fc53c4fbc6a95675540a5eda6478c
+      DEPLOYMENT_ID: dpl_6SxGPuH374ogrr2mjzwDkincaMCA
+      TARGET_URL: https://sms-v3-staging-ntizvmjdo-godzillazz.vercel.app
+    steps:
+      - name: Verify exact Owner comment, no substitution
+        shell: bash
+        run: |
+          set -euo pipefail
+          expected="/sms-v3-smoke-r5-b $APP_SHA $DEPLOYMENT_ID"
+          jq -e --arg message "$expected" '
+            .action == "created" and
+            .issue.number == 551 and
+            .issue.state == "open" and
+            (.issue.pull_request == null) and
+            .sender.login == "godzillazzz" and
+            .comment.user.login == "godzillazzz" and
+            .comment.author_association == "OWNER" and
+            .comment.body == $message
+          ' "$GITHUB_EVENT_PATH" > /dev/null
+          test "$GITHUB_REPOSITORY" = "$REPO"
+
+      - name: Verify exact frozen source, trusted harness and successful CI
+        shell: bash
+        run: |
+          set -euo pipefail
+          source_actual=$(gh api "repos/$REPO/git/ref/heads/$SOURCE_BRANCH" --jq '.object.sha')
+          test "$source_actual" = "$APP_SHA"
+          harness_actual=$(gh api "repos/$REPO/git/ref/heads/$HARNESS_BRANCH" --jq '.object.sha')
+          test "$harness_actual" = "$HARNESS_SHA"
+          gh api "repos/$REPO/actions/runs?head_sha=$APP_SHA&status=success&per_page=100" > /tmp/r5b-ci.json
+          jq -e --arg sha "$APP_SHA" '
+            .workflow_runs | any(.name == "CI" and .head_sha == $sha and .conclusion == "success" and .status == "completed")
+          ' /tmp/r5b-ci.json > /dev/null
+          gh api "repos/$REPO/actions/workflows/automated-uat-sms-v3-staging.yml" > /tmp/smoke-workflow.json
+          jq -e '.state == "active" and .path == ".github/workflows/automated-uat-sms-v3-staging.yml"' /tmp/smoke-workflow.json >/dev/null
+
+      - name: Fail closed if active official smoke or previous one-time request
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh api "repos/$REPO/actions/workflows/automated-uat-sms-v3-staging.yml/runs?per_page=100" > /tmp/smoke-runs.json
+          jq -e '[.workflow_runs[] | select(.status != "completed")] | length == 0' /tmp/smoke-runs.json > /dev/null
+          for page in $(seq 1 20); do
+            gh api "repos/$REPO/issues/551/comments?per_page=100&page=$page" > /tmp/one-time-comments.json
+            # An authenticated bot marker is written BEFORE dispatch; command repeats fail closed.
+            jq -e '[.[] | select(.body == "R5B_SMOKE_ONE_TIME_DISPATCH_CLAIMED") ] | length == 0' /tmp/one-time-comments.json > /dev/null
+            count=$(jq 'length' /tmp/one-time-comments.json)
+            if [ "$count" -lt 100 ]; then break; fi
+            if [ "$page" -eq 20 ]; then echo 'Issue comment history over bounded limit'; exit 1; fi
+          done
+
+      - name: Mark one-time command consumed then dispatch protected technical Preview smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh api -X POST "repos/$REPO/issues/551/comments" \
+            -f body='R5B_SMOKE_ONE_TIME_DISPATCH_CLAIMED' > /dev/null
+          gh api -X POST "repos/$REPO/actions/workflows/automated-uat-sms-v3-staging.yml/dispatches" \
+            -f ref=main \
+            -f "inputs[target_url]=$TARGET_URL" \
+            -f "inputs[target_mode]=preview" \
+            -f "inputs[source_sha]=$APP_SHA" \
+            -f "inputs[source_branch]=$SOURCE_BRANCH" \
+            -f "inputs[uat_harness_sha]=$HARNESS_SHA" \
+            -f "inputs[expected_deployment_id]=$DEPLOYMENT_ID" \
+            -f "inputs[uat_mode]=technical" \
+            -f "inputs[uat_scope]=full"
+          {
+            echo '### R5-B exact-sha Technical Preview Smoke accepted'
+            echo "- Application: $APP_SHA"
+            echo "- Preview: $DEPLOYMENT_ID"
+            echo "- Target: $TARGET_URL"
+            echo "- Trusted UAT harness: $HARNESS_SHA"
+            echo "- Official workflow: https://github.com/$REPO/actions/workflows/automated-uat-sms-v3-staging.yml"
+            echo '- GitHub protected Environment approval still required. Production deploy NOT requested.'
+          } >> "$GITHUB_STEP_SUMMARY"
