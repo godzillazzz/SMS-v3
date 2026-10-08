@@ -110,15 +110,15 @@ test('fails closed when pre-applied evidence fields are attached to a no-databas
   assert.throws(() => validateReleaseManifest(manifest), /only valid for PRE_APPLIED_APPROVED_MIGRATION/);
 });
 
-test('current approved Production manifest pins the exact R4 Integration release and fresh gates', () => {
+test('current approved Production manifest pins the exact R5-A Integration release and fresh gates', () => {
   const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, '..', '.github', 'releases', 'approved-production.json'), 'utf8'));
   const result = validateReleaseManifest(manifest);
-  assert.equal(result.releaseId, 'sms-v3-prod-59fb7f9ea4de-20261008');
-  assert.equal(result.commitSha, '59fb7f9ea4de1ab3403d16f1a750aec01c66de91');
-  assert.equal(result.treeSha, 'f6c59d08c982707206f170283efd652bbb9fee65');
-  assert.equal(result.currentProductionSourceSha, 'b3e70834977a1b29b367e8a1d3b3cfebac0d74c8');
+  assert.equal(result.releaseId, 'sms-v3-prod-51c5c828689c-20261008');
+  assert.equal(result.commitSha, '51c5c828689ce543067c687e204eba7918577bb9');
+  assert.equal(result.treeSha, 'f82ae344666a7774d7c5ec78dc113cc2c2ed9e63');
+  assert.equal(result.currentProductionSourceSha, '59fb7f9ea4de1ab3403d16f1a750aec01c66de91');
   assert.equal(result.currentProductionSourceRef, 'fix/serverless-database-reliability');
-  assert.equal(result.rollbackDeploymentId, 'dpl_AuwFqQcpUCvbuPaj1w78JBAzVLuo');
+  assert.equal(result.rollbackDeploymentId, 'dpl_J8ss5NqiDZu33QpAc8Bfrt9DvX1x');
   assert.equal(result.runMigrations, false);
   assert.equal(result.databaseChangePolicy, 'NO_DATABASE_CHANGES');
   assert.equal(result.preAppliedMigrationManifestPath, '');
@@ -126,14 +126,14 @@ test('current approved Production manifest pins the exact R4 Integration release
   assert.equal(result.productionEnvironmentChangePolicy, 'NO_ENVIRONMENT_CHANGES');
   assert.equal(result.corsPolicy, 'EXPLICIT_CREDENTIALED_ALLOWLIST_CANONICAL_RUNTIME_VERIFY');
   assert.equal(result.deploymentMethod, 'GOVERNED_VERCEL_GIT_SOURCE_PRODUCTION_CANDIDATE_NO_CANONICAL_ALIAS_EXPLICIT_PROMOTION');
-  assert.equal(manifest.preview_deployment_id, 'dpl_BuwNdL5oW8NFfrTwMiMtaXA4PvUp');
-  assert.equal(manifest.preview_url, 'https://sms-v3-staging-gz7wx5dxe-godzillazz.vercel.app');
+  assert.equal(manifest.preview_deployment_id, 'dpl_8GYCcNwVfGg8AWvv8pBK8xctZqRW');
+  assert.equal(manifest.preview_url, 'https://sms-v3-staging-1venkdc5s-godzillazz.vercel.app');
   assert.equal(manifest.application_release_classification, 'MERGED_INTEGRATION_ONLY_NO_OPEN_PR_CODE');
-  assert.deepEqual(manifest.application_pr_numbers, [497, 499, 501, 504, 506, 508, 510, 513, 515, 516, 518, 525]);
-  assert.deepEqual(manifest.release_control_and_handoff_pr_numbers, [500, 503, 507, 509, 512, 514, 517, 523, 524, 528, 529, 531]);
-  assert.deepEqual(manifest.excluded_open_pr_numbers, [520, 521, 530]);
-  assert.equal(manifest.application_exact_sha_ci_run_id, 37729673741);
-  assert.equal(manifest.release_source_exact_sha_ci_run_id, 37729673741);
+  assert.deepEqual(manifest.application_pr_numbers, [541, 543]);
+  assert.deepEqual(manifest.release_control_and_handoff_pr_numbers, [536, 537, 540]);
+  assert.deepEqual(manifest.excluded_open_pr_numbers, [530]);
+  assert.equal(manifest.application_exact_sha_ci_run_id, 37757672375);
+  assert.equal(manifest.release_source_exact_sha_ci_run_id, 37757672375);
   assert.equal(manifest.release_source_ci_result, 'SUCCESS_EXACT_RELEASE_SOURCE_SHA');
   assert.equal(manifest.preview_github_commit_sha, result.commitSha);
   assert.equal(manifest.preview_github_commit_ref, 'fix/serverless-database-reliability');
@@ -144,14 +144,14 @@ test('current approved Production manifest pins the exact R4 Integration release
   assert.equal(manifest.preview_trusted_cors_status, 'PASS');
   assert.equal(manifest.preview_untrusted_cors_status, 'REJECTED_403');
   assert.equal(manifest.preview_technical_smoke_source_sha, result.commitSha);
-  assert.equal(manifest.preview_technical_smoke_run_id, 37730571924);
+  assert.equal(manifest.preview_technical_smoke_run_id, 37757879448);
   assert.equal(manifest.preview_technical_smoke_status, 'SUCCESS');
   assert.equal(manifest.preview_technical_smoke_passed, 11);
   assert.equal(manifest.preview_technical_smoke_failed, 0);
   assert.equal(manifest.preview_technical_smoke_skipped, 23);
   assert.equal(manifest.preview_authenticated_role_smoke_status, 'NOT_RUN_SKIPPED_BY_CREDENTIAL_OPTIONAL_WORKFLOW');
-  assert.equal(manifest.production_canonical_deployment_id_before_release, 'dpl_AuwFqQcpUCvbuPaj1w78JBAzVLuo');
-  assert.equal(manifest.production_canonical_source_sha_before_release, 'b3e70834977a1b29b367e8a1d3b3cfebac0d74c8');
+  assert.equal(manifest.production_canonical_deployment_id_before_release, 'dpl_J8ss5NqiDZu33QpAc8Bfrt9DvX1x');
+  assert.equal(manifest.production_canonical_source_sha_before_release, '59fb7f9ea4de1ab3403d16f1a750aec01c66de91');
   assert.equal(manifest.production_canonical_state_before_release, 'READY');
   assert.equal(manifest.db_schema_mutation, 'NONE');
   assert.equal(manifest.db_data_mutation, 'NONE');
@@ -173,3 +173,16 @@ test('current approved Production manifest pins the exact R4 Integration release
   assert.ok(!manifest.release_control_and_handoff_pr_numbers.includes(530));
 });
 
+test('R5-A readiness retains specific Owner approval and immutable policy boundaries', () => {
+  const manifest = JSON.parse(fs.readFileSync('.github/releases/approved-production.json', 'utf8'));
+  assert.equal(manifest.release_batch_id, 'R5-A');
+  assert.equal(manifest.owner_batch_frozen_sha_approval, 'PENDING_NOT_AUTHORIZED');
+  assert.equal(manifest.production_dispatch_authorized, false);
+  assert.equal(manifest.preview_runtime_sentinels_status, 'PASS');
+  assert.equal(manifest.preview_runtime_sentinels_count, 23);
+  assert.equal(manifest.license_reconciliation_policy, 'BANGKOK_TODAY_FUTURE_BLOCK_RESTORE_PAST_IMMUTABLE_APPROVAL_UNCHANGED');
+  assert.equal(manifest.deployment_time_data_mutation, 'NONE');
+  assert.equal(manifest.css_bundle_budget_bytes, 700000);
+  assert.ok(manifest.css_bundle_bytes < manifest.css_bundle_budget_bytes);
+  assert.deepEqual(manifest.excluded_uncommitted_tasks, ['T08']);
+});
