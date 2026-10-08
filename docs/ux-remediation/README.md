@@ -17,6 +17,7 @@ This directory is the shared reference for **Codex Desktop and Codex Cloud**. Al
 | File | Use |
 |---|---|
 | `PLAN.md` | T01–T33 UX/UI, acceptance, performance and governance details |
+| `T20_E2E_PROPOSAL.md` | Proposal only: existing Playwright / PR #87 reconciliation, isolated business-journey coverage, CI and Physical UAT separation; Owner scope acceptance before implementation |
 | `sms-v3-leave-print-reference.png` | T29 leave print A4 reference |
 | `sms-v3-timesheet-reference.png` | T31 individual monthly timesheet A4 reference |
 | `sms-v3-loading-logo.webp` | T32 light-surface loading logo source |
