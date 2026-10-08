@@ -1,7 +1,45 @@
 # MASTER HANDOFF
 
+## ACTIVE — R4 Production verified; ordered remediation resumes — 8 ตุลาคม 2569
 
-## ACTIVE — R4 Production release of completed Integration work — 8 ตุลาคม 2569
+**สถานะ: R4 LIVE / VERIFIED.** Production release scope contains only work merged into `fix/serverless-database-reliability`; T19 (#530), T08, open UX work, and G06.1 implementation are excluded. Production workflow dispatch used Integration SHA `0c36e2fbc65d115c92bbd13402e96c95b4c6f06a` after the release manifest and workflow fixes merged. `PLAN.md` is absent from this branch; the Owner plan in open PR #521 remains reference scope only.
+
+### R4 scope and source evidence
+
+- Application source is PR #534 merge `59fb7f9ea4de1ab3403d16f1a750aec01c66de91`, tree `f6c59d08c982707206f170283efd652bbb9fee65`. Release ID `sms-v3-prod-59fb7f9ea4de-20261008` pins this exact application SHA.
+- The release contains merged tasks T29, T07, T09, T16, T10–T15, and T17, plus the merged technical-smoke fix. T17 is PR #525 / merge `b10223153b26188c328cbfc56b4eeaee4af6af35`.
+- Exact source CI [run 37729673741](https://github.com/godzillazzz/SMS-v3/actions/runs/37729673741) passed on `59fb7f9…`. Native Preview `dpl_BuwNdL5oW8NFfrTwMiMtaXA4PvUp` was READY in project `prj_XwhNUOB2zLSPZ6UgQcfyOKBYJ75s`, with native SHA/ref `59fb7f9…` / `fix/serverless-database-reliability`. Preview `/api/v1/health` and `/api/v1/ready` returned 200; readiness reported `database=ok`.
+- Technical Smoke [run 37730571924](https://github.com/godzillazzz/SMS-v3/actions/runs/37730571924) passed: 11 passed / 0 failed / 23 skipped. Credential-optional authenticated role suites were skipped and are not claimed as tested. Its artifact was `11529850250` (`sha256:7353f175de314a04d2285ac7856aa5dc1ea95ba676436416b0f571dba1835638`).
+- Release-control PR #535 merged as `c8b96d7042f3e72303f3c84316370070d12d7b5b` and repinned the manifest to the exact application source. Runtime-sentinel correction PR #536 merged as `0c36e2fbc65d115c92bbd13402e96c95b4c6f06a`. Exact Integration CI [run 37733349855](https://github.com/godzillazzz/SMS-v3/actions/runs/37733349855) passed on that Integration SHA. Initial release-control PR #532 merged normally as `591d019736b8381314c36a32237023ec56e5f69b` and was superseded by #535/#536 before dispatch.
+
+### Protected Production result
+
+- Official `deploy-approved-production-v2.yml` run [37733703819](https://github.com/godzillazzz/SMS-v3/actions/runs/37733703819) completed **SUCCESS** on `fix/serverless-database-reliability` at `0c36e2f…`. Manifest preparation and the protected `Approve Production` job passed. Candidate verification, explicit promotion, and post-deploy verification passed; automatic rollback steps were skipped because verification succeeded.
+- Immutable candidate and new canonical deployment: `dpl_J8ss5NqiDZu33QpAc8Bfrt9DvX1x`, READY, Production target, project `prj_XwhNUOB2zLSPZ6UgQcfyOKBYJ75s`, native SHA/ref `59fb7f9…` / `fix/serverless-database-reliability`. The canonical alias `sms-v3-staging-ten.vercel.app` now resolves to this deployment. Its health returned 200 and readiness returned 200 / `database=ok` on an independent read after promotion.
+- The protected workflow's canonical CORS checks and 20/20 base UI runtime sentinels passed. No authenticated employee/admin role flow was claimed. The previous Production deployment `dpl_AuwFqQcpUCvbuPaj1w78JBAzVLuo` remains READY / Production at SHA `b3e70834977a1b29b367e8a1d3b3cfebac0d74c8`; the release workflow verified it as the current canonical rollback checkpoint before candidate creation. Vercel's post-release rollback-candidate list selector returned 403, so the independently verified rollback evidence is the retained READY deployment record and the workflow's successful pre-promotion checkpoint check.
+- Earlier protected run #37731997942 failed the runtime label check and its governed rollback to the prior canonical was confirmed in PR #536. The final successful run above used the corrected Thai labels; the failed attempt is not represented as a release success.
+- Manifest set `run_migrations=false` and declared no database/schema/data, environment/secret, RBAC/authentication, CORS-policy, or business-policy changes. No Production business data or schema was mutated. Production promotion occurred only through the official protected workflow; no direct Vercel promotion or protection bypass was used.
+
+### Ordered remediation after R4
+
+| Item | Status | Remaining gate |
+|---|---|---|
+| T17 Accessibility | MERGED and included in R4 | PR #525 / merge `b10223153b26188c328cbfc56b4eeaee4af6af35`. |
+| T19 | BLOCKED — Owner decision | PR #530 remains OPEN / DRAFT at `babf948d5d1979c01575e8db2f5515980654a892`. Owner must approve the metric/action-key to destination and exact query/filter mapping, and confirm whether filter/API-contract changes are in scope. Do not infer filters. |
+| T18 | BLOCKED — current telemetry | Requires an authorized, redacted current top-route latency sample set; current p50/p95/max and 5xx evidence are unknown. |
+| T24 | PARTIAL / VERIFY-FIRST | Existing query batching is recorded; current Preview timings, distinct-department workload measurements, and database-region evidence are still missing. Do not change schema, region, or environment without authorization. |
+| T20 | NEXT — proposal first | Follow Owner scope in open PR #521; prepare the E2E proposal before implementing flows or adding dependencies. |
+| G06.1 Phase 0 | NOT STARTED | Architecture, threat, and compatibility audit only, after T20; no implementation. |
+| T08 | BLOCKED — Owner/API decision | Never infer schedule-revision differences client-side. |
+
+Continue in order T19 → T18/T24 verify-first → T20 → G06.1 Phase 0, after the completed T17 closeout. Release completed work only after the required exact-SHA protected-release gates pass. No Production data/schema/migration/secret/env/RBAC/auth/business-policy change is authorized.
+
+---
+
+
+## HISTORICAL — R4 Production preflight before final manifest/runtime fixes — 8 ตุลาคม 2569 (superseded above)
+
+This section records the pre-dispatch snapshot from before PRs #535 and #536 merged. Its earlier “not yet deployed” statements are historical; the active section above records the verified R4 outcome.
 
 **สถานะ: Release-Control PR #532 เปิดอยู่; Production ยังไม่ได้เปลี่ยน.** ผู้ใช้สั่งให้ทำเฉพาะ release ของงานที่เสร็จและ Merge เข้า Integration แล้ว และหยุดหลัง Production verification. Source ที่ freeze คือ `origin/fix/serverless-database-reliability` SHA `59a7e944b4481292b9b297608a676f3f3eb2f862`, tree `f24c334ff2da8d025382cf9bcefb30cd9d5a6b04`. Source นี้เป็น descendant ของ Production SHA เดิม `b3e70834977a1b29b367e8a1d3b3cfebac0d74c8` และ workflow จะยืนยัน ancestry/tree ซ้ำก่อนสร้าง candidate.
 
@@ -31,7 +69,7 @@
 
 ---
 
-## ACTIVE — T18/T24 verify-first checkpoint — 8 ตุลาคม 2569
+## HISTORICAL — T18/T24 verify-first checkpoint at `9b57e6e7fe1a1aa9e8a244bc6817b2f57aa8d183` (superseded by current status above)
 
 **สถานะ: T18 BLOCKED รอข้อมูล route latency ปัจจุบัน; T24 PARTIAL / VERIFY-FIRST.** ส่วนนี้ supersede สถานะ ACTIVE เก่าด้านล่าง. Integration SHA ที่ตรวจสดคือ `9b57e6e7fe1a1aa9e8a244bc6817b2f57aa8d183` บน `origin/fix/serverless-database-reliability`. `PLAN.md` ไม่มีใน Integration tree; ใช้เฉพาะแผน Owner ใน PR #521 ซึ่งยัง OPEN / NOT MERGED, head `40f25fb9416308d3c67ff61722969998cdea9cb8`, เป็นข้อกำหนด ไม่ใช่ฐานโค้ด.
 
