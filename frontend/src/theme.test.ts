@@ -41,6 +41,15 @@ describe('G04.2 UX-01 theme engine', () => {
     expect(root.dataset.modal).toBe('closed');
   });
 
+  it('keeps Tailwind dark class and semantic theme datasets synchronized', () => {
+    const dark=new Set<string>();
+    const root={dataset:{},classList:{toggle:(name:string,enabled:boolean)=>{if(enabled)dark.add(name);else dark.delete(name);}}} as unknown as HTMLElement;
+    applyThemePreference('system',root,{matches:true});
+    expect(root.dataset.theme).toBe('dark');expect(dark.has('dark')).toBe(true);
+    applyThemePreference('system',root,{matches:false});
+    expect(root.dataset.theme).toBe('light');expect(dark.has('dark')).toBe(false);
+  });
+
   it('keeps persistence failure non-fatal', () => {
     const storage = {
       getItem: () => { throw new Error('blocked'); },

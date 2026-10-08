@@ -105,6 +105,7 @@ import './styles/operational-layer.css';
 import './styles/employee-pwa-theme.css';
 import './styles/ux-t06-login-public.css';
 import './styles/schedule-roster-ux.css';
+import './styles/layout-foundation.css';
 
 const APPROVAL_REVIEWER_ROLES = ['ADMIN', 'MANAGER', 'SUPERVISOR'] as const;
 const APPROVAL_COUNT_MENU_ROLES: Readonly<Record<string, readonly string[]>> = Object.freeze({
