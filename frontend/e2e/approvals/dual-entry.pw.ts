@@ -25,7 +25,7 @@ async function signIn(page: Page, target: string, role: 'ADMIN' | 'MANAGER' | 'S
 
 test('Admin can open schedule approvals from the native sidebar on desktop', async ({ page }, testInfo: TestInfo) => {
   await page.setViewportSize({ width: 1366, height: 768 });
-  await signIn(page, '/app/roster/approvals', 'ADMIN');
+  await signIn(page, '/app', 'ADMIN');
   await expect(page.getByRole('button', { name: 'อนุมัติตารางกะ' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'อนุมัติคำขอลา' })).toBeVisible();
   await page.getByRole('button', { name: 'อนุมัติตารางกะ' }).click();
