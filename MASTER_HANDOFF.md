@@ -1,5 +1,36 @@
 # MASTER HANDOFF
 
+
+## ACTIVE — R4 Production release of completed Integration work — 8 ตุลาคม 2569
+
+**สถานะ: Release-Control PR #532 เปิดอยู่; Production ยังไม่ได้เปลี่ยน.** ผู้ใช้สั่งให้ทำเฉพาะ release ของงานที่เสร็จและ Merge เข้า Integration แล้ว และหยุดหลัง Production verification. Source ที่ freeze คือ `origin/fix/serverless-database-reliability` SHA `59a7e944b4481292b9b297608a676f3f3eb2f862`, tree `f24c334ff2da8d025382cf9bcefb30cd9d5a6b04`. Source นี้เป็น descendant ของ Production SHA เดิม `b3e70834977a1b29b367e8a1d3b3cfebac0d74c8` และ workflow จะยืนยัน ancestry/tree ซ้ำก่อนสร้าง candidate.
+
+- PR #532 head `00df723dd94e5e47265b68991eb476af9f2a596b` created successfully. Its Preview `dpl_AyL4L7DxfRdixSfF5izSpqh3bYyV` is READY with exact PR-head SHA/ref.
+- First PR CI [run 37726108786](https://github.com/godzillazzz/SMS-v3/actions/runs/37726108786) failed at `npm test`: 1,337 passed / 1 failed. The sole failure was the stale R3 assertion in `test/attendance-time-policy-application-release.test.js` expecting `b3e708...` as the release SHA; it reported actual R4 `59a7e944...`. Browser regressions, dependency audits, environment contract, Prisma format/validate/generate, test migrations/seed, and migration status steps passed before that failure. The assertion now matches the R4 manifest; focused release checks pass 18/18 and the manifest guard passes. A local full `npm test` attempt could not initialize the shared workspace Prisma client; hosted CI is the required full-suite evidence. PR merge and Production remain blocked pending fresh exact-head CI SUCCESS and Preview runtime checks.
+
+### Release scope — merged only
+
+- T29 Printing/A4 — PR #497; T07 Approval Inbox — #499; T09 routing/deep links — #501 และ login-test stabilization #515; T16 Thai date/time — #504.
+- T10 Personnel Readiness — #506; T11 Monthly Roster UX — #508; T12 settings architecture — #510; T13 leave-request form — #513; T14 onboarding — #516; T15 Thai UI copy — #518; T17 accessibility — #525.
+- Technical-smoke hydration/timing fix — #527. Merged handoff/audit-only PRs #500, #503, #507, #509, #512, #514, #517, #523, #524, #528, #529, #531 are documentation/test governance only. T08 memo #500 makes no client-side schedule diff. T19 implementation PR #530 remains OPEN/DRAFT and is excluded; open #520 and #521 are also excluded.
+- The exact source diff from current Production has no Prisma schema or migration changes. The only backend runtime diff found is optional `employeeId` filtering on existing read-only license/quota list endpoints; existing authorization checks remain in place. T07 decisions still use the existing server APIs; T13's quota is advisory in the form and the server remains authoritative; T11 does not infer shortage warnings. No authentication/RBAC, schedule approval, leave policy, attendance authority, GPS/device, database, environment, or security policy change was authorized or found in the released task scope.
+
+### Exact source gates
+
+- Exact Integration CI: run [37723174787](https://github.com/godzillazzz/SMS-v3/actions/runs/37723174787), SUCCESS on `59a7e944b4481292b9b297608a676f3f3eb2f862`.
+- Exact Git Preview: `dpl_29u5qamLviMdHQNBTPPwZSoKRVJt`, READY; native SHA/ref `59a7e944b4481292b9b297608a676f3f3eb2f862` / `fix/serverless-database-reliability`, project `prj_XwhNUOB2zLSPZ6UgQcfyOKBYJ75s`. The exact technical run checked Health/Readiness/database and trusted/untrusted CORS.
+- Technical Smoke run [37724634808](https://github.com/godzillazzz/SMS-v3/actions/runs/37724634808), SUCCESS: 11 passed, 23 skipped, 0 failed; artifact `11527721225` (`sha256:48ba412bf7a37d888fcab11b9baed7c917280280260f25ed36389e71450fba72`). The passed tests cover health/readiness/assets/audit authorization boundary/CORS and login at 390/768/1440px. Authenticated ADMIN/MANAGER/VIEWER role suites were skipped by the credential-optional smoke workflow and must not be described as passed.
+- The Vercel project API response does not expose `autoAssignCustomDomains`. The protected release workflow's `create-vercel-git-candidate.js` explicitly fails unless the live project property is `false`, before it creates a candidate; this must pass in the official workflow. No direct candidate creation or promotion is permitted.
+
+### Live Production checkpoint and controls
+
+- Fresh Vercel lookup resolves canonical `https://sms-v3-staging-ten.vercel.app` to READY Production `dpl_AuwFqQcpUCvbuPaj1w78JBAzVLuo`, native source SHA `b3e70834977a1b29b367e8a1d3b3cfebac0d74c8`, ref `fix/serverless-database-reliability`; the canonical alias is listed on that deployment. This is the rollback checkpoint for this release.
+- Canonical `/api/v1/health` returned 200 `status=ok`; `/api/v1/ready` returned 200 `status=ready`, `database=ok`. Production deployment listing showed no active build.
+- GitHub Environment `production-sms-v3-staging` was freshly read: required reviewer `godzillazzz` remains enabled; prevent-self-review and administrator bypass remain unchecked. No protection rule, environment, secret, data, or Production setting was changed. Protected workflow dispatch and normal Environment approval remain mandatory.
+- No Production deployment, promotion, rollback, or Production data/schema/environment/secret/RBAC/auth/business-policy mutation has occurred in this release attempt yet. After Release-Control merge and exact merge CI, recheck canonical/rollback and dispatch only `deploy-approved-production-v2.yml` on Integration. Verify the immutable candidate and post-promotion canonical/runtime/rollback using workflow evidence; if deployment verification fails, rely on its governed automatic rollback and verify it.
+
+---
+
 ## ACTIVE — T18/T24 verify-first checkpoint — 8 ตุลาคม 2569
 
 **สถานะ: T18 BLOCKED รอข้อมูล route latency ปัจจุบัน; T24 PARTIAL / VERIFY-FIRST.** ส่วนนี้ supersede สถานะ ACTIVE เก่าด้านล่าง. Integration SHA ที่ตรวจสดคือ `9b57e6e7fe1a1aa9e8a244bc6817b2f57aa8d183` บน `origin/fix/serverless-database-reliability`. `PLAN.md` ไม่มีใน Integration tree; ใช้เฉพาะแผน Owner ใน PR #521 ซึ่งยัง OPEN / NOT MERGED, head `40f25fb9416308d3c67ff61722969998cdea9cb8`, เป็นข้อกำหนด ไม่ใช่ฐานโค้ด.
