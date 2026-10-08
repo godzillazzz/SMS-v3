@@ -10,6 +10,7 @@ This repository is a production system. Optimize for finishing the requested out
 4. Continue through every authorized safe step until a genuine Owner-only gate or fail-closed blocker.
 5. Never ask “what should I do next?” when repository, source, GitHub, CI, or Vercel evidence can answer it.
 6. Before stopping, ask: “Is there another safe authorized action I can perform myself?” If yes, continue.
+7. For SMS-v3 UX/UI or acceptance tasks, also read `docs/ux-remediation/README.md`, `docs/ux-remediation/PLAN.md`, and task-specific reference assets in the same folder. These describe requirements, not authoritative current release status. Never use stale R3 or old task status from the plan in place of the latest handoff and live evidence.
 
 ## Source of truth
 
