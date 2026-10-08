@@ -71,8 +71,7 @@ function harness({ createFailure = false, deleteFailure = false, auditDeleteFail
     state.audits.push({ ...entry, metadata: entry.metadata && { ...entry.metadata } });
     return entry;
   } };
-  const reconcileSchedules = async (...args) => state.reconciles.push(args);
-  return { state, storage, service: createLicenseDocumentService({ prisma, storage, audit, reconcileSchedules }) };
+  return { state, storage, service: createLicenseDocumentService({ prisma, storage, audit }) };
 }
 
 test('upload creates PENDING metadata without changing master dates and uses a random object key', async () => {
@@ -157,7 +156,7 @@ test('admin self-approval updates master dates, supersedes old current, and writ
   assert.equal(state.audits.at(-1).metadata.selfApproved, true); assert.equal(state.audits.at(-1).metadata.event, 'FINAL_APPROVE'); assert.equal(state.documents.filter((item) => item.isCurrent).length, 1);
 });
 
-test('approval uses an extended transaction budget for schedule reconciliation', async () => {
+test('license approval retains the existing bounded transaction policy without changing roster', async () => {
   const { state, service } = harness({ requireApprovalTransactionOptions: true });
   state.documents.push({ id: ids.document, employeeId: ids.employee, licenseId: ids.license, uploadedById: ids.admin, proposedLicenseNumber: 'LN-2027', proposedStartDate: new Date('2027-01-01'), proposedExpiryDate: new Date('2027-12-31'), status: 'PENDING', isCurrent: false, version: 1 });
   const approved = await service.approve({ id: ids.document, requestUser: { sub: ids.admin, role: 'ADMIN' } });
@@ -368,7 +367,7 @@ test('approval maps database concurrency and uniqueness races to a truthful retr
     const prisma = { $transaction: async () => { const error = new Error('database conflict'); error.code = databaseCode; throw error; } };
     const storage = createFakeLicenseDocumentStorage();
     const audit = { log: async () => undefined };
-    const service = createLicenseDocumentService({ prisma, storage, audit, reconcileSchedules: async () => undefined });
+    const service = createLicenseDocumentService({ prisma, storage, audit });
     await assert.rejects(
       () => service.approve({ id: ids.document, requestUser: { sub: ids.admin, role: 'ADMIN' } }),
       (error) => error.statusCode === 409 && error.message === 'License approval state changed. Refresh and try again.' && error.details?.code === 'LICENSE_APPROVAL_STATE_CONFLICT'
