@@ -100,6 +100,7 @@ for (const viewport of viewports) {
     expect(response, 'Login response must exist.').not.toBeNull();
     assertExpectedStatus(response.status(), 200, 'LOGIN_HTTP_FAILED');
     extractViteAssets(await page.content());
+    await expect(page.locator('.nexus-public[data-design="sms-command-nexus-full-bleed"]'), 'The lazy public experience must replace the login Suspense fallback before measuring controls.').toBeVisible();
 
     const email = page.getByLabel('อีเมล');
     const password = page.locator('#password');
