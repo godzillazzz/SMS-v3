@@ -34,7 +34,7 @@ import type { SimpleBootstrap } from './pages/attendance-simple/attendance-simpl
 import { ROLE_DISPLAY_LABEL, roleDisplayName } from './role-display';
 import { getApprovalCenterSummary } from './approval-center-client';
 import { shouldPollApprovalCenter } from './approval-center-polling';
-import { approvalBadgeText, approvalCountValue } from './components/approval-count-badge';
+import { approvalBadgeText, approvalMenuCount, type ApprovalCountSummary } from './components/approval-count-badge';
 import { ApprovalCenterNotificationButton } from './components/ApprovalCenterNotificationButton';
 import type { EmployeeComboboxOption } from './components/SearchableEmployeeCombobox';
 import { getLeavePolicy } from './leave-policy-client';
@@ -105,6 +105,18 @@ import './styles/operational-layer.css';
 import './styles/employee-pwa-theme.css';
 import './styles/ux-t06-login-public.css';
 import './styles/schedule-roster-ux.css';
+
+const APPROVAL_REVIEWER_ROLES = ['ADMIN', 'MANAGER', 'SUPERVISOR'] as const;
+const APPROVAL_COUNT_MENU_ROLES: Readonly<Record<string, readonly string[]>> = Object.freeze({
+  approvalCenter: APPROVAL_REVIEWER_ROLES,
+  employees: ['ADMIN'],
+  licenses: ['ADMIN'],
+  approvals: ['ADMIN', 'SUPERVISOR'],
+  attendanceDevice: ['ADMIN'],
+  attendanceSupervisor: ['ADMIN'],
+  users: APPROVAL_REVIEWER_ROLES,
+  leavePending: APPROVAL_REVIEWER_ROLES
+});
 
 const AwardPublicExperience = React.lazy(() => import('./components/AwardPublicExperience').then((module) => ({ default: module.AwardPublicExperience })));
 const ReportCenterPage = React.lazy(() => import('./pages/reports/ReportCenterPage').then((module) => ({ default: module.ReportCenterPage })));
@@ -1667,7 +1679,7 @@ function Dashboard() {
     }
   };
   const openPwaAttendanceSupervisor = () => {
-    if (!['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(auth.user?.role || '') || auth.isViewingAs) return;
+    if (!APPROVAL_REVIEWER_ROLES.some((role) => role === auth.user?.role) || auth.isViewingAs) return;
     setActivePage('attendanceSupervisor');
     if (typeof window !== 'undefined') {
       const url = new URL(window.location.href);
@@ -1713,7 +1725,8 @@ function Dashboard() {
     }
   }, [activePage]);
   const [operationRefresh, setOperationRefresh] = useState(0);
-  const [pendingApprovalCount, setPendingApprovalCount] = useState<number | null>(null);
+  const [approvalSummary, setApprovalSummary] = useState<ApprovalCountSummary | null>(null);
+  const [approvalCountStatus, setApprovalCountStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
   const [registrationReviewInitialRequestId, setRegistrationReviewInitialRequestId] = useState<string>();
   const [approvalCenterRefresh, setApprovalCenterRefresh] = useState(0);
   const [employeeRefresh, setEmployeeRefresh] = useState(0);
@@ -2011,21 +2024,32 @@ function Dashboard() {
   }, [activePage, auth.token, auth.user?.role, operationRefresh]);
 
   useEffect(() => {
-    setPendingApprovalCount(null);
-    if (pwaShell || !auth.token || !['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(auth.user?.role || '') || auth.isViewingAs) return;
+    setApprovalSummary(null);
+    if (pwaShell || !auth.token || !APPROVAL_REVIEWER_ROLES.some((role) => role === auth.user?.role) || auth.isViewingAs) {
+      setApprovalCountStatus('idle');
+      return;
+    }
     let active = true;
-    const refreshApprovalCount = () => {
-      if (!active || !shouldPollApprovalCenter(document.visibilityState)) return;
-      void getApprovalCenterSummary(auth.token!).then((result) => {
-        const count = approvalCountValue(result?.summary?.total);
-        if (active && count !== null) setPendingApprovalCount(count);
-      }).catch(() => undefined);
-    };
-    refreshApprovalCount();
-    const timer = window.setInterval(refreshApprovalCount, 60000);
-    const onVisibility = () => refreshApprovalCount();
+    setApprovalCountStatus('loading');
+    let refreshApprovalCount: ReturnType<typeof import('./approval-count-refresh').createApprovalCountRefresh> | undefined;
+    void import('./approval-count-refresh').then(({ createApprovalCountRefresh }) => {
+      if (!active) return;
+      refreshApprovalCount = createApprovalCountRefresh({
+      read: () => getApprovalCenterSummary(auth.token!),
+      canRefresh: () => shouldPollApprovalCenter(document.visibilityState),
+      onUpdate: (summary) => {
+        if (!active) return;
+        setApprovalSummary(summary);
+        setApprovalCountStatus(summary ? 'ready' : 'error');
+      }
+      });
+      refreshApprovalCount.refresh();
+    }).catch(() => { if (active) setApprovalCountStatus('error'); });
+    const timer = window.setInterval(() => refreshApprovalCount?.refresh(), 60000);
+    const onVisibility = () => refreshApprovalCount?.refresh();
     document.addEventListener('visibilitychange', onVisibility);
-    return () => { active = false; window.clearInterval(timer); document.removeEventListener('visibilitychange', onVisibility); };
+    window.addEventListener('focus', onVisibility);
+    return () => { active = false; refreshApprovalCount?.dispose(); window.clearInterval(timer); document.removeEventListener('visibilitychange', onVisibility); window.removeEventListener('focus', onVisibility); };
   }, [auth.token, auth.user?.role, auth.isViewingAs, pwaShell, operationRefresh, employeeRefresh, approvalCenterRefresh]);
 
   useEffect(() => {
@@ -2558,7 +2582,7 @@ function Dashboard() {
     finally { setOperationLoading(false); }  };
 
   const content = () => {
-    if (activePage === 'dashboard') return <DashboardPage summary={dashboardSummary} loading={dashboardLoading} error={dashboardError} user={auth.user} canManage={canManage} filters={dashboardFilters} pendingApprovalCount={pendingApprovalCount} onOpenApprovalCenter={() => setActivePage('approvalCenter')} onFiltersChange={(next) => setDashboardFilters((current) => ({ ...current, ...next }))} onNavigate={setActivePage} />;
+    if (activePage === 'dashboard') return <DashboardPage summary={dashboardSummary} loading={dashboardLoading} error={dashboardError} user={auth.user} canManage={canManage} filters={dashboardFilters} pendingApprovalCount={approvalMenuCount('approvalCenter', approvalSummary)} onOpenApprovalCenter={() => setActivePage('approvalCenter')} onFiltersChange={(next) => setDashboardFilters((current) => ({ ...current, ...next }))} onNavigate={setActivePage} />;
     // The former inline dashboard is intentionally disabled. DashboardPage above
     // is the only runtime dashboard presentation.
     if (false) {
@@ -2875,7 +2899,7 @@ function Dashboard() {
       return <section className="view-pane schedule-calendar-page nexus-roster-workspace">
         <div className="roster-command-kicker">จัดตารางเวร</div>
         <div className="page-heading"><div><p className="eyebrow">ตารางและกฎการทำงาน</p><h1>ตารางกะรายเดือน</h1><p>จัดกะรายเดือน (โหมดบันทึกด้วยตนเอง: แก้ไขกะหรือลบกะในตารางได้ต่อเนื่อง แล้วกด 💾 บันทึกการเปลี่ยนแปลง เพื่อบันทึกทีเดียว)</p></div><div className="heading-actions">{auth.user?.role === 'ADMIN' && !auth.isViewingAs && <button className="btn-neutral small-action" onClick={() => setActivePage('approvals')}>ประวัติการอนุมัติ</button>}{approval.status === 'APPROVED' && <><button className="excel-action" disabled={scheduleExportBusy} onClick={exportApprovedExcel}>▦ {scheduleExportBusy ? 'กำลังสร้าง Excel…' : `Export Excel${selectedDepartments.length ? ` · ${selectedDepartments.length} แผนก` : ''}`}</button><button className="btn-info small-action" onClick={() => void printScheduleDocument()}>📄 Export PDF</button></>}</div></div>
-        <div className={`approval-banner ${approval.status === 'APPROVED' ? 'approved' : 'pending'}`}><div><strong>{approval.status === 'APPROVED' ? '✓ อนุมัติแล้ว' : '● รออนุมัติ'} · {monthLabel}</strong><small>ฉบับแก้ไข {text(approval.revision || 1)}{approval.approvedAt ? ` · อนุมัติโดย ${text(approval.approvedBy || approval.approvedByDisplayName || 'ผู้มีอำนาจอนุมัติ')} เมื่อ ${date(approval.approvedAt)}` : ' · การแก้ตารางจะสร้างฉบับแก้ไขใหม่โดยอัตโนมัติ'}</small></div>{['ADMIN', 'SUPERVISOR'].includes(auth.user?.role || '') && approval.status !== 'APPROVED' && <button className="btn-primary compact" style={{ backgroundColor: '#059669', borderColor: '#047857', fontWeight: 'bold' }} onClick={async () => { if (!auth.token) return; const confirmed = await actionDialog.confirm({ title: 'อนุมัติตารางกะรายเดือน', message: 'การอนุมัติจะเปลี่ยนสถานะตารางเดือนนี้เป็นอนุมัติแล้วตามขั้นตอนเดิม และการแก้ไขภายหลังจะสร้างฉบับแก้ไขใหม่โดยอัตโนมัติ', context: monthLabel, confirmLabel: 'ยืนยันอนุมัติตาราง', tone: 'primary' }); if (!confirmed) return; setOperationError(undefined); try { if (approval.id) { await api.updateScheduleApproval(auth.token, String(approval.id), { status: 'APPROVED' }); } else { await api.approveScheduleMonth(auth.token, scheduleMonth); } const updated = await api.scheduleCalendar(auth.token, scheduleMonth, operationPage, scheduleDepartment); setOperationResponse(updated); } catch (reason) { setOperationError(toRequestErrorState(reason, 'อนุมัติตารางไม่สำเร็จ')); } }}>อนุมัติ ตารางเดือนนี้</button>}</div>
+        <div className={`approval-banner ${approval.status === 'APPROVED' ? 'approved' : 'pending'}`}><div><strong>{approval.status === 'APPROVED' ? '✓ อนุมัติแล้ว' : '● รออนุมัติ'} · {monthLabel}</strong><small>ฉบับแก้ไข {text(approval.revision || 1)}{approval.approvedAt ? ` · อนุมัติโดย ${text(approval.approvedBy || approval.approvedByDisplayName || 'ผู้มีอำนาจอนุมัติ')} เมื่อ ${date(approval.approvedAt)}` : ' · การแก้ตารางจะสร้างฉบับแก้ไขใหม่โดยอัตโนมัติ'}</small></div>{['ADMIN', 'SUPERVISOR'].includes(auth.user?.role || '') && approval.status !== 'APPROVED' && <button className="btn-primary compact" style={{ backgroundColor: '#059669', borderColor: '#047857', fontWeight: 'bold' }} onClick={async () => { if (!auth.token) return; const confirmed = await actionDialog.confirm({ title: 'อนุมัติตารางกะรายเดือน', message: 'การอนุมัติจะเปลี่ยนสถานะตารางเดือนนี้เป็นอนุมัติแล้วตามขั้นตอนเดิม และการแก้ไขภายหลังจะสร้างฉบับแก้ไขใหม่โดยอัตโนมัติ', context: monthLabel, confirmLabel: 'ยืนยันอนุมัติตาราง', tone: 'primary' }); if (!confirmed) return; setOperationError(undefined); try { if (approval.id) { await api.updateScheduleApproval(auth.token, String(approval.id), { status: 'APPROVED' }); } else { await api.approveScheduleMonth(auth.token, scheduleMonth); } const updated = await api.scheduleCalendar(auth.token, scheduleMonth, operationPage, scheduleDepartment); setOperationResponse(updated); setApprovalCenterRefresh((value) => value + 1); } catch (reason) { setOperationError(toRequestErrorState(reason, 'อนุมัติตารางไม่สำเร็จ')); } }}>อนุมัติ ตารางเดือนนี้</button>}</div>
         <div className="calendar-toolbar-box schedule-workbench" style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '12px', padding: '16px 20px', margin: '14px 0 16px 0', boxShadow: '0 2px 6px rgba(37, 99, 235, 0.05)' }}>
           <div style={{ fontSize: '13px', fontWeight: 'bold', color: '#1e40af', marginBottom: '8px' }}>
             เลือกเดือนที่จะจัดกะ: {monthLabel} (สูงสุด 1 เดือน)
@@ -3124,7 +3148,7 @@ function Dashboard() {
       />;
     }
     if (activePage === 'attendanceSupervisor' && auth.token && ['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(auth.user?.role || '') && !auth.isViewingAs) {
-      return <AttendanceSupervisorPage token={auth.token} role={auth.user?.role || 'VIEWER'} department={auth.user?.department} userId={auth.user?.id} onOpenAttendanceReport={!pwaShell && auth.user?.role === 'ADMIN' ? () => setActivePage('attendanceReport') : undefined} />;
+      return <AttendanceSupervisorPage token={auth.token} role={auth.user?.role || 'VIEWER'} department={auth.user?.department} userId={auth.user?.id} onOpenAttendanceReport={!pwaShell && auth.user?.role === 'ADMIN' ? () => setActivePage('attendanceReport') : undefined} onApprovalQueueChanged={() => { setOperationRefresh((value) => value + 1); setApprovalCenterRefresh((value) => value + 1); }} />;
     }
     if (activePage === 'attendanceHistory' && auth.token && pwaShell) {
       return <AttendanceHistoryPwaPage token={auth.token} online={pwaOnline} />;
@@ -3136,7 +3160,7 @@ function Dashboard() {
       return <PwaProfilePage user={auth.user} online={pwaOnline} readOnly={auth.isViewingAs} onOpenPasskeys={() => setPasskeyPanelOpen(true)} onLogout={() => auth.logout()} />;
     }
     if (activePage === 'attendanceDevice' && auth.token) {
-      return <AttendanceDevicePage token={auth.token} role={auth.user?.role || 'VIEWER'} readOnly={auth.isViewingAs} />;
+      return <AttendanceDevicePage token={auth.token} role={auth.user?.role || 'VIEWER'} readOnly={auth.isViewingAs} onApprovalQueueChanged={() => { setOperationRefresh((value) => value + 1); setApprovalCenterRefresh((value) => value + 1); }} />;
     }
     if (activePage === 'users') {
       const users = Array.isArray(operationResponse.data) ? operationResponse.data : [];
@@ -3228,7 +3252,16 @@ function Dashboard() {
           <button type="button" className="sidebar-close-button" aria-label="ปิดเมนูหลัก" onClick={() => setMobileMenuOpen(false)}><SmsIcon name="close" size={20} /></button>
         </div>
         <nav className="nav-menu" aria-label="เมนูหลัก">{visibleNavigation.map((section) => (
-          <div className="nav-section" key={section.label}><p>{section.label}</p>{section.items.map((item) => <button type="button" key={item.id} className={`nav-item ${navigationPage === item.id ? 'active' : ''}`} onClick={() => { setActivePage(item.id); setMobileMenuOpen(false); }}><span className="nav-icon"><SmsIcon name={item.icon} size={19} /></span><span>{item.label}{item.id === 'approvalCenter' && approvalBadgeText(pendingApprovalCount) && <b className="nav-count-badge">{approvalBadgeText(pendingApprovalCount)}</b>}</span></button>)}</div>
+          <div className="nav-section" key={section.label}><p>{section.label}</p>{section.items.map((item) => {
+            const roleCanSeeCount = Boolean(auth.user?.role && APPROVAL_COUNT_MENU_ROLES[item.id]?.includes(auth.user.role));
+            const countEnabled = roleCanSeeCount && !pwaShell && !auth.isViewingAs && Boolean(auth.token);
+            const menuCount = countEnabled ? approvalMenuCount(item.id, approvalSummary) : null;
+            const badge = approvalBadgeText(menuCount);
+            const countStateTitle = countEnabled && approvalCountStatus === 'loading' ? 'กำลังโหลดจำนวนรายการรออนุมัติ' : countEnabled && approvalCountStatus === 'error' ? 'โหลดจำนวนรายการรออนุมัติไม่สำเร็จ' : undefined;
+            const countStateLabel = countStateTitle ? `${item.label}, ${countStateTitle}` : undefined;
+            const countTitle = badge && menuCount !== null ? `${menuCount} รายการรออนุมัติ` : countStateTitle;
+            return <button type="button" key={item.id} data-navigation-id={item.id} aria-label={badge ? `${item.label}, ${countTitle}` : countStateLabel} title={countTitle} className={`nav-item ${navigationPage === item.id ? 'active' : ''} ${badge ? 'has-approval-count' : ''}`} onClick={() => { setActivePage(item.id); setMobileMenuOpen(false); }}><span className="nav-icon"><SmsIcon name={item.icon} size={19} /></span><span>{item.label}{badge && <b className="nav-count-badge" aria-hidden="true">{badge}</b>}</span></button>;
+          })}</div>
         ))}</nav>
         <div className="sidebar-footer">
           <div className="sidebar-user sidebar-profile"><span className="avatar">{initials}</span><span><b>{auth.user?.displayName || 'ผู้ใช้งาน'}</b><small>{roleDisplayName(auth.user?.role || 'VIEWER')}</small></span></div>
@@ -3248,7 +3281,7 @@ function Dashboard() {
           <div className="topbar-actions">
             {!pwaShell && <button type="button" className="workflow-command-trigger" title="ไปยังงานหรือหน้าที่ต้องการ" onClick={() => setCommandPaletteOpen(true)}><SmsIcon name="search" size={16} /><span>เมนูด่วน</span><kbd>Ctrl K</kbd></button>}
             <span className="environment-pill">{import.meta.env.PROD ? 'DEPLOYED' : 'LOCAL'}</span>
-            {['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(auth.user?.role || '') && !auth.isViewingAs && <ApprovalCenterNotificationButton count={pendingApprovalCount} onClick={() => setActivePage('approvalCenter')} />}
+            {['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(auth.user?.role || '') && !auth.isViewingAs && <ApprovalCenterNotificationButton count={approvalMenuCount('approvalCenter', approvalSummary)} onClick={() => setActivePage('approvalCenter')} />}
             <ThemeControl compact />
             <button type="button" className="display-mode-toggle" aria-pressed={desktopView} title={desktopView ? 'กลับมุมมองมือถือ' : 'แสดงแบบเดสก์ท็อป'} onClick={toggleDesktopView}><SmsIcon name={desktopView ? 'device' : 'system'} size={16} /><span>{desktopView ? 'Mobile' : 'Desktop'}</span></button>
             <button type="button" className="topbar-profile topbar-profile-button" title="การเข้าสู่ระบบและ Passkey" onClick={() => setPasskeyPanelOpen(true)}><span className="avatar">{initials}</span><span><b>{auth.user?.displayName || 'ผู้ใช้งาน'}</b><small>{roleDisplayName(auth.user?.role || 'VIEWER')}</small></span></button>

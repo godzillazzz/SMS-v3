@@ -1797,7 +1797,7 @@ button, select, input, textarea {
 .leave-mode-all .leave-pending-card { display: none; }
 .leave-mode-all .my-leave-quota-heading,
 .leave-mode-all .my-leave-quota-grid { display: none; }
-.nav-count-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 20px; height: 20px; margin-left: 8px; padding: 0 6px; border-radius: 999px; background: #ef4444; color: #fff; font-size: 11px; line-height: 1; }
+.nav-count-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 20px; height: 20px; margin-left: 8px; padding: 0 6px; border-radius: 999px; background: #b91c1c; color: #fff; font-size: 11px; line-height: 1; }
 .my-leave-quota-strip { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: -4px 0 16px; padding: 10px 12px; border: 1px solid #dbeafe; border-radius: 10px; background: #f8fbff; color: #52637a; font-size: 12px; }
 .my-leave-quota-strip strong { color: #1e3a8a; margin-right: 4px; }
 .my-leave-quota-strip span { padding: 4px 8px; border-radius: 999px; background: #fff; }
@@ -2036,7 +2036,7 @@ textarea {
 .sidebar-user:hover { background: rgba(74, 144, 255, .12); }
 
 /* Nav count badge pulse for pending */
-.nav-count-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 20px; height: 20px; margin-left: 6px; border-radius: 999px; padding: 0 6px; color: #fff; background: #ef4444; font-size: 11px; font-weight: 700; line-height: 1; animation: badgePulse 2s infinite; }
+.nav-count-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 20px; height: 20px; margin-left: 6px; border-radius: 999px; padding: 0 6px; color: #fff; background: #b91c1c; font-size: 11px; font-weight: 700; line-height: 1; animation: badgePulse 2s infinite; }
 @keyframes badgePulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, .4); } 50% { box-shadow: 0 0 0 6px rgba(239, 68, 68, 0); } }
 
 /* Rule summary cards hover */
@@ -2304,6 +2304,12 @@ textarea {
   .topbar { padding-inline: 24px; }
   .topbar-profile b { max-width: 76px; }
   .metrics-grid { grid-template-columns: repeat(2, minmax(0,1fr)); }
+}
+
+@media screen and (min-width: 761px) and (max-width: 1024px) {
+  .nav-item:has(.nav-count-badge) { position: relative; }
+  .nav-item:has(.nav-count-badge) > span:last-child { display: contents; }
+  .nav-item:has(.nav-count-badge) .nav-count-badge { position: absolute; top: -5px; right: 0; margin: 0; }
 }
 
 @media screen and (max-width: 760px) {

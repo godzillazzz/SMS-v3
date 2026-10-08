@@ -83,7 +83,7 @@ type AttendanceDeviceAdminEmployee = {
   recentAudit: AttendanceDeviceAudit[];
 };
 
-type Props = { token: string; role: string; readOnly?: boolean };
+type Props = { token: string; role: string; readOnly?: boolean; onApprovalQueueChanged?: () => void };
 
 type ReviewAction = 'RETURN' | 'REJECT';
 type ReviewTarget = { row: AttendanceDeviceRequest; action: ReviewAction } | null;
@@ -179,7 +179,7 @@ function localKeyReadinessState(inspection: AttendanceDeviceKeyInspection | null
   return 'LOCAL_KEY_UNAVAILABLE';
 }
 
-export function AttendanceDevicePage({ token, role, readOnly = false }: Props) {
+export function AttendanceDevicePage({ token, role, readOnly = false, onApprovalQueueChanged }: Props) {
   const actionDialog = useActionDialog();
   const capability = useMemo(() => attendanceDeviceCapability(), []);
   const [selfState, setSelfState] = useState<SelfState | null>(null);
@@ -298,6 +298,7 @@ export function AttendanceDevicePage({ token, role, readOnly = false }: Props) {
         ? 'ยืนยันคีย์ของอุปกรณ์สำเร็จ ส่งคำขอเครื่องแรกให้ Admin อนุมัติแล้ว'
         : 'ยืนยันคีย์ของอุปกรณ์ใหม่สำเร็จ ส่งคำขอเปลี่ยนอุปกรณ์ให้ Admin อนุมัติแล้ว');
       setReason('');
+      onApprovalQueueChanged?.();
       await refresh();
     } catch (error) {
       setSelfError(formatRequestErrorMessage(error, 'ลงทะเบียนอุปกรณ์ไม่สำเร็จ'));
@@ -325,6 +326,7 @@ export function AttendanceDevicePage({ token, role, readOnly = false }: Props) {
       await api.cancelAttendanceDeviceRequest(token, request.id, cancelReason.trim());
       await deleteAttendanceDeviceKey(request.candidateDeviceEnrollmentId).catch(() => undefined);
       setCancelReason(''); setMessage('ยกเลิกคำขออุปกรณ์แล้ว');
+      onApprovalQueueChanged?.();
       await refresh();
     } catch (error) { setSelfError(formatRequestErrorMessage(error, 'ยกเลิกคำขอไม่สำเร็จ')); }
     finally { setBusy(false); }
@@ -351,6 +353,7 @@ export function AttendanceDevicePage({ token, role, readOnly = false }: Props) {
     try {
       await api.resubmitAttendanceDeviceRequest(token, request.id, reason.trim() || request.reason || null);
       setMessage('ส่งคำขอให้ Admin พิจารณาอีกครั้งแล้ว');
+      onApprovalQueueChanged?.();
       await refresh();
     } catch (error) { setSelfError(formatRequestErrorMessage(error, 'ส่งคำขออีกครั้งไม่สำเร็จ')); }
     finally { setBusy(false); }
@@ -368,7 +371,7 @@ export function AttendanceDevicePage({ token, role, readOnly = false }: Props) {
     });
     if (!confirmed) return;
     setBusy(true); setQueueError(undefined); setMessage(undefined);
-    try { await api.approveAttendanceDeviceRequest(token, row.id); setMessage('อนุมัติอุปกรณ์ลงเวลาแล้ว'); await refresh(); }
+    try { await api.approveAttendanceDeviceRequest(token, row.id); setMessage('อนุมัติอุปกรณ์ลงเวลาแล้ว'); onApprovalQueueChanged?.(); await refresh(); }
     catch (error) { setQueueError(formatRequestErrorMessage(error, 'อนุมัติอุปกรณ์ไม่สำเร็จ')); }
     finally { setBusy(false); }
   };
@@ -383,6 +386,7 @@ export function AttendanceDevicePage({ token, role, readOnly = false }: Props) {
       else await api.rejectAttendanceDeviceRequest(token, reviewTarget.row.id, text);
       setMessage(reviewTarget.action === 'RETURN' ? 'ส่งคำขอกลับให้พนักงานแก้ไขแล้ว' : 'ไม่อนุมัติคำขออุปกรณ์แล้ว');
       setReviewTarget(null); setReviewReason('');
+      onApprovalQueueChanged?.();
       await refresh();
     } catch (error) { setQueueError(formatRequestErrorMessage(error, 'บันทึกผลพิจารณาไม่สำเร็จ')); }
     finally { setBusy(false); }

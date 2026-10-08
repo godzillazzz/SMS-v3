@@ -24,8 +24,8 @@ describe('T28 user-visible cleanup', () => {
   it('keeps the approval count unset until a summary value is received', () => {
     const main = read('./main.tsx');
     const dashboard = read('./pages/dashboard/DashboardPage.tsx');
-    expect(main).toContain('useState<number | null>(null)');
-    expect(main).toContain('setPendingApprovalCount(null)');
+    expect(main).toContain('useState<ApprovalCountSummary | null>(null)');
+    expect(main).toContain('setApprovalSummary(null)');
     expect(dashboard).toContain('pendingApprovalCount != null && pendingApprovalCount > 0');
   });
 });

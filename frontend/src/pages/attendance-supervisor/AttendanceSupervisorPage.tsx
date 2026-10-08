@@ -32,6 +32,7 @@ type Props = {
   department?: string;
   userId?: string;
   onOpenAttendanceReport?: () => void;
+  onApprovalQueueChanged?: () => void;
 };
 
 type Site = { id: string; code?: string | null; name: string };
@@ -427,7 +428,7 @@ function AttendanceMobileCard({
   </article>;
 }
 
-export function AttendanceSupervisorPage({ token, role, department, userId, onOpenAttendanceReport }: Props) {
+export function AttendanceSupervisorPage({ token, role, department, userId, onOpenAttendanceReport, onApprovalQueueChanged }: Props) {
   const today = bangkokDateText();
   const manager = ['MANAGER', 'SUPERVISOR'].includes(role);
   const admin = role === 'ADMIN';
@@ -729,6 +730,7 @@ export function AttendanceSupervisorPage({ token, role, department, userId, onOp
       setDate(manualDialog.workDate);
       setEmployeeId(manualDialog.employeeId);
       setManualDialog(undefined);
+      onApprovalQueueChanged?.();
       refresh();
     } catch (reason) {
       setWorkflowError(formatRequestErrorMessage(reason, 'บันทึกยืนยันปฏิบัติงานย้อนหลังไม่สำเร็จ'));
@@ -831,6 +833,7 @@ export function AttendanceSupervisorPage({ token, role, department, userId, onOp
       );
       setMode('requests');
       setRequestStatus('PENDING_APPROVAL');
+      onApprovalQueueChanged?.();
       refresh();
     } catch (reason) {
       setWorkflowError(formatRequestErrorMessage(reason, 'ส่งคำขอแก้ไข Attendance ไม่สำเร็จ'));
@@ -860,6 +863,7 @@ export function AttendanceSupervisorPage({ token, role, department, userId, onOp
         setRequestNotice('ปฏิเสธคำขอแล้ว · Attendance เดิมไม่เปลี่ยนแปลง');
       }
       setReviewDialog(undefined);
+      onApprovalQueueChanged?.();
       refresh();
     } catch (reason) {
       setWorkflowError(formatRequestErrorMessage(reason, 'ดำเนินการคำขอ Attendance ไม่สำเร็จ'));

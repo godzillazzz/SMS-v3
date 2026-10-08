@@ -125,7 +125,7 @@ describe('G04.2 UX-02 application shell contract', () => {
 
   it('surfaces the authorized Approval Center notification instead of a fake bell', () => {
     expect(main).toContain("id: 'approvalCenter'");
-    expect(main).toContain('<ApprovalCenterNotificationButton count={pendingApprovalCount}');
+    expect(main).toContain('<ApprovalCenterNotificationButton count={approvalMenuCount(\'approvalCenter\', approvalSummary)}');
     expect(approvalNotification).toContain('topbar-notification-button');
     expect(approvalNotification).toContain('title="คำขอที่รอการอนุมัติ"');
     expect(approvalNotification).toContain('<SmsIcon name="bell" size={19} />');
