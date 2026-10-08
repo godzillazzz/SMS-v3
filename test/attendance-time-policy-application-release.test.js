@@ -7,8 +7,8 @@ const { validateReleaseManifest } = require('../scripts/ci/verify-release-manife
 test('R4 release pins exact source, current Production checkpoint and no database changes',()=>{
   const manifest=JSON.parse(fs.readFileSync('.github/releases/approved-production.json'));
   const valid=validateReleaseManifest(manifest);
-  assert.equal(valid.commitSha,'59a7e944b4481292b9b297608a676f3f3eb2f862');
-  assert.equal(valid.treeSha,'f24c334ff2da8d025382cf9bcefb30cd9d5a6b04');
+  assert.equal(valid.commitSha,'59fb7f9ea4de1ab3403d16f1a750aec01c66de91');
+  assert.equal(valid.treeSha,'f6c59d08c982707206f170283efd652bbb9fee65');
   assert.equal(valid.currentProductionSourceSha,'b3e70834977a1b29b367e8a1d3b3cfebac0d74c8');
   assert.equal(valid.rollbackDeploymentId,'dpl_AuwFqQcpUCvbuPaj1w78JBAzVLuo');
   assert.equal(valid.preAppliedMigrationEvidenceRunId,'');
@@ -17,9 +17,9 @@ test('R4 release pins exact source, current Production checkpoint and no databas
   assert.equal(valid.productionEnvironmentChangePolicy,'NO_ENVIRONMENT_CHANGES');
   assert.deepEqual(manifest.application_pr_numbers,[497,499,501,504,506,508,510,513,515,516,518,525]);
   assert.deepEqual(manifest.excluded_open_pr_numbers,[520,521,530]);
-  assert.equal(manifest.application_exact_sha_ci_run_id,37723174787);
-  assert.equal(manifest.release_source_exact_sha_ci_run_id,37723174787);
-  assert.equal(manifest.preview_technical_smoke_run_id,37724634808);
+  assert.equal(manifest.application_exact_sha_ci_run_id,37729673741);
+  assert.equal(manifest.release_source_exact_sha_ci_run_id,37729673741);
+  assert.equal(manifest.preview_technical_smoke_run_id,37730571924);
   assert.equal(manifest.preview_technical_smoke_passed,11);
   assert.equal(manifest.preview_technical_smoke_failed,0);
   assert.equal(manifest.preview_technical_smoke_skipped,23);
