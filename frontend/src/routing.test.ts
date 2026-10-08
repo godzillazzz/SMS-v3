@@ -110,6 +110,12 @@ describe('application History API routes', () => {
     expect(canViewRoutePage('settings', { user: { role: 'ADMIN' }, isViewingAs: false })).toBe(true);
     expect(canViewRoutePage('approvalCenter', { user: { role: 'SUPERVISOR' }, isViewingAs: false })).toBe(true);
     expect(canViewRoutePage('approvalCenter', { user: { role: 'ADMIN' }, isViewingAs: true })).toBe(false);
+    expect(canViewRoutePage('approvals', { user: { role: 'ADMIN' }, isViewingAs: false })).toBe(true);
+    expect(canViewRoutePage('approvals', { user: { role: 'SUPERVISOR' }, isViewingAs: false })).toBe(true);
+    expect(canViewRoutePage('approvals', { user: { role: 'MANAGER' }, isViewingAs: false })).toBe(false);
+    expect(canViewRoutePage('approvals', { user: { role: 'ADMIN' }, isViewingAs: true })).toBe(false);
+    expect(canViewRoutePage('leavePending', { user: { role: 'SUPERVISOR' }, isViewingAs: false })).toBe(true);
+    expect(canViewRoutePage('leavePending', { user: { role: 'SUPERVISOR' }, isViewingAs: true })).toBe(false);
     expect(pageTitle('schedule')).toBe('ตารางกะรายเดือน');
 
     updateDocumentTitle('schedule');

@@ -11,6 +11,7 @@ const page = read('pages/approvals/ApprovalCenterPage.tsx');
 const registrationPanel = read('pages/access-management/RegistrationReviewPanel.tsx');
 const review = read('components/personnel/EmployeeChangeReviewModal.tsx');
 const css = read('styles/approval-center.css');
+const approvalService = read('../../src/services/approval-center.service.js');
 
 describe('Approval Center Command Nexus frontend contracts', () => {
   it('polls Approval Center summary every 60 seconds only while the document is visible', () => {
@@ -25,6 +26,16 @@ describe('Approval Center Command Nexus frontend contracts', () => {
     expect(routing).toContain("if (page === 'approvalCenter') return ['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(auth.user?.role || '')");
     expect(client).toContain("approvalCenterRequest(token, '/approval-center/summary')");
     expect(client).toContain("approvalCenterRequest(token, '/approval-center?limit=100')");
+  });
+
+  it('keeps native review entry points for every currently actionable approval source', () => {
+    expect(main).toContain("{ id: 'approvals', icon: 'approval', label: 'อนุมัติตารางกะ' }");
+    expect(main).toContain("{ id: 'leavePending', icon: 'approval', label: 'อนุมัติคำขอลา' }");
+    expect(routing).toContain("if (page === 'approvals') return ['ADMIN', 'SUPERVISOR'].includes(auth.user?.role || '') && !auth.isViewingAs");
+    expect(routing).toContain("if (page === 'leavePending') return ['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(auth.user?.role || '') && !auth.isViewingAs");
+    expect(main).toContain('onNavigate={(item) => { if (item.type === \'REGISTRATION_REQUEST\') setRegistrationReviewInitialRequestId(item.requestId); setActivePage(item.sourcePage); }}');
+    expect(approvalService).toMatch(/type: 'ATTENDANCE_ADJUSTMENT_REQUEST',[\s\S]{0,260}sourcePage: 'attendanceSupervisor'/);
+    expect(page).toContain("type ApprovalSourcePage = 'employees' | 'licenses' | 'approvals' | 'attendanceDevice' | 'attendanceSupervisor' | 'users' | 'leavePending'");
   });
 
   it('renders the zero-white command-nexus surface and real telemetry fallbacks', () => {
@@ -67,7 +78,7 @@ describe('Approval Center Command Nexus frontend contracts', () => {
     expect(page).toContain('api.approveRegistrationRequest');
     expect(page).toContain('api.rejectRegistrationRequest');
     expect(page).toContain("SCHEDULE_APPROVAL: 'อนุมัติตารางกะ'");
-    expect(page).toContain("type ApprovalSourcePage = 'employees' | 'licenses' | 'approvals'");
+    expect(page).toContain("type ApprovalSourcePage = 'employees' | 'licenses' | 'approvals' | 'attendanceDevice' | 'attendanceSupervisor' | 'users' | 'leavePending'");
     expect(page).toContain("if (item.type === 'SCHEDULE_APPROVAL') return 'ดูรายละเอียดตารางกะ'");
     expect(page).toContain('onNavigate(item)');
     expect(main).toContain("if (item.type === 'REGISTRATION_REQUEST') setRegistrationReviewInitialRequestId(item.requestId)");
@@ -118,8 +129,7 @@ describe('Approval Center Command Nexus frontend contracts', () => {
     expect(page).toContain('aria-pressed={selected?.id === item.id}');
     expect(css).toContain('.nexus-approval-select:focus-visible{border:0!important');
     expect(page).not.toContain('backend ยังคงตรวจสอบสิทธิ์อีกชั้นหนึ่ง');
-    expect(main).not.toContain("{ id: 'leavePending', icon: 'approval', label: 'รออนุมัติ' }");
-    expect(main).not.toContain("id === 'leavePending' && pendingLeaveCount");
+    expect(main).toContain("{ id: 'leavePending', icon: 'approval', label: 'อนุมัติคำขอลา' }");
     expect(main).toContain("setActivePage(canManage ? 'approvalCenter' : 'leave')");
     expect(css).toContain('.nexus-approval-center{background:#020813!important');
   });

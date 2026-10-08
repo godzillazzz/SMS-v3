@@ -128,6 +128,18 @@ test('Approval Center aggregates every actionable Admin queue without changing s
   assert.equal(result.summary.scheduleApprovals, 0);
   assert.equal(result.summary.byType.SCHEDULE_APPROVAL, 0);
   assert.equal(result.data.find((item) => item.type === 'LICENSE_DOCUMENT').sourcePage, 'licenses');
+  assert.equal(result.data.find((item) => item.type === 'ATTENDANCE_ADJUSTMENT_REQUEST').sourcePage, 'attendanceSupervisor');
+  for (const [type, sourcePage] of Object.entries({
+    EMPLOYEE_MASTER_CHANGE: 'employees',
+    EMPLOYEE_REFERENCE_PHOTO: 'employees',
+    LICENSE_DOCUMENT: 'licenses',
+    ATTENDANCE_DEVICE_REQUEST: 'attendanceDevice',
+    REGISTRATION_REQUEST: 'users',
+    USER_ACCESS: 'users',
+    LEAVE_REQUEST: 'leavePending'
+  })) {
+    assert.equal(result.data.find((item) => item.type === type).sourcePage, sourcePage);
+  }
   const registration = result.data.find((item) => item.type === 'REGISTRATION_REQUEST');
   assert.equal(registration.requestedBy.displayName, 'สมัคร ใหม่');
   assert.equal(registration.metadata.matchedEmployeeCode, 'E005');
