@@ -625,7 +625,7 @@ router.get('/schedule-calendar', async (req, res, next) => {
     const employeeIds = employees.map((employee) => employee.id);
     const [shifts, approval] = await Promise.all([employeeIds.length ? prisma.shiftAssignment.findMany({
       where: { employeeId: { in: employeeIds }, workDate: { gte: monthStart, lt: nextMonth } },
-      select: { id: true, employeeId: true, shiftTypeId: true, workDate: true, startTime: true, endTime: true, hours: true, remark: true, locked: true, licenseStatus: true, licenseOverride: true, licenseBlockedFromShiftTypeId: true, shiftType: { select: { id: true, code: true, name: true, color: true } } },
+      select: { id: true, employeeId: true, shiftTypeId: true, workDate: true, startTime: true, endTime: true, hours: true, remark: true, locked: true, source: true, licenseStatus: true, licenseOverride: true, licenseBlockedFromShiftTypeId: true, shiftType: { select: { id: true, code: true, name: true, color: true } } },
       orderBy: [{ employeeId: 'asc' }, { workDate: 'asc' }]
     }) : Promise.resolve([]), prisma.scheduleApproval.findFirst({ where: { month: monthStart }, orderBy: { revision: 'desc' }, select: { id: true, status: true, revision: true, approvedAt: true, approvedByLegacyRef: true, approvalNote: true } })]);
     const approvalActors = await resolveApprovalActors(prisma, approval ? [approval.approvedByLegacyRef] : []);

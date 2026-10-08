@@ -1154,6 +1154,7 @@ function ShiftEditorModal({ shift, defaults, employees, shiftTypes, licenses, is
   const [modalError, setModalError] = useState<string | null>(null);
   const modalRoot = useShiftEditorModalRoot();
   const initialFocusRef = useRef<HTMLSelectElement>(null);
+  const dialogRef = useRef<HTMLElement>(null);
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
 
@@ -1245,6 +1246,12 @@ function ShiftEditorModal({ shift, defaults, employees, shiftTypes, licenses, is
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') onCloseRef.current();
+      if (event.key !== 'Tab') return;
+      const controls = Array.from(dialogRef.current?.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex="0"]') || []).filter((element) => element.getClientRects().length > 0);
+      const first = controls[0];
+      const last = controls[controls.length - 1];
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
     };
     document.addEventListener('keydown', handleKeyDown);
 
@@ -1263,142 +1270,50 @@ function ShiftEditorModal({ shift, defaults, employees, shiftTypes, licenses, is
     <div className="shift-editor-modal__viewport" role="presentation" onMouseDown={handleBackdropMouseDown}>
       <section
         className="shift-editor-modal__dialog"
+        ref={dialogRef}
+        aria-describedby="shift-editor-draft-help"
         role="dialog"
         aria-modal="true"
         aria-labelledby="shift-editor-title"
         onMouseDown={(event) => event.stopPropagation()}
       >
-        <h3 id="shift-editor-title" style={{ margin: '0 0 16px 0', fontSize: '17px', fontWeight: 700, color: '#0f172a' }}>
-          {titleStr}
-        </h3>
-
-        {modalError && (
-          <div style={{ backgroundColor: '#fef2f2', border: '1px solid #fca5a5', color: '#991b1b', padding: '10px 14px', borderRadius: '8px', marginBottom: '14px', fontSize: '13px', fontWeight: 600 }}>
-            {modalError}
-          </div>
-        )}
-
+        <h3 id="shift-editor-title">{titleStr}</h3>
+        <p id="shift-editor-draft-help" className="shift-editor-help">รายการนี้จะอยู่ในฉบับร่าง เมื่อจัดกะครบแล้วให้กดบันทึกการเปลี่ยนแปลงในตารางกะ</p>
+        {modalError && <div className="shift-editor-error" role="alert">{modalError}</div>}
         <form onSubmit={handleSubmit}>
-          <div className="schedule-modal-form-grid" style={{ display: 'grid', gap: '14px', marginBottom: '14px' }}>
+          <div className="schedule-modal-form-grid shift-editor-fields">
             <div>
-              <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
-                Shift
-              </label>
-              <select
-                ref={initialFocusRef}
-                value={shiftTypeId}
-                onChange={(e) => setShiftTypeId(e.target.value)}
-                style={{ width: '100%', padding: '10px 12px', borderRadius: '10px', border: '1px solid #cbd5e1', fontSize: '13px', backgroundColor: '#0f1d2a', color: '#e2e8f0', fontWeight: 600 }}
-              >
+              <label htmlFor="shift-editor-type">กะ</label>
+              <select id="shift-editor-type" ref={initialFocusRef} value={shiftTypeId} onChange={(e) => setShiftTypeId(e.target.value)}>
                 {selectableShiftTypes.map((t) => (
-                  <option key={String(t.id)} value={String(t.id)}>
-                    {String(t.code || '')} · {String(t.name || '')}
-                  </option>
+                  <option key={String(t.id)} value={String(t.id)}>{String(t.code || '')} · {String(t.name || '')}</option>
                 ))}
               </select>
             </div>
-
             <div>
-              <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
-                หมายเหตุ
-              </label>
-              <input
-                type="text"
-                value={remark}
-                onChange={(e) => setRemark(e.target.value)}
-                placeholder="Manual batch edit"
-                style={{ width: '100%', padding: '10px 12px', borderRadius: '10px', border: '1px solid #cbd5e1', fontSize: '13px', backgroundColor: '#0f1d2a' }}
-              />
+              <label htmlFor="shift-editor-remark">หมายเหตุ</label>
+              <input id="shift-editor-remark" type="text" value={remark} onChange={(e) => setRemark(e.target.value)} placeholder="หมายเหตุสำหรับกะนี้" />
             </div>
           </div>
-
-          {isInvalidLicense && (
-            <div style={{
-              backgroundColor: '#210d12',
-              border: '1px solid #fecdd3',
-              borderRadius: '12px',
-              padding: '16px',
-              marginBottom: '16px',
-              color: '#9f1239'
-            }}>
-              <div style={{ fontWeight: 700, fontSize: '14px', display: 'flex', alignItems: 'center', gap: '6px', color: '#be123c', marginBottom: '6px' }}>
-                <span>⚠️</span> ไม่สามารถลงกะทำงานตามปกติได้
-              </div>
-              <p style={{ margin: '0 0 12px 0', fontSize: '13px', color: '#881337', lineHeight: '1.5' }}>
-                {warningDetailText}
-              </p>
-
-              {isAdmin ? (
-                <>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 600, fontSize: '13px', color: '#0f172a', cursor: 'pointer', marginBottom: '8px' }}>
-                    <input
-                      type="checkbox"
-                      checked={licenseOverride}
-                      onChange={(e) => setLicenseOverride(e.target.checked)}
-                    />
-                    Admin ยืนยันจัดกะแบบ Manual แม้ใบอนุญาตไม่ผ่าน
-                  </label>
-
-                  {licenseOverride && (
-                    <div style={{ marginTop: '10px' }}>
-                      <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#334155', marginBottom: '4px' }}>
-                        เหตุผล Override *
-                      </label>
-                      <textarea
-                        value={overrideReason}
-                        onChange={(e) => setOverrideReason(e.target.value)}
-                        placeholder="ระบุเหตุผลอย่างน้อย 5 ตัวอักษร"
-                        rows={2}
-                        style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', boxSizing: 'border-box' }}
-                      />
-                    </div>
-                  )}
-                  <small style={{ display: 'block', color: '#be123c', marginTop: '8px', fontSize: '11px', lineHeight: '1.4' }}>
-                    การอนุมัตินี้จะถูกบันทึกในประวัติการใช้งานใบอนุญาต พร้อมชื่อผู้ดูแลระบบและเวลา
-                  </small>
-                </>
-              ) : (
-                <small style={{ color: '#be123c', fontSize: '12px', fontWeight: 700, display: 'block', marginTop: '4px' }}>
-                  * เฉพาะ Admin เท่านั้นที่สามารถ Overrule ใบอนุญาตที่ไม่ผ่านได้
-                </small>
-              )}
-            </div>
-          )}
-
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '20px' }}>
-            <button
-              type="button"
-              onClick={onClose}
-              style={{
-                padding: '9px 18px',
-                borderRadius: '10px',
-                border: '1px solid #cbd5e1',
-                backgroundColor: '#0f1d2a',
-                color: '#334155',
-                fontWeight: 600,
-                fontSize: '13px',
-                cursor: 'pointer'
-              }}
-            >
-              ยกเลิก
-            </button>
-
-            <button
-              type="submit"
-              style={{
-                padding: '9px 20px',
-                borderRadius: '10px',
-                border: 'none',
-                background: 'linear-gradient(135deg, #3b82f6 0%, #6366f1 100%)',
-                color: '#ffffff',
-                fontWeight: 700,
-                fontSize: '13px',
-                cursor: 'pointer',
-                boxShadow: '0 4px 6px -1px rgba(59, 130, 246, 0.4)'
-              }}
-            >
-              เก็บรายการนี้ (ยังไม่บันทึก)
-            </button>
+          {isInvalidLicense && <div className="shift-editor-license-warning" aria-labelledby="shift-editor-license-title">
+            <strong id="shift-editor-license-title">⚠️ ไม่สามารถลงกะทำงานตามปกติได้</strong>
+            <p>{warningDetailText}</p>
+            {isAdmin ? <>
+              <label className="shift-editor-override-confirm" htmlFor="shift-editor-override">
+                <input id="shift-editor-override" type="checkbox" checked={licenseOverride} onChange={(e) => setLicenseOverride(e.target.checked)} aria-describedby="shift-editor-override-help" />
+                Admin ยืนยันจัดกะแบบ Manual แม้ใบอนุญาตไม่ผ่าน
+              </label>
+              <p id="shift-editor-override-help" className="shift-editor-help">หากต้องจัดกะทำงาน ให้ยืนยัน Override และระบุเหตุผลอย่างน้อย 5 ตัวอักษร หรือเลือกกะ OFF / AL</p>
+              {licenseOverride && <div className="shift-editor-override-reason">
+                <label htmlFor="shift-editor-reason">เหตุผล Override (จำเป็น)</label>
+                <textarea id="shift-editor-reason" value={overrideReason} onChange={(e) => setOverrideReason(e.target.value)} placeholder="ระบุเหตุผลอย่างน้อย 5 ตัวอักษร" rows={2} aria-required="true" aria-describedby="shift-editor-override-help" />
+              </div>}
+              <small className="shift-editor-audit-note">เมื่อบันทึกการเปลี่ยนแปลง ระบบจะตรวจสอบสิทธิ์และบันทึก Override ในประวัติ พร้อมชื่อผู้ดูแลระบบและเวลา</small>
+            </> : <p className="shift-editor-help">เฉพาะ Admin เท่านั้นที่ยืนยัน Override ได้ กรุณาเลือกกะ OFF / AL หรือติดต่อ Admin</p>}
+          </div>}
+          <div className="shift-editor-actions">
+            <button type="button" className="shift-editor-cancel" onClick={onClose}>ยกเลิก</button>
+            <button type="submit" className="shift-editor-submit" aria-describedby="shift-editor-draft-help">เก็บรายการนี้ (ยังไม่บันทึก)</button>
           </div>
         </form>
       </section>
@@ -3093,12 +3008,13 @@ function Dashboard() {
   const remarkStr = String(shift.remark || '');
   const isBlocked = ['EXPIRED', 'MISSING', 'INVALID'].includes(licStatus) || remarkStr.toLowerCase().includes('license block') || remarkStr.includes('ใบอนุญาตไม่ผ่าน');
   const isOverridden = licStatus === 'OVERRIDDEN';
-
+  const isManual = shift.source === 'SMS_V3' && !isBlocked;
   return (
     <>
       {Boolean(shift.locked) && <span className="shift-note schedule-lock-marker" role="img" aria-label="กะล็อก" title="กะที่ล็อก">🔒</span>}
-      {isOverridden && <small className="shift-note" style={{ color: '#2563eb', fontWeight: 700, display: 'block' }}>OVERRIDE ⚡</small>}
-      {isBlocked && <small className="shift-note" style={{ color: '#dc2626', fontWeight: 700, display: 'block' }}>License Block</small>}
+      {isManual && <small className="shift-note schedule-manual-label" data-label-type="manual" title="จัดกะผ่านผู้ใช้ในระบบ">MANUAL</small>}
+      {isOverridden && <small className="shift-note" data-label-type="override" style={{ color: '#2563eb', fontWeight: 700, display: 'block' }}>OVERRIDE ⚡</small>}
+      {isBlocked && <small className="shift-note schedule-license-block" data-label-type="license-block" style={{ color: '#dc2626', fontWeight: 700, display: 'block' }}>License Block</small>}
     </>
   );
 })()}</button>{canManage && <button className="calendar-delete" aria-label={`ลบกะ ${day}`} onClick={() => { const key = `${employee.id}_${day}`; setScheduleDrafts((prev) => ({ ...prev, [key]: { action: 'delete', id: String(shift.id), employeeId: String(employee.id), workDate: day } })); }}><SmsIcon name="close" size={14} /></button>}</div> : canManage ? <button className="empty-shift" title="เพิ่มกะ" onClick={(e) => openShiftEditor(undefined, { employeeId: String(employee.id), workDate: day }, e)}>+</button> : <span className="empty-shift read-only">–</span>}</td>; })}</tr>; }) : <tr><td colSpan={dates.length + 1} className="no-rows">ไม่มีพนักงานหรือตารางกะในตัวกรองนี้</td></tr>}</tbody></table></div>}</div>

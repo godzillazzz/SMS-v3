@@ -20,6 +20,23 @@ describe('Shift editor modal viewport isolation', () => {
     expect(mainTsx).toContain('{shiftEditorTarget && (');
   });
 
+  test('scopes presentation to semantic themes without weakening override validation', () => {
+    const modal = mainTsx.slice(mainTsx.indexOf('function ShiftEditorModal('), mainTsx.indexOf('function LeaveManagementPage('));
+    const presentation = modal.slice(modal.indexOf('return createPortal('));
+    expect(presentation).toContain('shift-editor-draft-help');
+    expect(presentation).not.toContain('style={{');
+    expect(modal).toContain('isInvalidLicense && !licenseOverride');
+    expect(modal).toContain('overrideReason.trim().length < 5');
+    expect(mainTsx).toContain('htmlFor="shift-editor-override"');
+    expect(mainTsx).toContain('aria-describedby="shift-editor-override-help"');
+    expect(mainTsx).toContain('event.shiftKey && document.activeElement === first');
+    expect(presentation).not.toContain("color: '#0f172a'");
+    const theme = fs.readFileSync(path.join(__dirname, 'styles/schedule-roster-ux.css'), 'utf8');
+    expect(theme).toContain('[data-theme="dark"] .shift-editor-modal__dialog');
+    expect(theme).toContain('background:var(--shift-surface)');
+    expect(theme).toContain(':focus-visible');
+  });
+
   test('the portal uses a dedicated body-level modal root', () => {
     expect(mainTsx).toContain("document.getElementById('modal-root')");
     expect(mainTsx).toContain("modalRoot.id = 'modal-root'");

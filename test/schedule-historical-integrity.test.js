@@ -47,6 +47,7 @@ test('schedule calendar and approved export resolve historical personnel instead
   const calendarEnd = operations.indexOf("router.post('/schedule/auto-preview'", calendarStart);
   const calendar = operations.slice(calendarStart, calendarEnd);
   assert.match(calendar, /loadCalendarRoster/);
+  assert.match(calendar, /locked: true, source: true, licenseStatus: true, licenseOverride: true, licenseBlockedFromShiftTypeId: true/);
   assert.doesNotMatch(calendar, /filters\.department && \{ department: filters\.department \}/);
   const rosterService = fs.readFileSync(path.join(__dirname, '..', 'src', 'services', 'schedule-roster.service.js'), 'utf8');
   assert.match(rosterService, /createSchedulePersonnelResolver/);
