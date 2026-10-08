@@ -57,7 +57,7 @@ describe('Attendance UX V4 visual acceptance contract', () => {
 
   it('uses the unified Approval Center count instead of a parallel pending-leave poll', () => {
     expect(main).toContain('getApprovalCenterSummary(auth.token!)');
-    expect(main).toContain('window.setInterval(refreshApprovalCount, 60000)');
+    expect(main).toContain('window.setInterval(() => refreshApprovalCount?.refresh(), 60000)');
     expect(main).not.toContain('pendingLeaveCount');
     expect(main).not.toContain('api.leavePendingCount(auth.token)');
   });

@@ -5,19 +5,45 @@ import path from 'node:path';
 const root = path.resolve(__dirname);
 const read = (relative: string) => fs.readFileSync(path.join(root, relative), 'utf8');
 const main = read('main.tsx');
+const countRefresh = read('approval-count-refresh.ts');
 const routing = read('routing.ts');
 const client = read('approval-center-client.ts');
 const page = read('pages/approvals/ApprovalCenterPage.tsx');
 const registrationPanel = read('pages/access-management/RegistrationReviewPanel.tsx');
 const review = read('components/personnel/EmployeeChangeReviewModal.tsx');
 const css = read('styles/approval-center.css');
+const attendanceDevice = read('pages/attendance-device/AttendanceDevicePage.tsx');
+const attendanceSupervisor = read('pages/attendance-supervisor/AttendanceSupervisorPage.tsx');
 const approvalService = read('../../src/services/approval-center.service.js');
 
 describe('Approval Center Command Nexus frontend contracts', () => {
   it('polls Approval Center summary every 60 seconds only while the document is visible', () => {
     expect(main).toContain('shouldPollApprovalCenter(document.visibilityState)');
-    expect(main).toContain('window.setInterval(refreshApprovalCount, 60000)');
+    expect(main).toContain('window.setInterval(() => refreshApprovalCount?.refresh(), 60000)');
     expect(main).toContain("document.addEventListener('visibilitychange', onVisibility)");
+    expect(main).toContain("window.addEventListener('focus', onVisibility)");
+    expect(main).toContain("import('./approval-count-refresh')");
+    expect(main).toContain('if (!active) return');
+    expect(main).toContain('canRefresh: () => shouldPollApprovalCenter(document.visibilityState)');
+  });
+
+  it('uses complete permission-scoped byType counts for the hub and native menus without confirming errors as zero', () => {
+    expect(countRefresh).toContain('approvalCountsFromSummary(result?.summary)');
+    expect(main).toContain('approvalMenuCount(item.id, approvalSummary)');
+    expect(main).toContain("approvalMenuCount('approvalCenter', approvalSummary)");
+    expect(main).toContain('setApprovalSummary(null)');
+    expect(main).toContain('pwaShell || !auth.token');
+    expect(main).toContain('auth.isViewingAs');
+    expect(main).toContain('setApprovalSummary(summary)');
+    expect(main).toContain("setApprovalCountStatus(summary ? 'ready' : 'error')");
+  });
+
+  it('refreshes aggregate and native counts after actions on both Attendance approval menus', () => {
+    expect(main).toContain('onApprovalQueueChanged={() => { setOperationRefresh((value) => value + 1); setApprovalCenterRefresh((value) => value + 1); }}');
+    expect(attendanceDevice).toContain('onApprovalQueueChanged?.()');
+    expect(attendanceSupervisor).toContain('onApprovalQueueChanged?.()');
+    expect(main).toContain('onChanged={() => { setApprovalCenterRefresh((value) => value + 1); setEmployeeRefresh((value) => value + 1); setOperationRefresh((value) => value + 1); }}');
+    expect(main).toContain('setOperationResponse(updated); setApprovalCenterRefresh((value) => value + 1); } catch (reason) { setOperationError(toRequestErrorState(reason, \'อนุมัติตารางไม่สำเร็จ\'))');
   });
 
   it('keeps Approval Center role scope and the existing aggregate API', () => {
