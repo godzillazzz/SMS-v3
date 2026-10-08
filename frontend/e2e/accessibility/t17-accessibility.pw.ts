@@ -61,10 +61,16 @@ async function signInToSyntheticDashboard(page: Page, width: number, height: num
   await page.addInitScript(() => localStorage.setItem('sms-v3-theme', 'light'));
   await mockReadOnlyApis(page);
   await page.goto('/app');
-  await expect(page.locator('#auth-login-form')).toBeVisible();
+  // Wait for the lazy public surface: its Suspense fallback contains the same form
+  // and is replaced when the chunk arrives, which can discard early DOM input.
+  await expect(page.locator('.nexus-public #auth-login-form')).toBeVisible();
   await page.locator('#email').fill(admin.email);
   await page.locator('#password').fill('fixture-password');
+  await expect(page.locator('#email')).toHaveValue(admin.email);
+  await expect(page.locator('#password')).toHaveValue('fixture-password');
+  const loginResponse = page.waitForResponse((response) => new URL(response.url()).pathname === '/api/v1/auth/login' && response.request().method() === 'POST');
   await page.locator('#auth-login-form button[type="submit"]').click();
+  expect((await loginResponse).status()).toBe(200);
   await expect(page.getByRole('heading', { name: 'ภาพรวมระบบ' })).toBeVisible();
   await expect(page.locator('[data-theme="light"]')).toHaveCount(1);
 }

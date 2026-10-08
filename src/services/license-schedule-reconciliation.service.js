@@ -5,16 +5,27 @@ const dateText = (value) => new Date(value).toISOString().slice(0, 10);
 const isWorkingCode = (code) => !['OFF', 'AL'].includes(String(code || '').toUpperCase());
 const legacyBlockedCode = (remark) => /^License Block:\s*\[([A-Z0-9_-]+)\]/i.exec(String(remark || ''))?.[1]?.toUpperCase() || null;
 
-function buildLicenseScheduleReconciliation({ licenses, assignments, shiftTypes }) {
+// ShiftAssignment.workDate is a date-only UTC value; the cutoff is Bangkok's calendar day.
+function bangkokToday(now = new Date()) {
+  const instant = new Date(now);
+  if (!Number.isFinite(instant.getTime())) throw new Error('Valid reconciliation time is required.');
+  const parts = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Bangkok', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(instant);
+  const value = (type) => Number(parts.find((part) => part.type === type).value);
+  return new Date(Date.UTC(value('year'), value('month') - 1, value('day')));
+}
+
+function buildLicenseScheduleReconciliation({ licenses, assignments, shiftTypes, now = new Date() }) {
   const shiftsByCode = new Map(shiftTypes.map((shift) => [String(shift.code).toUpperCase(), shift]));
   const shiftsById = new Map(shiftTypes.map((shift) => [shift.id, shift]));
   const off = shiftsByCode.get('OFF');
   if (!off || off.isActive === false) throw new Error('Active OFF shift type is required for license reconciliation.');
 
   const updates = [];
-  const summary = { blocked: 0, restored: 0, validated: 0, preservedOverrides: 0, skippedLeave: 0, skippedInactiveRestore: 0 };
-  const reconciliationTimestamp = new Date();
+  const summary = { blocked: 0, restored: 0, validated: 0, preservedOverrides: 0, skippedLeave: 0, skippedInactiveRestore: 0, skippedPast: 0 };
+  const reconciliationTimestamp = new Date(now);
+  const cutoff = bangkokToday(reconciliationTimestamp);
   for (const assignment of assignments) {
+    if (dateText(assignment.workDate) < dateText(cutoff)) { summary.skippedPast += 1; continue; }
     const code = String(assignment.shiftType?.code || '').toUpperCase();
     if (code === 'AL') { summary.skippedLeave += 1; continue; }
     if (assignment.licenseOverride) { summary.preservedOverrides += 1; continue; }
@@ -55,13 +66,6 @@ function buildLicenseScheduleReconciliation({ licenses, assignments, shiftTypes 
   return { updates, summary };
 }
 
-async function touchApproval(tx, month, actorUserId) {
-  const latestApproved = await tx.scheduleApproval.findFirst({ where: { month, status: 'APPROVED' }, orderBy: { revision: 'desc' }, select: { revision: true } });
-  const pending = await tx.scheduleApproval.findFirst({ where: { month, status: 'PENDING' }, orderBy: { updatedAt: 'desc' }, select: { id: true } });
-  if (pending) return tx.scheduleApproval.update({ where: { id: pending.id }, data: { changedByLegacyRef: actorUserId, changedAt: new Date(), changeType: 'LICENSE_RECONCILIATION' } });
-  return tx.scheduleApproval.create({ data: { month, status: 'PENDING', revision: (latestApproved?.revision || 0) + 1, changedByLegacyRef: actorUserId, changedAt: new Date(), changeType: 'LICENSE_RECONCILIATION' } });
-}
-
 function groupReconciliationUpdates(updates) {
   const groups = new Map();
   for (const update of updates) {
@@ -73,36 +77,44 @@ function groupReconciliationUpdates(updates) {
   return [...groups.values()];
 }
 
-async function applyReconciliationUpdates(tx, updates) {
+async function applyReconciliationUpdates(tx, updates, cutoff = null) {
   for (const group of groupReconciliationUpdates(updates)) {
-    const result = await tx.shiftAssignment.updateMany({ where: { id: { in: group.ids } }, data: group.data });
+    const result = await tx.shiftAssignment.updateMany({ where: { id: { in: group.ids }, ...(cutoff ? { workDate: { gte: cutoff } } : {}) }, data: group.data });
     if (Number(result?.count) !== group.ids.length) throw new Error('License reconciliation update count mismatch.');
   }
 }
-async function reconcileEmployeeLicenseSchedules(tx, employeeId, actorUserId) {
+async function reconcileEmployeeLicenseSchedules(tx, employeeId, actorUserId, { now = new Date() } = {}) {
+  const cutoff = bangkokToday(now);
   const [licenseAuthority, assignments, shiftTypes] = await Promise.all([
     loadLicenseAuthorityByEmployee(tx, [employeeId]),
-    tx.shiftAssignment.findMany({ where: { employeeId }, include: { shiftType: { select: { code: true } } } }),
+    tx.shiftAssignment.findMany({ where: { employeeId, workDate: { gte: cutoff } }, include: { shiftType: { select: { code: true } } } }),
     tx.shiftType.findMany({ select: { id: true, code: true, startTime: true, endTime: true, hours: true, isActive: true } })
   ]);
-  const plan = buildLicenseScheduleReconciliation({ licenses: licenseAuthority.get(employeeId) || [], assignments, shiftTypes });
-  if (!plan.updates.length) return plan.summary;
-  await applyReconciliationUpdates(tx, plan.updates);
-  const months = [...new Set(plan.updates.map((update) => `${new Date(update.workDate).getUTCFullYear()}-${new Date(update.workDate).getUTCMonth()}`))];
-  for (const key of months) {
-    const [year, month] = key.split('-').map(Number);
-    await touchApproval(tx, new Date(Date.UTC(year, month, 1)), actorUserId);
-  }
-  await audit.log({ actorUserId, action: 'UPDATE', entityType: 'LicenseScheduleReconciliation', entityId: employeeId, metadata: { ...plan.summary, affectedAssignments: plan.updates.length, datesReconciled: [...new Set(plan.updates.map((update) => dateText(update.workDate)))].length } }, tx);
-  return plan.summary;
+  const plan = buildLicenseScheduleReconciliation({ licenses: licenseAuthority.get(employeeId) || [], assignments, shiftTypes, now });
+  const result = { ...plan.summary, affectedAssignments: plan.updates.length };
+  if (!plan.updates.length) return result;
+  await applyReconciliationUpdates(tx, plan.updates, cutoff);
+  const assignmentsById = new Map(assignments.map((assignment) => [assignment.id, assignment]));
+  const fields = ['shiftTypeId', 'startTime', 'endTime', 'hours', 'remark', 'licenseStatus', 'licenseExpiryDate', 'licenseOverride', 'licenseBlockedFromShiftTypeId', 'licenseBlockedFromRemark', 'licenseBlockedAt', 'overrideReason', 'overrideAt'];
+  const beforeRecord = (assignment) => Object.fromEntries(fields.map((key) => [key, assignment[key] ?? null]));
+  // This is a license safety audit, never a manual schedule approval or revision.
+  await audit.log({
+    actorUserId, action: 'UPDATE', entityType: 'LicenseScheduleReconciliation', entityId: employeeId,
+    metadata: {
+      ...result, datesReconciled: [...new Set(plan.updates.map((update) => dateText(update.workDate)))].length,
+      cutoffDate: dateText(cutoff), timeZone: 'Asia/Bangkok', scheduleApprovalChanged: false,
+      changes: plan.updates.map((update) => ({ assignmentId: update.id, workDate: dateText(update.workDate), kind: update.kind, before: beforeRecord(assignmentsById.get(update.id)), after: { ...beforeRecord(assignmentsById.get(update.id)), ...update.data } }))
+    }
+  }, tx);
+  return result;
 }
 
-async function reconcileAllEmployeeLicenseSchedules(prisma) {
+async function reconcileAllEmployeeLicenseSchedules(prisma, { now = new Date() } = {}) {
   return prisma.$transaction(async (tx) => {
     const employees = await tx.employee.findMany({ where: { deletedAt: null, isActive: true }, select: { id: true } });
     const totals = { employees: employees.length, blocked: 0, restored: 0, validated: 0, preservedOverrides: 0, affectedAssignments: 0 };
     for (const employee of employees) {
-      const result = await reconcileEmployeeLicenseSchedules(tx, employee.id, null);
+      const result = await reconcileEmployeeLicenseSchedules(tx, employee.id, null, { now });
       for (const key of ['blocked', 'restored', 'validated', 'preservedOverrides']) totals[key] += Number(result[key] || 0);
       totals.affectedAssignments += Number(result.affectedAssignments || 0);
     }
@@ -110,4 +122,4 @@ async function reconcileAllEmployeeLicenseSchedules(prisma) {
   }, { timeout: 30000 });
 }
 
-module.exports = { buildLicenseScheduleReconciliation, groupReconciliationUpdates, applyReconciliationUpdates, touchApproval, reconcileEmployeeLicenseSchedules, reconcileAllEmployeeLicenseSchedules };
+module.exports = { buildLicenseScheduleReconciliation, groupReconciliationUpdates, applyReconciliationUpdates, bangkokToday, reconcileEmployeeLicenseSchedules, reconcileAllEmployeeLicenseSchedules };
