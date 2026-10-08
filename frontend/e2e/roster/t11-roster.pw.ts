@@ -124,13 +124,18 @@ test('monthly roster keeps classic visible shift times, flat department ordering
 
   const scroll = page.locator('.schedule-grid-scroll');
   const header = grid.locator('thead th').nth(1);
-  await scroll.evaluate((element) => { element.scrollTop = 260; });
+  await expect(header).toHaveCSS('position', 'sticky');
+  await expect(header).toHaveCSS('top', '0px');
+  await scroll.hover({ position: { x: 210, y: 110 } });
+  await page.mouse.wheel(0, 540);
+  await expect.poll(() => scroll.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
   const stickyTop = await page.evaluate(() => {
     const container = document.querySelector<HTMLElement>('.schedule-grid-scroll')!;
     const headerCell = document.querySelector<HTMLElement>('.schedule-grid thead th:nth-child(2)')!;
     return headerCell.getBoundingClientRect().top - container.getBoundingClientRect().top;
   });
   expect(Math.abs(stickyTop)).toBeLessThanOrEqual(2);
+  await expect(header).toBeInViewport();
   await scroll.evaluate((element) => { element.scrollLeft = 280; });
   const stickyLeft = await page.evaluate(() => {
     const container = document.querySelector<HTMLElement>('.schedule-grid-scroll')!;
@@ -153,6 +158,17 @@ test('monthly roster remains usable at 375px with internal horizontal scroll and
   const scroll = page.locator('.schedule-grid-scroll');
   await expect(page.getByRole('button', { name: 'แสดงเวลา' })).toHaveCount(0);
   await expect(grid.locator('thead th.today')).toHaveCount(1);
+  const dateHeader = grid.locator('thead th').nth(1);
+  await expect(dateHeader).toHaveCSS('position', 'sticky');
+  await scroll.hover({ position: { x: 210, y: 110 } });
+  await page.mouse.wheel(0, 520);
+  await expect.poll(() => scroll.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
+  const mobileHeaderOffset = await page.evaluate(() => {
+    const container = document.querySelector<HTMLElement>('.schedule-grid-scroll')!;
+    const headerCell = document.querySelector<HTMLElement>('.schedule-grid thead th:nth-child(2)')!;
+    return headerCell.getBoundingClientRect().top - container.getBoundingClientRect().top;
+  });
+  expect(Math.abs(mobileHeaderOffset)).toBeLessThanOrEqual(2);
   expect(await scroll.evaluate((element) => element.scrollWidth)).toBeGreaterThan(await scroll.evaluate((element) => element.clientWidth));
   await scroll.evaluate((element) => { element.scrollLeft = 280; });
   const stickyLeft = await page.evaluate(() => {
