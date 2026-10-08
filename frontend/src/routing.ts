@@ -197,7 +197,9 @@ export function routeQueryMonth(search = window.location.search): string | undef
 
 export function canViewRoutePage(page: RoutePage, auth: { user?: { role?: string }; isViewingAs: boolean }): boolean {
   if (page === 'approvalCenter') return ['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(auth.user?.role || '') && !auth.isViewingAs;
-  if (page === 'leavePending' || page === 'attendanceSupervisor') return ['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(auth.user?.role || '');
+  if (page === 'approvals') return ['ADMIN', 'SUPERVISOR'].includes(auth.user?.role || '') && !auth.isViewingAs;
+  if (page === 'leavePending') return ['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(auth.user?.role || '') && !auth.isViewingAs;
+  if (page === 'attendanceSupervisor') return ['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(auth.user?.role || '');
   if (page === 'attendanceReport') return auth.user?.role === 'ADMIN';
   if (page === 'audit') return auth.user?.role === 'ADMIN';
   if (page === 'dataQuality') return auth.user?.role === 'ADMIN';

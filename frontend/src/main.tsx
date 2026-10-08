@@ -161,10 +161,12 @@ const navigation: Array<{ label: string; items: Array<{ id: Page; icon: SmsIconN
   ] },
   { label: 'ตารางกะ', items: [
     { id: 'schedule', icon: 'calendar', label: 'ตารางกะรายเดือน' },
+    { id: 'approvals', icon: 'approval', label: 'อนุมัติตารางกะ' },
     { id: 'shiftSetup', icon: 'clock', label: 'รหัสกะและเวลา' }
   ] },
   { label: 'การลา', items: [
     { id: 'leave', icon: 'leave', label: 'คำขอลา' },
+    { id: 'leavePending', icon: 'approval', label: 'อนุมัติคำขอลา' },
     { id: 'leaveHistory', icon: 'history', label: 'ประวัติการลาทั้งหมด' },
     { id: 'quota', icon: 'quota', label: 'โควต้าวันลา' }
   ] },

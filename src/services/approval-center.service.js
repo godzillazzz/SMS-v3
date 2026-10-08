@@ -519,7 +519,7 @@ function createApprovalCenterService({
         type: 'ATTENDANCE_ADJUSTMENT_REQUEST',
         title: 'คำขอปรับปรุงเวลา Attendance',
         status: row.status,
-        sourcePage: 'attendance',
+        sourcePage: 'attendanceSupervisor',
         employee: row.employeeId ? {
           id: row.employeeId,
           employeeCode: row.employeeCode || null,

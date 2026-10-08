@@ -20,7 +20,7 @@ type ApprovalType =
   | 'REGISTRATION_REQUEST'
   | 'USER_ACCESS'
   | 'LEAVE_REQUEST';
-type ApprovalSourcePage = 'employees' | 'licenses' | 'approvals' | 'attendanceDevice' | 'attendance' | 'users' | 'leavePending';
+type ApprovalSourcePage = 'employees' | 'licenses' | 'approvals' | 'attendanceDevice' | 'attendanceSupervisor' | 'users' | 'leavePending';
 type CategoryFilter = 'ALL' | ApprovalType;
 type UrgencyFilter = 'ALL' | 'URGENT' | 'STANDARD';
 
