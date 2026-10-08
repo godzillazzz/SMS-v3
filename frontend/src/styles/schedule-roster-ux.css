@@ -1,6 +1,8 @@
-.schedule-calendar-page .calendar-card>.schedule-grid-scroll{max-height:min(68vh,720px);overflow:auto!important;overscroll-behavior:contain}
-.schedule-calendar-page .schedule-grid thead th{position:sticky;top:0;z-index:5}
-.schedule-calendar-page .schedule-grid thead th.employee-sticky{z-index:8}
+/* Keep the date/day row visible while the user wheels down the roster.
+   The top-left employee heading also stays pinned during horizontal scrolling. */
+.schedule-calendar-page .calendar-card>.schedule-grid-scroll{max-height:min(68vh,720px);overflow:auto!important;overscroll-behavior:contain;position:relative}
+.schedule-calendar-page .schedule-grid thead th{position:sticky!important;top:0!important;z-index:5;background-clip:padding-box}
+.schedule-calendar-page .schedule-grid thead th.employee-sticky{left:0;z-index:8}
 .schedule-calendar-page .schedule-grid--compact :is(th,td):not(.employee-sticky){box-sizing:border-box;width:62px!important;min-width:62px!important;max-width:62px!important;height:58px;padding:3px!important}
 .schedule-calendar-page .schedule-grid--compact .calendar-shift{width:48px;min-width:0;padding:3px}
 .schedule-calendar-page .schedule-grid--compact .calendar-shift b{font-size:12px;line-height:1.1}
