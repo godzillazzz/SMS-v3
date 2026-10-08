@@ -87,40 +87,39 @@ async function openAdminRoster(page: Page, testInfo: TestInfo) {
   await page.locator('#auth-login-form button[type="submit"]').click();
   await expect(page.getByRole('heading', { name: 'ตารางกะรายเดือน' })).toBeVisible();
   await expect(page).toHaveURL(target);
-  await expect(page.locator('.schedule-grid tbody tr:not(.schedule-department-group-row)')).toHaveCount(20);
+  await expect(page.locator('.schedule-grid tbody tr')).toHaveCount(20);
   await page.screenshot({ path: testInfo.outputPath('t11-roster.png'), fullPage: true });
 
   return { fixture, apiMethods };
 }
 
-test('monthly roster is compact by default and offers time, daily count, today, weekend, lock, and sticky controls on desktop', async ({ page }, testInfo) => {
+test('monthly roster keeps classic visible shift times, flat department ordering, today, weekend, lock and sticky controls on desktop', async ({ page }, testInfo) => {
   const errors: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
   await page.setViewportSize({ width: 1366, height: 768 });
   const { fixture, apiMethods } = await openAdminRoster(page, testInfo);
 
   const grid = page.locator('.schedule-grid');
-  await expect(grid).toHaveClass(/schedule-grid--compact/);
+  await expect(grid).not.toHaveClass(/schedule-grid--compact/);
+  await expect(grid.locator('tbody tr')).toHaveCount(20);
+  await expect(grid.locator('.schedule-department-group-row')).toHaveCount(0);
   await expect(grid.locator('.calendar-shift b').first()).toHaveText('D');
-  await expect(grid.locator('.schedule-time').first()).toBeHidden();
+  await expect(grid.locator('.schedule-time').first()).toBeVisible();
   await expect(grid.locator('.schedule-shift-kind')).toHaveCount(0);
   await expect(grid.getByRole('img', { name: 'กะล็อก' }).first()).toBeVisible();
   await expect(grid).not.toContainText('MANUAL');
 
   const todayHeader = grid.locator(`thead th.today`);
   await expect(todayHeader).toHaveCount(1);
-  await expect(todayHeader.locator('.schedule-day-count')).toHaveText('2');
+  await expect(todayHeader.locator('.schedule-day-count')).toHaveCount(0);
   await expect(grid.locator(`tbody td.today`)).toHaveCount(20);
   const weekendHeader = grid.locator('thead th.weekend:not(.today)').first();
   await expect(weekendHeader).toBeVisible();
   expect(await weekendHeader.evaluate((element) => getComputedStyle(element).boxShadow)).not.toBe('none');
   expect(await todayHeader.evaluate((element) => getComputedStyle(element).boxShadow)).not.toBe('none');
-  await expect(page.locator('.schedule-daily-count-note')).toContainText('เฉพาะพนักงานที่แสดงในหน้านี้');
+  await expect(page.locator('.schedule-daily-count-note')).toHaveCount(0);
 
-  const timeToggle = page.getByRole('button', { name: 'แสดงเวลา' });
-  await expect(timeToggle).toHaveAttribute('aria-pressed', 'false');
-  await timeToggle.click();
-  await expect(page.getByRole('button', { name: 'ซ่อนเวลา' })).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByRole('button', { name: 'แสดงเวลา' })).toHaveCount(0);
   await expect(grid.locator('.schedule-time:visible').first()).toContainText('08:00–16:00');
 
   const scroll = page.locator('.schedule-grid-scroll');
@@ -152,7 +151,7 @@ test('monthly roster remains usable at 375px with internal horizontal scroll and
 
   const grid = page.locator('.schedule-grid');
   const scroll = page.locator('.schedule-grid-scroll');
-  await expect(page.getByRole('button', { name: 'แสดงเวลา' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'แสดงเวลา' })).toHaveCount(0);
   await expect(grid.locator('thead th.today')).toHaveCount(1);
   expect(await scroll.evaluate((element) => element.scrollWidth)).toBeGreaterThan(await scroll.evaluate((element) => element.clientWidth));
   await scroll.evaluate((element) => { element.scrollLeft = 280; });
