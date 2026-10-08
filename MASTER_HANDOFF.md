@@ -1,6 +1,40 @@
 # MASTER HANDOFF
 
-## ACTIVE — T17 recovery / exact-head closeout — 8 ตุลาคม 2569
+## ACTIVE — T17 closeout / T19 and T18-T24 verify-first — 8 ตุลาคม 2569
+
+**สถานะ: OPEN.** Current Integration is b10223153b26188c328cbfc56b4eeaee4af6af35 on origin/fix/serverless-database-reliability. T17 is merged. T19 and T18 lack authoritative task scope; T24 has source-level batching evidence but no measured Preview timing or database-region evidence. PLAN.md is absent at this Integration SHA. No Production deployment, promotion, Environment approval, Production data, schema/migration, secret/env, RBAC, authentication, or business-policy mutation occurred.
+
+### T17 — merged and verified
+
+- PR [#525](https://github.com/godzillazzz/SMS-v3/pull/525) merged normally as b10223153b26188c328cbfc56b4eeaee4af6af35. Its final PR head was ea211d48c9f0ec2e45fbdf3db9e779fb9a50b61d on base a41080cb9825e2d1939d17b057ff55bf5ab1d9a2.
+- Exact PR-head CI [run 37715743778](https://github.com/godzillazzz/SMS-v3/actions/runs/37715743778) completed SUCCESS; its Preview runtime health/readiness/CORS step passed. Native Preview dpl_2YrtF3jQUtg3S5neQ1Pgh3S5Br78 was READY in project prj_XwhNUOB2zLSPZ6UgQcfyOKBYJ75s with exact githubCommitSha ea211d48c9f0ec2e45fbdf3db9e779fb9a50b61d and ref codex/t17-a11y-rebuild; read-only health returned 200 and readiness returned 200 / database=ok.
+- Exact merge CI [run 37716078657](https://github.com/godzillazzz/SMS-v3/actions/runs/37716078657) completed SUCCESS on merge SHA b10223153b26188c328cbfc56b4eeaee4af6af35. Its push-triggered Preview runtime step was skipped. Exact-SHA Integration Preview dpl_38Hm1Y3rXVhMtsAUcxDoLSji6SVv is READY in project prj_XwhNUOB2zLSPZ6UgQcfyOKBYJ75s, with exact source SHA b10223153b26188c328cbfc56b4eeaee4af6af35 and ref fix/serverless-database-reliability; read-only health returned 200 and readiness returned 200 / database=ok. CORS passed on the exact PR head but was not separately verified on the merge SHA.
+- Local T17 verification recorded before merge: frontend Vitest 154 files / 916 tests; configured Playwright 19/19; axe serious/critical violations 0 on Login and a synthetic Dashboard; root and frontend npm audit 0; TypeScript/build/bundle guard passed; Lighthouse accessibility 100/100 on those local pages. No Production data was used.
+
+### T19, T18, T24 — current-head audit
+
+- T19 is BLOCKED before implementation: PLAN.md is absent, this handoff contains no T19 scope or acceptance criteria, and repository issue/PR searches returned no T19 record. Required Owner action: provide the authoritative T19 task definition and acceptance criteria.
+- T18 is BLOCKED before implementation for the same missing-plan/scope reason; repository issue/PR searches returned no T18 record. Do not infer its intended behavior.
+- T24 verify-first audit at exact HEAD b10223153b26188c328cbfc56b4eeaee4af6af35 found existing readiness-center batching: the list is capped at 50 employees, uses one employee query with related records and upcoming assignment, batches approval reads by month, and caches default-site resolution per department. Explicit schedule sites are selected with the assignments. The existing test “readiness center batches fifty employees without per-employee DB lookups” asserts zero per-employee employee/shift lookups, one approval batch read, and one site resolution for a 50-person, single-department fixture. A distinct-department workload can still issue one default-site query per department; this workload was not measured.
+- Dashboard source already uses grouped workforce/leave/license aggregates when supported, caps per-request query concurrency at 2, and emits performance_stage timings when request IDs are present. The existing normal-path test asserts 13 mocked operations and peak overlap no greater than 2. Exact merge CI run 37716078657 passed npm test, integration, frontend tests, typecheck, and build.
+- Exact Integration Preview metadata reports function region iad1; database region is UNKNOWN and was not inferred from or retrieved from a secret. A 30-minute runtime-log query scoped to dpl_38Hm1Y3rXVhMtsAUcxDoLSji6SVv found no performance_stage entries. No authenticated dashboard timing run or before/after Preview comparison is available, so T24 remains PARTIAL / VERIFY-FIRST.
+
+### Remaining ordered work and release gate
+
+| Work item | Status | Evidence / remaining gate |
+|---|---|---|
+| T29, T07, T09, T16, T10–T15 | MERGED to Integration | Prior PR, merge, CI, Preview, and task-specific evidence remain in historical sections. |
+| T08 Approval Detail | BLOCKED — Owner/API decision | Do not infer schedule-revision diffs client-side. Owner must choose an authoritative immutable revision-diff/read API or defer the detail. |
+| T17 Accessibility | MERGED | PR #525 / merge b10223153b26188c328cbfc56b4eeaee4af6af35; PR-head CI 37715743778 and merge CI 37716078657 SUCCESS; exact Preview source/READY and health/readiness verified. |
+| T19 | BLOCKED — missing authoritative scope | Owner must provide task definition and acceptance criteria. |
+| T18 | BLOCKED — missing authoritative scope | PLAN.md, issue, PR, or handoff task requirements are absent. |
+| T24 | PARTIAL — verify-first | Readiness/dashboard batching exists in source and passed exact merge CI; distinct-department default-site query fanout, database region, and before/after Preview timing remain unresolved. |
+| T20 | NOT STARTED / SCOPE UNKNOWN | No task scope is recorded; preserve sequence after T19 and T18/T24. |
+| G06.1 Phase 0 | NOT STARTED | Audit only. Roadmap PR #465 merged as b9fcc2259e72e4256ccda7aa23c22a3dcc1ec2ae; preserve its non-biometric-first threat/compatibility boundary. |
+
+Technical Smoke for current Integration SHA b10223153b26188c328cbfc56b4eeaee4af6af35 has not been verified. Current Production canonical/rollback, approved manifest, immutable candidate, Environment protection, and workflow dispatch eligibility were not freshly verified in this checkpoint. Production was not attempted. Do not promote until the ordered batch and every exact-source protected-release gate pass. Keep T08 blocked pending Owner/API decision and never infer schedule revision diffs client-side.
+
+## HISTORICAL — T17 recovery checkpoint before merge — 8 ตุลาคม 2569 (superseded by ACTIVE section above)
 
 **สถานะ: OPEN.** T17 is recovered on its dedicated worktree and PR #525. The old provenance blocker for `a132ac1…` is resolved. After syncing current Integration `a41080c…`, PR #525 was fast-forwarded; its latest verified head `645db469…` passed exact CI and has a matching READY Preview with health/readiness checks passing. The handoff update itself is documentation-only and must pass exact-head checks before merge. Use `origin/fix/serverless-database-reliability` as the only integration source; no `main` use or force-push. No Production deploy/promote/Environment approval or Production data, schema/migration, secret/env, RBAC, authentication, or business-policy change occurred.
 
