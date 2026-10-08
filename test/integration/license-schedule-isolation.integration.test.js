@@ -378,10 +378,11 @@ if (process.env.RUN_INTEGRATION_TESTS !== 'true') {
 
     const storage = createFakeLicenseDocumentStorage();
     const documentService = createLicenseDocumentService({ prisma, storage, audit });
+    const validDocumentPdf = Buffer.from('%PDF-1.7\n% license document fixture\n%%EOF\n');
     const expiringDocument = await documentService.upload({
       licenseId: expiredLicense.id,
       requestUser: { sub: admin.id, role: 'ADMIN' },
-      file: { buffer: Buffer.from('%PDF-1.7\n% license document fixture\n%%EOF\n'), mimetype: 'application/pdf', originalname: 'expired.pdf', size: Buffer.byteLength('%PDF-1.7\n% license document fixture\n%%EOF\n') },
+      file: { buffer: validDocumentPdf, mimetype: 'application/pdf', originalname: 'expired.pdf', size: validDocumentPdf.length },
       input: {
         licenseNumber: 'LN-' + runToken.slice(0, 16) + '-expired',
         proposedStartDate: new Date('2019-01-01'),
@@ -404,7 +405,7 @@ if (process.env.RUN_INTEGRATION_TESTS !== 'true') {
     const pendingRenewal = await documentService.upload({
       licenseId: expiredLicense.id,
       requestUser: { sub: admin.id, role: 'ADMIN' },
-      file: { buffer: Buffer.from('%PDF-1.7\nlicense renewal'), mimetype: 'application/pdf', originalname: 'renewal.pdf', size: 26 },
+      file: { buffer: validDocumentPdf, mimetype: 'application/pdf', originalname: 'renewal.pdf', size: validDocumentPdf.length },
       input: {
         licenseNumber: 'LN-' + runToken.slice(0, 16) + '-renewed',
         proposedStartDate: new Date('2020-01-01'),
