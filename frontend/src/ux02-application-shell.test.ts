@@ -6,8 +6,8 @@ const root = path.resolve(__dirname);
 const read = (relative: string) => fs.readFileSync(path.join(root, relative), 'utf8');
 
 const expectedNavigationIds = [
-  'dashboard', 'employees', 'licenses', 'attendance', 'attendanceSupervisor', 'attendanceDevice', 'schedule', 'shiftSetup', 'leave',
-  'leaveHistory', 'quota', 'approvalCenter', 'rules', 'audit', 'dataQuality', 'systemHealth', 'users', 'reportCenter', 'securitySite', 'settings'
+  'dashboard', 'employees', 'licenses', 'attendance', 'attendanceSupervisor', 'attendanceDevice', 'schedule', 'approvals', 'shiftSetup',
+  'leave', 'leavePending', 'leaveHistory', 'quota', 'approvalCenter', 'rules', 'audit', 'dataQuality', 'systemHealth', 'users', 'reportCenter', 'securitySite', 'settings'
 ];
 
 describe('G04.2 UX-02 application shell contract', () => {
@@ -31,7 +31,8 @@ describe('G04.2 UX-02 application shell contract', () => {
 
   it('keeps role filtering explicit, including Manager access to Approval Center', () => {
     expect(routing).toContain("if (page === 'approvalCenter') return ['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(auth.user?.role || '') && !auth.isViewingAs");
-    expect(routing).toContain("if (page === 'leavePending' || page === 'attendanceSupervisor') return ['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(auth.user?.role || '')");
+    expect(routing).toContain("if (page === 'approvals') return ['ADMIN', 'SUPERVISOR'].includes(auth.user?.role || '') && !auth.isViewingAs");
+    expect(routing).toContain("if (page === 'leavePending') return ['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(auth.user?.role || '') && !auth.isViewingAs");
     expect(routing).toContain("if (page === 'attendanceReport') return auth.user?.role === 'ADMIN'");
     expect(routing).toContain("if (page === 'audit') return auth.user?.role === 'ADMIN'");
     expect(routing).toContain("if (page === 'dataQuality') return auth.user?.role === 'ADMIN'");
