@@ -1,5 +1,23 @@
 # MASTER HANDOFF
 
+## ACTIVE — T19 Dashboard implementation checkpoint — 8 ตุลาคม 2569
+
+**สถานะ: BLOCKED — รอ Owner กำหนด filter contract ของการ์ด Dashboard.** Integration HEAD ที่ตรวจสดคือ `9b57e6e7fe1a1aa9e8a244bc6817b2f57aa8d183` บน `origin/fix/serverless-database-reliability`; `PLAN.md` ไม่มีใน Integration checkout นี้. Scope T19 อ่านจาก Owner-authored PR #521 ซึ่งยัง OPEN / NOT MERGED (head `40f25fb9416308d3c67ff61722969998cdea9cb8`, base เดิม `d2977e351ff1688e1609a8e8e44866f690b5f9ee`) และใช้เป็นหลักฐาน scope เท่านั้น ไม่ใช่ฐานโค้ด.
+
+### T19 — completed locally, acceptance remains blocked
+
+- Scope จาก PR #521: เอา Operational Coverage ออกและย้าย Attention Required ขึ้นด้านบน; แสดงตัวเลขกำลังพล/ลา/ใบอนุญาตเพียงที่เดียว; การ์ดต้องนำทางไปหน้าที่กรองให้ตรงกับตัวเลขโดยใช้ T09 navigation; approval count ต้องใช้ข้อมูล T05.
+- Dedicated worktree `/workspace/SMS-v3/.worktrees/t19-dashboard`, branch `codex/t19-dashboard-20261008`, base `9b57e6e7fe1a1aa9e8a244bc6817b2f57aa8d183`; implementation commit `393ca03d5eaa333fc64670490cc8a7ae9ad26a1e`. กำลังบันทึก handoff ใน commit แยกก่อน push; ยังไม่มี PR. Root checkout ไม่ถูกแก้.
+- Local change ย้าย Action Center ขึ้นก่อน Work Queue/KPI, เอาแถว “ลาวันนี้” ซ้ำออกจาก LeaveSummary, เอายอด 30 วันซ้ำออกจาก LicenseSummary, เอาการ์ด WorkforceOverview ที่ซ้ำออก, และคงการแยกกำลังพลตามกะโดยไม่แสดงยอดรวมซ้ำ. Count ของ approval ยังมาจาก T05 ผ่าน WorkQueueJourney.
+- Evidence: focused frontend 9/9; full frontend 154 files / 916 tests; `npm run build` ผ่าน; bundle guard PASS (main 391,065 bytes, map 151,947 bytes, CSS 699,896/700,000 bytes, 48 JS chunks); `git diff --check` ผ่าน. TypeScript build artifact ถูก restore แล้ว.
+- Browser verification ใช้ Playwright 1.62.1 + system Chromium กับ synthetic fixture ใน Vite dev server (ไม่ใช้บัญชีหรือข้อมูลจริง): 1366×768 และ 375×812, horizontal overflow 0, ไม่มี console/network errors ในรอบสุดท้าย, Action Center อยู่เหนือ Work Queue และ KPI, ปุ่มตัวอย่างเปิด destination `users`. Screenshot อยู่ใน `/tmp/t19-dashboard-desktop.png` และ `/tmp/t19-dashboard-mobile.png`; fixture ถูกลบหลังตรวจ.
+- **Blocker:** source `DashboardAction` มีเพียง `key/title/count/page`; aggregate ไม่มี filter descriptor. T09 `navigate` พาไปหน้าได้ แต่ปลายทางหลายหน้าไม่มี filter จาก query สำหรับสถานะ/วันที่/ประเภทที่ตรงกับตัวเลข และการกรอง client-side บนหน้าที่แบ่งหน้าอาจให้ผลไม่ครบ. จึงยังยืนยัน acceptance “กรองตรงตัวเลข” ไม่ได้ และไม่ได้เดา filter หรือเปลี่ยน API/backend contract.
+- **Owner action:** ระบุ mapping ที่อนุมัติ `metric/action key → destination page + exact route query/filter` สำหรับการ์ดที่เกี่ยวข้อง และยืนยันว่าขยาย filter contract ที่จำเป็นได้หรือไม่. เมื่อได้ mapping จะต่อ implementation และทดสอบใหม่.
+- T19 branch/PR CI และ Preview ยังไม่มี; ไม่มี merge หรือ Production gate ที่เริ่ม. ไม่ได้ deploy/promote/approve Environment หรือแก้ Production data/schema/migration/secret/env/RBAC/auth/business policy.
+- ลำดับถัดไปหลังปิด T19: T18/T24 verify-first → T20 proposal only → G06.1 Phase 0 architecture/threat/compatibility audit only. T08 คง BLOCKED รอ Owner/API decision; ห้ามเดา schedule revision client-side. Production ต้องรอ batch และ gates exact-SHA ตาม governance.
+
+---
+
 ## ACTIVE — T19 scope audit / remediation checkpoint — 8 ตุลาคม 2569
 
 **สถานะ: OPEN.** Current Integration at this checkpoint is d727f5ce01dbefdf06bdb3e8f6b61a27432933fd on origin/fix/serverless-database-reliability. The T19 audit used exact base HEAD d727f5ce01dbefdf06bdb3e8f6b61a27432933fd. T17 is merged. T19 and T18 lack authoritative task scope; T24 has source-level batching evidence but no measured Preview timing or database-region evidence. PLAN.md is absent at this Integration SHA. No Production deployment, promotion, Environment approval, Production data, schema/migration, secret/env, RBAC, authentication, or business-policy mutation occurred.
