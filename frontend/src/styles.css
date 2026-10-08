@@ -2173,7 +2173,7 @@ textarea {
   .topbar-profile > span:last-child { display: grid; gap: 1px; min-width: 0; }
   .topbar-profile b { overflow: hidden; max-width: 120px; font-size: 11px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
   .topbar-profile small { color: var(--sms-text-secondary); font-size: 9px; }
-  .avatar, .drawer-avatar { background: linear-gradient(145deg, #8d7ff3, #5949d8); color: #fff; }
+
   .signout-button { border: 1px solid #e3e7ef; border-radius: 9px; padding: 8px 10px; color: #4f5d74; background: #fff; font-size: 11px; font-weight: 700; }
   .signout-button:hover { color: var(--sms-critical-600); border-color: #f0c5cd; background: #fff8f9; }
 
@@ -2269,27 +2269,27 @@ textarea {
   .detail-drawer-backdrop { position: fixed; z-index: var(--sms-z-drawer); inset: 0; display: flex; justify-content: flex-end; }
   .personnel-detail-drawer { display: flex; width: min(460px, 100%); height: 100%; flex-direction: column; border-left: 1px solid var(--sms-border); background: #fff; box-shadow: -20px 0 45px rgba(7,26,56,.20); animation: sms-drawer-in 180ms ease both; }
   @keyframes sms-drawer-in { from { transform: translateX(24px); opacity: .1; } to { transform: translateX(0); opacity: 1; } }
-  .drawer-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 26px 24px 20px; border-bottom: 1px solid var(--sms-border); }
-  .drawer-personnel-identity { display: flex; min-width: 0; align-items: center; gap: 12px; }
-  .drawer-avatar { display: grid; width: 48px; height: 48px; flex: 0 0 48px; place-items: center; border-radius: 50%; font-size: 15px; font-weight: 750; }
-  .drawer-personnel-identity p { margin: 0 0 3px; color: var(--sms-indigo-600); font-size: 10px; font-weight: 750; letter-spacing: .08em; text-transform: uppercase; }
-  .drawer-personnel-identity h2 { overflow: hidden; margin: 0; color: var(--sms-text); font-size: 20px; font-weight: 750; text-overflow: ellipsis; white-space: nowrap; }
-  .drawer-personnel-identity span:last-child { color: var(--sms-text-secondary); font-size: 11px; }
+
+
+
+
+
+
   .drawer-close { width: 34px; height: 34px; border: 1px solid var(--sms-border); border-radius: 9px; color: var(--sms-text-secondary); background: #fff; font-size: 22px; line-height: 1; }
-  .drawer-tabs { display: flex; gap: 18px; overflow-x: auto; border-bottom: 1px solid var(--sms-border); padding: 0 24px; }
-  .drawer-tabs span { border-bottom: 2px solid transparent; padding: 14px 0 11px; color: var(--sms-text-muted); font-size: 11px; font-weight: 700; white-space: nowrap; }
-  .drawer-tabs span[aria-selected="true"] { border-color: var(--sms-indigo-600); color: var(--sms-indigo-600); }
-  .drawer-tabs span[aria-disabled="true"] { opacity: .7; }
-  .drawer-section { padding: 21px 24px 0; }
-  .drawer-section h3 { margin: 0 0 14px; color: var(--sms-text); font-size: 14px; }
-  .drawer-section dl { margin: 0; }
-  .drawer-section dl > div { display: grid; grid-template-columns: 140px minmax(0,1fr); gap: 12px; padding: 10px 0; border-bottom: 1px solid #edf0f5; }
-  .drawer-section dt { color: var(--sms-text-secondary); font-size: 11px; }
-  .drawer-section dd { min-width: 0; margin: 0; color: var(--sms-text); font-size: 12px; font-weight: 650; overflow-wrap: anywhere; }
-  .drawer-notice { margin: 18px 24px 0; border: 1px solid #e1ddff; border-radius: 11px; padding: 14px; background: #faf9ff; }
-  .drawer-notice h3 { margin-bottom: 4px; color: #4d3fbd; }
-  .drawer-notice p { margin: 0; color: var(--sms-text-secondary); font-size: 11px; line-height: 1.5; }
-  .drawer-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: auto; border-top: 1px solid var(--sms-border); padding: 16px 24px; }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 }
 
 @media screen and (max-width: 1024px) {
@@ -2337,12 +2337,12 @@ textarea {
   .dashboard-greeting-banner { padding: 18px !important; }
   .dashboard-greeting-banner > div:last-child { width: 100%; justify-content: space-between; }
   .personnel-detail-drawer { width: 100%; }
-  .drawer-header { padding: 20px 18px 16px; }
-  .drawer-tabs { padding-inline: 18px; }
-  .drawer-section { padding-inline: 18px; }
-  .drawer-notice { margin-inline: 18px; }
-  .drawer-actions { padding-inline: 18px; }
-  .drawer-section dl > div { grid-template-columns: 112px minmax(0,1fr); }
+
+
+
+
+
+
 }
 
 @media screen and (max-width: 420px) {
@@ -2351,7 +2351,7 @@ textarea {
   .page-heading h1, .empty-pane h1, .settings-heading h1 { font-size: 21px; }
   .dashboard-greeting-banner > div:first-child { align-items: flex-start !important; }
   .dashboard-greeting-banner h1 { font-size: 18px !important; }
-  .drawer-personnel-identity h2 { font-size: 18px; }
+
 }
 
 /* Final semantic overrides keep legacy sizing classes from defining color. */
