@@ -4,16 +4,18 @@ const PREVIEW_HOST = /^sms-v3-staging-git-[a-z0-9-]+-godzillazz\.vercel\.app$/i;
 const UNTRUSTED_ORIGIN = 'https://example.invalid';
 const { automationRequestOptions } = require('../../e2e/helpers/technical-smoke');
 
-function normalizedPreviewOrigin(raw) {
+function normalizedPreviewOrigin(raw, verifiedCommitOrigin) {
   const url = new URL(raw);
-  if (url.protocol !== 'https:' || !PREVIEW_HOST.test(url.hostname) || url.username || url.password || url.pathname !== '/' || url.search || url.hash) {
+  const verifiedCommit = verifiedCommitOrigin === url.origin
+    && /^sms-v3-staging-[a-z0-9]{9}-godzillazz\.vercel\.app$/.test(url.hostname);
+  if (url.protocol !== 'https:' || (!PREVIEW_HOST.test(url.hostname) && !verifiedCommit) || url.username || url.password || url.pathname !== '/' || url.search || url.hash) {
     throw new Error('PREVIEW_URL_NOT_ALLOWED');
   }
   return url.origin;
 }
 
-async function verifyPreviewRuntime({ baseUrl, fetchImpl = globalThis.fetch, env = process.env, log = console.log } = {}) {
-  const origin = normalizedPreviewOrigin(baseUrl || '');
+async function verifyPreviewRuntime({ baseUrl, verifiedCommitOrigin, fetchImpl = globalThis.fetch, env = process.env, log = console.log } = {}) {
+  const origin = normalizedPreviewOrigin(baseUrl || '', verifiedCommitOrigin);
   if (typeof fetchImpl !== 'function') throw new Error('FETCH_UNAVAILABLE');
   if (!env.VERCEL_AUTOMATION_BYPASS_SECRET) throw new Error('VERCEL_AUTOMATION_BYPASS_SECRET_MISSING');
   const withPreviewBypass = (options) => automationRequestOptions(options, env, origin, origin);

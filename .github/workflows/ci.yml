@@ -23,6 +23,7 @@ on:
 
 permissions:
   contents: read
+  deployments: read
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
@@ -143,7 +144,9 @@ jobs:
         shell: bash
         env:
           VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+          GITHUB_TOKEN: ${{ github.token }}
+          EXPECTED_PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          EXPECTED_PR_HEAD_REF: ${{ github.head_ref }}
         run: |
           set -euo pipefail
-          branch="${GITHUB_HEAD_REF//\//-}"
-          PREVIEW_BASE_URL="https://sms-v3-staging-git-${branch}-godzillazz.vercel.app" node scripts/ci/verify-preview-runtime.js
+          node scripts/ci/verify-integration-pr-preview.js
