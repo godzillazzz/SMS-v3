@@ -24,8 +24,10 @@ describe('T28 user-visible cleanup', () => {
   it('keeps the approval count unset until a summary value is received', () => {
     const main = read('./main.tsx');
     const dashboard = read('./pages/dashboard/DashboardPage.tsx');
+    const workQueue = read('./components/dashboard/WorkQueueJourney.tsx');
     expect(main).toContain('useState<number | null>(null)');
     expect(main).toContain('setPendingApprovalCount(null)');
-    expect(dashboard).toContain('pendingApprovalCount != null && pendingApprovalCount > 0');
+    expect(dashboard).toContain('pendingApprovalCount={pendingApprovalCount}');
+    expect(workQueue).toMatch(/typeof pendingApprovalCount\s*===\s*['"]number['"].*pendingApprovalCount\s*>\s*0/);
   });
 });

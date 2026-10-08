@@ -11,20 +11,25 @@ const actions = read('components/dashboard/AttentionNeededCard.tsx');
 const licenses = read('components/dashboard/LicenseSummaryCard.tsx');
 const filters = read('components/dashboard/DashboardFilterBar.tsx');
 const today = read('components/dashboard/TodayOperationsCard.tsx');
+const workQueue = read('components/dashboard/WorkQueueJourney.tsx');
 const recent = read('components/dashboard/RecentActivityCard.tsx');
 const styles = read('styles/dashboard.css');
 
 describe('executive dashboard contract', () => {
   it('renders real summary fields for KPI, action, license, leave, and activity widgets', () => {
-    for (const field of ['workingToday', 'leaveToday', 'pendingLicenseDocuments', 'notScheduledToday', 'licenseSummary', 'leaveSummary', 'leaveOverview', 'licenseOverview', 'todayOperations', 'actionRequired', 'recentActivity', 'expiringLicenseDetails']) expect(page).toContain(field);
+    for (const field of ['licenseSummary', 'leaveSummary', 'leaveOverview', 'licenseOverview', 'todayOperations', 'actionRequired', 'recentActivity', 'expiringLicenseDetails']) expect(page).toContain(field);
     expect(page).toContain('canAdmin');
     expect(metrics).toContain('onNavigate');
     for (const label of ['กำลังปฏิบัติงาน', 'ลาวันนี้', 'รออนุมัติ', 'ต้องติดตาม']) expect(metrics).toContain(label);
     expect(metrics).toContain('dashboard-secondary-metrics');
-    expect(page).toContain('leaveToday');
-    expect(page).toContain('pendingApprovalCount != null && pendingApprovalCount > 0');
+    expect(workQueue).toContain('pendingApprovalCount');
     expect(page).not.toContain('summary.pendingLeaves');
     expect(page).toContain('dashboard-command-grid');
+    expect(page.indexOf('\n    <AttentionNeededCard')).toBeLessThan(page.indexOf('nexus-legacy-data'));
+    expect(page.indexOf('\n    <AttentionNeededCard')).toBeLessThan(page.indexOf('nexus-kpis'));
+    expect(page).toContain('nexus-kpis');
+    expect(page).not.toContain('nexus-readiness');
+    expect(page).not.toContain('Operational Coverage');
     expect(actions).toContain('rows');
     expect(actions).toContain('ดูทั้งหมด');
     expect(actions).toContain('หมดอายุแล้ว');
@@ -34,6 +39,12 @@ describe('executive dashboard contract', () => {
     expect(filters).toContain('type="month"');
     expect(today).toContain('byShift');
     expect(today).toContain('dashboard-today-highlight');
+    expect(today).not.toContain('operations.totalScheduled');
+    expect(today).not.toContain("operations.onDuty");
+    expect(today).not.toContain("operations.onLeave");
+    expect(page).not.toContain('WorkforceOverviewCard');
+    expect(licenses).not.toContain('expiringWithin30');
+    expect(page).toContain("'pendingLeaves'].includes(row.key)");
   });
 
   it('routes the authenticated Dashboard page to the executive component', () => {

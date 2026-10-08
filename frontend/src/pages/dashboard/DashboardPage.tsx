@@ -1,9 +1,7 @@
 import { SmsIcon } from '../../components/SmsIcon';
 import { DashboardFilterBar } from '../../components/dashboard/DashboardFilterBar';
-import { WorkforceOverviewCard } from '../../components/dashboard/WorkforceOverviewCard';
 import { TodayOperationsCard } from '../../components/dashboard/TodayOperationsCard';
 import { AttentionNeededCard } from '../../components/dashboard/AttentionNeededCard';
-import { RecentActivityCard } from '../../components/dashboard/RecentActivityCard';
 import { QuickActionsCard } from '../../components/dashboard/QuickActionsCard';
 import { WorkQueueJourney } from '../../components/dashboard/WorkQueueJourney';
 import { DataSyncStatusCard } from '../../components/dashboard/DataSyncStatusCard';
@@ -23,9 +21,6 @@ export function DashboardPage({ summary, loading, error, user, canManage, filter
   const leave = asNumber(summary.leaveToday);
   const expiring = asNumber(summary.expiringLicenses);
   // Keep the established dashboard data contract intact while presenting it through the Command Nexus shell.
-  const pendingLicenseDocuments = asNumber(summary.pendingLicenseDocuments);
-  const notScheduledToday = asNumber(summary.notScheduledToday);
-  const monthShifts = asNumber(summary.monthShifts);
   const licenseSummary = summary.licenseSummary && typeof summary.licenseSummary === 'object' ? summary.licenseSummary as Record<string, unknown> : {};
   const leaveSummary = summary.leaveSummary && typeof summary.leaveSummary === 'object' ? summary.leaveSummary as Record<string, unknown> : {};
   const leaveOverview = summary.leaveOverview && typeof summary.leaveOverview === 'object' ? summary.leaveOverview as Record<string, unknown> : leaveSummary;
@@ -36,6 +31,7 @@ export function DashboardPage({ summary, loading, error, user, canManage, filter
   const departments = Array.isArray(context.departments) ? context.departments.map(String) : [];
   const canAdmin = user?.role === 'ADMIN';
   const actions = Array.isArray(summary.actionRequired) ? summary.actionRequired as DashboardAction[] : [];
+  const attentionActions = actions.filter((row) => !['licensePending', 'licenseExpired', 'licenseExpiring', 'missingSchedule', 'unmatchedQuota', 'pendingLeaves'].includes(row.key));
   const activities = Array.isArray(summary.recentActivity) ? summary.recentActivity as DashboardActivity[] : [];
   const generatedAt = typeof summary.generatedAt === 'string' ? summary.generatedAt : undefined;
   const syncTime = generatedAt ? new Intl.DateTimeFormat('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit' }).format(new Date(generatedAt)) : '—';
@@ -50,15 +46,16 @@ export function DashboardPage({ summary, loading, error, user, canManage, filter
 
     <DashboardFilterBar filters={filters} departments={departments} role={user?.role} loading={loading} onChange={onFiltersChange} />
 
+    <AttentionNeededCard rows={attentionActions} expiringLicenses={expiringLicenseDetails} loading={loading} onNavigate={onNavigate} />
+
     <WorkQueueJourney canManage={canManage} pendingApprovalCount={pendingApprovalCount} onOpenApprovalCenter={onOpenApprovalCenter} onNavigate={onNavigate} />
 
     {error ? <div className="nexus-command__alert dashboard-data-error" role="alert"><strong>ข้อมูลไม่พร้อมใช้งาน</strong><span>โหลดภาพรวมไม่สำเร็จ ระบบไม่สร้างข้อมูลแทน</span><RequestErrorReference requestId={typeof error === 'string' ? undefined : error?.requestId} /></div> : partialErrors.length > 0 ? <div className="nexus-command__alert dashboard-data-warning" role="status"><strong>ข้อมูลบางส่วนไม่พร้อม</strong><span>ข้อมูลพร้อมแสดงตามสิทธิ์</span></div> : null}
 
     <section className="nexus-command__grid dashboard-command-grid">
       <article className="nexus-stream nexus-panel">
-        <header><div><p className="nexus-kicker">รายการสำคัญ</p><h2>รายการที่ต้องดำเนินการ</h2></div><b>{actions.length}</b></header>
-        <div className="nexus-stream__list">{loading ? <div className="nexus-loading">กำลังอ่านข้อมูล…</div> : actions.length ? actions.slice(0,5).map((row, index) => <div className="nexus-stream__item" key={String((row as any).id || index)}><span className="nexus-stream__pulse"/><div><strong>{String((row as any).title || (row as any).label || (row as any).type || 'รายการที่ต้องตรวจสอบ')}</strong><small>{String((row as any).description || (row as any).detail || 'เปิดดูรายละเอียด')}</small></div><em>{String((row as any).count || '')}</em></div>) : <div className="nexus-clear"><SmsIcon name="check" size={28}/><strong>ไม่มีรายการค้าง</strong><span>ไม่มีงานเร่งด่วน</span></div>}</div>
-        {canManage && <button className="nexus-stream__cta dashboard-approval-alert" type="button" onClick={() => onOpenApprovalCenter?.()}>เปิดศูนย์อนุมัติ {pendingApprovalCount != null && pendingApprovalCount > 0 && <span>{pendingApprovalCount > 99 ? '99+' : pendingApprovalCount}</span>}</button>}
+        <header><div><p className="nexus-kicker">รายการสำคัญ</p><h2>รายการที่ต้องดำเนินการ</h2></div></header>
+        <div className="nexus-stream__list">{loading ? <div className="nexus-loading">กำลังอ่านข้อมูล…</div> : attentionActions.length ? attentionActions.slice(0,5).map((row) => <button type="button" className="nexus-stream__item" key={row.key} onClick={() => onNavigate(row.page)} aria-label={row.title}><span className="nexus-stream__pulse"/><div><strong>{row.title}</strong><small>{row.severity === 'urgent' ? 'เร่งดำเนินการ' : row.severity === 'warning' ? 'ติดตามตามกำหนด' : 'ตรวจสอบต่อได้ทันที'}</small></div><i aria-hidden="true">›</i></button>) : <div className="nexus-clear"><SmsIcon name="check" size={28}/><strong>ไม่มีรายการค้าง</strong><span>ไม่มีงานเร่งด่วน</span></div>}</div>
       </article>
     </section>
 
@@ -71,14 +68,13 @@ export function DashboardPage({ summary, loading, error, user, canManage, filter
 
     <section className="nexus-legacy-data" aria-label="รายละเอียด">
       <div className="nexus-section-heading"><div><p className="nexus-kicker">ข้อมูลที่ตรวจสอบแล้ว</p><h2>ข้อมูลปฏิบัติการ</h2></div><span>ข้อมูลจากระบบ</span></div>
-      <div className="dashboard-command-grid dashboard-primary-grid"><AttentionNeededCard rows={actions} expiringLicenses={expiringLicenseDetails} loading={loading} onNavigate={onNavigate} /><TodayOperationsCard operations={todayOperations} totalEmployees={total} activeEmployees={active} loading={loading} onNavigate={onNavigate} /></div>
+      <div className="dashboard-command-grid dashboard-primary-grid"><TodayOperationsCard operations={todayOperations} loading={loading} onNavigate={onNavigate} /></div>
       <QuickActionsCard canManage={canManage} onNavigate={onNavigate} />
-      <div className="dashboard-secondary-grid"><WorkforceOverviewCard totalEmployees={total} activeEmployees={active} workingToday={asNumber(summary.workingToday)} notScheduledToday={notScheduledToday} monthShifts={monthShifts} loading={loading} onNavigate={onNavigate} /><LeaveSummaryCard summary={leaveOverview} loading={loading} canManage={canManage} canAdmin={canAdmin} onNavigate={onNavigate} /><LicenseSummaryCard summary={licenseSummary} overview={licenseOverview} expiring={expiring} loading={loading} onNavigate={onNavigate} /></div>
-      <div className="dashboard-tertiary-grid"><RecentActivityCard activities={activities} /><DataSyncStatusCard generatedAt={generatedAt} /></div>
+      <div className="dashboard-secondary-grid"><LeaveSummaryCard summary={leaveOverview} loading={loading} canManage={canManage} canAdmin={canAdmin} onNavigate={onNavigate} /><LicenseSummaryCard summary={licenseSummary} overview={licenseOverview} loading={loading} onNavigate={onNavigate} /></div>
+      <div className="dashboard-tertiary-grid"><DataSyncStatusCard generatedAt={generatedAt} /></div>
     </section>
 
     <section className="nexus-lower-grid">
-      <article className="nexus-panel nexus-readiness"><header><div><p className="nexus-kicker">ความพร้อมกำลังพล</p><h2>พนักงานและตารางกะ</h2></div><button onClick={() => onNavigate('schedule')}>ดูตารางกะ ↗</button></header><div className="nexus-readiness__meter"><span style={{width:`${total ? Math.min(100,active/total*100) : 0}%`}}/></div><div className="nexus-readiness__stats"><span><b>{numberText(total)}</b>ทั้งหมด</span><span><b>{numberText(active)}</b>ปฏิบัติงาน</span><span><b>{numberText(onDuty)}</b>ทำงานวันนี้</span></div></article>
       <article className="nexus-panel nexus-activity"><header><div><p className="nexus-kicker">กิจกรรมที่บันทึก</p><h2>กิจกรรมล่าสุด</h2></div><span className="nexus-state">อ่านอย่างเดียว</span></header><div>{activities.length ? activities.slice(0,4).map((row,index)=><p key={String((row as any).id||index)}><i/><span><strong>{String((row as any).title || (row as any).action || 'กิจกรรมในระบบ')}</strong><small>{String((row as any).description || (row as any).detail || '')}</small></span></p>) : <p className="nexus-activity__empty"><span><strong>ไม่มีกิจกรรมล่าสุด</strong><small>ไม่มีกิจกรรมจากข้อมูลปัจจุบัน</small></span></p>}</div></article>
     </section>
   </section>;
