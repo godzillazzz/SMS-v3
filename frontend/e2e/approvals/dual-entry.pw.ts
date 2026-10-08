@@ -52,7 +52,7 @@ test('Supervisor can open both native approval queues from the mobile drawer', a
 test('Manager retains leave review while schedule review stays limited to existing reviewer roles', async ({ page }) => {
   await page.setViewportSize({ width: 1366, height: 768 });
   await signIn(page, '/app/leave/approvals', 'MANAGER');
+  await expect(page.getByRole('heading', { name: 'อนุมัติคำขอลา' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'อนุมัติคำขอลา' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'อนุมัติตารางกะ' })).toHaveCount(0);
-  await expect(page.getByRole('heading', { name: 'อนุมัติคำขอลา' })).toBeVisible();
 });
