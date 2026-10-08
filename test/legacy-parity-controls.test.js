@@ -39,12 +39,13 @@ test('Manager account approval is constrained to Viewer and sensitive settings s
 
 test('legacy navigation and four-role model are represented in the frontend', () => {
   const navigationBlock = frontend.match(/const navigation:[\s\S]*?function AuthProvider/)?.[0] || '';
-  for (const label of ['ภาพรวม', 'ข้อมูลพนักงาน', 'ใบอนุญาต รปภ.', 'ตารางกะรายเดือน', 'รหัสกะและเวลา', 'คำขอลา', 'โควต้าวันลา', 'กฎการทำงาน', 'บันทึกการใช้งานระบบ', 'ผู้ใช้และสิทธิ์', 'รายงานและวิเคราะห์', 'ตั้งค่าระบบ']) {
+  for (const label of ['ภาพรวม', 'ข้อมูลพนักงาน', 'ใบอนุญาต รปภ.', 'ตารางกะรายเดือน', 'อนุมัติตารางกะ', 'รหัสกะและเวลา', 'คำขอลา', 'อนุมัติคำขอลา', 'โควต้าวันลา', 'กฎการทำงาน', 'บันทึกการใช้งานระบบ', 'ผู้ใช้และสิทธิ์', 'รายงานและวิเคราะห์', 'ตั้งค่าระบบ']) {
     assert.ok(navigationBlock.includes(`label: '${label}'`), label);
   }
   assert.doesNotMatch(navigationBlock, /label: 'รายงานและ Export'/);
   assert.doesNotMatch(navigationBlock, /label: 'รายงานผู้บริหาร'/);
-  assert.doesNotMatch(navigationBlock, /label: 'อนุมัติตารางกะ'/);
+  assert.match(navigationBlock, /id: 'approvals', icon: 'approval', label: 'อนุมัติตารางกะ'/);
+  assert.match(navigationBlock, /id: 'leavePending', icon: 'approval', label: 'อนุมัติคำขอลา'/);
   assert.match(frontend, /<aside id="app-navigation-drawer"[\s\S]*?<nav className="nav-menu"[\s\S]*?visibleNavigation\.map/);
   assert.match(frontend, /className="mobile-menu-button"[\s\S]*?aria-controls="app-navigation-drawer"[\s\S]*?setMobileMenuOpen\(true\)/);
   assert.match(frontend, /const visibleNavigation = navigation[\s\S]*?section\.items\.filter\(\(item\) => canViewPage\(item\.id\)\)/);
