@@ -95,7 +95,7 @@ export function AwardPublicExperience({ showLanding, renderLogo, accessContent, 
 
       <header className="nexus-nav">
         <div className="nexus-shell nexus-nav__inner">
-          <a className="nexus-brand" href="#overview" aria-label="SMS Security Management System">
+          <a className="nexus-brand" href="#overview">
             <span className="nexus-brand__mark">{renderLogo()}</span>
             <span className="nexus-brand__copy"><strong>SMS</strong><small>Security Management System</small></span>
           </a>
@@ -108,7 +108,7 @@ export function AwardPublicExperience({ showLanding, renderLogo, accessContent, 
         </div>
       </header>
 
-      <main className="nexus-public__main">
+      <div className="nexus-public__main">
         <section className="nexus-hero" id="overview">
           <div className="nexus-hero__rail nexus-hero__rail--left" aria-hidden="true"><span>SMS / SECURITY OPERATIONS</span><b>04</b></div>
           <div className="nexus-hero__rail nexus-hero__rail--right" aria-hidden="true"><span>ZERO TRUST / ACTIVE</span><b>TH-BKK</b></div>
@@ -209,7 +209,7 @@ export function AwardPublicExperience({ showLanding, renderLogo, accessContent, 
         </section>
         {accessContent && <div className="nexus-public__access">{accessContent}</div>}
 
-      </main>
+      </div>
     </div>
   );
 }
