@@ -1,5 +1,42 @@
 # MASTER HANDOFF
 
+## ACTIVE — T18/T24 verify-first checkpoint — 8 ตุลาคม 2569
+
+**สถานะ: T18 BLOCKED รอข้อมูล route latency ปัจจุบัน; T24 PARTIAL / VERIFY-FIRST.** ส่วนนี้ supersede สถานะ ACTIVE เก่าด้านล่าง. Integration SHA ที่ตรวจสดคือ `9b57e6e7fe1a1aa9e8a244bc6817b2f57aa8d183` บน `origin/fix/serverless-database-reliability`. `PLAN.md` ไม่มีใน Integration tree; ใช้เฉพาะแผน Owner ใน PR #521 ซึ่งยัง OPEN / NOT MERGED, head `40f25fb9416308d3c67ff61722969998cdea9cb8`, เป็นข้อกำหนด ไม่ใช่ฐานโค้ด.
+
+### T19 recovery / closeout
+
+- PR [#530](https://github.com/godzillazzz/SMS-v3/pull/530) ยัง OPEN / DRAFT / NOT MERGED; head `babf948d5d1979c01575e8db2f5515980654a892`, base `9b57e6e7fe1a1aa9e8a244bc6817b2f57aa8d183`.
+- Exact-head CI [run 37721998095](https://github.com/godzillazzz/SMS-v3/actions/runs/37721998095) SUCCESS. Native Preview `dpl_Gmxv275TyCgpmsHx8w7XHhBUar8Z` is READY in project `prj_XwhNUOB2zLSPZ6UgQcfyOKBYJ75s`, exact Git SHA/ref match (`codex/t19-dashboard-20261008`); CI Preview health/readiness/CORS step passed. Read-only `/api/v1/health` returned 200; `/api/v1/ready` returned 200 / `database=ok`.
+- T19 acceptance remains BLOCKED: Owner must provide the approved `metric/action key → destination + exact route query/filter` mapping and confirm whether filter/API-contract changes are in scope. No filters are inferred; PR remains draft. Local frontend/build/browser evidence is recorded in PR #530. No Production release or mutation occurred.
+
+### T18/T24 scope and evidence at exact Integration SHA
+
+- Owner plan T18 requires current top-10 route latency samples, route-level N+1/pagination/index/cold-start/region review, and before/after results (p95 target <1,500 ms); adding an index or migration requires approval. T24's owner plan gives older Production observations and targets (`supervisor/daily` <5 s, the other listed endpoints <3 s on Preview sharing Production's DB region), but those observations are historical, not a current baseline.
+- Exact Integration CI [run 37718184394](https://github.com/godzillazzz/SMS-v3/actions/runs/37718184394) SUCCESS on `9b57e6e7fe1a1aa9e8a244bc6817b2f57aa8d183`; `npm test`, integration tests, frontend tests, and production build passed. Its push-triggered Preview runtime step was SKIPPED. Native Integration Preview `dpl_64S7PBWQmMcspkGisGfPitnEQ2bV` is READY, project `prj_XwhNUOB2zLSPZ6UgQcfyOKBYJ75s`, exact Git SHA/ref match (`fix/serverless-database-reliability`), URL `https://sms-v3-staging-ig28we8aq-godzillazz.vercel.app`. Read-only health returned 200 and readiness returned 200 / `database=ok`. Technical Smoke was not run on this SHA.
+- The `/api/v1/system-health` route requires authenticated ADMIN authority. No authorized ADMIN session or current redacted route-sample export was available, so the current top ten routes, p50/p95/max, 5xx rate, and Production timings remain UNKNOWN; no Production endpoint or data was queried. The exact Preview's function region is `iad1`; `vercel.json` does not pin a region. The database region is UNKNOWN and was not inferred from or read from any secret. The Owner plan's earlier `sin1` observation is not current evidence.
+- Read-only runtime-log query for the exact Preview, `performance_stage`, last 30 minutes returned no matching logs. A wider one-hour query failed because the available Vercel log retention rejected that window; it is not evidence that no logs exist.
+- Source/test audit found existing T24 batching: `supervisor/daily` loads assignments with relations, batches leave and correction reads, hydrates policy events in bulk, bulk-loads actual sites, and caches default-site resolution by department. The existing 12-assignment test asserts one policy hydration query and one bulk actual-site query; distinct-department default-site load is not measured.
+- Readiness center caps at 50 employees, selects related employee/schedule data in one employee query, batches approval rows by assignment month, and caches default-site resolution by department. Its existing 50-employee/single-department test asserts no per-employee employee/shift lookup, one approval batch read, and one site resolution. Distinct-department load is not covered.
+- Dashboard uses grouped aggregates where available and caps database-query concurrency at two; its existing normal-path test asserts 13 mocked operations and peak concurrency ≤2. Approval summary also caps its query workers at two, and the badge polls every 60 seconds only while the document is visible. These source/test facts do not prove endpoint latency against current data.
+- T24 remains PARTIAL: no current authenticated Preview timings or before/after comparison, no distinct-department workload measurement, and no DB-region evidence. No index/schema change is justified by the available measurements; no such change was made.
+
+### Ordered work / release gate
+
+| Item | Status | Remaining gate |
+|---|---|---|
+| T17 | MERGED | PR #525 / merge `b10223153b26188c328cbfc56b4eeaee4af6af35`; closeout evidence in prior handoff. |
+| T19 | BLOCKED — Owner decision | Approved exact metric-to-filter mapping and filter-contract scope; PR #530 stays draft. |
+| T18 | BLOCKED — current telemetry | Authorized, redacted current System Health route samples to identify the actual top ten routes. |
+| T24 | PARTIAL / VERIFY-FIRST | Current Preview measurements, distinct-department workload evidence, and Owner decision before any region/environment/index change. |
+| T20 | NEXT — proposal only | Owner plan says propose E2E coverage before implementing workflows; no test dependency or flow was added here. |
+| G06.1 Phase 0 | NOT STARTED | Architecture/threat/compatibility audit only after T20. |
+| T08 | BLOCKED — Owner/API decision | Never infer schedule revision diffs client-side. |
+
+No Production deploy/promote/Environment approval, Production data/schema/migration/secret/env/RBAC/auth/business-policy mutation, or Technical Smoke occurred in this checkpoint. Do not attempt Production until the ordered batch and all exact-SHA release gates pass.
+
+---
+
 ## ACTIVE — T19 scope audit / remediation checkpoint — 8 ตุลาคม 2569
 
 **สถานะ: OPEN.** Current Integration at this checkpoint is d727f5ce01dbefdf06bdb3e8f6b61a27432933fd on origin/fix/serverless-database-reliability. The T19 audit used exact base HEAD d727f5ce01dbefdf06bdb3e8f6b61a27432933fd. T17 is merged. T19 and T18 lack authoritative task scope; T24 has source-level batching evidence but no measured Preview timing or database-region evidence. PLAN.md is absent at this Integration SHA. No Production deployment, promotion, Environment approval, Production data, schema/migration, secret/env, RBAC, authentication, or business-policy mutation occurred.
