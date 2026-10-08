@@ -68,6 +68,8 @@ function inspectDispatchPage(response, sha) {
   requireTrue(SHA.test(sha), 'Invalid Control SHA');
   requireTrue(Array.isArray(response?.workflow_runs), 'Unable to enumerate existing Production runs');
   requireTrue(Number.isInteger(response.total_count) && response.total_count >= 0, 'Invalid Production run count');
+  const active = response.workflow_runs.some(run => run.status !== 'completed');
+  requireTrue(!active, 'Another Production workflow run is still active');
   const duplicate = response.workflow_runs.some(run =>
     run.event === 'workflow_dispatch' && run.head_sha === sha);
   requireTrue(!duplicate, 'A Production dispatch already exists for this Control SHA');
