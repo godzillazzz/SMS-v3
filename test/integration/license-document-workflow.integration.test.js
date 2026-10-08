@@ -16,7 +16,6 @@ if (process.env.RUN_INTEGRATION_TESTS !== 'true') {
   const app = require('../../src/app');
   const { accessTokenFor } = require('../../src/services/auth.service');
   const audit = require('../../src/services/audit.service');
-  const { reconcileEmployeeLicenseSchedules } = require('../../src/services/license-schedule-reconciliation.service');
   const { createLicenseDocumentService } = require('../../src/services/license-document.service');
   const { expireDueLicenseDocuments } = require('../../src/services/license-document-retention.service');
   const { createFakeLicenseDocumentStorage } = require('../support/fake-license-document-storage');
@@ -51,7 +50,7 @@ if (process.env.RUN_INTEGRATION_TESTS !== 'true') {
     const license = await prisma.employeeLicense.create({ data: { legacyLicenseId: `v3:${marker}`, employeeId: employee.id, licenseType: 'Security Guard', licenseNumber: `LN-${marker}`, issueDate: new Date('2026-01-01'), expiryDate: new Date('2026-12-31'), status: 'Active' } });
     created.licenseIds.push(license.id);
     const storage = createFakeLicenseDocumentStorage();
-    const service = createLicenseDocumentService({ prisma, storage, audit, reconcileSchedules: reconcileEmployeeLicenseSchedules });
+    const service = createLicenseDocumentService({ prisma, storage, audit });
     return { marker, employee, user, managerUser, license, storage, service, requestUser: { sub: user.id, role: 'ADMIN' }, managerRequestUser: { sub: managerUser.id, role: 'MANAGER' } };
   }
 
@@ -117,7 +116,7 @@ if (process.env.RUN_INTEGRATION_TESTS !== 'true') {
     const context = await fixture('rollback');
     const pending = await context.service.upload({ licenseId: context.license.id, requestUser: context.requestUser, file: pdf, input: { licenseNumber: `LN-${context.marker}-1`, proposedStartDate: new Date('2027-01-01'), proposedExpiryDate: new Date('2027-12-31') } });
     created.documentIds.push(pending.id);
-    const failingService = createLicenseDocumentService({ prisma, storage: context.storage, audit: { log: async () => { throw new Error('injected audit failure'); } }, reconcileSchedules: reconcileEmployeeLicenseSchedules });
+    const failingService = createLicenseDocumentService({ prisma, storage: context.storage, audit: { log: async () => { throw new Error('injected audit failure'); } } });
     await assert.rejects(() => failingService.approve({ id: pending.id, requestUser: context.requestUser }), /injected audit failure/);
     const stored = await prisma.employeeLicenseDocument.findUniqueOrThrow({ where: { id: pending.id } });
     const master = await prisma.employeeLicense.findUniqueOrThrow({ where: { id: context.license.id } });
