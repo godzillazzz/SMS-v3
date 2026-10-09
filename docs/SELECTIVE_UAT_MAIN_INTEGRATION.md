@@ -1,0 +1,20 @@
+# Selective UAT V3 Trusted Main Candidate — Phase 2D
+
+Base main: ca9b3d12d67be10297ac98f5668e2cfeab74b4b4. Source harness: PR589 exact head4d27ddc6c918310861153489ae5da9a8a853f5a2. Solo-Owner main rules require a PR and successful validate; approvals=0. No independent review event is claimed. Target remains disabled; this candidate does not authorize Hosted login.
+
+## Scope
+Only UAT V3 workflow/config/harness/scanner/reporter, synthetic Chromium fixtures, focused tests, direct Preview verification helpers, two pure identity/guard utility dependencies, pinned Playwright development dependency/lockfile entries, added focused CI steps, artifact ignores and related documentation. No Integration merge, no #87 wholesale merge, no business feature, Production workflow/env/secret/manifest/schema or MASTER_HANDOFF change. Existing application files, including frontend main, are unchanged.
+
+Main's application is older than the Preview application. Main lacks auth-login-form and frontend/src/theme.ts, but the harness runs the approved immutable Preview, not main's app. Therefore copying the application/theme is incorrect. Initial source-coupled local test failure exposed this distinction. The candidate preserves the Preview selectors and additionally pins both frontend/src/main.tsx and frontend/src/theme.ts from the inspected Preview source in the target's source hashes. The pre-secret trust guard fetches and hashes all six source files at the exact Preview application SHA. The pure main workflow test checks these enforced pins and selectors; trust hashing uses synthetic byte fixtures. Missing frontend pins fail target validation. This strengthens actual Preview source verification instead of substituting main's different UI or loosening Hosted assertions.
+
+The two database normalization/guard modules are pure harness-test dependencies; existing main app/Prisma config do not import them through this patch. Hosted runtime source proof still pins the actual Preview app.js/prisma.js/guard/identity code before credentials. Application-coupled role integration test from PR589 is not ported: existing main integration suites remain unchanged, and true Hosted role contracts remain mandatory on the exact isolated Preview application.
+
+## Dependency closure and validation
+New main dev dependency @playwright/test1.62.1, matching PR589; new locked packages are @playwright/test/playwright/playwright-core1.62.1 plus optional Darwin fsevents. Existing locked packages unchanged. npm audit reports one pre-existing moderate advisory; CI high-severity threshold is unchanged, no audit bypass or forced update.
+
+Local security11PASS, workflow5PASS, trust/isolation6PASS (22 total), Chromium fixtures5PASS. Hosted test collection24 only; no login or acceptance. Initial local check before Prisma generation failed missing generated client, then corrected with unchanged-schema generation using nonexistent synthetic loopback inputs; no database was contacted. Added fixture/pin regression failed initially during preparation and passed after extending synthetic pins. actionlint and diff check passed.
+
+CI preserves all existing main validate steps and adds focused UAT checks/collection plus Chromium fixtures. Required validate must pass at exact candidate HEAD before any merge. Main exact SHA after merge needs its own CI and fresh protection/source validation. Record final PR/commit/run in the linked GitHub checkpoint.
+
+## Remaining hard gates
+Hosted Environment is correctly configured but actual platform approval is an execution event. Ten credential-name metadata observations, synthetic role identities, immutable Preview runtime DB fingerprint, current Production comparison, provider disposable classification, storage bindings and email sink/disabled runtime delivery remain unverified. Neither target authorization flag is enabled. See PHASE_2D_HOSTED_UAT_RECOVERY.md for read-only infrastructure observations; its initial suggestion to add a main login ID is superseded by the safer Preview-source pinning above.

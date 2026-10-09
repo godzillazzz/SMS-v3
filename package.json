@@ -19,7 +19,9 @@
     "test:integration": "node --test --test-concurrency=1 test/integration/*.test.js",
     "db:test:migrate": "prisma migrate deploy",
     "prisma:format:check": "prisma format --check",
-    "audit:dependencies": "npm audit --audit-level=high"
+    "audit:dependencies": "npm audit --audit-level=high",
+    "test:uat:v3:check": "node test/uat-recovery-security.test.js && node test/uat-recovery-workflow.test.js && node test/uat-recovery-isolation.test.js && playwright test --config playwright.uat-v3.config.js --list",
+    "test:uat:v3:fixture": "playwright test --config playwright.uat-v3-fixture.config.js"
   },
   "prisma": {
     "seed": "node prisma/seed.js"
@@ -45,7 +47,8 @@
   },
   "devDependencies": {
     "prisma": "^6.11.1",
-    "supertest": "^7.1.1"
+    "supertest": "^7.1.1",
+    "@playwright/test": "1.62.1"
   },
   "overrides": {
     "qs": "6.16.0",

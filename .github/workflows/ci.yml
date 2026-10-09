@@ -48,4 +48,10 @@ jobs:
         run: npm run db:test:migrate
       - run: npm test
       - run: RUN_INTEGRATION_TESTS=true npm run test:integration
+      - name: Validate selective UAT security and collect hosted cases without credentials
+        run: npm run test:uat:v3:check
+      - name: Install Chromium for synthetic UAT isolation regression
+        run: npx playwright install --with-deps chromium
+      - name: Run synthetic UAT isolation fixtures (no hosted login)
+        run: npm run test:uat:v3:fixture
       - run: npm run audit:dependencies
