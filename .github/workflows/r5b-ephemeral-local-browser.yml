@@ -1,0 +1,179 @@
+name: R5-B Ephemeral Local Chromium Business UI (No Supabase)
+
+# This is LOCAL BROWSER evidence, NOT hosted Preview Q13B/Q13C certification.
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/r5b-ephemeral-local-browser.yml
+      - test/acceptance/local-browser.playwright.config.cjs
+      - test/acceptance/r5b-ephemeral-browser.spec.cjs
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: r5b-ephemeral-browser
+  cancel-in-progress: false
+
+jobs:
+  local-browser:
+    if: github.repository == 'godzillazzz/SMS-v3'
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: ci_user
+          POSTGRES_PASSWORD: ci_test_only
+          POSTGRES_DB: sms_v3_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ci_user -d sms_v3_test"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    env:
+      NODE_ENV: test
+      RUN_INTEGRATION_TESTS: 'true'
+      TEST_DATABASE_RUNNER: docker-container-network
+      DATABASE_URL: postgresql://ci_user:ci_test_only@127.0.0.1:5432/sms_v3_test?schema=public
+      DIRECT_URL: postgresql://ci_user:ci_test_only@127.0.0.1:5432/sms_v3_test?schema=public
+      JWT_SECRET: ci-test-secret-at-least-thirty-two-characters
+      DISABLE_EMAIL_NOTIFICATIONS: 'true'
+      OTP_DELIVERY_PROVIDER: disabled
+      ALERTING_ENABLED: 'false'
+      RATE_LIMIT_STORE: memory
+      CORS_ORIGIN: http://127.0.0.1:4173
+      COOKIE_SECURE: 'false'
+      PORT: '3000'
+      SEED_ADMIN_EMAIL: ci-admin@example.test
+      SEED_ADMIN_PASSWORD: ci-seed-password-only-for-ephemeral-db
+      R5B_LOCAL_BROWSER_APPROVED: 'YES'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Pin unmodified frozen R5-B app
+        uses: actions/checkout@v4
+        with:
+          ref: 77641a2657aa4fd05276afe645dd32648f5cc56b
+          path: frozen-app
+          persist-credentials: false
+      - name: Prove local-only database and identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C frozen-app rev-parse HEAD)" = 77641a2657aa4fd05276afe645dd32648f5cc56b
+          node - <<'NODE'
+          const target='postgresql://ci_user:ci_test_only@127.0.0.1:5432/sms_v3_test?schema=public';
+          const e=process.env;
+          if(e.DATABASE_URL!==target || e.DIRECT_URL!==target ||
+             e.NODE_ENV!=='test' || e.RUN_INTEGRATION_TESTS!=='true' ||
+             e.TEST_DATABASE_RUNNER!=='docker-container-network' ||
+             e.R5B_LOCAL_BROWSER_APPROVED!=='YES' ||
+             e.VERCEL_ENV || e.VERCEL_TOKEN || e.SUPABASE_URL ||
+             e.SUPABASE_SERVICE_ROLE_KEY || e.CRON_SECRET ||
+             e.CORS_ORIGIN!=='http://127.0.0.1:4173') {
+            throw Error('R5B_LOCAL_BROWSER_TARGET_GUARD_FAILED');
+          }
+          NODE
+          echo 'R5B_FROZEN_APP_SHA=PASS'
+          echo 'R5B_LOCAL_BROWSER_DB_ISOLATED=PASS'
+          echo 'R5B_PRODUCTION_AND_SHARED_PREVIEW_ACCESS=ABSENT'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frozen-app/package-lock.json
+      - name: Install frozen application and browser dependencies
+        working-directory: frozen-app
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm ci
+          npm --prefix frontend ci
+          npx playwright install --with-deps chromium
+      - name: Migrate and seed only disposable local database
+        working-directory: frozen-app
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx prisma generate
+          npm run db:test:migrate
+          npm run db:seed
+          echo 'R5B_LOCAL_BROWSER_MIGRATION=PASS'
+      - name: Build frozen frontend with local-only API
+        working-directory: frozen-app
+        shell: bash
+        env:
+          VITE_API_BASE_URL: http://127.0.0.1:3000/api/v1
+        run: |
+          set -euo pipefail
+          npm --prefix frontend run build
+      - name: Start localhost Backend and Frontend and require both healthy
+        working-directory: frozen-app
+        shell: bash
+        run: |
+          set -euo pipefail
+          node src/server.js > /tmp/r5b-local-backend.log 2>&1 &
+          node frontend/node_modules/vite/bin/vite.js preview --host 127.0.0.1 --port 4173 --strictPort > /tmp/r5b-local-frontend.log 2>&1 &
+          for i in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:3000/api/v1/ready > /dev/null 2>&1 &&
+               curl -fsS http://127.0.0.1:4173/app/licenses > /dev/null 2>&1; then
+              echo 'R5B_LOCAL_BROWSER_BACKEND_FRONTEND_READY=PASS'
+              exit 0
+            fi
+            sleep 2
+          done
+          echo 'R5B_LOCAL_BROWSER_WEB_SERVERS_NOT_READY'
+          exit 1
+      - name: Execute real Chromium Login / License / Leave approval route smoke
+        working-directory: frozen-app
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p test/acceptance
+          cp ../test/acceptance/local-browser.playwright.config.cjs test/acceptance/local-browser.playwright.config.cjs
+          cp ../test/acceptance/r5b-ephemeral-browser.spec.cjs test/acceptance/r5b-ephemeral-browser.spec.cjs
+          node --check test/acceptance/r5b-ephemeral-browser.spec.cjs
+          npx playwright test --config=test/acceptance/local-browser.playwright.config.cjs --reporter=list > /tmp/r5b-browser-test.txt 2>&1 || {
+            echo 'R5B_LOCAL_CHROMIUM_BUSINESS_UI=FAIL'
+            tail -n 65 /tmp/r5b-browser-test.txt | sed -E 's/(Bearer )[A-Za-z0-9._-]+/\1REDACTED/g'
+            exit 1
+          }
+          if ! grep -Eq '(^|[[:space:]])2 passed([[:space:]]|$)' /tmp/r5b-browser-test.txt; then
+            echo 'R5B_BROWSER_EXPECTED_TEST_COUNT_NOT_PROVEN'
+            exit 1
+          fi
+          mkdir -p ../safe-evidence
+          node - <<'NODE'
+          const fs=require('node:fs');
+          const record={
+            scope:'R5B_LOCAL_CHROMIUM_BUSINESS_UI_ONLY_NOT_PREVIEW_UAT',
+            immutableAppSha:'77641a2657aa4fd05276afe645dd32648f5cc56b',
+            backend:'local frozen Express app',
+            frontend:'local frozen Vite build',
+            database:'localhost ephemeral PostgreSQL16',
+            browser:'Chromium', tests:2, pass:2, fail:0, skipped:0,
+            scenarios:['Q13C local license UI + synthetic row', 'Q13B local leave-approval route'],
+            previewBusinessAcceptance:'NOT_EXECUTED',
+            productionPromotion:false,
+            realSupabaseOrVercelCredentials:false,
+            rawBrowserLogArtifact:false,
+            fixtureTeardown:'VERIFIED_BY_TEST'
+          };
+          fs.writeFileSync('../safe-evidence/r5b-browser-local.json',JSON.stringify(record,null,2)+'\n');
+          NODE
+          echo 'R5B_LOCAL_CHROMIUM_BUSINESS_UI=PASS'
+          echo 'R5B_LOCAL_BROWSER_TESTS=2'
+          echo 'R5B_PREVIEW_BROWSER_BUSINESS_ACCEPTANCE=NOT_EXECUTED'
+      - name: Upload safe summary only
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: r5b-local-browser-safe-${{ github.run_id }}
+          path: safe-evidence/r5b-browser-local.json
+          retention-days: 7
+          if-no-files-found: error
