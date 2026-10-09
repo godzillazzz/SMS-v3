@@ -47,9 +47,12 @@ test('R5-B alternate acceptance documents the verified evidence and known covera
   assert.equal(d.local_chromium_browser_run_id, 37885251975);
   assert.equal(d.acceptance_exception_q13b_q13c_hosted_preview_mutation, 'NOT_EXECUTED_ACCEPTED_WITH_RISK');
   assert.match(d.acceptance_exception_license_document_browser, /NOT_COVERED/);
-  assert.equal(d.current_production_live_health_readiness, 'NOT_VERIFIED_IN_CURRENT_PREPARATION');
-  assert.equal(d.current_production_live_cors, 'NOT_VERIFIED_IN_CURRENT_PREPARATION');
-  assert.equal(d.production_release_go_no_go, 'NO_GO_AWAITING_FRESH_PREFLIGHT_AND_SEPARATE_OWNER_PRODUCTION_APPROVAL');
+  assert.equal(d.current_production_live_health_readiness, 'PASS_READONLY_20261009');
+  assert.equal(d.current_production_live_cors, 'PASS_TRUSTED_AND_UNTRUSTED_CORS_20261009');
+  assert.equal(d.current_production_live_readonly_run_id, 37887712383);
+  assert.equal(d.preview_live_readonly_status, 'BLOCKED_PROTECTED_SSO_REQUIRES_APPROVED_BYPASS');
+  assert.equal(d.preview_prior_owner_protected_readonly_run_id, 37877103246);
+  assert.equal(d.production_release_go_no_go, 'NO_GO_AWAITING_PROTECTED_PREVIEW_PREFLIGHT_ROLLBACK_AND_SEPARATE_OWNER_PRODUCTION_APPROVAL');
 });
 
 test('R5-B draft is rejected by the official Production manifest guard, and dispatcher has no R5-B manifest', () => {
