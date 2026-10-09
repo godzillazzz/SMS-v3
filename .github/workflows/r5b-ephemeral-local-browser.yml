@@ -118,16 +118,43 @@ jobs:
         run: |
           set -euo pipefail
           node src/server.js > /tmp/r5b-local-backend.log 2>&1 &
+          backend_pid=$!
           node frontend/node_modules/vite/bin/vite.js preview --host 127.0.0.1 --port 4173 --strictPort > /tmp/r5b-local-frontend.log 2>&1 &
-          for i in $(seq 1 60); do
-            if curl -fsS http://127.0.0.1:3000/api/v1/ready > /dev/null 2>&1 &&
-               curl -fsS http://127.0.0.1:4173/app/licenses > /dev/null 2>&1; then
+          frontend_pid=$!
+          status() {
+            curl --silent --max-time 3 --output /dev/null --write-out '%{http_code}' "$1" 2>/dev/null || true
+          }
+          for i in $(seq 1 32); do
+            backend_health=$(status http://127.0.0.1:3000/api/v1/health)
+            backend_ready=$(status http://127.0.0.1:3000/api/v1/ready)
+            frontend_root=$(status http://127.0.0.1:4173/)
+            frontend_route=$(status http://127.0.0.1:4173/app/licenses)
+            if [ "$backend_health" = 200 ] && [ "$backend_ready" = 200 ] &&
+               [ "$frontend_root" = 200 ] && [ "$frontend_route" = 200 ]; then
               echo 'R5B_LOCAL_BROWSER_BACKEND_FRONTEND_READY=PASS'
               exit 0
             fi
             sleep 2
           done
           echo 'R5B_LOCAL_BROWSER_WEB_SERVERS_NOT_READY'
+          echo "R5B_BACKEND_HEALTH_HTTP=$backend_health"
+          echo "R5B_BACKEND_READY_HTTP=$backend_ready"
+          echo "R5B_FRONTEND_ROOT_HTTP=$frontend_root"
+          echo "R5B_FRONTEND_ROUTE_HTTP=$frontend_route"
+          if kill -0 "$backend_pid" 2>/dev/null; then
+            echo 'R5B_BACKEND_PROCESS=RUNNING'
+          else
+            echo 'R5B_BACKEND_PROCESS=EXITED'
+          fi
+          if kill -0 "$frontend_pid" 2>/dev/null; then
+            echo 'R5B_FRONTEND_PROCESS=RUNNING'
+          else
+            echo 'R5B_FRONTEND_PROCESS=EXITED'
+          fi
+          # Only stable error classes are permitted; never print raw server logs.
+          for log in /tmp/r5b-local-backend.log /tmp/r5b-local-frontend.log; do
+            grep -Eo 'MODULE_NOT_FOUND|ERR_[A-Z_]+|EADDRINUSE|ECONNREFUSED|TypeError|SyntaxError|ZodError|ValidationError' "$log" 2>/dev/null | sort -u | head -n 4 || true
+          done
           exit 1
       - name: Execute real Chromium Login / License / Leave approval route smoke
         working-directory: frozen-app
