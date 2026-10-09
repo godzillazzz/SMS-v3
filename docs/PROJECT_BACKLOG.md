@@ -1,4 +1,23 @@
+# Phase 2D Hosted UAT checkpoint
+
+Effective main protections and dedicated Hosted UAT Owner/main-only Environment are VERIFIED under Solo-Owner policy (PR approvals=0, validate required, no force-push/deletion). Workflow alignment and pre-secret protection guard prepared. Secret existence/runtime isolation/storage+email binding/accounts remain BLOCKED or UNVERIFIED; no Hosted acceptance claimed. See [Phase 2D evidence](PHASE_2D_HOSTED_UAT_RECOVERY.md). Prior checkpoints below are historical.
+
+---
+
 # SMS-v3 — CURRENT PROJECT BACKLOG / ทะเบียนงานค้าง
+
+## Overnight delegated execution checkpoint — 10 October 2026 (Asia/Bangkok)
+
+**PARTIAL / HOSTED_UAT_BLOCKED.** [Report](OVERNIGHT_EXECUTION_REPORT.md) and [full PR security packet](uat-v3-recovery.md#overnight-security-review-packet). Owner engineering/conditional Hosted authority is now recorded; independent review, effective main/Environment governance, disposable runtime/provider proof and four-role account/secrets remain hard gates. #589 remains Draft; Integration/main/Production preserved. Cookie credential escape reproduced and fixed with real Chromium regression; local focused20 and browser5 PASS. New exact-head CI/Preview are recorded in [PR #589](https://github.com/godzillazzz/SMS-v3/pull/589), never inferred from older CI.
+
+Provider Preview project exists and project-config hash differs from historically verified Production guard hash; immutable current runtime and disposable classification still UNVERIFIED. All four account/eight-secret metadata remains UNVERIFIED. VIEWER linkage must be provider-attested. Hosted24, license lifecycle mutations, Q13B/Q13C and physical G06 NOT EXECUTED; T08 WAITING_FOR_LOCAL_CHECKPOINT. Preserve historical results below; no MASTER_HANDOFF edit.
+
+
+## Authenticated UAT V3 Phase 2B checkpoint — 9 October 2026
+
+[Draft PR #589](https://github.com/godzillazzz/SMS-v3/pull/589) remains unmerged. Integration `9abc97998f98265605f534de7874607a5f3b5a13` unchanged. Baseline `a3170aaf…` [CI #37957937753](https://github.com/godzillazzz/SMS-v3/actions/runs/37957937753) SUCCESS is historical after Phase 2B hardening; current exact HEAD/CI/Preview are recorded in PR metadata. New guards pin trusted action/runtime source, require protected unchanged main, actual deployed Preview fingerprint, distinct Production identity and readiness; format-valid fingerprints do not prove isolation. Both target flags remain false.
+
+**Hosted UAT BLOCKED:** live main protection=false/ruleset disabled; Environment protection details, actual immutable Runtime DB fingerprint/provider disposable evidence, four isolated accounts/eight secret readiness and independent human/Owner approval remain unverified. Detailed [file-by-file review, DB evidence checklist, trusted-main plan and account matrix](uat-v3-recovery.md#phase-2b--security-and-isolation-readiness-2026-10-09-utc). No protected UAT executed, no secrets read, no Production changes. Local synthetic tests are not Hosted PASS. Preserve T08 WAITING_FOR_LOCAL_CHECKPOINT and existing MASTER_HANDOFF.md safety-review restriction.
 
 **Snapshot:** 2026-10-09 (Asia/Bangkok), after R5-B protected Production SUCCESS.
 **Source:** Latest GitHub PR/Issue status, `docs/ux-remediation/PLAN.md`, `MASTER_HANDOFF.md`, and GitHub/Vercel release evidence. This snapshot is not an automated continuously updating view.

@@ -1,3 +1,11 @@
+# Hosted UAT Solo-Owner policy — 10 October 2026
+
+The [Phase 2D evidence record](PHASE_2D_HOSTED_UAT_RECOVERY.md) verifies active main ruleset20230372: PR required, required approvals=0, GitHub Actions validate required, no force-push/deletion and no bypass actors. Owner sign-off is not Independent Review. This task accepts normal Solo-Owner PR governance; no GitHub independent-approval event is invented.
+
+Authenticated UAT V3 uses dedicated GitHub Environment `Hosted UAT` (23924296870), Owner reviewer `godzillazzz`, admin bypass disabled, and exactly branch main. `production-sms-v3-staging` stays dedicated to existing release paths and is unchanged. The pre-secret trust job verifies effective rules and Hosted protection metadata; platform Environment approval is still mandatory. Only the eight authorized synthetic role secrets plus Preview-scoped Vercel verification credentials are needed; Production database/release secrets must not be copied. Runtime/provider database isolation, storage/email separation and account readiness remain hard gates.
+
+---
+
 # SMS V3 Environment Governance
 
 This document is the non-secret operating contract for `sms-v3-staging`.
