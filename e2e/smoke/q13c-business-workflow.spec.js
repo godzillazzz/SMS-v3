@@ -22,6 +22,11 @@ function assertMutationGuard() {
   expect(process.env.Q13C_WRITE_CONFIRMATION).toBe(Q13C_CONFIRMATION);
   expect(process.env.UAT_BASE_URL).toMatch(/^https:\/\/sms-v3-staging-[a-z0-9]+-godzillazz\.vercel\.app$/i);
   expect(process.env.UAT_BASE_URL).not.toBe('https://sms-v3-staging-ten.vercel.app');
+  // Approval workflows persist audit and master rows, so require a disposable database.
+  expect(process.env.UAT_BASE_URL).not.toBe('https://sms-v3-staging-ntizvmjdo-godzillazz.vercel.app');
+  expect(process.env.UAT_EXPECTED_DEPLOYMENT_ID).not.toBe('dpl_6SxGPuH374ogrr2mjzwDkincaMCA');
+  // Manual attestation does not replace independently verifying database isolation.
+  expect(process.env.UAT_DISPOSABLE_PREVIEW_DB_APPROVED).toBe('YES');
 }
 
 async function fixtureEmployee(accessToken) {
@@ -96,18 +101,25 @@ test('Q13C ADMIN: Disposable user access lifecycle', async () => {
   const accessToken = roleAccessToken('ADMIN');
   const before = await fixtureUser(accessToken);
   expect(before.role).toBe('VIEWER');
+  expect(before.accountStatus).toBe('ACTIVE');
+  expect(before.isActive).toBe(true);
+  expect(typeof before.department).toBe('string');
+  const baseline = {
+    role: before.role, department: before.department,
+    accountStatus: before.accountStatus, isActive: before.isActive
+  };
   try {
     const suspended = await authenticatedRequest(`/api/v1/users/${before.id}`, { accessToken, method: 'PUT', data: { accountStatus: 'SUSPENDED', isActive: false } });
     expect(suspended.status).toBe(200);
     expect(suspended.payload?.data?.accountStatus).toBe('SUSPENDED');
     expect(suspended.payload?.data?.isActive).toBe(false);
-    const restored = await authenticatedRequest(`/api/v1/users/${before.id}`, { accessToken, method: 'PUT', data: { role: 'VIEWER', department: 'UAT Fixture Alpha', accountStatus: 'ACTIVE', isActive: true } });
-    expect(restored.status).toBe(200);
-    expect(restored.payload?.data?.accountStatus).toBe('ACTIVE');
-    expect(restored.payload?.data?.isActive).toBe(true);
-    expect(restored.payload?.data?.role).toBe('VIEWER');
   } finally {
-    await authenticatedRequest(`/api/v1/users/${before.id}`, { accessToken, method: 'PUT', data: { role: 'VIEWER', department: 'UAT Fixture Alpha', accountStatus: 'ACTIVE', isActive: true } }).catch(() => undefined);
+    const restored = await authenticatedRequest(`/api/v1/users/${before.id}`, { accessToken, method: 'PUT', data: baseline });
+    expect(restored.status, 'Q13C user restore must succeed').toBe(200);
+  }
+  const after = await fixtureUser(accessToken);
+  for (const [key, expected] of Object.entries(baseline)) {
+    expect(after[key], `Q13C user field ${key} must equal pre-test baseline`).toEqual(expected);
   }
 });
 
@@ -151,14 +163,26 @@ test('Q13C ADMIN: System Setting reversible standard update', async () => {
   const definition = (settings.payload?.data || []).find((row) => row.key === SETTING_KEY);
   expect(definition).toBeTruthy();
   expect(definition.editable).toBe(true);
+  expect(typeof definition.value, 'Q13C baseline setting must be a string').toBe('string');
+  const originalValue = definition.value;
   const value = `${MARKER} Preview notification template validation`;
-  const updated = await authenticatedRequest(`/api/v1/system-settings/${SETTING_KEY}`, { accessToken, method: 'PUT', data: { value } });
-  expect(updated.status).toBe(200);
-  const readBack = await authenticatedRequest('/api/v1/system-settings', { accessToken });
-  expect(readBack.status).toBe(200);
-  expect((readBack.payload?.data || []).find((row) => row.key === SETTING_KEY)?.value).toBe(value);
-  const history = await authenticatedRequest(`/api/v1/system-settings/${SETTING_KEY}/history`, { accessToken });
-  expect(history.status).toBe(200);
-  expect(Array.isArray(history.payload?.data?.history)).toBe(true);
-  expect(history.payload.data.history.length).toBeGreaterThan(0);
+  try {
+    const updated = await authenticatedRequest(`/api/v1/system-settings/${SETTING_KEY}`, { accessToken, method: 'PUT', data: { value } });
+    expect(updated.status).toBe(200);
+    const readBack = await authenticatedRequest('/api/v1/system-settings', { accessToken });
+    expect(readBack.status).toBe(200);
+    expect((readBack.payload?.data || []).find((row) => row.key === SETTING_KEY)?.value).toBe(value);
+    const history = await authenticatedRequest(`/api/v1/system-settings/${SETTING_KEY}/history`, { accessToken });
+    expect(history.status).toBe(200);
+    expect(Array.isArray(history.payload?.data?.history)).toBe(true);
+    expect(history.payload.data.history.length).toBeGreaterThan(0);
+  } finally {
+    const restored = await authenticatedRequest(`/api/v1/system-settings/${SETTING_KEY}`, {
+      accessToken, method: 'PUT', data: { value: originalValue }
+    });
+    expect(restored.status, 'Q13C system setting restore must succeed').toBe(200);
+  }
+  const after = await authenticatedRequest('/api/v1/system-settings', { accessToken });
+  expect(after.status).toBe(200);
+  expect((after.payload?.data || []).find((row) => row.key === SETTING_KEY)?.value, 'Q13C system setting must match original value').toBe(originalValue);
 });
