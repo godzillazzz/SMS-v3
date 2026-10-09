@@ -21,6 +21,7 @@ on:
 permissions:
   contents: read
   actions: read
+  deployments: read
 concurrency:
   group: sms-v3-authenticated-readonly-preview
   cancel-in-progress: false
@@ -82,6 +83,7 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - name: Verify native Preview identity with authenticated GET only
         env:
+          GITHUB_TOKEN: ${{ github.token }}
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           UAT_BASE_URL: ${{ inputs.target_url }}
           UAT_SOURCE_SHA: ${{ inputs.source_sha }}

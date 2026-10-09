@@ -23,7 +23,7 @@ Local synthetic Chromium fixture proves independent role sessions and blocked bu
 
 `authenticated-uat-v3-readonly.yml` is a proposal, not authorized for execution. It triggers only workflow_dispatch from repository Owner `godzillazzz` on trusted `main`. Both checkouts pin `github.sha`; no input harness SHA, PR checkout, pull_request_target or PR secret execution. contents/actions permissions are read-only; checkout credentials are not persisted. Existing Environment `production-sms-v3-staging` remains human protected.
 
-Before the protected job, reviewed target must have literal `authorized=true`, literal disposable DB isolation true, evidence Run URL, database target fingerprint, exact deployment/SHA/ref/project/team/immutable URL and successful full `validate` job CI for application and trusted main SHAs. The committed target is disabled (`authorized=false`, `database_isolation_verified=false`). Do not fill these fields without actual evidence and separate reviewed authorization. Native Vercel identity is checked with authenticated GET only, exact Preview ownership, READY, canonical alias exclusion and no raw response output. Missing environment identity fails closed.
+Before the protected job, reviewed target must have literal `authorized=true`, literal disposable DB isolation true, evidence Run URL, database target fingerprint, exact deployment/SHA/ref/project/team/immutable URL and successful full `validate` job CI for application and trusted main SHAs. The committed target is disabled (`authorized=false`, `database_isolation_verified=false`). Do not fill these fields without actual evidence and separate reviewed authorization. Native Vercel identity is checked with authenticated GET only, exact Preview ownership, READY, canonical alias exclusion and no raw response output. Missing Vercel target is not inferred as Preview: the existing resolvePreview guard independently requires a trusted vercel[bot] GitHub deployment record with environment Preview, literal production_environment=false, exact SHA/ref and matching immutable URL; absent or mismatched proof fails closed.
 
 Login creates refresh session/audit, and authenticated GET may invoke existing lifecycle reconciliation. **HTTP read-only does not guarantee database read-only**. Therefore even this login/GET suite requires verified disposable non-Production DB isolation. No hosted run is authorized by this PR.
 
@@ -43,7 +43,7 @@ Full exact-main CI is mandatory; if trusted main lacks an eligible successful va
 
 ## Local validation checkpoint
 
-Focused security: 11 PASS. Workflow/identity regression: 4 PASS. Real disposable PostgreSQL role integration: 5 PASS. Chromium network fixtures: 4 PASS (initial sandbox listen failure retained in development logs; successful rerun used authorized loopback access). Hosted suite collection: 24 tests planned, **NOT EXECUTED**. Full validation results and immutable PR/CI/Preview evidence are recorded in the final checkpoint and PR, not inferred from collection. No Production business acceptance is claimed.
+Focused security: 11 PASS. Workflow/identity regression: 5 PASS. Real disposable PostgreSQL role integration: 5 PASS. Chromium network fixtures: 4 PASS (initial sandbox listen failure retained in development logs; successful rerun used authorized loopback access). Hosted suite collection: 24 tests planned, **NOT EXECUTED**. Full validation results and immutable PR/CI/Preview evidence are recorded in the final checkpoint and PR, not inferred from collection. No Production business acceptance is claimed.
 
 ## PR #87 file-by-file disposition
 
@@ -118,12 +118,12 @@ Focused security: 11 PASS. Workflow/identity regression: 4 PASS. Real disposable
 
 ## Full local validation — completed before publication
 
-- Backend unit suite: **1386 PASS / 0 FAIL / 0 SKIPPED** after restoring existing PowerShell runtime and explicit disposable DB environment. Earlier environment-only failed runs are retained in task logs.
+- Backend unit suite: **1388 PASS / 0 FAIL / 0 SKIPPED** after restoring existing PowerShell runtime and explicit disposable DB environment. Earlier environment-only failed runs are retained in task logs.
 - Full integration on dedicated UTF8 `sms_v3_test`: **195 PASS / 0 FAIL / 7 SKIPPED**. Skips remain skips; separate authoritative G06 event/support-Site runner: **4 PASS**, physical verifier SQL/read-only enforcement: **1 PASS**. This SQL test is not physical iPhone UAT.
 - Four-role real Login/GET matrix: **5 PASS** in exclusive synthetic database.
 - Frontend: **928 PASS**; TypeScript `tsc --noEmit`, Vite production build and bundle verifier PASS. CSS **699,944 / 700,000 bytes**; unchanged budget.
 - Existing Chromium regression suite: **42 PASS / 3 FAIL** initially (local navigation/lazy-loading timeouts); targeted unchanged-test rerun **3 PASS**. The initial failures remain disclosed; exact CI must independently pass. New role network fixtures: **4 PASS**.
 - Dependency audits: backend/frontend **0 vulnerabilities**. Prisma formatting/validation and environment contract PASS. actionlint PASS with unavailable shellcheck/pyflakes explicitly disabled; Node syntax and `git diff --check` PASS. No separate project lint command exists.
-- Hosted V3 collection: **24**, Hosted execution **NOT EXECUTED**. Full CI/Preview publication evidence still pending.
+- Hosted V3 collection: **24**, Hosted execution **NOT EXECUTED**. Initial exact PR head `0fa2f6582dc4a38d416b1480982baf463dd1e3d1`: [PR #589](https://github.com/godzillazzz/SMS-v3/pull/589), [CI #37957294459](https://github.com/godzillazzz/SMS-v3/actions/runs/37957294459) SUCCESS, including exact Preview health/readiness/CORS. Native Preview `dpl_DkpWnbaJR3XD33no3yWtwmFXCLrT` READY and exact SHA/ref/project matched. The authoritative Preview-environment guard follow-up changes HEAD, so new exact CI/Preview are required; earlier results are historical.
 
 Local raw logs stay outside Git under `/tmp/sms-uat-recovery-*`; they contain only synthetic test data and are not Hosted artifacts. Generated frontend build metadata was restored to its original tracked bytes and excluded.

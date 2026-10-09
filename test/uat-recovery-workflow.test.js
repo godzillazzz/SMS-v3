@@ -28,17 +28,17 @@ test('reviewed target is disabled, artifact capture is sanitized and no credenti
   assert.doesNotMatch(config, /storageState/);
   assert.match(config, /serviceWorkers: 'block'/);
 });
-const env = { UAT_BASE_URL: 'https://sms-v3-staging-fixture-godzillazz.vercel.app', VERCEL_TOKEN: 'synthetic-not-real-token', UAT_EXPECTED_DEPLOYMENT_ID: 'dpl_Fixture123', UAT_SOURCE_SHA: 'a'.repeat(40), UAT_SOURCE_BRANCH: 'test/uat-fixture' };
+const env = { UAT_BASE_URL: 'https://sms-v3-staging-fixture-godzillazz.vercel.app', VERCEL_TOKEN: 'synthetic-not-real-token', UAT_EXPECTED_DEPLOYMENT_ID: 'dpl_Fixture123', UAT_SOURCE_SHA: 'a'.repeat(40), UAT_SOURCE_BRANCH: 'test/uat-fixture', GITHUB_TOKEN: 'synthetic-github-read-token' };
 function raw() { return { id: env.UAT_EXPECTED_DEPLOYMENT_ID, projectId: PROJECT_ID, ownerId: TEAM_ID, readyState: 'READY', target: 'preview', url: new URL(env.UAT_BASE_URL).host, meta: { githubCommitSha: env.UAT_SOURCE_SHA, githubCommitRef: env.UAT_SOURCE_BRANCH }, env: { secret: 'must-not-be-output' } }; }
 test('identity verification is GET-only exact SHA/ref/team/project and omits sensitive payload', async () => {
   const result = await verifyPreview(async (url, options) => {
     assert.equal(url.origin, 'https://api.vercel.com'); assert.equal(url.searchParams.get('teamId'), TEAM_ID);
     assert.equal(options.method, 'GET'); assert.equal(options.redirect, 'error');
     return { status: 200, json: async () => raw() };
-  }, env);
+  }, env, async () => ({ origin: env.UAT_BASE_URL, sha: env.UAT_SOURCE_SHA }));
   assert.equal(result.sha, env.UAT_SOURCE_SHA); assert.equal(JSON.stringify(result).includes('must-not-be-output'), false);
-  for (const patch of [{ projectId: 'wrong' }, { ownerId: 'wrong' }, { target: 'production' }, { readyState: 'ERROR' }, { meta: { githubCommitSha: 'b'.repeat(40), githubCommitRef: env.UAT_SOURCE_BRANCH } }, { meta: { githubCommitSha: env.UAT_SOURCE_SHA, githubCommitRef: 'wrong' } }, { target: null }, { alias: ['sms-v3-staging-ten.vercel.app'] }]) {
-    await assert.rejects(() => verifyPreview(async () => ({ status: 200, json: async () => ({ ...raw(), ...patch }) }), env));
+  for (const patch of [{ projectId: 'wrong' }, { ownerId: 'wrong' }, { target: 'production' }, { readyState: 'ERROR' }, { meta: { githubCommitSha: 'b'.repeat(40), githubCommitRef: env.UAT_SOURCE_BRANCH } }, { meta: { githubCommitSha: env.UAT_SOURCE_SHA, githubCommitRef: 'wrong' } }, { alias: ['sms-v3-staging-ten.vercel.app'] }]) {
+    await assert.rejects(() => verifyPreview(async () => ({ status: 200, json: async () => ({ ...raw(), ...patch }) }), env, async () => ({ origin: env.UAT_BASE_URL, sha: env.UAT_SOURCE_SHA })));
   }
 });
 
@@ -52,4 +52,23 @@ test('browser login and theme selectors match current real app contract', () => 
   assert.match(spec, /#auth-login-form button\[type="submit"\]/);
   assert.match(spec, /sms-v3-theme/);
   assert.match(fs.readFileSync('frontend/src/theme.ts', 'utf8'), /THEME_STORAGE_KEY = 'sms-v3-theme'/);
+});
+
+test('missing Vercel target requires existing authoritative GitHub Preview environment proof', async () => {
+  const deployment = { id: 123, sha: env.UAT_SOURCE_SHA, ref: env.UAT_SOURCE_BRANCH, environment: 'Preview', production_environment: false, creator: { login: 'vercel[bot]', type: 'Bot' } };
+  const status = { state: 'success', environment: 'Preview', environment_url: env.UAT_BASE_URL, creator: deployment.creator };
+  // Existing guard requires a nine-character immutable host.
+  const expected = { ...env, UAT_BASE_URL: 'https://sms-v3-staging-123456789-godzillazz.vercel.app' };
+  async function fetcher(url, options) {
+    assert.equal(options.redirect, 'error');
+    if (String(url).startsWith('https://api.vercel.com/')) return { status: 200, json: async () => ({ ...raw(), target: null, url: new URL(expected.UAT_BASE_URL).host }) };
+    return { status: 200, json: async () => String(url).includes('/statuses?') ? [{ ...status, environment_url: expected.UAT_BASE_URL }] : [deployment] };
+  }
+  assert.equal((await verifyPreview(fetcher, expected)).environment, 'preview');
+  for (const patch of [{ environment: 'Production' }, { production_environment: true }, { creator: { login: 'untrusted', type: 'User' } }, { sha: 'b'.repeat(40) }]) {
+    await assert.rejects(() => verifyPreview(async (url, options) => {
+      if (String(url).includes('api.github.com') && !String(url).includes('/statuses?')) return { status: 200, json: async () => [{ ...deployment, ...patch }] };
+      return fetcher(url, options);
+    }, expected));
+  }
 });
