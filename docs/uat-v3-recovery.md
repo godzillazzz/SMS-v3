@@ -1,3 +1,9 @@
+# Current policy — Phase 2D / Solo-Owner
+
+The [Phase 2D checkpoint](PHASE_2D_HOSTED_UAT_RECOVERY.md) supersedes earlier independent-approval requirements for this task: active main rules require PR and exact validate CI, with zero required PR approvals. Owner Environment approval is not Independent Review. Authenticated V3 uses literal `Hosted UAT`, with verified Owner reviewer, no admin bypass and main-only restriction. Security, runtime isolation, synthetic accounts, exact Trusted Main/application CI and actual Environment approval remain mandatory. Historical checkpoints below are retained; their disabled-governance and Production-Environment statements do not describe the current policy.
+
+---
+
 # Authenticated UAT V3 recovery — 9 October 2026
 
 ## Identity and scope

@@ -12,7 +12,8 @@ test('protected UAT uses trusted main only, owner gate and no PR source checkout
   assert.equal((workflow.match(/ref: \$\{\{ github.sha \}\}/g) || []).length, 2);
   assert.doesNotMatch(workflow, /ref: \$\{\{ inputs\./);
   assert.match(workflow, /persist-credentials: false/);
-  assert.match(workflow, /environment: production-sms-v3-staging/);
+  assert.match(workflow, /environment: Hosted UAT/);
+  assert.doesNotMatch(workflow, /production-sms-v3-staging/);
   assert.doesNotMatch(workflow.split('  authenticated-readonly:')[0], /secrets\./);
   assert.doesNotMatch(workflow, /permissions:[\s\S]*?write|production_dispatch|deploy-approved|vercel deploy/);
   assert.doesNotMatch(workflow, /run:.*\$\{\{ inputs\./);

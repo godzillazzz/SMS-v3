@@ -1,3 +1,9 @@
+# Superseding Phase 2D checkpoint
+
+See [Phase 2D Hosted UAT recovery](PHASE_2D_HOSTED_UAT_RECOVERY.md) for the new verified Solo-Owner governance and dedicated Environment. Required PR approvals are now zero under Owner policy; Owner sign-off is not independent review. The original overnight report below remains historical evidence, including its previous blockers. Isolation/accounts/Hosted acceptance remain unresolved.
+
+---
+
 # OVERNIGHT EXECUTION REPORT
 
 ## 1. Execution Timestamp (Asia/Bangkok)

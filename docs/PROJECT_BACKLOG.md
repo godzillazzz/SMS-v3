@@ -1,3 +1,9 @@
+# Phase 2D Hosted UAT checkpoint
+
+Effective main protections and dedicated Hosted UAT Owner/main-only Environment are VERIFIED under Solo-Owner policy (PR approvals=0, validate required, no force-push/deletion). Workflow alignment and pre-secret protection guard prepared. Secret existence/runtime isolation/storage+email binding/accounts remain BLOCKED or UNVERIFIED; no Hosted acceptance claimed. See [Phase 2D evidence](PHASE_2D_HOSTED_UAT_RECOVERY.md). Prior checkpoints below are historical.
+
+---
+
 # SMS-v3 — CURRENT PROJECT BACKLOG / ทะเบียนงานค้าง
 
 ## Overnight delegated execution checkpoint — 10 October 2026 (Asia/Bangkok)

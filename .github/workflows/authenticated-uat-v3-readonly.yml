@@ -37,7 +37,7 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: 22
-      - name: Verify protected main and exact runtime guard source without protected secrets
+      - name: Verify effective main rules, Hosted UAT protection and exact runtime guard source without protected secrets
         env:
           GITHUB_TOKEN: ${{ github.token }}
           UAT_SOURCE_SHA: ${{ inputs.source_sha }}
@@ -73,7 +73,7 @@ jobs:
   authenticated-readonly:
     needs: trusted-target
     if: needs.trusted-target.result == 'success' && github.ref == 'refs/heads/main' && github.actor == 'godzillazzz'
-    environment: production-sms-v3-staging
+    environment: Hosted UAT
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
