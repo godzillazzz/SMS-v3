@@ -277,7 +277,7 @@ async function requestAttendanceReadOnlyCertification(role, token) {
         if (item.id === 'dashboard') {
           const { authContract } = await loginAs(page, role);
           await testInfo.attach('v31-auth-contract.json', { body: JSON.stringify(authContract), contentType: 'application/json' });
-          await expect(page.getByRole('heading', { name: 'แดชบอร์ด', exact: true }), `${role} Dashboard must remain visible after cached-session login.`).toBeVisible();
+          await expect(page.getByRole('heading', { name: 'ภาพรวมระบบ', exact: true }), `${role} Dashboard must remain visible after cached-session login.`).toBeVisible();
           const evidence = monitor.safeEvidence();
           await testInfo.attach('v32-page-monitor.json', { body: JSON.stringify(evidence), contentType: 'application/json' });
           monitor.assertClean();
