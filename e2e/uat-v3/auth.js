@@ -39,8 +39,8 @@ async function readRoleApi(context, role, session, path) {
 async function installReadonlyBrowser(page, session, baseURL, { realLogin = false } = {}) {
   const attempts = [];
   const origin = new URL(baseURL).origin;
-  async function guardedFetch(route, req, url) {
-    const response = await route.fetch({ maxRedirects: 0, headers: { ...req.headers(), ...(url.origin === origin ? automationBypassHeaders(process.env, baseURL, req.url()) : {}) } });
+  async function guardedFetch(route, req, url, headers) {
+    const response = await route.fetch({ maxRedirects: 0, headers: { ...headers, ...(url.origin === origin ? automationBypassHeaders(process.env, baseURL, req.url()) : {}) } });
     if (response.status() >= 300 && response.status() < 400) {
       attempts.push({ method: req.method(), path: 'redirect-blocked' });
       return route.abort('blockedbyclient');
@@ -49,7 +49,10 @@ async function installReadonlyBrowser(page, session, baseURL, { realLogin = fals
   }
   await page.route('**/*', async (route) => {
     const req = route.request(); const url = new URL(req.url());
-    if (realLogin && url.origin === origin && url.pathname === '/api/v1/auth/login' && req.method() === 'POST') return guardedFetch(route, req, url);
+    // Playwright headers() omits security-related headers, including Cookie.
+    // Inspect the complete request before any route.fetch can forward it.
+    const headers = await req.allHeaders();
+    if (realLogin && url.origin === origin && url.pathname === '/api/v1/auth/login' && req.method() === 'POST') return guardedFetch(route, req, url, headers);
     // In-memory refresh bootstrap is disclosed as API_LOGIN_SESSION_BOOTSTRAP.
     if (url.origin === origin && url.pathname === '/api/v1/auth/refresh' && req.method() === 'POST') {
       if (realLogin) return route.fulfill({ status: 403, contentType: 'application/json', body: '{}' });
@@ -60,10 +63,10 @@ async function installReadonlyBrowser(page, session, baseURL, { realLogin = fals
       return route.abort('blockedbyclient');
     }
     // Never send API credentials or protection headers to another origin.
-    if (url.origin !== origin && (req.headers().authorization || Object.keys(req.headers()).some((key) => key.startsWith('x-vercel-')))) {
+    if (url.origin !== origin && Object.keys(headers).some((key) => ['authorization', 'proxy-authorization', 'cookie'].includes(key.toLowerCase()) || key.toLowerCase().startsWith('x-vercel-'))) {
       attempts.push({ method: req.method(), path: 'cross-origin-credential' }); return route.abort('blockedbyclient');
     }
-    return guardedFetch(route, req, url);
+    return guardedFetch(route, req, url, headers);
   });
   return attempts;
 }

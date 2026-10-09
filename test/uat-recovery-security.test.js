@@ -61,14 +61,16 @@ test('browser guard blocks writes and cross-origin credentials while bootstrappi
   const attempts = await installReadonlyBrowser(page, payload('VIEWER'), preview);
   const invoke = async (method, path, headers = {}) => {
     let outcome;
-    await handler({ request: () => ({ method: () => method, url: () => path.startsWith('https:') ? path : preview + path, headers: () => headers }), abort: async () => { outcome = 'blocked'; }, fetch: async (options) => { assert.equal(options.maxRedirects, 0); return { status: () => 200 }; }, fulfill: async (options) => { outcome = options.response ? 'allowed' : 'memory-only'; } }); return outcome;
+    await handler({ request: () => ({ method: () => method, url: () => path.startsWith('https:') ? path : preview + path, allHeaders: async () => headers }), abort: async () => { outcome = 'blocked'; }, fetch: async (options) => { assert.equal(options.maxRedirects, 0); return { status: () => 200 }; }, fulfill: async (options) => { outcome = options.response ? 'allowed' : 'memory-only'; } }); return outcome;
   };
   assert.equal(await invoke('POST', '/api/v1/licenses'), 'blocked');
   assert.equal(await invoke('DELETE', '/api/v1/shifts/fixture'), 'blocked');
   assert.equal(await invoke('GET', 'https://evil.test/data', { authorization: 'Bearer synthetic-token' }), 'blocked');
+  for (const headers of [{ cookie: 'synthetic_session=fixture-only' }, { 'proxy-authorization': 'Basic synthetic-only' }, { 'x-vercel-protection-bypass': 'fixture-only' }]) assert.equal(await invoke('GET', 'https://evil.test/data', headers), 'blocked');
   assert.equal(await invoke('POST', '/api/v1/auth/refresh'), 'memory-only');
   assert.equal(await invoke('GET', '/api/v1/employees'), 'allowed');
-  assert.equal(attempts.length, 3);
+  assert.equal(await invoke('GET', '/api/v1/employees', { cookie: 'synthetic_session=fixture-only' }), 'allowed');
+  assert.equal(attempts.length, 6);
 });
 test('four-role approval contracts match actual authorization middleware', () => {
   const approvalRoles = ['ADMIN', 'MANAGER', 'SUPERVISOR'];
@@ -101,6 +103,6 @@ test('browser refuses redirects before credentials can reach a second origin', a
   let handler, aborted = false;
   const page = { route: async (_pattern, fn) => { handler = fn; } };
   const attempts = await installReadonlyBrowser(page, payload('ADMIN'), preview);
-  await handler({ request: () => ({ method: () => 'GET', url: () => preview + '/api/v1/dashboard', headers: () => ({ authorization: 'Bearer synthetic-only' }) }), fetch: async (options) => { assert.equal(options.maxRedirects, 0); return { status: () => 302 }; }, abort: async () => { aborted = true; }, fulfill: async () => { throw new Error('Redirect should not be fulfilled'); } });
+  await handler({ request: () => ({ method: () => 'GET', url: () => preview + '/api/v1/dashboard', allHeaders: async () => ({ authorization: 'Bearer synthetic-only' }) }), fetch: async (options) => { assert.equal(options.maxRedirects, 0); return { status: () => 302 }; }, abort: async () => { aborted = true; }, fulfill: async () => { throw new Error('Redirect should not be fulfilled'); } });
   assert.equal(aborted, true); assert.deepEqual(attempts, [{ method: 'GET', path: 'redirect-blocked' }]);
 });

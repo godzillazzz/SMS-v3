@@ -33,3 +33,27 @@ for (const role of roles) test(`local fixture ${role}: independent session and n
   expect(attempts).toEqual([{ method: 'POST', path: '/api/v1/licenses' }]);
   expect(serverWrites).toBe(0);
 });
+
+test('cross-origin cookie credentials never reach a second server', async ({ page, context }) => {
+  let externalRequests = 0;
+  const external = http.createServer((_req, res) => {
+    externalRequests++;
+    res.setHeader('Access-Control-Allow-Origin', baseURL);
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+    res.end('synthetic');
+  });
+  await new Promise((resolve) => external.listen(0, '127.0.0.1', resolve));
+  try {
+    await context.addCookies([{ name: 'synthetic_session', value: 'fixture-only', url: baseURL }]);
+    const attempts = await installReadonlyBrowser(page, { user: { id: 'cookie-fixture', role: 'VIEWER' }, accessToken: 'fixture-VIEWER' }, baseURL);
+    await page.goto(baseURL);
+    await page.waitForFunction(() => window.done === true);
+    // Cookies are host-scoped, so a different port is a real origin boundary
+    // that would still receive this cookie without the browser guard.
+    await page.evaluate(async (url) => { await fetch(url, { credentials: 'include' }).catch(() => {}); }, `http://127.0.0.1:${external.address().port}/data`);
+    expect(externalRequests).toBe(0);
+    expect(attempts).toContainEqual({ method: 'GET', path: 'cross-origin-credential' });
+  } finally {
+    await new Promise((resolve) => external.close(resolve));
+  }
+});

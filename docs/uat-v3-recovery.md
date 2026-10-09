@@ -190,3 +190,44 @@ Owner/authorized administrator checks existence and Environment scope of eight n
 Final Hosted readiness: **BLOCKED**, not Business Acceptance PASS. MASTER_HANDOFF.md and all Production controls remain untouched.
 
 Phase 2B local validation: security/workflow/isolation **20 PASS**, Chromium four-role synthetic fixtures **4 PASS**. First fixture attempt was blocked by loopback sandbox (1 FAIL/3 NOT RUN); approved loopback rerun passed. Initial incorrect test-path invocation collected no tests and is not a PASS. Hosted collection 24 is collection only. actionlint passed with unavailable shellcheck/pyflakes explicitly disabled; Node syntax and diff whitespace checks passed. New exact-head Full CI/Preview results remain recorded in PR metadata.
+
+
+## Overnight security review packet
+
+Owner-delegated authorization applies to routine engineering and conditional Hosted read-only UAT; it does not supply independent approval or allow Production actions. Latest exact commit/CI/Preview belongs in [PR #589](https://github.com/godzillazzz/SMS-v3/pull/589). See [execution report](OVERNIGHT_EXECUTION_REPORT.md) for fresh governance/provider/account evidence and all remaining gates. Earlier task-specific statements requiring routine separate Owner permission are historical and superseded by the current delegation; hard review/environment/isolation gates remain.
+
+Confirmed defect: browser Request.headers() excludes Cookie. A Chromium test with two loopback origins and a synthetic host-scoped cookie reproduced one foreign request. The fix uses allHeaders() and rejects cookie/proxy-auth/authorization/bypass credentials off-origin before route.fetch. Same-origin cookie use is retained. New regression passes; initial failure is retained in the report. No app authentication policy was changed.
+
+The complete PR file scope was inspected, including files beyond the selective #87 ports. This is source review by the authoring agent, **not independent approval**.
+
+| File | Review disposition / boundary |
+|---|---|
+| .github/uat/authenticated-readonly-target.json | Both flags false; source hash pins unchanged; no asserted runtime/provider approval. |
+| .github/workflows/authenticated-uat-v3-readonly.yml | Manual exact-main/Owner checkout, immutable action pins, no PR checkout, read-only permissions, protected Environment, scoped steps/secrets; requires effective external gates. |
+| .github/workflows/ci.yml | Adds unprotected synthetic contracts/collection/fixtures; inherited Preview probe uses repository bypass secret. Administrator must verify untrusted-PR exposure and effective permissions. |
+| docs/PROJECT_BACKLOG.md | Preserve historical matrix; append current gates and report link. |
+| docs/uat-v3-recovery.md | Preserve source-port disposition and failed/history evidence; add current packet. |
+| docs/OVERNIGHT_EXECUTION_REPORT.md | Requested report, sanitized metadata only; exact self-referencing commit evidence in PR metadata. |
+| e2e/uat-v3-fixtures/browser-isolation.spec.js | Synthetic four-role/no-write fixtures plus reproduced cross-origin cookie regression; no Hosted claim. |
+| e2e/uat-v3/auth.js | Separate contexts/subjects/tokens, response readiness/role checks, allowlisted redirect-disabled API; complete-header off-origin blocking fixed. |
+| e2e/uat-v3/config.js | Exact immutable target/project/team binding; four distinct emails; missing/false evidence fails closed. URLs alone do not prove approval. |
+| e2e/uat-v3/database-isolation.js | Requires literal deployed Preview env/fingerprint, distinct Production hash and readiness; current fields missing so blocks. |
+| e2e/uat-v3/readonly.spec.js | Six cases per role; real UI login separately from disclosed in-memory bootstrap; 401/403/navigation/theme/viewport checks. Only unlinked VIEWER contract; linkage must be provider-attested, not assumed from omitted login field. |
+| e2e/uat-v3/reporter.js | Aggregate titles/status/identities only; no errors/DOM/session payload serialization. Collection is not execution. |
+| e2e/uat-v3/role-matrix.js | Current API middleware/nav role scope; employee-linked variant exists but Hosted linkage unsupported; retain explicit exclusion. |
+| e2e/uat-v3/security.js | Secret-value/pattern/path scanner incl SUPERVISOR; no raw auth state uploads. |
+| e2e/uat-v3/vercel-identity.js | Allowlists identity fields; omits secret/env values; no invented environment. |
+| package.json | Only test commands added; no dependencies/versions changed. |
+| playwright.uat-v3-fixture.config.js | Local synthetic tests only; Service Workers/traces/screenshots/video blocked. |
+| playwright.uat-v3.config.js | Single worker, no retries, no saved state, no capture; 24 Hosted cases. |
+| scripts/ci/run-uat-v3-readonly.js | Suppresses subprocess logs; scans sanitized output; exact identities; 24 PASS and six per role with zero failures/skips required. |
+| scripts/ci/verify-uat-v3-preview.js | Official authenticated GET, team/project/SHA/ref/deployment/READY plus Vercel-bot proof; canonical forbidden; missing runtime fields STOP. |
+| scripts/ci/verify-uat-v3-trust.js | Exact protected main and pinned application guard hashes before protected job. Protected Boolean alone is not full review/status/environment evidence. |
+| test/integration/uat-recovery-role-isolation.integration.test.js | Synthetic local database only, four distinct logins/allow-deny plus cleanup; no hosted credentials. |
+| test/uat-recovery-isolation.test.js | Reject false runtime/guard/hash/readiness and moved/unprotected main; immutable actions. |
+| test/uat-recovery-security.test.js | Secret/role/write/redirect/off-origin tests; includes Cookie/proxy-auth/bypass boundary and same-origin allowance. |
+| test/uat-recovery-workflow.test.js | Workflow/target/sanitization/native Preview/real selector contracts; no Hosted approval. |
+
+Dependencies also inspected: technical-smoke protection-header helper, GitHub Preview resolver, app readiness, Prisma config, runtime guard/target normalization, auth routes/service/middleware and role route guards. No application/source-guard changes. Integration-to-main is 1036 files; selective main integration must audit current-main helper/dependency availability and full CI, not cherry-pick blindly.
+
+Readiness: **REVIEW_BLOCKED / GOVERNANCE_BLOCKED / ISOLATION_BLOCKED / ACCOUNT_BLOCKED / HOSTED_UAT_BLOCKED**. Protected target remains disabled. Production and MASTER_HANDOFF unchanged. Provider/config hashes and historical Production target-match improve the evidence package without asserting current runtime/disposable proof.

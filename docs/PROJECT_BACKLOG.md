@@ -1,5 +1,12 @@
 # SMS-v3 — CURRENT PROJECT BACKLOG / ทะเบียนงานค้าง
 
+## Overnight delegated execution checkpoint — 10 October 2026 (Asia/Bangkok)
+
+**PARTIAL / HOSTED_UAT_BLOCKED.** [Report](OVERNIGHT_EXECUTION_REPORT.md) and [full PR security packet](uat-v3-recovery.md#overnight-security-review-packet). Owner engineering/conditional Hosted authority is now recorded; independent review, effective main/Environment governance, disposable runtime/provider proof and four-role account/secrets remain hard gates. #589 remains Draft; Integration/main/Production preserved. Cookie credential escape reproduced and fixed with real Chromium regression; local focused20 and browser5 PASS. New exact-head CI/Preview are recorded in [PR #589](https://github.com/godzillazzz/SMS-v3/pull/589), never inferred from older CI.
+
+Provider Preview project exists and project-config hash differs from historically verified Production guard hash; immutable current runtime and disposable classification still UNVERIFIED. All four account/eight-secret metadata remains UNVERIFIED. VIEWER linkage must be provider-attested. Hosted24, license lifecycle mutations, Q13B/Q13C and physical G06 NOT EXECUTED; T08 WAITING_FOR_LOCAL_CHECKPOINT. Preserve historical results below; no MASTER_HANDOFF edit.
+
+
 ## Authenticated UAT V3 Phase 2B checkpoint — 9 October 2026
 
 [Draft PR #589](https://github.com/godzillazzz/SMS-v3/pull/589) remains unmerged. Integration `9abc97998f98265605f534de7874607a5f3b5a13` unchanged. Baseline `a3170aaf…` [CI #37957937753](https://github.com/godzillazzz/SMS-v3/actions/runs/37957937753) SUCCESS is historical after Phase 2B hardening; current exact HEAD/CI/Preview are recorded in PR metadata. New guards pin trusted action/runtime source, require protected unchanged main, actual deployed Preview fingerprint, distinct Production identity and readiness; format-valid fingerprints do not prove isolation. Both target flags remain false.
