@@ -22,7 +22,7 @@ jobs:
       github.event.issue.number == 551 &&
       github.event.issue.pull_request == null &&
       github.event.comment.user.login == 'godzillazzz' &&
-      startsWith(github.event.comment.body, '/sms-v3-auth-r5-b-20261009 ')
+      startsWith(github.event.comment.body, '/sms-v3-auth-r5-b-r2-20261009 ')
     runs-on: ubuntu-latest
     timeout-minutes: 8
     env:
@@ -31,7 +31,7 @@ jobs:
       SOURCE_BRANCH: fix/serverless-database-reliability
       APP_SHA: 77641a2657aa4fd05276afe645dd32648f5cc56b
       HARNESS_BRANCH: test/automated-uat-v3-authenticated
-      HARNESS_SHA: 51cb9c48e074b2c6a7052110c88e4058b652c3df
+      HARNESS_SHA: b6f6100b772f48b77442460a12a74a775c1d99ae
       DEPLOYMENT_ID: dpl_6SxGPuH374ogrr2mjzwDkincaMCA
       TARGET_URL: https://sms-v3-staging-ntizvmjdo-godzillazz.vercel.app
     steps:
@@ -39,7 +39,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          expected="/sms-v3-auth-r5-b-20261009 $APP_SHA $DEPLOYMENT_ID"
+          expected="/sms-v3-auth-r5-b-r2-20261009 $APP_SHA $DEPLOYMENT_ID"
           jq -e --arg message "$expected" '
             .action == "created" and
             .issue.number == 551 and
@@ -96,7 +96,7 @@ jobs:
           for page in $(seq 1 20); do
             gh api "repos/$REPO/issues/551/comments?per_page=100&page=$page" > /tmp/one-time-comments.json
             # An authenticated bot marker is written BEFORE dispatch; command repeats fail closed.
-            jq -e '[.[] | select(.body == "R5B_AUTH_20261009_DISPATCH_CLAIMED") ] | length == 0' /tmp/one-time-comments.json > /dev/null
+            jq -e '[.[] | select(.body == "R5B_AUTH_R2_20261009_DISPATCH_CLAIMED") ] | length == 0' /tmp/one-time-comments.json > /dev/null
             count=$(jq 'length' /tmp/one-time-comments.json)
             if [ "$count" -lt 100 ]; then break; fi
             if [ "$page" -eq 20 ]; then echo 'Issue comment history over bounded limit'; exit 1; fi
@@ -107,7 +107,7 @@ jobs:
         run: |
           set -euo pipefail
           gh api -X POST "repos/$REPO/issues/551/comments" \
-            -f body='R5B_AUTH_20261009_DISPATCH_CLAIMED' > /dev/null
+            -f body='R5B_AUTH_R2_20261009_DISPATCH_CLAIMED' > /dev/null
           gh api -X POST "repos/$REPO/actions/workflows/automated-uat-sms-v3-staging.yml/dispatches" \
             -f ref=main \
             -f "inputs[target_url]=$TARGET_URL" \
