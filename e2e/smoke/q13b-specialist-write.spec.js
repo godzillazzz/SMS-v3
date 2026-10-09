@@ -16,6 +16,11 @@ function assertMutationGuard() {
   expect(process.env.Q13B_WRITE_CONFIRMATION).toBe(Q13B_CONFIRMATION);
   expect(process.env.UAT_BASE_URL).toMatch(/^https:\/\/sms-v3-staging-[a-z0-9]+-godzillazz\.vercel\.app$/i);
   expect(process.env.UAT_BASE_URL).not.toBe('https://sms-v3-staging-ten.vercel.app');
+  // The frozen R5-B Preview is shared and must remain untouched by mutating tests.
+  expect(process.env.UAT_BASE_URL).not.toBe('https://sms-v3-staging-ntizvmjdo-godzillazz.vercel.app');
+  expect(process.env.UAT_EXPECTED_DEPLOYMENT_ID).not.toBe('dpl_6SxGPuH374ogrr2mjzwDkincaMCA');
+  // Human attestation is necessary but not sufficient: verify actual DB isolation before dispatch.
+  expect(process.env.UAT_DISPOSABLE_PREVIEW_DB_APPROVED).toBe('YES');
 }
 
 async function findFixtureEmployee(accessToken) {
@@ -32,24 +37,29 @@ async function leaveRows(accessToken) {
   return response.payload?.data || [];
 }
 
-async function bestEffortTerminalLeave(accessToken, leaveId) {
+async function assertTerminalLeave(accessToken, leaveId) {
   if (!leaveId) return;
-  const rows = await leaveRows(accessToken).catch(() => []);
+  const rows = await leaveRows(accessToken);
   const row = rows.find((item) => item.id === leaveId);
-  if (!row || ['CANCELLED', 'REJECTED'].includes(row.status)) return;
-  if (row.status === 'PENDING') {
-    const returned = await authenticatedRequest(`/api/v1/leave-requests/${leaveId}/return-for-correction`, {
+  expect(row, 'Created Q13B leave must remain discoverable for cleanup').toBeTruthy();
+  if (row.status !== 'CANCELLED') {
+    if (row.status === 'PENDING') {
+      const returned = await authenticatedRequest(`/api/v1/leave-requests/${leaveId}/return-for-correction`, {
+        accessToken,
+        method: 'POST',
+        data: { reason: 'Q13B-UAT fallback return before cleanup' }
+      });
+      expect(returned.status, 'Q13B cleanup must return pending leave').toBe(200);
+    }
+    const cancelled = await authenticatedRequest(`/api/v1/leave-requests/${leaveId}/cancel`, {
       accessToken,
       method: 'POST',
-      data: { reason: 'Q13B-UAT fallback return before cleanup' }
-    }).catch(() => null);
-    if (!returned || returned.status !== 200) return;
+      data: { reason: 'Q13B-UAT terminal cleanup' }
+    });
+    expect(cancelled.status, 'Q13B cleanup must cancel the fixture').toBe(200);
   }
-  await authenticatedRequest(`/api/v1/leave-requests/${leaveId}/cancel`, {
-    accessToken,
-    method: 'POST',
-    data: { reason: 'Q13B-UAT fallback terminal cleanup' }
-  }).catch(() => undefined);
+  const after = await leaveRows(accessToken);
+  expect(after.find((item) => item.id === leaveId)?.status, 'Q13B leave fixture must be terminal').toBe('CANCELLED');
 }
 
 function approvalBody(policy) {
@@ -137,7 +147,7 @@ test('Q13B ADMIN: Leave Pending reversible decision workflow', async () => {
     const rows = await leaveRows(accessToken);
     expect(rows.find((row) => row.id === leaveId)?.status).toBe('CANCELLED');
   } finally {
-    await bestEffortTerminalLeave(accessToken, leaveId);
+    await assertTerminalLeave(accessToken, leaveId);
   }
 });
 
@@ -181,11 +191,17 @@ test('Q13B ADMIN: Auto Schedule Pattern create update and cleanup', async () => 
     expect(row?.isActive).toBe(true);
   } finally {
     if (patternId) {
-      await authenticatedRequest(`/api/v1/auto-schedule-patterns/${patternId}`, {
+      const reset = await authenticatedRequest(`/api/v1/auto-schedule-patterns/${patternId}`, {
         accessToken,
         method: 'PUT',
         data: { name: AUTO_PATTERN_NAME, mode: 'CYCLE', steps: baselineSteps, isActive: false, targetGroup: 'MANUAL', sortOrder: 9900 }
-      }).catch(() => undefined);
+      });
+      expect(reset.status, 'Q13B pattern cleanup must succeed').toBe(200);
+      const after = await authenticatedRequest('/api/v1/auto-schedule-patterns?includeInactive=true', { accessToken });
+      expect(after.status).toBe(200);
+      const restored = (after.payload?.data || []).find((item) => item.id === patternId);
+      expect(restored?.isActive, 'Q13B fixture pattern must remain inactive').toBe(false);
+      expect(restored?.name).toBe(AUTO_PATTERN_NAME);
     }
   }
 });
