@@ -1,0 +1,24 @@
+{
+  "authorized": false,
+  "database_isolation_verified": false,
+  "database_isolation_evidence": null,
+  "database_target_fingerprint": null,
+  "project_id": "prj_XwhNUOB2zLSPZ6UgQcfyOKBYJ75s",
+  "team_id": "team_nemCExHbZ8EAhSgsvefHPAEz",
+  "target_mode": "preview",
+  "source_sha": null,
+  "source_branch": null,
+  "deployment_id": null,
+  "url": null,
+  "note": "Disabled. Format-valid fingerprints/flags are not runtime isolation proof. Requires normal Solo-Owner PR/validate governance on protected main, actual Hosted UAT Owner Environment approval, exact source guards, current immutable deployment non-sensitive fingerprint, readiness guard, distinct authoritative Production fingerprint and disposable provider evidence. No credentials inspected.",
+  "production_database_target_fingerprint": null,
+  "production_database_identity_evidence": null,
+  "runtime_guard_file_sha256": {
+    "src/app.js": "5727a561fa9088e2aedc08f89f36e4ac34fc4f09765beaf836bedfac0f62fd99",
+    "src/config/prisma.js": "516648ca43a9b1c9f2dc03e70edc2ee3e4ec000fb30c21bd5bfeb51458495614",
+    "src/services/runtime-database-target-guard.service.js": "011ec22787a0efe456bf35fbb99d88f0e03ac9047876882896c3cc02c18aa647",
+    "src/utils/database-target-identity.js": "6f3b961c5affc78284f24ac68f1db1a4e79f1f40549d42b76613d582b53e1067",
+    "frontend/src/main.tsx": "61abe171e5567177d07f813d451b5d105caa7d41046b877f92695c84fd2ed85a",
+    "frontend/src/theme.ts": "745e1eda58ab606dc0d2a7a7575768bbe0c861f3ddc96f2fd7bc141b70f1e143"
+  }
+}

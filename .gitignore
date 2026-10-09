@@ -28,3 +28,7 @@ ui-review/
 *.log
 backup-results.ndjson
 .vercel/
+
+# UAT local and hosted artifacts never belong in source control
+test-results/
+playwright-report/
