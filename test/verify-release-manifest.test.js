@@ -110,8 +110,8 @@ test('fails closed when pre-applied evidence fields are attached to a no-databas
   assert.throws(() => validateReleaseManifest(manifest), /only valid for PRE_APPLIED_APPROVED_MIGRATION/);
 });
 
-test('current approved Production manifest pins the exact R5-A Integration release and fresh gates', () => {
-  const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, '..', '.github', 'releases', 'approved-production.json'), 'utf8'));
+test('archived R5-A Production manifest preserves exact historical Integration release and gates', () => {
+  const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, '..', '.github', 'releases', 'r5-a-production-manifest-archive-20261009.json'), 'utf8'));
   const result = validateReleaseManifest(manifest);
   assert.equal(result.releaseId, 'sms-v3-prod-51c5c828689c-20261008');
   assert.equal(result.commitSha, '51c5c828689ce543067c687e204eba7918577bb9');
@@ -173,8 +173,8 @@ test('current approved Production manifest pins the exact R5-A Integration relea
   assert.ok(!manifest.release_control_and_handoff_pr_numbers.includes(530));
 });
 
-test('R5-A readiness retains specific Owner approval and immutable policy boundaries', () => {
-  const manifest = JSON.parse(fs.readFileSync('.github/releases/approved-production.json', 'utf8'));
+test('archived R5-A readiness retains historical Owner boundaries', () => {
+  const manifest = JSON.parse(fs.readFileSync('.github/releases/r5-a-production-manifest-archive-20261009.json', 'utf8'));
   assert.equal(manifest.release_batch_id, 'R5-A');
   assert.equal(manifest.owner_batch_frozen_sha_approval, 'PENDING_NOT_AUTHORIZED');
   assert.equal(manifest.production_dispatch_authorized, false);
@@ -185,4 +185,32 @@ test('R5-A readiness retains specific Owner approval and immutable policy bounda
   assert.equal(manifest.css_bundle_budget_bytes, 700000);
   assert.ok(manifest.css_bundle_bytes < manifest.css_bundle_budget_bytes);
   assert.deepEqual(manifest.excluded_uncommitted_tasks, ['T08']);
+});
+
+test('staged R5-B official manifest pins exact frozen SHA/tree with no Production dispatch authorization', () => {
+  const d = JSON.parse(fs.readFileSync('.github/releases/approved-production.json', 'utf8'));
+  const validated = validateReleaseManifest(d);
+  assert.equal(d.release_batch_id, 'R5-B');
+  assert.equal(validated.releaseId, 'sms-v3-prod-77641a2657aa-20261009');
+  assert.equal(validated.commitSha, '77641a2657aa4fd05276afe645dd32648f5cc56b');
+  assert.equal(validated.treeSha, 'f67e7a7a6895ca0fbbea8582543882feb36505b3');
+  assert.equal(validated.currentProductionSourceSha, '51c5c828689ce543067c687e204eba7918577bb9');
+  assert.equal(validated.rollbackDeploymentId, 'dpl_HS3R7QJgKgJdL8DkiXncUHarVgPV');
+  assert.equal(validated.runMigrations, false);
+  assert.equal(validated.databaseChangePolicy, 'NO_DATABASE_CHANGES');
+  assert.equal(d.manifest_state, 'APPROVED_FOR_OWNER_PRODUCTION_DECISION');
+  assert.equal(d.owner_action, 'APPROVE_PRODUCTION_ONLY');
+  assert.equal(d.owner_batch_frozen_sha_approval, 'PENDING_NOT_AUTHORIZED');
+  assert.equal(d.production_dispatch_authorized, false);
+  assert.equal(d.release_control_transition_owner_scope, 'RELEASE_CONTROL_PREPARATION_ONLY_NO_PRODUCTION_DISPATCH');
+  assert.equal(d.release_control_integration_merge_sha, '06cfb4805af5fc7c4ea4ac93c00da3749d7793ca');
+  assert.equal(d.latest_integration_control_preview_evidence.preview_cors_protected_run_id, 37929488390);
+  assert.equal(d.latest_integration_control_preview_evidence.technical_smoke_run_id, 37924283107);
+  assert.equal(d.anonymous_preview_preflight_status, 'FAIL_CLOSED_REMOTE_ACCESS_NOT_VERIFIED_NOT_A_CORS_PASS');
+  assert.equal(d.local_api_integration_passed, 77);
+  assert.equal(d.local_chromium_browser_passed, 2);
+  assert.equal(d.acceptance_exception_q13b_q13c_hosted_preview_mutation, 'NOT_EXECUTED_ACCEPTED_WITH_RISK');
+  assert.equal(d.project_auto_assign_custom_domains_current_value, false);
+  assert.equal(d.db_schema_mutation, 'NONE');
+  assert.equal(d.production_data_mutation, 'NONE');
 });
