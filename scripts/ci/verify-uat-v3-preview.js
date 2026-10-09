@@ -1,8 +1,11 @@
 'use strict';
 const { PROJECT_ID, TEAM_ID, previewUrl, fail } = require('../../e2e/uat-v3/config');
+const approvedTarget = require('../../.github/uat/authenticated-readonly-target.json');
+const { verifyRuntimeIsolation } = require('../../e2e/uat-v3/database-isolation');
+const { automationRequestOptions } = require('../../e2e/helpers/technical-smoke');
 const { resolvePreview } = require('./verify-integration-pr-preview');
 const { normalizeDeploymentIdentity } = require('../../e2e/uat-v3/vercel-identity');
-async function verifyPreview(fetcher = fetch, env = process.env, resolve = resolvePreview) {
+async function verifyPreview(fetcher = fetch, env = process.env, resolve = resolvePreview, target = approvedTarget) {
   const origin = previewUrl(env.UAT_BASE_URL);
   if (!env.VERCEL_TOKEN || !/^dpl_[A-Za-z0-9]+$/.test(env.UAT_EXPECTED_DEPLOYMENT_ID || '') || !/^[a-f0-9]{40}$/.test(env.UAT_SOURCE_SHA || '')) fail('UAT_PREVIEW_CONFIGURATION_REQUIRED');
   const url = new URL(`https://api.vercel.com/v13/deployments/${env.UAT_EXPECTED_DEPLOYMENT_ID}`);
@@ -18,6 +21,10 @@ async function verifyPreview(fetcher = fetch, env = process.env, resolve = resol
   const nativePreview = await resolve({ sha: env.UAT_SOURCE_SHA, branch: env.UAT_SOURCE_BRANCH, repository: 'godzillazzz/SMS-v3', token: env.GITHUB_TOKEN, fetchImpl: fetcher });
   if (nativePreview.origin !== origin || nativePreview.sha !== sha) fail('UAT_PREVIEW_ENVIRONMENT_UNVERIFIED');
   if (identity.aliases?.some((alias) => ['sms-v3-staging-ten.vercel.app', 'sms-v3-staging-godzillazzz.vercel.app'].includes(alias))) fail('UAT_CANONICAL_TARGET_FORBIDDEN');
+  if (!env.VERCEL_AUTOMATION_BYPASS_SECRET) fail('UAT_PROTECTED_READINESS_ACCESS_REQUIRED');
+  const ready = await fetcher(origin + '/api/v1/ready', automationRequestOptions({ method: 'GET', redirect: 'error', signal: AbortSignal.timeout(15000) }, env, origin, origin));
+  if (ready.status !== 200) fail('UAT_RUNTIME_DATABASE_READINESS_FAILED');
+  verifyRuntimeIsolation(target, raw, await ready.json());
   return { deployment: identity.id, project: PROJECT_ID, sha, ref, state: 'READY', environment: 'preview' };
 }
 if (require.main === module) verifyPreview().then((evidence) => process.stdout.write(JSON.stringify(evidence) + '\n')).catch(() => { process.stderr.write('UAT_PREVIEW_IDENTITY_FAILED\n'); process.exitCode = 1; });

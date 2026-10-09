@@ -127,3 +127,64 @@ Focused security: 11 PASS. Workflow/identity regression: 5 PASS. Real disposable
 - Hosted V3 collection: **24**, Hosted execution **NOT EXECUTED**. Initial exact PR head `0fa2f6582dc4a38d416b1480982baf463dd1e3d1`: [PR #589](https://github.com/godzillazzz/SMS-v3/pull/589), [CI #37957294459](https://github.com/godzillazzz/SMS-v3/actions/runs/37957294459) SUCCESS, including exact Preview health/readiness/CORS. Native Preview `dpl_DkpWnbaJR3XD33no3yWtwmFXCLrT` READY and exact SHA/ref/project matched. The authoritative Preview-environment guard follow-up changes HEAD, so new exact CI/Preview are required; earlier results are historical.
 
 Local raw logs stay outside Git under `/tmp/sms-uat-recovery-*`; they contain only synthetic test data and are not Hosted artifacts. Generated frontend build metadata was restored to its original tracked bytes and excluded.
+
+## Phase 2B — security and isolation readiness (2026-10-09 UTC)
+
+**Hosted status: BLOCKED; implementation prepared for independent review.** Baseline PR #589 head `a3170aaf8e418649c00e3533e08e355feeb8f034`, exact [CI #37957937753](https://github.com/godzillazzz/SMS-v3/actions/runs/37957937753) SUCCESS is historical after this hardening patch. New immutable HEAD/CI/Preview evidence is recorded in PR #589 metadata to avoid self-referencing commits. Neither target authorization flag is enabled. No Protected UAT, secret inspection, Production changes or app/schema edits occurred.
+
+### File-by-file security review checklist
+
+| File / boundary | Finding and verification | Status |
+|---|---|---|
+| `.github/workflows/authenticated-uat-v3-readonly.yml` | Manual dispatch only; exact repository, named Owner and main ref; checkout exact workflow commit, not PR/input code; read-only token permissions; existing protected Environment. Actions pinned to official immutable commits. Vercel credentials only in identity step; eight account secrets only in UAT step. No pull_request_target, deployment/migration or artifact-on-failure. Independent review required before main integration. | Static PASS; Human review pending |
+| `scripts/ci/verify-uat-v3-trust.js` | Unprotected read-only GitHub token verifies current main protection/head and four exact application runtime-file hashes via GitHub Contents GET. No execution/checkout of target code. Fails before protected job on missing protection, moved main or changed guard. | Regression PASS; live main BLOCKED |
+| `.github/uat/authenticated-readonly-target.json`, `e2e/uat-v3/config.js` | Both flags false; exact target binding, reviewed isolation and Production identity evidence required; Preview/Production fingerprints distinct. Evidence URL syntax is only a reference check, not proof its contents are trustworthy. Reviewed evidence and human approval remain mandatory. | Disabled PASS; actual isolation BLOCKED |
+| `scripts/ci/verify-uat-v3-preview.js`, `vercel-identity.js`, `database-isolation.js` | Authenticated official Vercel deployment GET + authoritative Vercel-bot Preview provenance; exact SHA/ref/project/team/id/immutable URL/READY; canonical forbidden; protected GET readiness. Requires deployed literal Preview runtime and deployed non-sensitive approved fingerprint equal to reviewed target. Missing API fields stop, never infer false/Preview/isolation. | Synthetic regressions PASS; Hosted NOT EXECUTED |
+| Existing `src/app.js`, `src/config/prisma.js`, runtime target guard and target identity utility | Read only; pinned hashes. In-process Preview guard normalizes actual DATABASE_URL/DIRECT_URL and compares approved hash; readiness then performs Prisma SELECT 1 using same logical target. No source modifications. Synthetic tests reject wrong but format-valid hash and changed logical project. | Source/synthetic PASS; actual runtime proof BLOCKED |
+| `e2e/uat-v3/auth.js`, `request.js`, `role-matrix.js`, `authenticated-readonly.spec.js` | Four distinct accounts; isolated role contexts, identity/expected-deny, GET allowlist. POST allowed only exact login to disposable target; redirects/origin escape blocked; no business mutation. Browser writes blocked. Login itself can write sessions/audit, hence disposable DB mandatory. | Local four-role evidence only; Hosted NOT EXECUTED |
+| `security.js`, `reporter.js`, `run-uat-v3-readonly.js`, Playwright config | Sanitized aggregate only after scanner and required 24 PASS/0 FAIL/0 SKIP; no raw response, screenshots/traces/login secrets uploaded. Any secret leak or skip fails closure. Dependencies execute only from reviewed main before scoped UAT credentials. | Static/local PASS; independent dependency review pending |
+| New isolation tests; existing security/workflow tests; local role integration and browser fixtures; `ci.yml`, `package.json` | Unprotected synthetic/local tests, added isolation test to Full CI. No protected credentials, production writes, migrations or dependency additions. | Require new exact-head CI |
+| Branch/Environment administration | GitHub branch main `ca9b3d12d67be10297ac98f5668e2cfeab74b4b4` reports protected=false; Integration protected=false. Ruleset 20230372 reports enforcement=disabled with empty ref include/exclude. Environment reviewer/branch restrictions cannot be established through available non-admin connector. | BLOCKED / UNVERIFIED |
+
+Sources: [main branch](https://api.github.com/repos/godzillazzz/SMS-v3/branches/main), [ruleset 20230372](https://api.github.com/repos/godzillazzz/SMS-v3/rulesets/20230372). Branch protection Boolean alone does not prove required independent review or ban all bypass actors; human must inspect effective rules and Environment configuration. No settings changed.
+
+### Database isolation evidence checklist
+
+All items below are **NOT VERIFIED for Hosted**. A valid hash/flag/200 readiness cannot replace this checklist.
+
+1. Authorized provider evidence identifies disposable resource/project and logical database, owner, limited test principal, synthetic data only, cleanup/expiry and no Production access; disclose no connection strings or secret values. No provisioning in this task.
+2. Obtain current authoritative Production logical fingerprint through reviewed read-only protected code; cite exact sanitized run. Pin separately in reviewed target and prove it differs from Preview. A caller-supplied 64-hex value is insufficient.
+3. Pin immutable Preview deployment ID, source/ref/project/team, actual Preview runtime environment and approved fingerprint from authoritative immutable deployment configuration. If deployment API does not expose literal non-sensitive fields, this implementation STOPS; provider capability is not proven. Do not substitute project-level settings, infer from URL or export/decrypt credentials.
+4. Independently review four pinned application source files; exact-source GitHub hash check plus actual Preview GET readiness binds in-process target normalization/approved fingerprint to the database used by Prisma SELECT 1. Public readiness alone does not expose guard branch or fingerprint. No new runtime endpoint introduced.
+5. Record exact sanitized evidence run tied to target/source/deployment; independently verify successful jobs and actual equality checks, not only run URL syntax. Review resource separation even when fingerprints differ. Existing Supabase logical normalization does not prove synthetic-only contents, credential privileges, provider ownership or unrelated external services.
+6. Verify email/storage/license-document integrations cannot affect Production; ensure test fixtures and all four accounts belong only to isolated environment. Login session/audit writes require this isolation even in read-only business UAT.
+7. Owner separately authorizes exact reviewed target and Hosted read-only UAT after independent human review. Only then may a separately reviewed control change enable flags; this PR leaves both false.
+
+### Trusted main integration plan (no execution in this task)
+
+1. Independent reviewer inspects PR #589 code, dependency install behavior, scanner, GET/login allowlist, trust guards and new exact Full CI/native Preview. Do not merge obsolete #87 as a whole. #589 remains Draft.
+2. After separate governance review, merge to Integration only through normal PR process; this task does not authorize merge.
+3. Create a separately reviewed selective Integration-to-main PR containing harness/workflow/tests and necessary docs only. Do not copy Application code, Production controls or official manifests from Integration wholesale. Assess expanded diff and automatic Preview/free-tier side effects.
+4. Owner/repository administrator resolves disabled main protections under separate security-setting authorization; verify independent required reviews, required checks, no unauthorized direct writes/bypass and suitable Environment reviewers, self-review rules and main-only deployment branches. This task does not change these settings.
+5. Prove Full CI validate job SUCCESS at exact merged trusted-main SHA AND exact target source SHA through supported reviewed CI triggers. Do not assume main ci.yml has manual dispatch, or substitute old PR-head CI for merged main. Verify guards and action pins remain intact.
+6. Complete disposable DB and account checklist, independently review target-control evidence, then obtain separate Owner Hosted UAT permission and GitHub Environment human review. No secrets may be exposed to current PR code.
+
+### Account / protected secret readiness matrix
+
+| Role | Existing secret names (values never read) | Required readiness proof | Current status |
+|---|---|---|---|
+| ADMIN | UAT_ADMIN_EMAIL / UAT_ADMIN_PASSWORD | Distinct isolated subject; actual ADMIN; no View-As; GET/deny matrix | UNVERIFIED; local synthetic only |
+| MANAGER | UAT_MANAGER_EMAIL / UAT_MANAGER_PASSWORD | Distinct isolated subject; actual MANAGER; no View-As; GET/deny matrix | UNVERIFIED; local synthetic only |
+| SUPERVISOR | UAT_SUPERVISOR_EMAIL / UAT_SUPERVISOR_PASSWORD | Distinct isolated subject; actual SUPERVISOR; no View-As; GET/deny matrix | UNVERIFIED; local synthetic only |
+| VIEWER | UAT_VIEWER_EMAIL / UAT_VIEWER_PASSWORD | Distinct isolated subject; actual VIEWER; all expected denials | UNVERIFIED; local synthetic only |
+
+Owner/authorized administrator checks existence and Environment scope of eight names in GitHub UI without sharing values; independently attest accounts are isolated, enabled and usable. Existing VERCEL_TOKEN and VERCEL_AUTOMATION_BYPASS_SECRET also require appropriate restricted scope. No new credentials created, no secrets read. Physical iPhone/GPS/offline, Hosted mutation Q13B/Q13C and license document lifecycle remain NOT EXECUTED.
+
+### Remaining human gates
+
+- Independent code/security review of #589 and selective trusted-main integration.
+- Separate administrator decision for currently disabled main protection; verify existing Environment reviewers/branch restrictions.
+- Authoritative disposable/runtime/Production identity evidence and four isolated accounts/eight secret availability.
+- Separate Owner exact-target Hosted UAT authorization + normal Protected Environment review AFTER prerequisites.
+
+Final Hosted readiness: **BLOCKED**, not Business Acceptance PASS. MASTER_HANDOFF.md and all Production controls remain untouched.

@@ -28,7 +28,7 @@ test('hosted targets reject Production, aliases, credentials, query and external
 });
 test('approved target rejects missing isolation, literal strings and identity mismatch', () => {
   const expected = { source_sha: 'a'.repeat(40), source_branch: 'fix/serverless-database-reliability', deployment_id: 'dpl_Fixture123', url: preview };
-  const target = { ...expected, authorized: true, database_isolation_verified: true, database_isolation_evidence: 'https://github.com/godzillazzz/SMS-v3/actions/runs/123', database_target_fingerprint: 'b'.repeat(64), project_id: PROJECT_ID, team_id: TEAM_ID, target_mode: 'preview' };
+  const target = { production_database_identity_evidence: 'https://github.com/godzillazzz/SMS-v3/actions/runs/123', production_database_target_fingerprint: 'c'.repeat(64), runtime_guard_file_sha256: Object.fromEntries(['src/app.js', 'src/config/prisma.js', 'src/services/runtime-database-target-guard.service.js', 'src/utils/database-target-identity.js'].map(path => [path, 'd'.repeat(64)])), ...expected, authorized: true, database_isolation_verified: true, database_isolation_evidence: 'https://github.com/godzillazzz/SMS-v3/actions/runs/123', database_target_fingerprint: 'b'.repeat(64), project_id: PROJECT_ID, team_id: TEAM_ID, target_mode: 'preview' };
   assert.equal(validateApprovedTarget(target, expected), true);
   for (const change of [{ authorized: 'true' }, { database_isolation_verified: false }, { database_isolation_evidence: '' }, { database_target_fingerprint: '' }, { project_id: 'other' }, { team_id: 'other' }, { source_sha: 'c'.repeat(40) }, { target_mode: 'production' }]) assert.throws(() => validateApprovedTarget({ ...target, ...change }, expected));
 });

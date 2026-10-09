@@ -30,6 +30,11 @@ function validateApprovedTarget(target, expected) {
   if (!/^[a-f0-9]{40}$/.test(expected.source_sha || '') || !/^dpl_[A-Za-z0-9]+$/.test(expected.deployment_id || '')) fail('UAT_TARGET_IDENTITY_INVALID');
   if (target.project_id !== PROJECT_ID || target.team_id !== TEAM_ID || target.target_mode !== 'preview') fail('UAT_TARGET_PROJECT_MISMATCH');
   for (const key of ['source_sha', 'source_branch', 'deployment_id', 'url']) if (target[key] !== expected[key]) fail('UAT_APPROVED_TARGET_MISMATCH');
+  if (!/^https:\/\/github\.com\/godzillazzz\/SMS-v3\/actions\/runs\/\d+$/.test(target.production_database_identity_evidence || '')) fail('UAT_PRODUCTION_DATABASE_IDENTITY_EVIDENCE_REQUIRED');
+  if (!/^[a-f0-9]{64}$/.test(target.production_database_target_fingerprint || '') || target.production_database_target_fingerprint === target.database_target_fingerprint) fail('UAT_DATABASE_NOT_DISTINCT_FROM_PRODUCTION');
+  for (const path of ['src/app.js', 'src/config/prisma.js', 'src/services/runtime-database-target-guard.service.js', 'src/utils/database-target-identity.js']) {
+    if (!/^[a-f0-9]{64}$/.test(target.runtime_guard_file_sha256?.[path] || '')) fail('UAT_RUNTIME_GUARD_SOURCE_REQUIRED');
+  }
   previewUrl(expected.url);
   return true;
 }

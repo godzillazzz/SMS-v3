@@ -77,6 +77,7 @@ jobs:
         run: |
           node test/uat-recovery-security.test.js
           node test/uat-recovery-workflow.test.js
+          node test/uat-recovery-isolation.test.js
           npx playwright test --config playwright.uat-v3.config.js --list
       - name: Verify four-role UAT browser isolation on local synthetic fixtures
         run: npx playwright test --config playwright.uat-v3-fixture.config.js

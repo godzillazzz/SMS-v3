@@ -30,13 +30,19 @@ jobs:
     if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.repository == 'godzillazzz/SMS-v3' && github.actor == 'godzillazzz'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           ref: ${{ github.sha }}
           persist-credentials: false
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: 22
+      - name: Verify protected main and exact runtime guard source without protected secrets
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          UAT_SOURCE_SHA: ${{ inputs.source_sha }}
+          UAT_TRUSTED_MAIN_SHA: ${{ github.sha }}
+        run: node scripts/ci/verify-uat-v3-trust.js
       - name: Validate trusted reviewed target and disposable database evidence
         env:
           TARGET_URL: ${{ inputs.target_url }}
@@ -50,7 +56,7 @@ jobs:
           validateApprovedTarget(target, { url: process.env.TARGET_URL, source_sha: process.env.SOURCE_SHA, source_branch: process.env.SOURCE_BRANCH, deployment_id: process.env.DEPLOYMENT_ID });
           NODE
       - name: Require full validation for exact application and trusted main SHAs
-        uses: actions/github-script@v7
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b
         env:
           SOURCE_SHA: ${{ inputs.source_sha }}
         with:
@@ -71,11 +77,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           ref: ${{ github.sha }}
           persist-credentials: false
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: 22
           cache: npm
@@ -85,6 +91,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
           UAT_BASE_URL: ${{ inputs.target_url }}
           UAT_SOURCE_SHA: ${{ inputs.source_sha }}
           UAT_SOURCE_BRANCH: ${{ inputs.source_branch }}
@@ -108,7 +115,7 @@ jobs:
         run: node scripts/ci/run-uat-v3-readonly.js
       - name: Upload only scanned sanitized result summary
         if: success() && steps.uat.outcome == 'success'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: authenticated-readonly-uat-${{ github.run_id }}
           path: test-results/uat-v3-safe/results.json

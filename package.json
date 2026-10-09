@@ -19,7 +19,7 @@
     "test:integration": "node --test --test-concurrency=1 test/integration/*.test.js",
     "test:uat": "playwright test",
     "test:uat:v3": "node scripts/ci/run-uat-v3-readonly.js",
-    "test:uat:v3:check": "node test/uat-recovery-security.test.js && node test/uat-recovery-workflow.test.js && playwright test --config playwright.uat-v3.config.js --list",
+    "test:uat:v3:check": "node test/uat-recovery-security.test.js && node test/uat-recovery-workflow.test.js && node test/uat-recovery-isolation.test.js && playwright test --config playwright.uat-v3.config.js --list",
     "test:uat:check": "node --test test/uat-config.test.js && playwright test --list",
     "db:test:migrate": "prisma migrate deploy",
     "vercel-build": "node scripts/vercel-production-build.js",
