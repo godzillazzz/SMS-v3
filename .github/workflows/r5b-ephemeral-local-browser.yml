@@ -119,7 +119,7 @@ jobs:
           set -euo pipefail
           node src/server.js > /tmp/r5b-local-backend.log 2>&1 &
           backend_pid=$!
-          node frontend/node_modules/vite/bin/vite.js preview --host 127.0.0.1 --port 4173 --strictPort > /tmp/r5b-local-frontend.log 2>&1 &
+          (cd frontend && node node_modules/vite/bin/vite.js preview --host 127.0.0.1 --port 4173 --strictPort > /tmp/r5b-local-frontend.log 2>&1) &
           frontend_pid=$!
           status() {
             curl --silent --max-time 3 --output /dev/null --write-out '%{http_code}' "$1" 2>/dev/null || true
