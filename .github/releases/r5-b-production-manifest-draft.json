@@ -68,7 +68,7 @@
   "current_production_live_health_readiness": "PASS_READONLY_20261009",
   "current_production_live_cors": "PASS_TRUSTED_AND_UNTRUSTED_CORS_20261009",
   "current_production_ready_metadata": "VERIFIED_VERCEL_READY_SHA_CANONICAL_ALIAS",
-  "production_release_go_no_go": "NO_GO_CURRENT_VERCEL_CONFIG_UNVERIFIED_AND_SEPARATE_OWNER_PRODUCTION_APPROVAL_REQUIRED",
+  "production_release_go_no_go": "NO_GO_FINAL_CONTROL_EXACT_HEAD_REVALIDATION_AND_SEPARATE_OWNER_PRODUCTION_APPROVAL_REQUIRED",
   "deployment_time_data_mutation": "NONE",
   "rollback_caveat": "Code rollback does not reverse permitted production runtime data changes; preserve monthly schedule approval integrity.",
   "audit_log_record": "OWNER_ALTERNATE_ACCEPTANCE_RECORDED_IN_ISSUE_551_PRODUCTION_DEPLOY_NOT_AUTHORIZED",
@@ -123,9 +123,16 @@
   "preview_earlier_readonly_failure_run_id": 37887712383,
   "preview_earlier_readonly_failure_status": "FAILURE_PREVIEW_SSO_BLOCKED",
   "preview_earlier_readonly_failure_evidence_url": "https://github.com/godzillazzz/SMS-v3/actions/runs/37887712383",
-  "project_auto_assign_custom_domains_current_status": "BLOCKED_CONFIG_UNVERIFIED",
-  "project_auto_assign_custom_domains_current_source": "Authenticated current Vercel project response omits this property; missing is not false.",
+  "project_auto_assign_custom_domains_current_status": "CONFIG_VERIFIED_PASS",
+  "project_auto_assign_custom_domains_current_source": "TRUSTED_MAIN_PROTECTED_AUTHENTICATED_DIRECT_VERCEL_PROJECT_GET_RUN_37912642798",
   "project_auto_assign_custom_domains_last_recorded_value": false,
   "project_auto_assign_custom_domains_last_recorded_event_id": "uev_VURlmrxBbqYXaZzyO2Tg6dT0",
-  "project_auto_assign_custom_domains_last_recorded_at": "2026-08-04T04:18:03.480Z"
+  "project_auto_assign_custom_domains_last_recorded_at": "2026-08-04T04:18:03.480Z",
+  "project_auto_assign_custom_domains_current_value": false,
+  "project_auto_assign_custom_domains_current_run_id": 37912642798,
+  "project_auto_assign_custom_domains_current_job_id": 113761248520,
+  "project_auto_assign_custom_domains_current_run_head_sha": "06ab44727a752de606c378599f4860a4c2f61aa8",
+  "project_auto_assign_custom_domains_current_verified_at": "2026-10-09T09:40:56Z",
+  "project_auto_assign_custom_domains_current_evidence_url": "https://github.com/godzillazzz/SMS-v3/actions/runs/37912642798",
+  "release_control_revalidation_status": "EXACT_HEAD_CI_AND_FINAL_CONTROL_REVIEW_REQUIRED_AFTER_DRAFT_UPDATE"
 }

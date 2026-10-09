@@ -57,9 +57,15 @@ test('R5-B alternate acceptance documents the verified evidence and known covera
   assert.equal(d.preview_superseded_anonymous_probe_failure_status, 'FAILURE_SSO_BLOCKED');
   assert.equal(d.preview_earlier_readonly_failure_run_id, 37887712383);
   assert.equal(d.preview_earlier_readonly_failure_status, 'FAILURE_PREVIEW_SSO_BLOCKED');
-  assert.equal(d.project_auto_assign_custom_domains_current_status, 'BLOCKED_CONFIG_UNVERIFIED');
+  assert.equal(d.project_auto_assign_custom_domains_current_status, 'CONFIG_VERIFIED_PASS');
+  assert.equal(d.project_auto_assign_custom_domains_current_value, false);
+  assert.equal(d.project_auto_assign_custom_domains_current_run_id, 37912642798);
+  assert.equal(d.project_auto_assign_custom_domains_current_job_id, 113761248520);
+  assert.equal(d.project_auto_assign_custom_domains_current_run_head_sha, '06ab44727a752de606c378599f4860a4c2f61aa8');
+  assert.equal(d.project_auto_assign_custom_domains_current_verified_at, '2026-10-09T09:40:56Z');
+  assert.equal(d.release_control_revalidation_status, 'EXACT_HEAD_CI_AND_FINAL_CONTROL_REVIEW_REQUIRED_AFTER_DRAFT_UPDATE');
   assert.equal(d.project_auto_assign_custom_domains_last_recorded_value, false);
-  assert.equal(d.production_release_go_no_go, 'NO_GO_CURRENT_VERCEL_CONFIG_UNVERIFIED_AND_SEPARATE_OWNER_PRODUCTION_APPROVAL_REQUIRED');
+  assert.equal(d.production_release_go_no_go, 'NO_GO_FINAL_CONTROL_EXACT_HEAD_REVALIDATION_AND_SEPARATE_OWNER_PRODUCTION_APPROVAL_REQUIRED');
 });
 
 test('control evidence binds verified GitHub SHA/CI and avoids a self-referential control SHA', () => {
