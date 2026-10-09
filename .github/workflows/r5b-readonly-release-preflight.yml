@@ -1,0 +1,68 @@
+name: R5-B Read-only Production and Preview Readiness (No Deploy)
+
+on:
+  pull_request:
+    branches:
+      - fix/serverless-database-reliability
+    paths:
+      - .github/workflows/r5b-readonly-release-preflight.yml
+      - scripts/ci/r5b-readonly-runtime-probe.cjs
+      - .github/releases/r5-b-production-manifest-draft.json
+  push:
+    branches:
+      - fix/serverless-database-reliability
+    paths:
+      - .github/workflows/r5b-readonly-release-preflight.yml
+      - scripts/ci/r5b-readonly-runtime-probe.cjs
+      - .github/releases/r5-b-production-manifest-draft.json
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: r5b-readonly-release-preflight
+  cancel-in-progress: false
+
+jobs:
+  readonly-health-readiness-cors:
+    if: github.repository == 'godzillazzz/SMS-v3'
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      R5B_PROBE_READONLY_APPROVED: 'YES'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify only frozen R5-B draft and no dispatch permission
+        shell: bash
+        run: |
+          set -euo pipefail
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const draft = JSON.parse(fs.readFileSync('.github/releases/r5-b-production-manifest-draft.json','utf8'));
+          const production = JSON.parse(fs.readFileSync('.github/releases/approved-production.json','utf8'));
+          if (draft.release_batch_id !== 'R5-B' ||
+              draft.manifest_state !== 'DRAFT_SEPARATE_PRODUCTION_APPROVAL_REQUIRED' ||
+              draft.owner_action !== 'PENDING_SEPARATE_PRODUCTION_APPROVAL' ||
+              draft.production_dispatch_authorized !== false ||
+              draft.commit_sha !== '77641a2657aa4fd05276afe645dd32648f5cc56b' ||
+              production.release_batch_id !== 'R5-A' ||
+              production.production_dispatch_authorized !== false ||
+              process.env.DATABASE_URL || process.env.VERCEL_TOKEN ||
+              process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.CRON_SECRET) {
+            throw Error('R5B_RELEASE_NOT_READONLY_DRAFT');
+          }
+          NODE
+          echo 'R5B_RELEASE_CONTROL=NON_DISPATCHABLE_DRAFT'
+      - name: Read-only HTTP health/readiness/CORS on frozen Preview and Canonical
+        run: node scripts/ci/r5b-readonly-runtime-probe.cjs
+      - name: Confirm no Production dispatch or mutation
+        run: |
+          echo 'R5B_PRODUCTION_PROMOTION=NOT_EXECUTED'
+          echo 'R5B_DB_MUTATIONS=NONE'
+          echo 'R5B_RESPONSE_BODY_IN_ARTIFACTS=false'
