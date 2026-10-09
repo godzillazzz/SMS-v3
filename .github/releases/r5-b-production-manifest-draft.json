@@ -65,13 +65,17 @@
   "acceptance_exception_local_browser_scope": "TWO_SMOKE_CASES_NOT_FULL_Q13B_Q13C_WORKFLOW_LIFECYCLE",
   "acceptance_exception_license_document_browser": "UPLOAD_REVIEW_RENEWAL_NOT_COVERED_BY_LOCAL_BROWSER",
   "acceptance_mitigation": "GUARDED_RELEASE_APPROVAL_PROTECTED_ENVIRONMENT_POST_DEPLOY_SENTINELS_ROLLBACK_HYPERCARE",
-  "current_production_live_health_readiness": "NOT_VERIFIED_IN_CURRENT_PREPARATION",
-  "current_production_live_cors": "NOT_VERIFIED_IN_CURRENT_PREPARATION",
+  "current_production_live_health_readiness": "PASS_READONLY_20261009",
+  "current_production_live_cors": "PASS_TRUSTED_AND_UNTRUSTED_CORS_20261009",
   "current_production_ready_metadata": "VERIFIED_VERCEL_READY_SHA_CANONICAL_ALIAS",
-  "production_release_go_no_go": "NO_GO_AWAITING_FRESH_PREFLIGHT_AND_SEPARATE_OWNER_PRODUCTION_APPROVAL",
+  "production_release_go_no_go": "NO_GO_AWAITING_PROTECTED_PREVIEW_PREFLIGHT_ROLLBACK_AND_SEPARATE_OWNER_PRODUCTION_APPROVAL",
   "deployment_time_data_mutation": "NONE",
   "rollback_caveat": "Code rollback does not reverse permitted production runtime data changes; preserve monthly schedule approval integrity.",
   "audit_log_record": "OWNER_ALTERNATE_ACCEPTANCE_RECORDED_IN_ISSUE_551_PRODUCTION_DEPLOY_NOT_AUTHORIZED",
   "immutable_production_manifest_path": ".github/releases/approved-production.json",
-  "immutable_production_manifest_change": "NONE_R5A_REMAINS_CURRENT_UNTOUCHED"
+  "immutable_production_manifest_change": "NONE_R5A_REMAINS_CURRENT_UNTOUCHED",
+  "current_production_live_readonly_run_id": 37887712383,
+  "preview_live_readonly_status": "BLOCKED_PROTECTED_SSO_REQUIRES_APPROVED_BYPASS",
+  "preview_prior_owner_protected_readonly_run_id": 37877103246,
+  "preview_prior_owner_protected_readonly_status": "SUCCESS_AT_20261009"
 }
