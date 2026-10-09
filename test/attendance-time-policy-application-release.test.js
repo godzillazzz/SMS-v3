@@ -4,8 +4,8 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const { verify } = require('../scripts/ci/verify-preapplied-attendance-policy-readonly');
 const { validateReleaseManifest } = require('../scripts/ci/verify-release-manifest');
-test('R5-A readiness pins exact source, current Production checkpoint and no database changes',()=>{
-  const manifest=JSON.parse(fs.readFileSync('.github/releases/approved-production.json'));
+test('archived R5-A readiness pins historical source, checkpoint and no database changes',()=>{
+  const manifest=JSON.parse(fs.readFileSync('.github/releases/r5-a-production-manifest-archive-20261009.json'));
   const valid=validateReleaseManifest(manifest);
   assert.equal(valid.commitSha,'51c5c828689ce543067c687e204eba7918577bb9');
   assert.equal(valid.treeSha,'f82ae344666a7774d7c5ec78dc113cc2c2ed9e63');
@@ -82,8 +82,8 @@ test('workflow pins independent history tools to migration evidence and preserve
   assert(workflow.includes('Attendance Time Policy sentinels: PASS (3/3 additional)'));
   assert(workflow.includes("sentinels.push('นโยบายเวลาลงงาน','ผ่อนผันการมาสาย (นาที)','latestCheckInEnabled')"));
 });
-test('R5-A readiness retains specific Owner approval and immutable policy boundaries', () => {
-  const manifest = JSON.parse(fs.readFileSync('.github/releases/approved-production.json', 'utf8'));
+test('archived R5-A readiness retains historical Owner approval and immutable policy boundaries', () => {
+  const manifest = JSON.parse(fs.readFileSync('.github/releases/r5-a-production-manifest-archive-20261009.json', 'utf8'));
   assert.equal(manifest.release_batch_id, 'R5-A');
   assert.equal(manifest.owner_batch_frozen_sha_approval, 'PENDING_NOT_AUTHORIZED');
   assert.equal(manifest.production_dispatch_authorized, false);
