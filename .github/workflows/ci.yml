@@ -99,3 +99,4 @@ jobs:
           test/uat-v3-artifact-preflight.test.js
           test/uat-target-contract.test.js
           test/uat-target-scope.test.js
+          test/q13-disposable-preview-target.test.js
