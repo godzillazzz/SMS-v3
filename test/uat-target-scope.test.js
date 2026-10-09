@@ -10,6 +10,7 @@ const {
   TARGETED_AUTH_RETRY_SCOPE,
   TARGETED_AUTH_RETRY_TEST_TITLES,
   getUatScopeGrep,
+  getUatScopeGrepInvert,
   getUatScopeTestTitles
 } = require('../e2e/helpers/uat-config');
 
@@ -71,6 +72,18 @@ test('full and technical scopes do not inherit authenticated targeted grep', () 
   assert.equal(getUatScopeGrep({ UAT_MODE: 'technical', UAT_SCOPE: REPORT_CENTER_DIAGNOSTIC_SCOPE }), undefined);
 });
 
+test('Q13C employee license governance is isolated to targeted mutating scope', () => {
+  const title = 'Q13C ADMIN: Employee License governance lifecycle and cleanup';
+  const targeted = getUatScopeTestTitles({ UAT_MODE: 'authenticated', UAT_SCOPE: 'q13c-business-workflow-targeted' });
+  assert.equal(targeted.filter((item) => item === title).length, 1);
+  const grep = getUatScopeGrep({ UAT_MODE: 'authenticated', UAT_SCOPE: 'q13c-business-workflow-targeted' });
+  assert.equal(grep.test('q13c-business-workflow.spec.js › ' + title), true);
+  assert.equal(grep.test('q13c-business-workflow.spec.js › ' + title + ' extra'), false);
+  const fullExcluded = getUatScopeGrepInvert({ UAT_MODE: 'authenticated', UAT_SCOPE: 'full' });
+  assert.equal(fullExcluded.test('q13c-business-workflow.spec.js › ' + title), true);
+  assert.equal(getUatScopeGrep({ UAT_MODE: 'authenticated', UAT_SCOPE: 'full' }), undefined);
+  assert.equal(getUatScopeGrep({ UAT_MODE: 'technical', UAT_SCOPE: 'q13c-business-workflow-targeted' }), undefined);
+});
 test('unknown scope cannot become a Playwright selector or command fragment', () => {
   assert.throws(() => getUatScopeGrep({ UAT_MODE: 'authenticated', UAT_SCOPE: 'admin-rbac-targeted-retry|.*' }), { code: 'UAT_SCOPE_NOT_APPROVED' });
   assert.throws(() => getUatScopeTestTitles({ UAT_MODE: 'authenticated', UAT_SCOPE: '--grep' }), { code: 'UAT_SCOPE_NOT_APPROVED' });

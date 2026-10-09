@@ -49,6 +49,7 @@ const Q13C_BUSINESS_WORKFLOW_TEST_TITLES = Object.freeze([
   'Q13C ADMIN: Employee Change governed approval workflow',
   'Q13C ADMIN: Disposable user access lifecycle',
   'Q13C ADMIN: Security Site reversible configuration workflow',
+  'Q13C ADMIN: Employee License governance lifecycle and cleanup',
   'Q13C ADMIN: System Setting reversible standard update'
 ]);
 const scopes = ['full', REPORT_CENTER_DIAGNOSTIC_SCOPE, RESPONSIVE_NETWORK_SCOPE, TARGETED_AUTH_RETRY_SCOPE, G03_READONLY_SCOPE, Q13B_SPECIALIST_WRITE_SCOPE, Q13C_BUSINESS_WORKFLOW_SCOPE];
