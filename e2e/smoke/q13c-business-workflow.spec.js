@@ -155,6 +155,73 @@ test('Q13C ADMIN: Security Site reversible configuration workflow', async () => 
   expect(deactivated.payload?.data?.isActive).toBe(false);
 });
 
+test('Q13C ADMIN: Employee License governance lifecycle and cleanup', async () => {
+  assertMutationGuard();
+  const adminToken = roleAccessToken('ADMIN');
+  const managerToken = roleAccessToken('MANAGER');
+  const viewerToken = roleAccessToken('VIEWER');
+  const employee = await fixtureEmployee(adminToken);
+  const number = `ZZZ-Q13C-LIC-${randomUUID()}`;
+  const url = '/api/v1/licenses';
+  const data = {
+    employeeId: employee.id, licenseType: 'Q13C-UAT-License', licenseNumber: number,
+    issueDate: '2026-10-01T00:00:00.000Z', expiryDate: '2028-10-01T00:00:00.000Z',
+    status: 'Active', remark: `${MARKER} disposable license fixture`
+  };
+  let id;
+  try {
+    const forbiddenCreate = await authenticatedRequest(url, { accessToken: managerToken, method: 'POST', data });
+    expect(forbiddenCreate.status, 'Only ADMIN may create employee licenses').toBe(403);
+
+    const created = await authenticatedRequest(url, { accessToken: adminToken, method: 'POST', data });
+    expect(created.status, 'ADMIN may create synthetic license on isolated database').toBe(201);
+    id = created.payload?.data?.id;
+    expect(id).toBeTruthy();
+    expect(created.payload?.data?.employeeId).toBe(employee.id);
+    expect(created.payload?.data?.licenseNumber).toBe(number);
+
+    const listUrl = `${url}?employeeStatus=ALL&employeeId=${encodeURIComponent(employee.id)}&pageSize=1000`;
+    const listed = await authenticatedRequest(listUrl, { accessToken: managerToken });
+    expect(listed.status, 'MANAGER may read employee licenses').toBe(200);
+    expect((listed.payload?.data || []).filter((row) => row.id === id)).toHaveLength(1);
+
+    const forbiddenRead = await authenticatedRequest(listUrl, { accessToken: viewerToken });
+    expect(forbiddenRead.status, 'VIEWER must not access management license inventory').toBe(403);
+
+    const remark = `${MARKER} manager note updated`;
+    const updated = await authenticatedRequest(`${url}/${id}`, {
+      accessToken: managerToken, method: 'PUT', data: { remark }
+    });
+    expect(updated.status, 'MANAGER may update permitted license remarks').toBe(200);
+    expect(updated.payload?.data?.remark).toBe(remark);
+
+    const rejectedExpiry = await authenticatedRequest(`${url}/${id}`, {
+      accessToken: managerToken, method: 'PUT', data: { expiryDate: '2029-10-01T00:00:00.000Z' }
+    });
+    expect(rejectedExpiry.status, 'Expiry updates need a new document review').toBe(409);
+
+    const duplicate = await authenticatedRequest(url, { accessToken: adminToken, method: 'POST', data });
+    expect(duplicate.status, 'Duplicate license number must be rejected').toBe(409);
+
+    const forbiddenDelete = await authenticatedRequest(`${url}/${id}`, { accessToken: managerToken, method: 'DELETE' });
+    expect(forbiddenDelete.status, 'Only ADMIN may delete an employee license').toBe(403);
+
+    const readBack = await authenticatedRequest(listUrl, { accessToken: adminToken });
+    expect(readBack.status).toBe(200);
+    const persisted = (readBack.payload?.data || []).find((row) => row.id === id);
+    expect(persisted?.remark).toBe(remark);
+    expect(persisted?.licenseNumber).toBe(number);
+    expect(String(persisted?.expiryDate || '')).toContain('2028-10-01');
+  } finally {
+    if (id) {
+      const deleted = await authenticatedRequest(`${url}/${id}`, { accessToken: adminToken, method: 'DELETE' });
+      expect(deleted.status, 'Q13C license cleanup must delete synthetic fixture').toBe(204);
+      const after = await authenticatedRequest(`${url}?employeeStatus=ALL&employeeId=${encodeURIComponent(employee.id)}&pageSize=1000`, { accessToken: adminToken });
+      expect(after.status).toBe(200);
+      expect((after.payload?.data || []).some((row) => row.id === id), 'Q13C synthetic license must not remain after cleanup').toBe(false);
+    }
+  }
+});
 test('Q13C ADMIN: System Setting reversible standard update', async () => {
   assertMutationGuard();
   const accessToken = roleAccessToken('ADMIN');
