@@ -51,3 +51,11 @@ The local result does **not** imply that Q13B/Q13C complete targeted hosted Prev
 5. Ask Owner explicitly for R5-B Production promotion authorization and require separate GitHub protected Production Environment approval. Until then: **NO DEPLOY, NO DISPATCH, NO CANONICAL ALIAS CHANGES, NO PRODUCTION DB MUTATIONS**.
 
 All new evidence must be captured in Issue #551, distinguishing local API/Browser, hosted Preview and Production runtime.
+
+## 2026-10-09 fresh read-only runtime result and protected-preview blocker
+
+- Fresh no-credential Production canonical probe [#37887712383](https://github.com/godzillazzz/SMS-v3/actions/runs/37887712383): Health HTTP 200 PASS, DB Ready HTTP 200 PASS, trusted credentialed CORS PASS, untrusted CORS rejected PASS. All checks are GET/OPTIONS without Production data writes.
+- The same job **FAIL_CLOSED** on the immutable Vercel Preview because its deployment endpoint is protected, with remote access NOT_VERIFIED from an anonymous GitHub runner. The control does **not** record Preview PASS.
+- Vercel project metadata shows SSO protection enabled for all deployments except custom domains. The prior Owner-approved *protected* Preview gate [#37877103246](https://github.com/godzillazzz/SMS-v3/actions/runs/37877103246) passed on 2026-10-09 using Vercel automation bypass secret in protected GitHub Environment, with immutable Preview deployment identity and safe CORS/health/ready assertions. The previous result is not fresh re-validation by the new anonymous probe.
+- **Required before official Production decision:** a separately owner-approved *read-only* protected Preview probe with the existing secret within the approved protected environment. Do not disclose this secret, copy it into an unprotected workflow, disable SSO protection, or equate an HTTP redirect/denial with runtime PASS. If a protected probe is not approved, remain NO-GO.
+- PR #578 remains DRAFT with official R5-A manifest untouched; no Production deploy or dispatch is authorized.
