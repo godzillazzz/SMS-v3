@@ -1,0 +1,90 @@
+name: R5-B Owner Technical Smoke Dispatch (Preview Only)
+
+# Trusted main-only GitHub-native bridge. No deployment or Production permissions.
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  issues: read
+  actions: write
+
+concurrency:
+  group: r5b-owner-technical-smoke-dispatch
+  cancel-in-progress: false
+
+jobs:
+  dispatch-preview-technical-smoke:
+    if: >-
+      github.repository == 'godzillazzz/SMS-v3' &&
+      github.ref == 'refs/heads/main' &&
+      github.event.issue.number == 551 &&
+      github.event.issue.pull_request == null &&
+      github.event.comment.user.login == 'godzillazzz' &&
+      github.event.sender.login == 'godzillazzz' &&
+      github.event.comment.body == '/sms-v3-r5b-technical-smoke-20261009'
+    runs-on: ubuntu-latest
+    timeout-minutes: 7
+    env:
+      GH_TOKEN: ${{ github.token }}
+      EXPECTED_SOURCE_SHA: e3ff848f0b5aa0e8f15887bef02ce81e6a9b165b
+      EXPECTED_HARNESS_SHA: ccb6b840ecc090e79bbf906ea45d665a8b790393
+    steps:
+      - name: Require exact Owner event and frozen source identities
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          'use strict';
+          const fs = require('node:fs');
+          const ev = JSON.parse(fs.readFileSync(process.env.GITHUB_EVENT_PATH, 'utf8'));
+          const owner = {id: 279642101, login: 'godzillazzz'};
+          const accepted =
+            process.env.GITHUB_REPOSITORY === 'godzillazzz/SMS-v3' &&
+            process.env.GITHUB_REF === 'refs/heads/main' &&
+            ev.action === 'created' &&
+            ev.issue?.number === 551 &&
+            ev.issue?.state === 'open' &&
+            !ev.issue?.pull_request &&
+            ev.sender?.id === owner.id &&
+            ev.sender?.login === owner.login &&
+            ev.comment?.user?.id === owner.id &&
+            ev.comment?.user?.login === owner.login &&
+            ev.comment?.author_association === 'OWNER' &&
+            ev.comment?.body === '/sms-v3-r5b-technical-smoke-20261009';
+          if (!accepted) {
+            console.error('R5B_OWNER_TECHNICAL_REQUEST=REJECTED');
+            process.exit(1);
+          }
+          console.log('R5B_OWNER_TECHNICAL_REQUEST=PASS');
+          NODE
+          test "$(gh api repos/godzillazzz/SMS-v3/git/ref/heads/main --jq '.object.sha')" = "$GITHUB_SHA"
+          test "$(gh api repos/godzillazzz/SMS-v3/git/ref/heads/fix/serverless-database-reliability --jq '.object.sha')" = "$EXPECTED_SOURCE_SHA"
+          test "$(gh api repos/godzillazzz/SMS-v3/git/ref/heads/test/automated-uat-v3-authenticated --jq '.object.sha')" = "$EXPECTED_HARNESS_SHA"
+          for state in queued in_progress; do
+            active="$(gh api "repos/godzillazzz/SMS-v3/actions/workflows/automated-uat-sms-v3-staging.yml/runs?status=$state&per_page=1" --jq '.total_count')"
+            if [[ "$active" != 0 ]]; then
+              echo "R5B_TECHNICAL_DISPATCH=BLOCKED_ACTIVE_RUN"
+              exit 1
+            fi
+          done
+          echo 'R5B_PREVIEW_FROZEN_IDENTITY=PASS'
+
+      - name: Dispatch technical-only to protected Preview target
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh api -X POST repos/godzillazzz/SMS-v3/actions/workflows/automated-uat-sms-v3-staging.yml/dispatches \
+            -f ref=main \
+            -f 'inputs[target_url]=https://sms-v3-staging-cdudcqwl5-godzillazz.vercel.app' \
+            -f 'inputs[target_mode]=preview' \
+            -f "inputs[source_sha]=$EXPECTED_SOURCE_SHA" \
+            -f 'inputs[source_branch]=fix/serverless-database-reliability' \
+            -f "inputs[uat_harness_sha]=$EXPECTED_HARNESS_SHA" \
+            -f 'inputs[expected_deployment_id]=dpl_CrAgeJxHdqaq2FBziFTPGuBB3w9v' \
+            -f 'inputs[uat_mode]=technical' \
+            -f 'inputs[uat_scope]=full'
+          echo 'R5B_TECHNICAL_DISPATCH=ACCEPTED'
+          echo 'R5B_PRODUCTION_DEPLOYMENT=NOT_AUTHORIZED'
+          echo 'Protected Environment review remains mandatory.'
