@@ -30,12 +30,14 @@ async function req(origin, path, options={}) {
 }
 async function proveTarget(kind, origin) {
   const health = await req(origin, '/api/v1/health');
+  console.log('R5B_' + kind + '_HEALTH_HTTP=' + health.status);
   exactStatus(health.status, 200, 'HEALTH_HTTP_NOT_PROVEN');
   const healthJson = await health.json();
   if (healthJson?.status !== 'ok') throw Error('HEALTH_BODY_NOT_PROVEN');
   console.log('R5B_' + kind + '_HEALTH=PASS');
 
   const ready = await req(origin, '/api/v1/ready');
+  console.log('R5B_' + kind + '_READY_HTTP=' + ready.status);
   exactStatus(ready.status, 200, 'READINESS_HTTP_NOT_PROVEN');
   const readiness = await ready.json();
   if (readiness?.status !== 'ready' || readiness.database !== 'ok') {
@@ -79,8 +81,13 @@ async function run() {
   console.log('R5B_PRODUCTION_DEPLOYMENT=NOT_ATTEMPTED');
 }
 if (require.main === module) {
-  run().catch(() => {
-    // No remote payload, request ID, URL, headers or internal error logs.
+  run().catch((error) => {
+    // Stable error classes only; never echo network error, URL or response payload.
+    const known = new Set(['HEALTH_HTTP_NOT_PROVEN','HEALTH_BODY_NOT_PROVEN',
+      'READINESS_HTTP_NOT_PROVEN','READINESS_BODY_NOT_PROVEN',
+      'TRUSTED_CORS_HTTP_NOT_PROVEN','TRUSTED_CORS_HEADERS_NOT_PROVEN',
+      'UNTRUSTED_CORS_REJECTION_NOT_PROVEN','UNTRUSTED_CORS_HEADER_VIOLATION']);
+    console.error('R5B_READONLY_BLOCKER=' + (known.has(error.message) ? error.message : 'REMOTE_ACCESS_NOT_VERIFIED'));
     console.error('R5B_READONLY_PROBE=FAIL_CLOSED');
     process.exitCode=1;
   });
