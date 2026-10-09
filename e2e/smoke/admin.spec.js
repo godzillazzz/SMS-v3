@@ -17,16 +17,16 @@ test('ADMIN: dashboard is complete and stable after refresh', async ({ page }) =
     loginResult = await loginAs(page, 'ADMIN');
   });
   const { accessToken } = loginResult;
-  await expect(page.locator('section.dashboard-page-v2[aria-label="Operations Dashboard"]')).toBeVisible();
-  await expect(page.getByText('ข้อมูลบางส่วนยังไม่พร้อม', { exact: false })).toHaveCount(0);
+  await expect(page.locator('section.nexus-command[aria-label="ภาพรวม"]')).toBeVisible();
+  await expect(page.getByText('ข้อมูลบางส่วนไม่พร้อม', { exact: false })).toHaveCount(0);
   await performAndWaitForLoadSensitiveRequest(page, '/api/v1/approval-center/summary', () =>
     performAndWaitForHeavyRequest(page, '/api/v1/dashboard', () => page.reload({ waitUntil: 'domcontentloaded' }))
   );
-  await expect(page.getByRole('heading', { name: 'แดชบอร์ด', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'ภาพรวมระบบ', exact: true })).toBeVisible();
   const response = await authenticatedRequest('/api/v1/dashboard', { accessToken });
   expect(response.status, 'Dashboard response must succeed after refresh.').toBeGreaterThanOrEqual(200);
   expect(response.status, 'Dashboard response must succeed after refresh.').toBeLessThan(300);
-  await expect(page.getByText('ข้อมูลบางส่วนยังไม่พร้อม', { exact: false })).toHaveCount(0);
+  await expect(page.getByText('ข้อมูลบางส่วนไม่พร้อม', { exact: false })).toHaveCount(0);
   monitor.assertClean();
 });
 
