@@ -61,7 +61,7 @@ function sourceRegressionContracts() {
 
   requireIncludes(auditTable, [
     'audit-desktop-table',
-    '<table className="audit-table data-surface-table" aria-label="รายการ Audit Log">',
+    '<table className="audit-table data-surface-table" aria-label="รายการบันทึกการใช้งาน">',
     '<thead>',
     '<tbody>',
     'audit-mobile-cards',
@@ -86,9 +86,9 @@ function sourceRegressionContracts() {
   }
 
   requireIncludes(dashboardPage, [
-    '!error && partialErrors.length > 0',
-    'dashboard-data-warning',
-    'ข้อมูลบางส่วนยังไม่พร้อม'
+    'error ? <div className="nexus-command__alert dashboard-data-error"',
+    ': partialErrors.length > 0 ? <div className="nexus-command__alert dashboard-data-warning"',
+    'ข้อมูลบางส่วนไม่พร้อม'
   ], 'DASHBOARD_PARTIAL_WARNING_CONTRACT_FAILED');
 
   requireIncludes(executiveReportPage, [
@@ -96,7 +96,7 @@ function sourceRegressionContracts() {
     'executive-report-grid',
     'executive-report-attention',
     'ExecutiveReportPrint',
-    "printDocument('.executive-report-print', filename)"
+    "printDocument('.executive-report-print', filename, { orientation: 'landscape', margin: '12mm' })"
   ], 'EXECUTIVE_REPORT_RENDERER_CONTRACT_FAILED');
   requireIncludes(executiveReportStyles, [
     '.executive-report-kpis { display:grid;',
@@ -111,7 +111,7 @@ function sourceRegressionContracts() {
   requireIncludes(lifecycleModal, [
     'แก้ไขข้อมูลพนักงาน',
     '3. การเปลี่ยนแปลง',
-    'Impact Preview ก่อนบันทึก',
+    'ตรวจสอบผลกระทบก่อนบันทึก',
     '5. คำขอ / ประวัติการเปลี่ยนแปลง',
     'api.preflightEmployeeMasterEdit',
     'api.updateEmployee',
@@ -142,8 +142,8 @@ function employeeLifecycleSourceContract() {
   const lifecycleModal = readProjectFile('frontend/src/components/personnel/EmployeeGovernedEditModal.tsx');
 
   requireIncludes(lifecycleRoutes, [
-    "router.get('/:id/lifecycle', authorize('ADMIN', 'MANAGER')",
-    "router.get('/:id/lifecycle/state', authorize('ADMIN', 'MANAGER')",
+    "router.get('/:id/lifecycle', authorize('ADMIN', 'MANAGER', 'SUPERVISOR')",
+    "router.get('/:id/lifecycle/state', authorize('ADMIN', 'MANAGER', 'SUPERVISOR')",
     "router.post('/:id/lifecycle/preflight', authorize('ADMIN')",
     "router.post('/:id/lifecycle', authorize('ADMIN')",
     'lifecycleActionSchema.parse(req.body)',
@@ -253,7 +253,7 @@ function executiveReportFixture() {
 }
 
 function employeeLifecycleFixture() {
-  return `<div class="employee-governed-backdrop"><section class="employee-governed-modal" role="dialog" aria-labelledby="employee-governed-title"><header class="employee-governed-header"><div><p>EMPLOYEE MASTER · GOVERNED EDIT</p><h2 id="employee-governed-title">แก้ไขข้อมูลพนักงาน</h2><span>EMP001 · พนักงานทดสอบ ชื่อภาษาไทยยาวเพื่อทดสอบการแสดงผล</span></div><button type="button">×</button></header><div class="employee-governed-body"><section class="employee-governed-section employee-critical-change-section"><h3>3. การเปลี่ยนแปลง</h3><div class="employee-change-action-grid"><button type="button" class="is-active"><strong>ย้ายหน่วยงาน / แผนก</strong><small>คง Employee ID และบันทึกประวัติ</small></button><button type="button"><strong>เปลี่ยนตำแหน่ง</strong><small>ตรวจผลกระทบก่อนบันทึก</small></button></div><div class="employee-critical-editor"><header><div><strong>ย้ายหน่วยงาน / แผนก</strong><span>การเปลี่ยนแปลงสำคัญ</span></div></header><div class="employee-critical-before-after"><span>หน่วยงานเดิม<b>Security Operations</b></span><span>หน่วยงานใหม่<b>Security Support</b></span></div><div class="employee-governed-grid employee-critical-governance"><label><span>วันที่มีผล</span><input type="date" value="2026-09-16"></label><label class="employee-governed-wide"><span>เหตุผล / หมายเหตุ</span><textarea>ทดสอบ responsive governed edit</textarea></label></div></div></section><section class="employee-governed-section employee-impact"><h3>Impact Preview ก่อนบันทึก</h3><div class="employee-impact-groups"><article class="employee-impact-group employee-impact-group--clear"><strong>ไม่กระทบ</strong><span>บัญชีผู้ใช้</span></article><article class="employee-impact-group employee-impact-group--review"><strong>ต้องตรวจสอบ</strong><span>ตารางกะ</span></article><article class="employee-impact-group employee-impact-group--follow-up"><strong>ต้องติดตาม</strong><span>1 รายการ</span></article></div></section><section class="employee-governed-section"><h3>5. คำขอ / ประวัติการเปลี่ยนแปลง</h3><div class="employee-revision-list"><article><header><strong>Revision 1</strong><span>อนุมัติแล้ว</span></header><small>มีผลทันที</small><p><b>หน่วยงาน</b><span>Security Operations → Security Support</span></p></article></div></section></div><footer class="employee-governed-actions"><div class="employee-action-summary"><strong>กำลังเปลี่ยน 1 รายการ</strong><span>หน่วยงาน</span></div><div class="employee-action-buttons"><button type="button">ปิด</button><button type="button">ตรวจสอบผลกระทบ</button><button type="button" class="btn-primary">บันทึกการแก้ไข</button></div></footer></section></div>`;
+  return `<div class="employee-governed-backdrop"><section class="employee-governed-modal" role="dialog" aria-labelledby="employee-governed-title"><header class="employee-governed-header"><div><p>EMPLOYEE MASTER · GOVERNED EDIT</p><h2 id="employee-governed-title">แก้ไขข้อมูลพนักงาน</h2><span>EMP001 · พนักงานทดสอบ ชื่อภาษาไทยยาวเพื่อทดสอบการแสดงผล</span></div><button type="button">×</button></header><div class="employee-governed-body"><section class="employee-governed-section employee-critical-change-section"><h3>3. การเปลี่ยนแปลง</h3><div class="employee-change-action-grid"><button type="button" class="is-active"><strong>ย้ายหน่วยงาน / แผนก</strong><small>คง Employee ID และบันทึกประวัติ</small></button><button type="button"><strong>เปลี่ยนตำแหน่ง</strong><small>ตรวจผลกระทบก่อนบันทึก</small></button></div><div class="employee-critical-editor"><header><div><strong>ย้ายหน่วยงาน / แผนก</strong><span>การเปลี่ยนแปลงสำคัญ</span></div></header><div class="employee-critical-before-after"><span>หน่วยงานเดิม<b>Security Operations</b></span><span>หน่วยงานใหม่<b>Security Support</b></span></div><div class="employee-governed-grid employee-critical-governance"><label><span>วันที่มีผล</span><input type="date" value="2026-09-16"></label><label class="employee-governed-wide"><span>เหตุผล / หมายเหตุ</span><textarea>ทดสอบ responsive governed edit</textarea></label></div></div></section><section class="employee-governed-section employee-impact"><h3>ตรวจสอบผลกระทบก่อนบันทึก</h3><div class="employee-impact-groups"><article class="employee-impact-group employee-impact-group--clear"><strong>ไม่กระทบ</strong><span>บัญชีผู้ใช้</span></article><article class="employee-impact-group employee-impact-group--review"><strong>ต้องตรวจสอบ</strong><span>ตารางกะ</span></article><article class="employee-impact-group employee-impact-group--follow-up"><strong>ต้องติดตาม</strong><span>1 รายการ</span></article></div></section><section class="employee-governed-section"><h3>5. คำขอ / ประวัติการเปลี่ยนแปลง</h3><div class="employee-revision-list"><article><header><strong>Revision 1</strong><span>อนุมัติแล้ว</span></header><small>มีผลทันที</small><p><b>หน่วยงาน</b><span>Security Operations → Security Support</span></p></article></div></section></div><footer class="employee-governed-actions"><div class="employee-action-summary"><strong>กำลังเปลี่ยน 1 รายการ</strong><span>หน่วยงาน</span></div><div class="employee-action-buttons"><button type="button">ปิด</button><button type="button">ตรวจสอบผลกระทบ</button><button type="button" class="btn-primary">บันทึกการแก้ไข</button></div></footer></section></div>`;
 }
 
 module.exports = {
