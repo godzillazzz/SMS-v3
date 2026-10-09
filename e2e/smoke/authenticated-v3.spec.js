@@ -61,7 +61,7 @@ async function expectUnifiedReportCenter(page, role, testInfo, monitor) {
     await tracker.run(
       'RC04_EXEC_KPIS',
       async () => {
-        await expect(center.locator('section.executive-report-page[aria-label="รายงานผู้บริหาร"]')).toBeVisible({ timeout: 60_000 });
+        await expect(center.locator('section.executive-report-page[aria-label="Executive Security Intelligence"]')).toBeVisible({ timeout: 60_000 });
         await expect(center.locator('.executive-report-kpis')).toBeVisible({ timeout: 60_000 });
         await expect(center.locator('.executive-report-print')).toHaveCount(1, { timeout: 60_000 });
       },
