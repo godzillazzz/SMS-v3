@@ -1,0 +1,14 @@
+{
+  "authorized": false,
+  "database_isolation_verified": false,
+  "database_isolation_evidence": null,
+  "database_target_fingerprint": null,
+  "project_id": "prj_XwhNUOB2zLSPZ6UgQcfyOKBYJ75s",
+  "team_id": "team_nemCExHbZ8EAhSgsvefHPAEz",
+  "target_mode": "preview",
+  "source_sha": null,
+  "source_branch": null,
+  "deployment_id": null,
+  "url": null,
+  "note": "Disabled until trusted-main review, isolated immutable Preview evidence and separate Human UAT approval. No Production authorization."
+}

@@ -1,5 +1,10 @@
 # SMS-v3 — CURRENT PROJECT BACKLOG / ทะเบียนงานค้าง
 
+## Authenticated UAT V3 recovery checkpoint — 9 October 2026
+
+Selective implementation is **IN PROGRESS**, isolated branch `test/uat-v3-four-role-recovery-20261009`, base `9abc97998f98265605f534de7874607a5f3b5a13`. Source PR #87 is not merged. Four roles are implemented; local backend units 1386 PASS, frontend 928 PASS, four-role DB integration 5 PASS and Chromium isolation 4 PASS. Full integration 195 PASS/7 SKIPPED; Hosted tests NOT EXECUTED. Exact PR CI/Preview are pending. Local results and full file disposition/security review: [UAT recovery](uat-v3-recovery.md). Hosted execution remains **BLOCKED** pending exact Full CI/Preview, trusted-main workflow review, disposable Preview DB isolation evidence, four-role credential readiness and human Environment approval. Local tests are not Hosted PASS. Production R5-B and its source SHA remain unchanged. MASTER_HANDOFF.md is intentionally untouched under the existing safety-review limitation.
+
+
 **Snapshot:** 2026-10-09 (Asia/Bangkok), after R5-B protected Production SUCCESS.
 **Source:** Latest GitHub PR/Issue status, `docs/ux-remediation/PLAN.md`, `MASTER_HANDOFF.md`, and GitHub/Vercel release evidence. This snapshot is not an automated continuously updating view.
 **Update rule:** Always recheck GitHub status and Production alias before claims. Update this file in each batch PR after a meaningful task decision/merge, and add a short latest-status pointer at the **top** of `MASTER_HANDOFF.md`. Preserve historical detail; do not silently treat old checkpoints as current.

@@ -73,6 +73,13 @@ jobs:
         run: npx playwright install --with-deps chromium
       - name: Run T29 print and T09 application-routing browser regressions
         run: npx playwright test --config frontend/playwright.print.config.ts
+      - name: Validate four-role UAT security and workflow contracts
+        run: |
+          node test/uat-recovery-security.test.js
+          node test/uat-recovery-workflow.test.js
+          npx playwright test --config playwright.uat-v3.config.js --list
+      - name: Verify four-role UAT browser isolation on local synthetic fixtures
+        run: npx playwright test --config playwright.uat-v3-fixture.config.js
       - name: Upload print and application-routing browser artifacts
         if: always()
         uses: actions/upload-artifact@v4

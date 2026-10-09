@@ -1,0 +1,114 @@
+name: Authenticated UAT V3 Read-only Preview
+on:
+  workflow_dispatch:
+    inputs:
+      target_url:
+        description: Reviewed immutable disposable Preview URL
+        type: string
+        required: true
+      source_sha:
+        description: Exact Preview application SHA
+        type: string
+        required: true
+      source_branch:
+        description: Native Preview Git ref
+        type: string
+        required: true
+      expected_deployment_id:
+        description: Reviewed immutable Preview deployment ID
+        type: string
+        required: true
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: sms-v3-authenticated-readonly-preview
+  cancel-in-progress: false
+jobs:
+  trusted-target:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.repository == 'godzillazzz/SMS-v3' && github.actor == 'godzillazzz'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Validate trusted reviewed target and disposable database evidence
+        env:
+          TARGET_URL: ${{ inputs.target_url }}
+          SOURCE_SHA: ${{ inputs.source_sha }}
+          SOURCE_BRANCH: ${{ inputs.source_branch }}
+          DEPLOYMENT_ID: ${{ inputs.expected_deployment_id }}
+        run: |
+          node - <<'NODE'
+          const { validateApprovedTarget } = require('./e2e/uat-v3/config');
+          const target = require('./.github/uat/authenticated-readonly-target.json');
+          validateApprovedTarget(target, { url: process.env.TARGET_URL, source_sha: process.env.SOURCE_SHA, source_branch: process.env.SOURCE_BRANCH, deployment_id: process.env.DEPLOYMENT_ID });
+          NODE
+      - name: Require full validation for exact application and trusted main SHAs
+        uses: actions/github-script@v7
+        env:
+          SOURCE_SHA: ${{ inputs.source_sha }}
+        with:
+          script: |
+            for (const sha of new Set([process.env.SOURCE_SHA, context.sha])) {
+              const { data } = await github.rest.actions.listWorkflowRunsForRepo({ ...context.repo, head_sha: sha, per_page: 100 });
+              let verified = false;
+              for (const run of data.workflow_runs.filter(r => r.head_sha === sha && r.path === '.github/workflows/ci.yml' && r.conclusion === 'success')) {
+                const jobs = await github.paginate(github.rest.actions.listJobsForWorkflowRun, { ...context.repo, run_id: run.id, per_page: 100 });
+                if (jobs.some(j => j.name === 'validate' && j.conclusion === 'success' && j.head_sha === sha)) verified = true;
+              }
+              if (!verified) throw new Error('UAT_EXACT_FULL_CI_REQUIRED');
+            }
+  authenticated-readonly:
+    needs: trusted-target
+    if: needs.trusted-target.result == 'success' && github.ref == 'refs/heads/main' && github.actor == 'godzillazzz'
+    environment: production-sms-v3-staging
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: Verify native Preview identity with authenticated GET only
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          UAT_BASE_URL: ${{ inputs.target_url }}
+          UAT_SOURCE_SHA: ${{ inputs.source_sha }}
+          UAT_SOURCE_BRANCH: ${{ inputs.source_branch }}
+          UAT_EXPECTED_DEPLOYMENT_ID: ${{ inputs.expected_deployment_id }}
+        run: node scripts/ci/verify-uat-v3-preview.js
+      - name: Require four distinct UAT accounts and execute read-only tests
+        id: uat
+        env:
+          UAT_BASE_URL: ${{ inputs.target_url }}
+          UAT_SOURCE_SHA: ${{ inputs.source_sha }}
+          UAT_EXPECTED_DEPLOYMENT_ID: ${{ inputs.expected_deployment_id }}
+          UAT_ADMIN_EMAIL: ${{ secrets.UAT_ADMIN_EMAIL }}
+          UAT_ADMIN_PASSWORD: ${{ secrets.UAT_ADMIN_PASSWORD }}
+          UAT_MANAGER_EMAIL: ${{ secrets.UAT_MANAGER_EMAIL }}
+          UAT_MANAGER_PASSWORD: ${{ secrets.UAT_MANAGER_PASSWORD }}
+          UAT_SUPERVISOR_EMAIL: ${{ secrets.UAT_SUPERVISOR_EMAIL }}
+          UAT_SUPERVISOR_PASSWORD: ${{ secrets.UAT_SUPERVISOR_PASSWORD }}
+          UAT_VIEWER_EMAIL: ${{ secrets.UAT_VIEWER_EMAIL }}
+          UAT_VIEWER_PASSWORD: ${{ secrets.UAT_VIEWER_PASSWORD }}
+          VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+        run: node scripts/ci/run-uat-v3-readonly.js
+      - name: Upload only scanned sanitized result summary
+        if: success() && steps.uat.outcome == 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: authenticated-readonly-uat-${{ github.run_id }}
+          path: test-results/uat-v3-safe/results.json
+          if-no-files-found: error
+          retention-days: 7
