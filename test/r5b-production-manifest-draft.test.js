@@ -50,9 +50,35 @@ test('R5-B alternate acceptance documents the verified evidence and known covera
   assert.equal(d.current_production_live_health_readiness, 'PASS_READONLY_20261009');
   assert.equal(d.current_production_live_cors, 'PASS_TRUSTED_AND_UNTRUSTED_CORS_20261009');
   assert.equal(d.current_production_live_readonly_run_id, 37887712383);
-  assert.equal(d.preview_live_readonly_status, 'BLOCKED_PROTECTED_SSO_REQUIRES_APPROVED_BYPASS');
+  assert.equal(d.preview_live_readonly_status, 'PASS_PROTECTED_READONLY_RUN_37893739588');
+  assert.equal(d.preview_live_readonly_run_id, 37893739588);
   assert.equal(d.preview_prior_owner_protected_readonly_run_id, 37877103246);
-  assert.equal(d.production_release_go_no_go, 'NO_GO_AWAITING_PROTECTED_PREVIEW_PREFLIGHT_ROLLBACK_AND_SEPARATE_OWNER_PRODUCTION_APPROVAL');
+  assert.equal(d.preview_superseded_anonymous_probe_failure_run_id, 37888045517);
+  assert.equal(d.preview_superseded_anonymous_probe_failure_status, 'FAILURE_SSO_BLOCKED');
+  assert.equal(d.preview_earlier_readonly_failure_run_id, 37887712383);
+  assert.equal(d.preview_earlier_readonly_failure_status, 'FAILURE_PREVIEW_SSO_BLOCKED');
+  assert.equal(d.project_auto_assign_custom_domains_current_status, 'BLOCKED_CONFIG_UNVERIFIED');
+  assert.equal(d.project_auto_assign_custom_domains_last_recorded_value, false);
+  assert.equal(d.production_release_go_no_go, 'NO_GO_CURRENT_VERCEL_CONFIG_UNVERIFIED_AND_SEPARATE_OWNER_PRODUCTION_APPROVAL_REQUIRED');
+});
+
+test('control evidence binds verified GitHub SHA/CI and avoids a self-referential control SHA', () => {
+  const d = release('r5-b-production-manifest-draft.json');
+  assert.equal(d.application_exact_sha_ci_run_id, 37803174443);
+  assert.equal(d.application_exact_sha_ci_status, 'SUCCESS_EXACT_FROZEN_APPLICATION_SHA');
+  assert.equal(d.release_control_ci_evidence.verified_base_pr_number, 578);
+  assert.equal(d.release_control_ci_evidence.verified_base_pr_head_sha, 'eddc5903c6e1ccdbcd9d559176ca17368e758dfc');
+  assert.equal(d.release_control_ci_evidence.exact_ci_run_id, 37888045410);
+  assert.equal(d.release_control_ci_evidence.exact_ci_attempt, 2);
+  assert.equal(d.release_control_ci_evidence.exact_ci_conclusion, 'SUCCESS');
+  assert.equal(d.release_control_ci_evidence.exact_ci_run_head_sha, d.release_control_ci_evidence.verified_base_pr_head_sha);
+  assert.equal(d.protected_control_preview_evidence.workflow_run_id, 37893739588);
+  assert.equal(d.protected_control_preview_evidence.verified_deployment_id, 'dpl_DW76MRuxtWujdUaF73YBQwcERhvU');
+  assert.equal(d.protected_control_preview_evidence.verified_deployment_sha, d.release_control_ci_evidence.verified_base_pr_head_sha);
+  assert.equal(d.protected_control_preview_evidence.checks.production_deployment, 'NOT_EXECUTED');
+  assert.equal(d.final_control_sha_binding.source, 'OFFICIAL_WORKFLOW_DISPATCH_EVENT_GITHUB_SHA');
+  assert.equal(d.final_control_sha_binding.embedded_in_manifest, false);
+  assert.equal(Object.hasOwn(d, 'release_control_sha'), false);
 });
 
 test('R5-B draft is rejected by the official Production manifest guard, and dispatcher has no R5-B manifest', () => {
