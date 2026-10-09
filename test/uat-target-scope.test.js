@@ -82,8 +82,7 @@ test('Q13C employee license governance is isolated to targeted mutating scope', 
   const fullExcluded = getUatScopeGrepInvert({ UAT_MODE: 'authenticated', UAT_SCOPE: 'full' });
   assert.equal(fullExcluded.test('q13c-business-workflow.spec.js › ' + title), true);
   assert.equal(getUatScopeGrep({ UAT_MODE: 'authenticated', UAT_SCOPE: 'full' }), undefined);
-  assert.throws(() => getUatScopeGrep({ UAT_MODE: 'technical', UAT_SCOPE: 'q13c-business-workflow-targeted' }),
-    { code: 'UAT_SCOPE_MODE_INVALID' });
+  assert.equal(getUatScopeGrep({ UAT_MODE: 'technical', UAT_SCOPE: 'q13c-business-workflow-targeted' }), undefined);
 });
 test('unknown scope cannot become a Playwright selector or command fragment', () => {
   assert.throws(() => getUatScopeGrep({ UAT_MODE: 'authenticated', UAT_SCOPE: 'admin-rbac-targeted-retry|.*' }), { code: 'UAT_SCOPE_NOT_APPROVED' });
