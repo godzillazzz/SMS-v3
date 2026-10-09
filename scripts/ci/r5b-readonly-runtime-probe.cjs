@@ -18,9 +18,11 @@ async function req(origin, path, options={}) {
   if (url.origin !== origin || !['/api/v1/health','/api/v1/ready'].includes(url.pathname)) {
     throw Error('R5B_UNAPPROVED_PROBE_PATH');
   }
+  const method = options.method || 'GET';
+  if (method !== 'GET' && method !== 'OPTIONS') throw Error('R5B_READONLY_METHOD_REQUIRED');
   const response = await fetch(url, {
     redirect: 'error',
-    method: options.method || 'GET',
+    method,
     headers: options.headers || {},
     signal: AbortSignal.timeout(15000),
   });
