@@ -67,7 +67,7 @@ const roleApiMatrix = {
 };
 
 const navigationCatalog = {
-  dashboard: { id: 'dashboard', label: 'Dashboard' },
+  dashboard: { id: 'dashboard', label: 'ภาพรวม' },
   employees: { id: 'employees', label: 'ข้อมูลพนักงาน' },
   licenses: { id: 'licenses', label: 'ใบอนุญาต รปภ.' },
   attendance: { id: 'attendance', label: 'ลงเวลา' },
@@ -76,7 +76,7 @@ const navigationCatalog = {
   schedule: { id: 'schedule', label: 'ตารางกะรายเดือน' },
   shiftSetup: { id: 'shiftSetup', label: 'รหัสกะและเวลา' },
   leave: { id: 'leave', label: 'คำขอลา' },
-  leavePending: { id: 'leavePending', label: 'รออนุมัติ' },
+  leavePending: { id: 'leavePending', label: 'อนุมัติคำขอลา' },
   leaveHistory: { id: 'leaveHistory', label: 'ประวัติการลาทั้งหมด' },
   quota: { id: 'quota', label: 'โควต้าวันลา' },
   approvalCenter: { id: 'approvalCenter', label: 'ศูนย์อนุมัติ' },

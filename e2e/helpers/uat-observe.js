@@ -175,7 +175,7 @@ const reportCenterTabLabels = Object.freeze({
 });
 
 function reportCenterPage(page) {
-  return page.locator('section.report-center-page[aria-label="ศูนย์รายงานและวิเคราะห์"]').first();
+  return page.locator('section.report-center-page[aria-label="Operational Intelligence & Reports"]').first();
 }
 
 async function navigateToReportCenter(page, tab = 'executive') {

@@ -24,7 +24,7 @@ for (const viewport of viewports) {
         await loginAs(page, 'ADMIN');
       }, { safeApiPath: '/api/v1/dashboard' });
       await tracker.run('NAV03_DASHBOARD', async () => {
-        await expect(page.locator('section.dashboard-page-v2[aria-label="Operations Dashboard"]')).toBeVisible();
+        await expect(page.locator('section.nexus-command[aria-label="ภาพรวม"]')).toBeVisible();
         await assertNoHorizontalOverflow(page);
         await captureScreenshot(page, testInfo, `uat-admin-dashboard-${viewport.name}`, { fullPage: false });
       }, { safeApiPath: '/api/v1/dashboard' });
