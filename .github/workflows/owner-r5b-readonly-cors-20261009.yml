@@ -1,0 +1,181 @@
+name: R5-B One-Time Owner Preview CORS Readonly Gate
+
+# Owner-only protected Preview identity and CORS verification, no Production mutation.
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  actions: read
+  issues: write
+
+concurrency:
+  group: r5b-owner-preview-cors-20261009
+  cancel-in-progress: false
+
+jobs:
+  guard:
+    if: >-
+      github.repository == 'godzillazzz/SMS-v3' &&
+      github.event.issue.number == 551 &&
+      github.event.issue.pull_request == null &&
+      github.event.comment.user.login == 'godzillazzz' &&
+      startsWith(github.event.comment.body, '/sms-v3-r5b-cors-20261009 ')
+    runs-on: ubuntu-latest
+    timeout-minutes: 7
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPO: godzillazzz/SMS-v3
+      APP_SHA: 77641a2657aa4fd05276afe645dd32648f5cc56b
+      HARNESS_SHA: 0c03252f408bf2f39ff74264f13b35161a179c09
+      DEPLOYMENT_ID: dpl_6SxGPuH374ogrr2mjzwDkincaMCA
+      CLAIM: R5B_PREVIEW_CORS_20261009_CLAIMED
+    steps:
+      - name: Fail closed on non-Owner or nonexact comment
+        shell: bash
+        run: |
+          set -euo pipefail
+          exact="/sms-v3-r5b-cors-20261009 $APP_SHA $DEPLOYMENT_ID"
+          jq -e --arg exact "$exact" '
+            .action == "created" and .issue.number == 551 and
+            .issue.state == "open" and (.issue.pull_request == null) and
+            .sender.login == "godzillazzz" and
+            .comment.user.login == "godzillazzz" and
+            .comment.author_association == "OWNER" and
+            .comment.body == $exact
+          ' "$GITHUB_EVENT_PATH" > /dev/null
+          test "$GITHUB_REPOSITORY" = "$REPO"
+      - name: Verify frozen heads and successful independent protected gates
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(gh api "repos/$REPO/git/ref/heads/fix/serverless-database-reliability" --jq '.object.sha')" = "$APP_SHA"
+          test "$(gh api "repos/$REPO/git/ref/heads/test/automated-uat-v3-authenticated" --jq '.object.sha')" = "$HARNESS_SHA"
+          gh api "repos/$REPO/actions/runs/37868555108" > /tmp/r5b-technical.json
+          gh api "repos/$REPO/actions/runs/37874884949" > /tmp/r5b-authenticated.json
+          jq -e '.status == "completed" and .conclusion == "success"' /tmp/r5b-technical.json > /dev/null
+          jq -e '.status == "completed" and .conclusion == "success"' /tmp/r5b-authenticated.json > /dev/null
+          gh api "repos/$REPO/actions/runs/37868555108/jobs?per_page=100" > /tmp/r5b-technical-jobs.json
+          gh api "repos/$REPO/actions/runs/37874884949/jobs?per_page=100" > /tmp/r5b-auth-jobs.json
+          jq -e '[.jobs[] | select(.name == "technical-smoke" and .conclusion == "success")] | length == 1' /tmp/r5b-technical-jobs.json > /dev/null
+          jq -e '[.jobs[] | select(.name == "authenticated-uat" and .conclusion == "success")] | length == 1' /tmp/r5b-auth-jobs.json > /dev/null
+      - name: Require unused one-time command, then consume before protected check
+        shell: bash
+        run: |
+          set -euo pipefail
+          for page in $(seq 1 20); do
+            gh api "repos/$REPO/issues/551/comments?per_page=100&page=$page" > /tmp/r5b-cors-comments.json
+            jq -e --arg marker "$CLAIM" '[.[] | select(.body == $marker)] | length == 0' /tmp/r5b-cors-comments.json > /dev/null
+            count=$(jq 'length' /tmp/r5b-cors-comments.json)
+            if [ "$count" -lt 100 ]; then break; fi
+            if [ "$page" -eq 20 ]; then echo 'R5B_CORS_COMMENT_HISTORY_UNBOUNDED'; exit 1; fi
+          done
+          gh api -X POST "repos/$REPO/issues/551/comments" -f "body=$CLAIM" > /dev/null
+
+  readonly-cors:
+    needs: guard
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    environment: production-sms-v3-staging
+    permissions:
+      contents: read
+    env:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+      TEAM_ID: team_nemCExHbZ8EAhSgsvefHPAEz
+      PROJECT_ID: prj_XwhNUOB2zLSPZ6UgQcfyOKBYJ75s
+      DEPLOYMENT_ID: dpl_6SxGPuH374ogrr2mjzwDkincaMCA
+      SOURCE_SHA: 77641a2657aa4fd05276afe645dd32648f5cc56b
+      PREVIEW_URL: https://sms-v3-staging-ntizvmjdo-godzillazz.vercel.app
+      TRUSTED_ORIGIN: https://sms-v3-staging-ten.vercel.app
+      UNTRUSTED_ORIGIN: https://untrusted.invalid
+    steps:
+      - name: Set Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify immutable Vercel identity and read-only CORS Health Ready runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p safe-evidence
+          node <<'NODE'
+          const fs = require('node:fs');
+          const env = process.env;
+          const fail = (code) => { throw new Error(code); };
+          const request = async (url, headers, method = 'GET') => fetch(url, {
+            method, headers, redirect: 'manual', signal: AbortSignal.timeout(15000)
+          });
+          async function main() {
+            if (!env.VERCEL_TOKEN || !env.VERCEL_AUTOMATION_BYPASS_SECRET) fail('R5B_CORS_REQUIRED_SECRET_MISSING');
+            const query = new URLSearchParams({teamId: env.TEAM_ID, withGitRepoInfo: 'true'});
+            const base = 'https://api.vercel.com/v13/deployments/';
+            const headers = {authorization: 'Bearer ' + env.VERCEL_TOKEN};
+            const byId = await request(base + env.DEPLOYMENT_ID + '?' + query, headers);
+            const byHost = await request(base + new URL(env.PREVIEW_URL).hostname + '?' + query, headers);
+            if (byId.status !== 200 || byHost.status !== 200) fail('R5B_CORS_IDENTITY_HTTP_FAILED');
+            const deployment = await byId.json();
+            const hostDeployment = await byHost.json();
+            const same = deployment.id === env.DEPLOYMENT_ID &&
+              hostDeployment.id === env.DEPLOYMENT_ID &&
+              deployment.readyState === 'READY' &&
+              deployment.meta?.githubCommitSha === env.SOURCE_SHA &&
+              deployment.project?.id === env.PROJECT_ID &&
+              deployment.url === new URL(env.PREVIEW_URL).hostname;
+            if (!same) fail('R5B_CORS_FROZEN_DEPLOYMENT_IDENTITY_MISMATCH');
+            console.log('R5B_CORS_PREVIEW_IDENTITY=PASS');
+            const baseUrl = env.PREVIEW_URL;
+            const protectedHeaders = {'x-vercel-protection-bypass': env.VERCEL_AUTOMATION_BYPASS_SECRET};
+            const health = await request(baseUrl + '/api/v1/health', protectedHeaders);
+            const ready = await request(baseUrl + '/api/v1/ready', protectedHeaders);
+            const healthBody = health.status === 200 ? await health.json().catch(() => null) : null;
+            const readyBody = ready.status === 200 ? await ready.json().catch(() => null) : null;
+            const healthy = health.status === 200 && healthBody?.status === 'ok';
+            const readyOk = ready.status === 200 && readyBody?.status === 'ready' && readyBody?.database === 'ok';
+            const preflight = async (origin) => request(baseUrl + '/api/v1/health', {
+              ...protectedHeaders, origin, 'Access-Control-Request-Method': 'GET',
+              'Access-Control-Request-Headers': 'authorization,content-type'
+            }, 'OPTIONS');
+            const trusted = await preflight(env.TRUSTED_ORIGIN);
+            const denied = await preflight(env.UNTRUSTED_ORIGIN);
+            const trustedPass = trusted.status === 204 &&
+              trusted.headers.get('access-control-allow-origin') === env.TRUSTED_ORIGIN &&
+              trusted.headers.get('access-control-allow-credentials') === 'true';
+            const deniedPass = denied.status === 403 &&
+              !denied.headers.get('access-control-allow-origin');
+            const report = {
+              gate: 'R5B_FROZEN_PREVIEW_READONLY_CORS',
+              deploymentId: env.DEPLOYMENT_ID, applicationSha: env.SOURCE_SHA,
+              healthHttp: health.status, health: healthy ? 'PASS' : 'FAIL',
+              readinessHttp: ready.status, databaseReadiness: readyOk ? 'PASS' : 'FAIL',
+              trustedOrigin: env.TRUSTED_ORIGIN, trustedOptionsHttp: trusted.status,
+              trustedCors: trustedPass ? 'PASS' : 'FAIL',
+              untrustedOrigin: env.UNTRUSTED_ORIGIN, untrustedOptionsHttp: denied.status,
+              untrustedCors: deniedPass ? 'PASS' : 'FAIL',
+              noBusinessMutation: true, rawResponseBodyEmitted: false
+            };
+            fs.writeFileSync('safe-evidence/r5b-preview-cors.json', JSON.stringify(report, null, 2) + '\n');
+            for (const [name, value] of Object.entries({
+              PREVIEW_HEALTH: report.health, PREVIEW_DATABASE_READY: report.databaseReadiness,
+              TRUSTED_CORS: report.trustedCors, UNTRUSTED_CORS: report.untrustedCors
+            })) console.log('R5B_' + name + '=' + value);
+            console.log('R5B_RAW_RESPONSE_BODY_EMITTED=false');
+            if (!(healthy && readyOk && trustedPass && deniedPass)) fail('R5B_READONLY_CORS_GATE_FAILED');
+          }
+          main().catch((err) => {
+            const allowed = new Set(['R5B_CORS_REQUIRED_SECRET_MISSING',
+              'R5B_CORS_IDENTITY_HTTP_FAILED','R5B_CORS_FROZEN_DEPLOYMENT_IDENTITY_MISMATCH',
+              'R5B_READONLY_CORS_GATE_FAILED']);
+            console.error(allowed.has(err.message) ? err.message : 'R5B_CORS_NETWORK_OR_RESPONSE_ERROR');
+            process.exitCode = 1;
+          });
+          NODE
+      - name: Upload safe CORS summary only
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: r5b-preview-cors-safe-evidence-${{ github.run_id }}
+          path: safe-evidence/r5b-preview-cors.json
+          if-no-files-found: ignore
+          retention-days: 7
