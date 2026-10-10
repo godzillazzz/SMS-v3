@@ -30,7 +30,11 @@
         <button id="trigger-roster" class="btn-info small-action" type="button">พิมพ์ตารางกะ</button>
         <button id="trigger-table" class="btn-info small-action" type="button">พิมพ์รายงานตาราง</button>
         <button id="trigger-reports" class="btn-info small-action" type="button">พิมพ์รายงานประกอบ</button>
+        <button id="trigger-t31-one" class="btn-info small-action" type="button">พิมพ์ใบลงเวลารายบุคคล</button>
+        <button id="trigger-t31-all" class="btn-info small-action" type="button">พิมพ์ใบลงเวลาทั้งหน่วยงาน</button>
       </div>
+      <div id="t31-one-root"></div>
+      <div id="t31-all-root"></div>
       <section id="leave-document" class="leave-print-document" aria-hidden="true">
         <div class="leave-print-topline"><span>7 ต.ค. 2569 12:00</span><span>แบบบันทึกการลาพนักงาน</span></div>
         <div class="leave-print-heading"><h1>ใบขออนุมัติลางาน</h1><p>พนักงานรักษาความปลอดภัย</p></div>
@@ -75,5 +79,6 @@
       </article>
     </main>
     <script type="module" src="./fixture.ts"></script>
+    <script type="module" src="./t31-fixture.tsx"></script>
   </body>
 </html>

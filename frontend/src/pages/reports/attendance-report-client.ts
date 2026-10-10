@@ -53,6 +53,7 @@ export type AttendanceOfficialReport = {
   certifiedByUserId: string;
   generatedAt: string;
   generatedBy: string;
+  scope?: { department: string | null };
   summary: Record<string, number>;
   rows: AttendanceReportRow[];
 };

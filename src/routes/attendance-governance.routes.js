@@ -42,6 +42,12 @@ function requireAdmin(req, _res, next) {
     : next(new HttpError(403, 'Attendance certification requires Admin authority.'));
 }
 
+function requireOfficialReport(req, _res, next) {
+  return ['ADMIN', 'SUPERVISOR'].includes(String(req.user?.role || '').toUpperCase())
+    ? next()
+    : next(new HttpError(403, 'Official Attendance reports require Admin or Supervisor authority.'));
+}
+
 router.use(requirePreviewAttendance, authenticate);
 
 router.get('/assignments/:id/corrections', requireManagerOrAdmin, async (req, res, next) => {
@@ -64,7 +70,7 @@ router.get('/months/:month/certifications', requireAdmin, async (req, res, next)
   catch (error) { next(error); }
 });
 
-router.get('/months/:month/report', requireAdmin, async (req, res, next) => {
+router.get('/months/:month/report', requireOfficialReport, async (req, res, next) => {
   try {
     res.set('Cache-Control', 'no-store');
     res.json({ data: await reports.official({ actor: req.user, month: month.parse(req.params.month) }) });
@@ -101,5 +107,6 @@ module.exports = {
   router,
   correctionInput,
   unlockInput,
+  requireOfficialReport,
   attendanceGovernanceApiEnabled
 };

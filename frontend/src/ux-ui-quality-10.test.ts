@@ -41,7 +41,8 @@ describe('UXUI-Q10 measurable quality contracts', () => {
     expect(supervisor).toContain('<span>สถานที่ตามตาราง</span>');
     expect(supervisor).toContain('<span>สถานที่ลงเวลาจริง</span>');
     expect(supervisor).toContain('<span>ประเภท</span>');
-    expect(officialReport).toContain('<th>สถานที่ตามตาราง</th><th>สถานที่ลงเวลาจริง</th><th>ประเภท</th>');
+    expect(officialReport).toContain('สถานที่ปฏิบัติงาน (Site)');
+    expect(officialReport).toContain('(row.assignedSite || row.expectedSite)');
     expect(attendance).toContain('attendanceVerificationStart(token');
     expect(attendance).toContain('attendanceAcceptVerifiedEvent(token');
   });

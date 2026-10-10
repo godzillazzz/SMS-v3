@@ -157,6 +157,53 @@ function reportRowProjection(row = {}) {
   };
 }
 
+function normalizeDepartment(value) {
+  return String(value || '').normalize('NFKC').trim().replace(/\s+/g, ' ').toLocaleLowerCase('en-US');
+}
+
+function reportSummary(rows) {
+  const countFlag = (flag) => rows.reduce((sum, row) => sum + (Array.isArray(row.flags) && row.flags.includes(flag) ? 1 : 0), 0);
+  return {
+    assignments: rows.length,
+    complete: rows.filter((row) => row.status === 'COMPLETE').length,
+    absent: countFlag('ABSENT'),
+    leave: countFlag('LEAVE'),
+    late: countFlag('LATE'),
+    earlyOut: countFlag('EARLY_OUT'),
+    assistOtherSite: countFlag('ASSIST_OTHER_SITE'),
+    wrongShift: countFlag('WRONG_SHIFT'),
+    outsideAllSites: countFlag('OUTSIDE_ALL_SITES'),
+    corrected: countFlag('CORRECTED'),
+    timeAbnormal: rows.filter((row) => Array.isArray(row.flags) && ['TIME_ABNORMAL', 'MISSING_CHECK_OUT', 'MISSING_CHECK_IN'].some((flag) => row.flags.includes(flag))).length
+  };
+}
+
+async function reportActorContext(actor, client) {
+  const role = String(actor?.role || '').toUpperCase();
+  if (!['ADMIN', 'SUPERVISOR'].includes(role) || !actor?.sub) {
+    throw http(403, 'ATTENDANCE_OFFICIAL_REPORT_FORBIDDEN', 'Official Attendance reports require Admin or Supervisor authority.');
+  }
+  const user = await client.user.findUnique({
+    where: { id: actor.sub },
+    select: { displayName: true, email: true, role: true, department: true, employee: { select: { department: true } } }
+  });
+  if (!user || String(user.role || '').toUpperCase() !== role) {
+    throw http(403, 'ATTENDANCE_OFFICIAL_REPORT_FORBIDDEN', 'Official Attendance report authority could not be verified.');
+  }
+  if (role === 'ADMIN') return { role, user, department: null };
+
+  const userDepartment = String(user.department || '').trim();
+  const employeeDepartment = String(user.employee?.department || '').trim();
+  if (userDepartment && employeeDepartment && normalizeDepartment(userDepartment) !== normalizeDepartment(employeeDepartment)) {
+    throw http(403, 'ATTENDANCE_REPORT_SCOPE_UNAVAILABLE', 'Supervisor department scope is inconsistent.');
+  }
+  const department = employeeDepartment || userDepartment;
+  if (!normalizeDepartment(department)) {
+    throw http(403, 'ATTENDANCE_REPORT_SCOPE_UNAVAILABLE', 'Supervisor department scope is unavailable.');
+  }
+  return { role, user, department };
+}
+
 function normalizedCertification(row) {
   const snapshot = row?.summarySnapshot;
   if (!snapshot || typeof snapshot !== 'object' || Array.isArray(snapshot) || !Array.isArray(snapshot.rows)) {
@@ -335,8 +382,12 @@ function buildAttendanceWorkbook({ certification, generatedBy = '-', generatedAt
 
 function createAttendanceReportService({ prisma = prismaDefault, clock = () => new Date() } = {}) {
   async function official({ actor, month } = {}, client = prisma) {
+    const context = await reportActorContext(actor, client);
     const certification = await loadCertifiedAttendanceMonth(month, client);
-    const user = actor?.sub ? await client.user.findUnique({ where: { id: actor.sub }, select: { displayName: true, email: true } }) : null;
+    const certifiedRows = certification.snapshot.rows;
+    const scopedRows = context.department
+      ? certifiedRows.filter((row) => normalizeDepartment(row.department) === normalizeDepartment(context.department))
+      : certifiedRows;
     const generatedAt = clock();
     return {
       reportId: reportId(certification),
@@ -347,15 +398,22 @@ function createAttendanceReportService({ prisma = prismaDefault, clock = () => n
       certifiedAt: certification.certifiedAt,
       certifiedByUserId: certification.certifiedByUserId,
       generatedAt,
-      generatedBy: user?.displayName || user?.email || actor?.sub || '-',
-      summary: certification.snapshot.summary || {},
-      rows: certification.snapshot.rows.map(reportRowProjection)
+      generatedBy: context.user.displayName || context.user.email || actor.sub,
+      scope: context.department ? { department: context.department } : { department: null },
+      summary: context.department ? reportSummary(scopedRows) : certification.snapshot.summary || reportSummary(scopedRows),
+      rows: scopedRows.map(reportRowProjection)
     };
   }
 
   async function workbook({ actor, month } = {}, client = prisma) {
+    if (String(actor?.role || '').toUpperCase() !== 'ADMIN' || !actor?.sub) {
+      throw http(403, 'ATTENDANCE_OFFICIAL_WORKBOOK_ADMIN_REQUIRED', 'Official Attendance workbook export requires Admin authority.');
+    }
     const certification = await loadCertifiedAttendanceMonth(month, client);
-    const user = actor?.sub ? await client.user.findUnique({ where: { id: actor.sub }, select: { displayName: true, email: true } }) : null;
+    const user = await client.user.findUnique({ where: { id: actor.sub }, select: { displayName: true, email: true, role: true } });
+    if (!user || String(user.role || '').toUpperCase() !== 'ADMIN') {
+      throw http(403, 'ATTENDANCE_OFFICIAL_WORKBOOK_ADMIN_REQUIRED', 'Official Attendance workbook authority could not be verified.');
+    }
     const generatedAt = clock();
     const generatedBy = user?.displayName || user?.email || actor?.sub || '-';
     return {
@@ -377,6 +435,8 @@ module.exports = {
   durationText,
   reportId,
   reportRowProjection,
+  normalizeDepartment,
+  reportSummary,
   normalizedCertification,
   loadCertifiedAttendanceMonth,
   buildAttendanceWorkbook,

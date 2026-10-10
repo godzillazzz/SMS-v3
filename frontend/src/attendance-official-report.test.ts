@@ -59,6 +59,39 @@ describe('Official Attendance report presentation', () => {
     expect(attendanceReportPresentation.durationText(null)).toBe('-');
   });
 
+  it('builds every calendar date from the certified period without inferring off days or holidays', () => {
+    const days = attendanceReportPresentation.monthDayRows([
+      row({ workDate: '2026-08-01', workedMinutes: 480, flags: ['LATE'] }),
+      row({ assignmentId: 'shift-2', workDate: '2026-08-01', workedMinutes: 300, flags: ['ON_TIME'] })
+    ], '2026-08');
+    expect(days).toHaveLength(31);
+    expect(days[0].dateLabel).toContain('01/08/2569');
+    expect(days[0].rows).toHaveLength(2);
+    expect(days[0].workedMinutes).toBe(780);
+    expect(days[0].notes).toContain('มาสาย');
+    expect(days[1].rows).toEqual([]);
+    expect(days[1].notes).toContain('ไม่มีรายการที่รับรองใน Snapshot');
+    const summary = attendanceReportPresentation.monthSummary(days[0].rows, '2026-08');
+    expect(summary.workDays).toBe(1);
+    expect(summary.lateDays).toBe(1);
+    expect(summary.totalDays).toBe(31);
+    expect(summary.unclassifiedDays).toBe(30);
+  });
+
+  it('renders the approved portrait timesheet fields, logo and signatures without excluded compensation data', () => {
+    const source = readFileSync(new URL('./pages/reports/AttendanceOfficialReport.tsx', import.meta.url), 'utf8');
+    const styles = readFileSync(new URL('./styles/attendance-report.css', import.meta.url), 'utf8');
+    expect(source).toContain('/brand/sms-logo-horizontal.webp');
+    expect(source).toContain('กะงาน (1) · เวลาเข้า/ออก');
+    expect(source).toContain('หัวหน้าหน่วยงาน (ผู้ตรวจสอบ)');
+    expect(source).toContain('ผู้จัดการแผนก');
+    expect(source).toContain('ฝ่ายบุคคล');
+    expect(source).not.toMatch(/\bOT\b|ค่าล่วงเวลา|เบี้ยเลี้ยง|ค่าพาหนะ|ค่าเดินทาง|ค่าตำแหน่ง|employee\.phone/);
+    expect(source).toContain("{ orientation: 'portrait', margin: '0' }");
+    expect(styles).not.toMatch(/@page/i);
+    expect(styles).toContain('font-size: 7.5pt;');
+  });
+
   it('keeps lateness, Support Site and foreign-device review visible together', () => {
     const presentation = row({
       workSiteContext: 'SUPPORT_SITE',

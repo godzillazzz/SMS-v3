@@ -9,6 +9,25 @@
   justify-content: flex-end;
 }
 
+.attendance-report-controls {
+  display: grid;
+  grid-template-columns: minmax(250px, .9fr) repeat(2, minmax(190px, 1fr));
+  gap: 12px;
+  align-items: end;
+  padding: 14px;
+  border: 1px solid var(--color-border, #dce6ee);
+  border-radius: 10px;
+  background: var(--color-surface, #fff);
+}
+
+.attendance-report-controls fieldset { display: flex; flex-wrap: wrap; gap: 8px 16px; min-width: 0; margin: 0; padding: 8px 10px; border: 1px solid var(--color-border, #dce6ee); border-radius: 8px; }
+.attendance-report-controls legend,.attendance-report-controls label span { color: var(--color-text-secondary, #52677a); font-size: 12px; font-weight: 600; }
+.attendance-report-controls fieldset label { display: inline-flex; align-items: center; gap: 6px; color: var(--color-text, #102033); font-size: 13px; }
+.attendance-report-controls > label { display: grid; gap: 5px; color: var(--color-text-secondary, #52677a); font-size: 12px; font-weight: 600; }
+.attendance-report-controls select { width: 100%; min-height: 40px; padding: 8px 10px; border: 1px solid var(--color-border, #dce6ee); border-radius: 8px; background: var(--color-surface, #fff); color: var(--color-text, #102033); }
+.attendance-report-scope { margin: 0; color: var(--color-text-secondary, #52677a); font-size: 13px; }
+.attendance-report-scope strong { color: var(--color-text, #102033); }
+
 .attendance-official-report-print {
   display: none;
   font-family: 'Noto Sans Thai', Inter, sans-serif;
@@ -40,37 +59,38 @@
   border-bottom: 2px solid #173566;
 }
 
-.attendance-report-print-header p {
-  margin: 0 0 2px;
-  font-size: 7.5pt;
-  font-weight: 700;
-  letter-spacing: .08em;
-  color: #37679f;
+.attendance-report-brand { display: grid; gap: 1mm; }
+.attendance-report-brand img { display: block; width: 72mm; max-height: 15mm; object-fit: contain; object-position: left center; }
+.attendance-report-brand span { color: #52677a; font-size: 7.5pt; }
+.attendance-report-title { text-align: right; }
+.attendance-report-title span { display: block; margin-top: 1mm; color: #52677a; font-size: 7.5pt; }
+.attendance-report-month-band { display: flex; justify-content: space-between; gap: 5mm; margin: 2mm 0; padding: 1.5mm 2mm; border-radius: 1mm; background: #e8f1ff; color: #172033; font-size: 8pt; }
+
+.attendance-timesheet-page .attendance-report-print-header {
+  min-height: 18mm;
+  align-items: center;
+  gap: 8mm;
+  padding-bottom: 2mm;
+  border-bottom: 1px solid #173566;
 }
 
-.attendance-report-print-header h1 {
+.attendance-timesheet-page .attendance-report-print-header h1 {
   margin: 0;
-  font-size: 15pt;
+  font-size: 17pt;
   line-height: 1.2;
   color: #173566;
 }
 
-.attendance-report-print-meta {
-  display: grid;
-  grid-template-columns: repeat(3, auto);
-  gap: 8px;
-  font-size: 7.5pt;
-}
-
-.attendance-report-print-meta span,
+.attendance-report-print-header p,
 .attendance-report-footer span,
 .attendance-report-employee-meta span {
   display: block;
   color: #637083;
 }
 
+.attendance-report-print-header p { margin: 0 0 2px; font-size: 7.5pt; font-weight: 700; letter-spacing: .08em; }
+.attendance-report-print-meta { display: grid; grid-template-columns: repeat(3, auto); gap: 8px; font-size: 7.5pt; }
 .attendance-report-print-meta strong,
-.attendance-report-footer strong,
 .attendance-report-employee-meta strong {
   color: #172033;
 }
@@ -85,6 +105,18 @@
   border-radius: 6px;
   background: #f7faff;
   font-size: 8pt;
+}
+
+.attendance-timesheet-page .attendance-report-employee-meta {
+  display: grid;
+  grid-template-columns: 1fr 1.45fr 1fr 1.35fr;
+  gap: 1.5mm 2mm;
+  margin: 2mm 0;
+  padding: 2mm;
+  border: 1px solid #d7e7fa;
+  border-radius: 1mm;
+  background: #f7faff;
+  font-size: 7.5pt;
 }
 
 .attendance-report-table {
@@ -109,26 +141,22 @@
   text-align: center;
 }
 
-.attendance-report-table td:nth-child(1),
-.attendance-report-table td:nth-child(2),
-.attendance-report-table td:nth-child(5),
-.attendance-report-table td:nth-child(6),
-.attendance-report-table td:nth-child(7),
-.attendance-report-table td:nth-child(8),
-.attendance-report-table td:nth-child(9) {
-  text-align: center;
+.attendance-timesheet-page .attendance-report-table {
+  font-size: 7.5pt;
+  line-height: 1.08;
 }
-
-.attendance-report-table th:nth-child(1) { width: 8%; }
-.attendance-report-table th:nth-child(2) { width: 6%; }
-.attendance-report-table th:nth-child(3),
-.attendance-report-table th:nth-child(4) { width: 12%; }
-.attendance-report-table th:nth-child(5),
-.attendance-report-table th:nth-child(6) { width: 7%; }
-.attendance-report-table th:nth-child(7),
-.attendance-report-table th:nth-child(8),
-.attendance-report-table th:nth-child(9) { width: 5%; }
-.attendance-report-table th:nth-child(10) { width: 28%; }
+.attendance-timesheet-page .attendance-report-table th,
+.attendance-timesheet-page .attendance-report-table td { padding: .65mm .8mm; border-color: #cbd5e1; }
+.attendance-timesheet-page .attendance-report-table th:nth-child(1) { width: 15%; }
+.attendance-timesheet-page .attendance-report-table th:nth-child(2),.attendance-timesheet-page .attendance-report-table th:nth-child(3) { width: 25%; }
+.attendance-timesheet-page .attendance-report-table th:nth-child(4) { width: 10%; }
+.attendance-timesheet-page .attendance-report-table th:nth-child(5) { width: 25%; }
+.attendance-timesheet-page .attendance-report-table td:nth-child(1),.attendance-timesheet-page .attendance-report-table td:nth-child(4) { text-align: center; white-space: nowrap; }
+.attendance-timesheet-page .attendance-report-table td:nth-child(2),.attendance-timesheet-page .attendance-report-table td:nth-child(3) { white-space: nowrap; }
+.attendance-timesheet-page .attendance-report-day--no-source { color: #64748b; }
+.attendance-timesheet-page .attendance-report-extra-shifts { display: block; color: #475569; font-size: 7.5pt; white-space: normal; }
+.attendance-timesheet-page .attendance-report-total-hours { display: flex; justify-content: space-between; margin-top: 1.5mm; padding: 1.5mm 2mm; border: 1px solid #d7e0eb; font-size: 8pt; }
+.attendance-timesheet-page .attendance-report-total-hours strong { color: #173566; }
 
 .attendance-report-summary {
   display: flex;
@@ -141,22 +169,30 @@
   font-size: 7.5pt;
 }
 
-.attendance-report-footer {
+.attendance-timesheet-page .attendance-report-summary {
   display: grid;
-  grid-template-columns: 1.25fr 1.75fr 1fr auto;
-  gap: 10px;
-  align-items: end;
-  margin-top: 7px;
-  padding-top: 6px;
-  border-top: 1px solid #d7e0eb;
-  font-size: 6.8pt;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1mm 2mm;
+  margin-top: 1.5mm;
+  padding: 1.5mm 2mm;
+  background: #f1f5f9;
+  font-size: 7.5pt;
 }
 
-.attendance-report-page-number {
-  justify-self: end;
-  font-weight: 700;
-  color: #173566;
-  white-space: nowrap;
+.attendance-timesheet-page .attendance-report-summary div { display: flex; justify-content: space-between; gap: 1mm; }
+.attendance-timesheet-page .attendance-report-summary span { color: #52677a; }
+.attendance-timesheet-page .attendance-report-summary strong { color: #172033; text-align: right; }
+.attendance-timesheet-page .attendance-report-signatures { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4mm; margin-top: 3mm; font-size: 7.5pt; text-align: center; }
+.attendance-timesheet-page .attendance-report-signatures div { display: grid; grid-template-rows: auto 7mm auto; gap: 1mm; color: #52677a; }
+.attendance-timesheet-page .attendance-report-signatures i { display: block; border-bottom: 1px dotted #64748b; }
+.attendance-timesheet-page .attendance-report-signatures strong { color: #172033; font-weight: 600; }
+.attendance-timesheet-page .attendance-report-auditline { margin-top: 2mm; font-size: 6.5pt; overflow-wrap: anywhere; }
+.attendance-timesheet-page .attendance-report-page-number { margin-top: 1mm; color: #64748b; font-size: 7pt; text-align: right; }
+
+.attendance-timesheet-page {
+  width: 210mm;
+  min-height: 297mm;
+  padding: 6mm 7mm 5mm;
 }
 
 @media (max-width: 720px) {
@@ -167,6 +203,10 @@
   .attendance-report-export-actions button {
     flex: 1 1 140px;
   }
+}
+
+@media (max-width: 760px) {
+  .attendance-report-controls { grid-template-columns: 1fr; }
 }
 
 @media print {
@@ -184,6 +224,15 @@
     page-break-inside: auto;
   }
 
+  .attendance-timesheet-page {
+    width: 210mm;
+    height: 297mm;
+    min-height: 297mm;
+    padding: 6mm 7mm 5mm;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
   .attendance-report-table thead {
     display: table-header-group;
   }
@@ -192,4 +241,9 @@
     break-inside: avoid;
     page-break-inside: avoid;
   }
+
+  .attendance-timesheet-page { break-after: page; page-break-after: always; }
+  .attendance-timesheet-page:last-child { break-after: auto; page-break-after: auto; }
+
+  .attendance-report-controls,.attendance-report-export-card { display: none !important; }
 }

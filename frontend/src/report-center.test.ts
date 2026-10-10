@@ -54,8 +54,9 @@ describe('Unified Report Center V1 source contract', () => {
     expect(page).not.toContain('Export Excel');
     expect(attendanceGovernanceRoute).toContain("if (environment.VERCEL_ENV === 'production') return false;");
     expect(page).toContain("const ATTENDANCE_OFFICIAL_REPORT_ENABLED = import.meta.env.VITE_ATTENDANCE_GOVERNANCE_REPORT_ENABLED === 'true';");
-    expect(page).toContain("role === 'ADMIN' && ATTENDANCE_OFFICIAL_REPORT_ENABLED && <AttendanceOfficialReportPanel");
-    expect(page).not.toContain("role === 'ADMIN' && <AttendanceOfficialReportPanel");
+    expect(page).toContain("['ADMIN', 'SUPERVISOR'].includes(role) && ATTENDANCE_OFFICIAL_REPORT_ENABLED && <AttendanceOfficialReportPanel");
+    expect(page).toContain("month={attendanceMonth} role={role} enabled={activeTab === 'export'}");
+    expect(page).not.toContain("role === 'MANAGER' && ATTENDANCE_OFFICIAL_REPORT_ENABLED");
   });
 
   it('preserves report RBAC and legacy internal compatibility', () => {

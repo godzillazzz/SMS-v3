@@ -10,9 +10,11 @@ const {
   buildAttendanceWorkbook,
   loadCertifiedAttendanceMonth,
   reportId,
-  reportRowProjection
+  reportRowProjection,
+  createAttendanceReportService
 } = require('../src/services/attendance-report.service');
 const { snapshotDigest } = require('../src/services/attendance-month-governance.service');
+const { requireOfficialReport } = require('../src/routes/attendance-governance.routes');
 
 test('report abnormal reason labels are understandable Thai and hide internal codes', () => {
   assert.equal(abnormalReasonText(['MISSING_CHECK_OUT', 'MAX_SHIFT_DURATION_EXCEEDED']), 'ไม่ได้ลงเวลาออก, เกินเวลากะสูงสุด');
@@ -221,6 +223,80 @@ test('official workbook lists the actual Site for each Attendance event when the
   const attendance = strFromU8(files['xl/worksheets/sheet1.xml']);
   assert.match(attendance, /เข้า: Site A \/ ออก: Site B/);
   assert.match(attendance, /ช่วยปฏิบัติงาน/);
+});
+
+function scopedReportClient() {
+  const snapshot = {
+    version: 'ATTENDANCE_MONTH_OFFICIAL_V1',
+    month: '2026-08',
+    generatedAt: '2026-09-01T02:00:00.000Z',
+    summary: { assignments: 3, complete: 2, absent: 1 },
+    rows: [
+      { assignmentId: 'a1', employeeId: 'employee-a', employeeName: 'A One', department: 'SECURITY-A', workDate: '2026-08-01', status: 'COMPLETE', flags: ['LATE'] },
+      { assignmentId: 'a2', employeeId: 'employee-b', employeeName: 'A Two', department: 'security-a', workDate: '2026-08-02', status: 'COMPLETE', flags: ['ON_TIME'] },
+      { assignmentId: 'b1', employeeId: 'employee-c', employeeName: 'B One', department: 'SECURITY-B', workDate: '2026-08-03', status: 'ABSENT', flags: ['ABSENT'] }
+    ]
+  };
+  const user = { id: 'supervisor-id', role: 'SUPERVISOR', displayName: 'Supervisor', email: 'supervisor@example.test', department: 'SECURITY-A', employee: { department: 'SECURITY-A' } };
+  return {
+    snapshot,
+    user,
+    client: {
+      $queryRaw: async () => [{
+        id: '11111111-2222-4333-8444-555555555555', month: new Date('2026-08-01T00:00:00.000Z'), revision: 1,
+        status: 'CERTIFIED', summarySnapshot: snapshot, summaryDigest: snapshotDigest(snapshot), certifiedByUserId: 'admin-id', certifiedAt: new Date('2026-09-01T02:00:00.000Z')
+      }],
+      user: { findUnique: async ({ where: { id } }) => ({ ...user, id, role: id === 'admin-id' ? 'ADMIN' : user.role, displayName: id === 'admin-id' ? 'Admin' : user.displayName }) }
+    }
+  };
+}
+
+test('official Attendance API gate allows only ADMIN and SUPERVISOR roles', () => {
+  for (const role of ['ADMIN', 'SUPERVISOR']) {
+    let continued = false;
+    requireOfficialReport({ user: { role } }, {}, (error) => { assert.equal(error, undefined); continued = true; });
+    assert.equal(continued, true, `${role} should pass the report gate`);
+  }
+  for (const role of ['MANAGER', 'VIEWER']) {
+    let denial;
+    requireOfficialReport({ user: { role } }, {}, (error) => { denial = error; });
+    assert.equal(denial?.statusCode, 403, `${role} should receive 403`);
+  }
+});
+
+test('official report scopes SUPERVISOR rows and summary to the persisted department', async () => {
+  const { client } = scopedReportClient();
+  const reports = createAttendanceReportService({ prisma: client, clock: () => new Date('2026-09-01T03:00:00.000Z') });
+  const report = await reports.official({ actor: { sub: 'supervisor-id', role: 'SUPERVISOR' }, month: '2026-08' });
+  assert.deepEqual(report.rows.map((row) => row.employeeId), ['employee-a', 'employee-b']);
+  assert.deepEqual(report.scope, { department: 'SECURITY-A' });
+  assert.equal(report.summary.assignments, 2);
+  assert.equal(report.summary.absent, 0);
+  assert.equal(report.summary.late, 1);
+});
+
+test('official report keeps the organization-wide snapshot for ADMIN and denies MANAGER/VIEWER', async () => {
+  const { client } = scopedReportClient();
+  const reports = createAttendanceReportService({ prisma: client });
+  const admin = await reports.official({ actor: { sub: 'admin-id', role: 'ADMIN' }, month: '2026-08' });
+  assert.equal(admin.rows.length, 3);
+  assert.equal(admin.summary.assignments, 3);
+  for (const role of ['MANAGER', 'VIEWER']) {
+    await assert.rejects(
+      reports.official({ actor: { sub: 'supervisor-id', role }, month: '2026-08' }),
+      (error) => error.statusCode === 403
+    );
+  }
+});
+
+test('official report fails closed when SUPERVISOR account and employee departments disagree', async () => {
+  const { client } = scopedReportClient();
+  client.user.findUnique = async () => ({ ...scopedReportClient().user, department: 'SECURITY-A', employee: { department: 'SECURITY-B' } });
+  const reports = createAttendanceReportService({ prisma: client });
+  await assert.rejects(
+    reports.official({ actor: { sub: 'supervisor-id', role: 'SUPERVISOR' }, month: '2026-08' }),
+    (error) => error.statusCode === 403 && error.details?.code === 'ATTENDANCE_REPORT_SCOPE_UNAVAILABLE'
+  );
 });
 
 test('official report load fails closed when month is not certified', async () => {
