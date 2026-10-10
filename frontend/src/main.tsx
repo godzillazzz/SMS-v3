@@ -59,6 +59,7 @@ import { AppLoader, loadingMessages } from './components/AppLoader';
 import './styles.css';
 import './design-system.css';
 import './styles/dashboard.css';
+import { DashboardPage } from './pages/dashboard/DashboardPage';
 
 
 import { WorkflowCommandPalette } from './components/WorkflowCommandPalette';
@@ -69,7 +70,7 @@ import { initialSmsPwaPage, isSmsPwaPage, isSmsPwaShellMode, type SmsPwaPage } f
 import { registerSmsPwa } from './pwa';
 import { canLoadAccessManagement } from './components/access-management/access-management-utils';
 import type { DashboardFilters } from './components/dashboard/types';
-import { LicenseEditModal, LicenseTableDocumentColumns } from './components/LicenseDocuments';
+
 import { DataTablePagination, ResponsiveDataTable } from './components/ResponsiveDataTable';
 import { DataTableSkeletonCards, DataTableSkeletonRows, DataTableState } from './components/ResponsiveDataTable';
 import type { OperationalDrawerAction } from './components/OperationalRecordDrawer';
@@ -115,7 +116,9 @@ import './styles/personnel-layout.css';
 import './styles/system-layout-group4.css';
 
 const DashboardDetailsPage = React.lazy(() => import('./pages/dashboard/DashboardDetailsPage').then((module) => ({ default: module.DashboardDetailsPage })));
-const DashboardPage = React.lazy(() => import('./pages/dashboard/DashboardPage').then((module) => ({ default: module.DashboardPage })));
+const LicenseTableDocumentColumns = React.lazy(() => import('./components/LicenseDocuments').then((module) => ({ default: module.LicenseTableDocumentColumns })));
+const LicenseEditModal = React.lazy(() => import('./components/LicenseDocuments').then((module) => ({ default: module.LicenseEditModal })));
+
 
 const APPROVAL_REVIEWER_ROLES = ['ADMIN', 'MANAGER', 'SUPERVISOR'] as const;
 const APPROVAL_COUNT_MENU_ROLES: Readonly<Record<string, readonly string[]>> = Object.freeze({
