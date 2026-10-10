@@ -1525,3 +1525,33 @@
 .attendance-supervisor-v4__evidence-view:hover {
   background: rgba(11, 88, 216, 0.12);
 }
+
+/* T30b group 3: shared page/card shell; all operational actions and data stay in place. */
+.attendance-supervisor-v4.layout-page-surface { background:transparent!important; }
+html[data-theme] .app-shell:not(.pwa-shell) .attendance-supervisor-v4.layout-page-surface { background:transparent!important; }
+.attendance-supervisor-v4.layout-page-surface .layout-section-card { border-radius:12px!important; }
+html[data-theme] .app-shell:not(.pwa-shell) .content-area .attendance-supervisor-v4.layout-page-surface .layout-section-card { border-radius:12px!important; }
+.attendance-supervisor-v4.layout-page-surface :is(.attendance-supervisor-v4__table-card,.attendance-supervisor-v4__requests) {
+  overflow:hidden;
+  border:1px solid var(--color-border);
+  border-radius:12px!important;
+  padding:24px;
+  background:var(--color-surface);
+  color:var(--color-text);
+  box-shadow:var(--shadow-sm);
+}
+.attendance-supervisor-v4.layout-page-surface .attendance-supervisor-v4__filter-card .attendance-supervisor-v4__filters {
+  border:0!important;
+  border-radius:0;
+  padding:0;
+  background:transparent!important;
+  box-shadow:none!important;
+}
+.attendance-supervisor-v4.layout-page-surface .attendance-supervisor-v4__kpi { border-radius:10px; }
+.attendance-supervisor-v4__request-status-filter { display:grid; min-width:190px; gap:5px; }
+.attendance-supervisor-v4__request-status-filter > span { color:#748198; font-size:11px; font-weight:750; }
+.attendance-supervisor-v4__request-status-filter select { min-height:40px; border:1px solid #d9e3f0; border-radius:10px; padding:7px 10px; color:#243b60; background:#fff; font:inherit; }
+@media(max-width:768px) {
+  .attendance-supervisor-v4.layout-page-surface :is(.attendance-supervisor-v4__table-card,.attendance-supervisor-v4__requests) { padding:16px; }
+  .attendance-supervisor-v4__request-status-filter { min-width:0; width:100%; }
+}
