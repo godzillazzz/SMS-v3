@@ -223,6 +223,13 @@ export const api = {
     const query = params.toString();
     return call(`/dashboard${query ? `?${query}` : ''}`, { headers: { Authorization: `Bearer ${token}` } });
   },
+  dashboardDetails: (token: string, filters: Record<string, string | number | undefined>) => {
+    const params = new URLSearchParams();
+    for (const [key, value] of Object.entries(filters)) {
+      if (value !== undefined && value !== '') params.set(key, String(value));
+    }
+    return call(`/dashboard/details?${params.toString()}`, { headers: { Authorization: `Bearer ${token}` } });
+  },
   executiveReport: (token: string, filters: { year?: number; month?: number; department?: string } = {}) => {
     const params = new URLSearchParams();
     if (filters.year) params.set('year', String(filters.year));

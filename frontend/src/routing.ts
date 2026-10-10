@@ -2,6 +2,7 @@ export const ROUTE_CHANGE_EVENT = 'sms-v3:route-change';
 
 export const PAGE_PATHS = {
   dashboard: '/app',
+  dashboardDetails: '/app/dashboard/details',
   employees: '/app/employees',
   licenses: '/app/licenses',
   attendance: '/app/time-clock',
@@ -74,6 +75,7 @@ export function navigateSettingsSection(section: SettingsSectionId, options: { r
 
 const PAGE_TITLES: Record<RoutePage, string> = {
   dashboard: 'ภาพรวม',
+  dashboardDetails: 'รายละเอียดตัวชี้วัด',
   employees: 'ข้อมูลพนักงาน',
   licenses: 'ใบอนุญาต รปภ.',
   attendance: 'ลงเวลา',

@@ -1,8 +1,17 @@
 # T19 Dashboard KPI / Action Deep-Link Mapping — Owner Proposal
 
-**Status: PROPOSED — awaiting Owner approval.** This document records a source-backed mapping for review. No Business Navigation, route, API, metric, or filter contract has been changed.
+**Status: OWNER-APPROVED — implementation in progress.** The mapping below is historical analysis; the accepted implementation contract is recorded below.
 
 **Reviewed source:** Integration `fix/serverless-database-reliability` HEAD `cc23917959b7178a92b54caaf573ff8215b7b7db` (docs-only PR #599 merge); application behavior SHA remains `451e667bf52541f9eba74383facbc5043c3936d2` from T31 / PR #597. Exact Integration validate CI [#38038820772](https://github.com/godzillazzz/SMS-v3/actions/runs/38038820772) is SUCCESS on `cc239179...`; exact Preview `dpl_6QkTvy4Qo2VAk3AqvSvECmSUGxzB` is READY / target null for the same ref/SHA.
+
+## Owner-approved implementation contract — 2026-10-10
+
+Owner approved T19 implementation with these constraints: each Dashboard KPI/action deep link must open a server-filtered destination whose total matches the displayed count; only security-guard employee license records feed license metrics; backend role/data scope is authoritative; expired, 0–30 day, and 31–90 day license buckets stay separate; leave-today includes APPROVED requests only while pending leave counts request rows; date/month/ADMIN-selected department/status filters travel in the URL; and all filters and totals are applied before pagination. ON_DUTY remains scheduled employees excluding approved leave; it does not imply a clock-in event.
+
+Implementation adds a read-only `/app/dashboard/details` route backed by authenticated `GET /dashboard/details`. The route derives role scope from the current user, ignores supplied departments for non-ADMIN roles, returns minimal row metadata, and counts with the same server-side predicate used for the paged result. The dashboard's current schedule summary is reconciled to distinct employees, while per-shift groups count distinct employees within each shift type so each clickable total has a matching server query. Existing general module shortcuts stay unfiltered.
+
+PR #530 remains stale and out of scope for integration. Its branch/base and unrelated historical file changes are not merged or rewritten. This implementation starts at the live Integration HEAD and is submitted as a separate PR.
+
 
 ## Existing behavior and constraints
 
@@ -34,7 +43,7 @@ The values below preserve current dashboard metric definitions. Query names mark
 
 Example using a selected day/month: `/app/roster?month=2026-10&date=2026-10-10&workforce=ON_DUTY`. Example for a month status: `/app/leave/history?year=2026&month=10&status=APPROVED`. The roster example requires the proposed server-side selector; it must not be implemented as filtering a paginated month response in the browser.
 
-## Owner decision requested
+## Historical decision request (superseded by Owner approval below)
 
 1. Approve the recommended policy: preserve the current server-defined metric meanings, pass the relevant Dashboard context into destinations, and add only server-side filters/counts before pagination.
 2. Confirm that “people on leave today” remains a distinct-employee count, while “pending leaves” remains a leave-request count.

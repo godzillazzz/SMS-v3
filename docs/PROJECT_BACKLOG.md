@@ -1,3 +1,13 @@
+# CURRENT CHECKPOINT — T19 execution, 2026-10-10
+
+This checkpoint supersedes the previous status snapshot below. Live Integration SHA is `f6ecd99d2037725acf383791d8a7c3f225880a3d`; exact-head validate CI [#38048672746](https://github.com/godzillazzz/SMS-v3/actions/runs/38048672746) is SUCCESS and matching Integration Preview `dpl_ELAvSbMKfJDbyHkyqBZ8fEu7htfW` is READY with target null. Production R5-B remains `dpl_Hjo1fTmgjEdmg5G7fZBX9gssenQP`, application SHA `77641a2657aa4fd05276afe645dd32648f5cc56b`; no Production change was made.
+
+| Category | Work | Current verified status |
+|---|---|---|
+| IN PROGRESS | T19 Dashboard Deep Link | Owner-approved mapping is being implemented in a clean PR from the live Integration SHA. Server-side filter/count parity, guard-only license scope, approved-only leave-today, department authorization, URL synchronization and browser regression are in scope. #530 remains stale/Draft and untouched. |
+| BLOCKED | T08 | The mounted local checkout still contains Owner work (559 staged deletions plus untracked `.worktrees/`). No cleanup, reset, stash or write was performed. The separate T08 worktree is not accessible in this environment. |
+| READY FOR FINAL UAT AFTER FEATURE FREEZE | Final Hosted / Business / Physical UAT | Deferred per Owner direction; no Hosted UAT was run. |
+
 # CURRENT CHECKPOINT — 2026-10-10 15:54 ICT
 
 This checkpoint supersedes prior status snapshots below. GitHub/Vercel state was rechecked through 2026-10-10 08:54 UTC; the Production telemetry query covered the exact deployment and a 30-minute lookback. Older entries remain historical evidence only.

@@ -1,7 +1,7 @@
 process.env.NODE_ENV = 'test';
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { actionRequired, buildExpiringLicenseDetails, employeeScope, expiringLicenseWhere, getDashboardSummary, licenseStatusSummary } = require('../src/services/dashboard.service');
+const { actionRequired, buildExpiringLicenseDetails, employeeScope, expiringLicenseWhere, getDashboardSummary, licenseStatusSummary, securityGuardRelationScope } = require('../src/services/dashboard.service');
 
 test('dashboard scope keeps historical workforce global while operational work is active-only', () => {
   assert.deepEqual(employeeScope({ role: 'ADMIN', employeeId: null, department: null }), {});
@@ -16,7 +16,7 @@ test('dashboard scope keeps historical workforce global while operational work i
 test('dashboard expiring license details use the count scope and sort urgency safely', () => {
   const today = new Date(Date.UTC(2026, 7, 3));
   const expiry30 = new Date(Date.UTC(2026, 8, 2));
-  assert.deepEqual(expiringLicenseWhere({ employee: { is: { department: 'Security', isActive: true, deletedAt: null } } }, expiry30), { employee: { is: { department: 'Security', isActive: true, deletedAt: null } }, status: 'APPROVED', isCurrent: true, proposedExpiryDate: { lte: expiry30 } });
+  assert.deepEqual(expiringLicenseWhere({ employee: { is: { department: 'Security', isActive: true, deletedAt: null } } }, expiry30, today), { employee: { is: { department: 'Security', isActive: true, deletedAt: null } }, status: 'APPROVED', isCurrent: true, proposedExpiryDate: { gte: today, lte: expiry30 } });
   const details = buildExpiringLicenseDetails([
     { employeeId: 'employee-warning', licenseId: 'license-warning', proposedExpiryDate: new Date(Date.UTC(2026, 7, 20)), employee: { employeeCode: 'EMP-W', firstName: 'W', lastName: 'Warning' } },
     { employeeId: 'employee-expired', licenseId: 'license-expired', proposedExpiryDate: new Date(Date.UTC(2026, 7, 1)), employee: { employeeCode: 'EMP-E', firstName: 'E', lastName: 'Expired' } },
@@ -37,14 +37,19 @@ test('dashboard summary keeps expiring count and detail rows consistent', async 
     { employeeId: 'employee-3', licenseId: 'license-3', proposedExpiryDate: new Date(Date.UTC(2026, 7, 25)), employee: { employeeCode: 'EMP-3', firstName: 'Three', lastName: 'Person' } }
   ];
   const empty = async () => []; const zero = async () => 0;
+  const leaveQueries = [];
   const client = {
-    employee: { count: zero, findMany: empty }, shiftAssignment: { findMany: empty, count: zero }, leaveRequest: { count: zero }, user: { count: zero }, scheduleApproval: { count: zero },
-    employeeLicenseDocument: { groupBy: async ({ by }) => by.includes('proposedExpiryDate') ? rows.map((row) => ({ status: 'APPROVED', isCurrent: true, proposedExpiryDate: row.proposedExpiryDate, _count: { _all: 1 } })) : [], findMany: async ({ where }) => { assert.equal(where.status, 'APPROVED'); assert.equal(where.isCurrent, true); return rows; } },
+    employee: { count: zero, findMany: empty }, shiftAssignment: { findMany: empty, count: zero },
+    leaveRequest: { count: zero, findMany: async ({ where }) => { leaveQueries.push(where); return []; } },
+    user: { count: zero }, scheduleApproval: { count: zero },
+    employeeLicenseDocument: { groupBy: async ({ by }) => by.includes('proposedExpiryDate') ? rows.map((row) => ({ status: 'APPROVED', isCurrent: true, proposedExpiryDate: row.proposedExpiryDate, _count: { _all: 1 } })) : [], findMany: async ({ where }) => { assert.equal(where.status, 'APPROVED'); assert.equal(where.isCurrent, true); assert.deepEqual(where.proposedExpiryDate, { gte: today, lte: new Date(Date.UTC(2026, 8, 2)) }); assert.ok(where.employee.is.OR.some((rule) => rule.jobTitle?.contains === 'guard')); return rows; } },
     leaveQuota: { count: zero }, auditLog: { findMany: empty }
   };
   const summary = await getDashboardSummary({ prismaClient: client, requestUser: { role: 'ADMIN', employeeId: null, department: null }, now: today });
   assert.equal(summary.expiringLicenses, 3); assert.equal(summary.expiringLicenseDetails.length, 3);
   assert.deepEqual(summary.expiringLicenseDetails.map((row) => row.employeeCode), ['EMP-1', 'EMP-2', 'EMP-3']);
+  const leaveTodayQuery = leaveQueries.find((where) => where.startDate?.lte && where.endDate?.gte);
+  assert.deepEqual(leaveTodayQuery.status, { in: ['APPROVED'] });
 });
 
 test('dashboard license status mapping preserves every supported status', () => {
@@ -319,4 +324,14 @@ test('dashboard consolidated normal path uses 13 operations with bounded overlap
   };
   const summary = await getDashboardSummary({ prismaClient: client, requestUser: { role: 'ADMIN', employeeId: null, department: null } });
   assert.equal(calls, 13); assert.ok(peak > 1); assert.ok(peak <= 2); assert.equal(summary.totalEmployees, 5); assert.equal(summary.activeEmployees, 4); assert.deepEqual(summary.partialErrors, []);
+});
+
+test('security license scope limits dashboard license documents to guard job titles', () => {
+  const scope = securityGuardRelationScope({ employee: { is: { department: 'AN1', isActive: true, deletedAt: null } } });
+  assert.equal(scope.employee.is.department, 'AN1');
+  assert.deepEqual(scope.employee.is.OR, [
+    { jobTitle: { contains: 'guard', mode: 'insensitive' } },
+    { jobTitle: { contains: 'รปภ' } },
+    { jobTitle: { contains: 'รักษาความปลอดภัย' } }
+  ]);
 });
