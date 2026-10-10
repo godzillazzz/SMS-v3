@@ -1,3515 +1,705 @@
-import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { browserSupportsWebAuthn, startAuthentication } from '@simplewebauthn/browser';
-import { createPortal } from 'react-dom';
-import { createRoot } from 'react-dom/client';
-import '@fontsource/kanit/thai-400.css';
-import '@fontsource/kanit/thai-500.css';
-import '@fontsource/kanit/thai-600.css';
-import '@fontsource/kanit/thai-700.css';
-import '@fontsource/kanit/thai-800.css';
-import '@fontsource/plus-jakarta-sans/latin-400.css';
-import '@fontsource/plus-jakarta-sans/latin-600.css';
-import '@fontsource/plus-jakarta-sans/latin-700.css';
-import '@fontsource/jetbrains-mono/latin-500.css';
-import '@fontsource/jetbrains-mono/latin-600.css';
-import '@fontsource/jetbrains-mono/latin-700.css';
-import '@fontsource/noto-sans-thai/thai-400.css';
-import '@fontsource/noto-sans-thai/thai-500.css';
-import '@fontsource/noto-sans-thai/thai-600.css';
-import '@fontsource/noto-sans-thai/thai-700.css';
-import '@fontsource/inter/latin-400.css';
-import '@fontsource/inter/latin-500.css';
-import '@fontsource/inter/latin-600.css';
-import '@fontsource/inter/latin-700.css';
-import '@fontsource/ibm-plex-mono/400.css';
-import '@fontsource/ibm-plex-mono/500.css';
-import '@fontsource/ibm-plex-mono/600.css';
-import { api, refreshAuth, setTokenRefreshHandler } from './api';
-import { canDecideScheduleApproval, isSupersededScheduleApproval, scheduleApprovalChangeTypeLabel, scheduleApprovalErrorMessage, scheduleApprovalStatusLabel, scheduleApprovalTone } from './approval-display';
-import { getEmployeeLeaveQuota } from './leave-request-quota-api';
-import type { ScheduleBatchProgress } from './api';
-import { isG06DeviceContextDiagnosticRequested, shouldOpenG06DeviceContextDiagnostic } from './lib/g06-device-context-diagnostic-route';
-import { readEncryptedBootstrap } from './pages/attendance-simple/attendance-simple-storage';
-import type { SimpleBootstrap } from './pages/attendance-simple/attendance-simple-client';
-import { ROLE_DISPLAY_LABEL, roleDisplayName } from './role-display';
-import { getApprovalCenterSummary } from './approval-center-client';
-import { shouldPollApprovalCenter } from './approval-center-polling';
-import { approvalBadgeText, approvalMenuCount, type ApprovalCountSummary } from './components/approval-count-badge';
-import { ApprovalCenterNotificationButton } from './components/ApprovalCenterNotificationButton';
-import type { EmployeeComboboxOption } from './components/SearchableEmployeeCombobox';
-import { getLeavePolicy } from './leave-policy-client';
-import { createLeaveType, getLeaveTypes, updateLeaveType, type LeaveTypeMaster } from './leave-type-client';
-import { getShiftTypes } from './shift-type-client';
-import { describePattern, getAutoSchedulePatterns, type AutoSchedulePattern } from './auto-schedule-pattern-client';
-import { setAttendanceTokenRefreshGuard, setAttendanceTokenRefreshHandler } from './attendance-auth-request';
-import { RequestErrorContent, formatRequestErrorMessage, toRequestErrorState, type RequestErrorInput } from './request-error';
-import { acquireDocumentScrollLock } from './document-scroll-lock';
-import { buildLeaveQuotaProvisioningPayload, canProvisionLeaveQuota, currentBangkokQuotaYear, hasUnmatchedLegacyQuota, leaveQuotaDefaultsFromPolicy, quotaProvisioningEmployeeOptions, thaiQuotaYearLabel } from './leave-quota-provisioning';
-import { printDocument, printScheduleDocument, printTableReport } from './schedule-print';
-import { groupScheduleEmployeesByDepartment, sortScheduleEmployeesByDepartment } from './schedule-employee-code-order';
-import { addAutoSchedulePreviewDrafts, summarizeAutoSchedulePreview } from './auto-schedule-drafts';
-import { responseForCurrentQuery, type PageResponseBinding } from './operation-response';
-import { bangkokDateInput as formatBangkokDateInput, currentBangkokMonth, formatThaiDate, formatThaiDateTime, formatThaiMonth, formatThaiMonthName } from './thai-date-time';
-
-import { MonthGridPicker, normalizeMonthValue, parseMonthValue, shiftMonthValue } from './components/MonthGridPicker';
-import { PageHeader, SectionCard, StepFlow, MetricCard } from './components/layout';
-import { BrandLogo } from './components/BrandLogo';
-import { AppLoader, loadingMessages } from './components/AppLoader';
-import './styles.css';
-import './design-system.css';
-import './styles/dashboard.css';
-import { DashboardPage } from './pages/dashboard/DashboardPage';
-import { WorkflowCommandPalette } from './components/WorkflowCommandPalette';
-import { defaultAuditFilters, type AuditFilters } from './components/audit/audit-types';
-import type { DataQualityFilters, DataQualityIssue } from './pages/data-quality/DataQualityCenterPage';
-import type { G06UatProvisionResult } from './pages/access-management/G06UatProvisioningPanel';
-import { initialSmsPwaPage, isSmsPwaPage, isSmsPwaShellMode, type SmsPwaPage } from './pwa-mode';
-import { registerSmsPwa } from './pwa';
-import { canLoadAccessManagement } from './components/access-management/access-management-utils';
-import type { DashboardFilters } from './components/dashboard/types';
-import { LicenseEditModal, LicenseTableDocumentColumns } from './components/LicenseDocuments';
-import { DataTablePagination, ResponsiveDataTable } from './components/ResponsiveDataTable';
-import { DataTableSkeletonCards, DataTableSkeletonRows, DataTableState } from './components/ResponsiveDataTable';
-import type { OperationalDrawerAction } from './components/OperationalRecordDrawer';
-import { SmsIcon, type SmsIconName } from './components/SmsIcon';
-import { useActionDialog } from './components/useActionDialog';
-import { ThemeControl } from './components/ThemeControl';
-import { attendancePolicyKeys, type AttendancePolicyForm } from './components/attendance-policy-contract';
-import { leavePolicyKeys, type LeavePolicyForm } from './components/leave-policy-contract';
-import type { LeaveDecisionAction, LeaveDecisionTarget } from './components/LeaveDecisionConfirmation';
-import { registrationResultPresentation } from './components/auth-experience';
-import { sanitizeLicenseDocumentError, type LicenseDocument } from './components/license-document-utils';
-import { canViewRoutePage, navigate, navigateSettingsSection, pageFromLocation, routeQueryMonth, routeQueryNumber, ROUTE_CHANGE_EVENT, settingsSectionFromPath, subscribeToRouteChanges, updateDocumentTitle, updateRouteQuery, type RoutePage, type RouteResolution, type SettingsSectionId } from './routing';
-import './styles/license-table.css';
-import './styles/responsive-shell.css';
-import './styles/action-system.css';
-import './styles/tokens.css';
-import './styles/theme-foundation.css';
-import './styles/app-shell.css';
-import './styles/data-surfaces.css';
-import './styles/auth-experience.css';
-import './styles/visual-fidelity.css';
-import './styles/signature-experience.css';
-import './styles/signature-experience-v1-1.css';
-import './styles/signature-experience-v1-2.css';
-import './styles/production-mobile-responsive-v1.css';
-import './styles/attendance-device.css';
-import './styles/pwa-shell.css';
-import './styles/responsive-certification-v1.css';
-import './styles/system-health.css';
-import './styles/configuration-center.css';
-import './styles/ux-ui-remediation.css';
-import './styles/ux-ui-quality-10.css';
-import './styles/award-landing.css';
-import './styles/tailwind.css';
-import './styles/command-nexus.css';
-import './styles/award-interior.css';
-import './styles/operational-layer.css';
-import './styles/employee-pwa-theme.css';
-import './styles/ux-t06-login-public.css';
-import './styles/schedule-roster-ux.css';
-import './styles/layout-foundation.css';
-import './styles/personnel-layout.css';
-
-const APPROVAL_REVIEWER_ROLES = ['ADMIN', 'MANAGER', 'SUPERVISOR'] as const;
-const APPROVAL_COUNT_MENU_ROLES: Readonly<Record<string, readonly string[]>> = Object.freeze({
-  approvalCenter: APPROVAL_REVIEWER_ROLES,
-  employees: ['ADMIN'],
-  licenses: ['ADMIN'],
-  approvals: ['ADMIN', 'SUPERVISOR'],
-  attendanceDevice: ['ADMIN'],
-  attendanceSupervisor: ['ADMIN'],
-  users: APPROVAL_REVIEWER_ROLES,
-  leavePending: APPROVAL_REVIEWER_ROLES
-});
-
-const AwardPublicExperience = React.lazy(() => import('./components/AwardPublicExperience').then((module) => ({ default: module.AwardPublicExperience })));
-const ReportCenterPage = React.lazy(() => import('./pages/reports/ReportCenterPage').then((module) => ({ default: module.ReportCenterPage })));
-const SettingsPage = React.lazy(() => import('./pages/settings/SettingsPage').then((module) => ({ default: module.SettingsPage })));
-const PersonnelDirectoryPage = React.lazy(() => import('./pages/personnel/PersonnelDirectoryPage').then((module) => ({ default: module.PersonnelDirectoryPage })));
-const EmployeeGovernedEditModal = React.lazy(() => import('./components/personnel/EmployeeGovernedEditModal').then((module) => ({ default: module.EmployeeGovernedEditModal })));
-const EmployeeChangeReviewModal = React.lazy(() => import('./components/personnel/EmployeeChangeReviewModal').then((module) => ({ default: module.EmployeeChangeReviewModal })));
-const ApprovalCenterPage = React.lazy(() => import('./pages/approvals/ApprovalCenterPage').then((module) => ({ default: module.ApprovalCenterPage })));
-const AuditCompliancePage = React.lazy(() => import('./pages/audit/AuditCompliancePage').then((module) => ({ default: module.AuditCompliancePage })));
-const DataQualityCenterPage = React.lazy(() => import('./pages/data-quality/DataQualityCenterPage').then((module) => ({ default: module.DataQualityCenterPage })));
-const SystemHealthPage = React.lazy(() => import('./pages/system-health/SystemHealthPage').then((module) => ({ default: module.SystemHealthPage })));
-const AccessManagementPage = React.lazy(() => import('./pages/access-management/AccessManagementPage').then((module) => ({ default: module.AccessManagementPage })));
-const AttendanceDevicePage = React.lazy(() => import('./pages/attendance-device/AttendanceDevicePage').then((module) => ({ default: module.AttendanceDevicePage })));
-const SecuritySiteManagementPanel = React.lazy(() => import('./components/SecuritySiteManagementPanel').then((module) => ({ default: module.SecuritySiteManagementPanel })));
-const PwaProfilePage = React.lazy(() => import('./pages/pwa-profile/PwaProfilePage').then((module) => ({ default: module.PwaProfilePage })));
-const AttendanceHistoryPwaPage = React.lazy(() => import('./pages/pwa-attendance/AttendanceHistoryPwaPage').then((module) => ({ default: module.AttendanceHistoryPwaPage })));
-const AttendanceSchedulePwaPage = React.lazy(() => import('./pages/pwa-attendance/AttendanceSchedulePwaPage').then((module) => ({ default: module.AttendanceSchedulePwaPage })));
-const AttendanceSimplePage = React.lazy(() => import('./pages/attendance-simple/AttendanceSimplePage').then((module) => ({ default: module.AttendanceSimplePage })));
-const AttendanceSupervisorPage = React.lazy(() => import('./pages/attendance-supervisor/AttendanceSupervisorPage').then((module) => ({ default: module.AttendanceSupervisorPage })));
-const RegistrationReviewPanel = React.lazy(() => import('./pages/access-management/RegistrationReviewPanel').then((module) => ({ default: module.RegistrationReviewPanel })));
-const PasskeySecurityPanel = React.lazy(() => import('./components/PasskeySecurityPanel').then((module) => ({ default: module.PasskeySecurityPanel })));
-const RuleCheckingDataSurfaces = React.lazy(() => import('./components/RuleCheckingDataSurfaces').then((module) => ({ default: module.RuleCheckingDataSurfaces })));
-const OperationalRecordDrawer = React.lazy(() => import('./components/OperationalRecordDrawer').then((module) => ({ default: module.OperationalRecordDrawer })));
-const DataRowActionMenu = React.lazy(() => import('./components/DataRowActionMenu').then((module) => ({ default: module.DataRowActionMenu })));
-const TableActionCell = React.lazy(() => import('./components/TableActionColumn').then((module) => ({ default: module.TableActionCell })));
-const TableActionHeader = React.lazy(() => import('./components/TableActionColumn').then((module) => ({ default: module.TableActionHeader })));
-const LeaveDecisionConfirmation = React.lazy(() => import('./components/LeaveDecisionConfirmation').then((module) => ({ default: module.LeaveDecisionConfirmation })));
-const SearchableEmployeeCombobox = React.lazy(() => import('./components/SearchableEmployeeCombobox').then((module) => ({ default: module.SearchableEmployeeCombobox })));
-
-type User = { id: string; email: string; displayName: string; role: string; department?: string };
-type Employee = { id: string; employeeCode: string; firstName: string; lastName: string; displayName?: string; email?: string | null; phone?: string | null; department?: string; jobTitle?: string; hiredAt?: string | null; skill?: string | null; isActive: boolean; updatedAt?: string };
-type Page = RoutePage;
-type Auth = { token?: string; user?: User; originalUser?: User; loading: boolean; error?: string; isViewingAs: boolean; login(email: string, password: string): Promise<void>; passkeyLogin(): Promise<void>; logout(): Promise<void>; beginViewAs(userId: string): Promise<void>; endViewAs(): void };
-type DataRow = Record<string, unknown>;
-type DataResponse = { data?: DataRow[] | DataRow; summary?: { total?: number; critical?: number; warning?: number; info?: number }; meta?: { total?: number; page?: number; pageSize?: number; totalPages?: number; statusCounts?: Record<string, number>; unmatchedLegacyCount?: number } };
-type OperationRequestState = { page: Page; key: string; loading: boolean; error?: RequestErrorInput };
-type LicenseEmployeeStatus = 'ACTIVE' | 'INACTIVE' | 'ALL';
-type FormField = { name: string; label: string; type?: 'text' | 'email' | 'password' | 'date' | 'number' | 'select' | 'textarea' | 'file'; required?: boolean; accept?: string; hint?: string; min?: number; max?: number; options?: Array<{ value: string; label: string }> };
-type Editor = { title: string; submitLabel: string; fields: FormField[]; values: Record<string, string>; notice?: string; experience?: 'personnel'; submit(values: Record<string, string>, files: Record<string, File>): Promise<void> };
-type LeaveDecisionRequest = { row: DataRow; action: LeaveDecisionAction; target: LeaveDecisionTarget };
-
-const bangkokDateInput = (value = new Date()) => formatBangkokDateInput(value);
-
-const AuthContext = createContext<Auth | undefined>(undefined);
-
-const navigation: Array<{ label: string; items: Array<{ id: Page; icon: SmsIconName; label: string }> }> = [
-  { label: '‡∏†‡∏≤‡∏û‡∏£‡∏ß‡∏°', items: [{ id: 'dashboard', icon: 'dashboard', label: '‡∏†‡∏≤‡∏û‡∏£‡∏ß‡∏°' }] },
-  { label: '‡∏û‡∏ô‡∏±‡∏Å‡∏á‡∏≤‡∏ô', items: [
-    { id: 'employees', icon: 'employees', label: '‡∏Ç‡πâ‡∏≠‡∏°‡∏π‡∏•‡∏û‡∏ô‡∏±‡∏Å‡∏á‡∏≤‡∏ô' },
-    { id: 'licenses', icon: 'license', label: '‡πÉ‡∏ö‡∏≠‡∏ô‡∏∏‡∏ç‡∏≤‡∏ï ‡∏£‡∏õ‡∏†.' },
-    { id: 'attendance', icon: 'attendance', label: '‡∏•‡∏á‡πÄ‡∏ß‡∏•‡∏≤' },
-    { id: 'attendanceSupervisor', icon: 'dashboard', label: '‡∏•‡∏á‡πÄ‡∏ß‡∏•‡∏≤‡πÅ‡∏ó‡∏ô‡∏û‡∏ô‡∏±‡∏Å‡∏á‡∏≤‡∏ô' },
-    { id: 'attendanceDevice', icon: 'key', label: '‡∏≠‡∏∏‡∏õ‡∏Å‡∏£‡∏ì‡πå‡∏•‡∏á‡πÄ‡∏ß‡∏•‡∏≤' }
-  ] },
-  { label: '‡∏ï‡∏≤‡∏£‡∏≤‡∏á‡∏Å‡∏∞', items: [
-    { id: 'schedule', icon: 'calendar', label: '‡∏ï‡∏≤‡∏£‡∏≤‡∏á‡∏Å‡∏∞‡∏£‡∏≤‡∏¢‡πÄ‡∏î‡∏∑‡∏≠‡∏ô' },
-    { id: 'approvals', icon: 'approval', label: '‡∏≠‡∏ô‡∏∏‡∏°‡∏±‡∏ï‡∏¥‡∏ï‡∏≤‡∏£‡∏≤‡∏á‡∏Å‡∏∞' },
-    { id: 'shiftSetup', icon: 'clock', label: '‡∏£‡∏´‡∏±‡∏™‡∏Å‡∏∞‡πÅ‡∏•‡∏∞‡πÄ‡∏ß‡∏•‡∏≤' }
-  ] },
-  { label: '‡∏Å‡∏≤‡∏£‡∏•‡∏≤', items: [
-    { id: 'leave', icon: 'leave', label: '‡∏Ñ‡∏≥‡∏Ç‡∏≠‡∏•‡∏≤' },
-    { id: 'leavePending', icon: 'approval', label: '‡∏≠‡∏ô‡∏∏‡∏°‡∏±‡∏ï‡∏¥‡∏Ñ‡∏≥‡∏Ç‡∏≠‡∏•‡∏≤' },
-    { id: 'leaveHistory', icon: 'history', label: '‡∏õ‡∏£‡∏∞‡∏ß‡∏±‡∏ï‡∏¥‡∏Å‡∏≤‡∏£‡∏•‡∏≤‡∏ó‡∏±‡πâ‡∏á‡∏´‡∏°‡∏î' },
-    { id: 'quota', icon: 'quota', label: '‡πÇ‡∏Ñ‡∏ß‡∏ï‡πâ‡∏≤‡∏ß‡∏±‡∏ô‡∏•‡∏≤' }
-  ] },
-  { label: '‡∏ï‡∏£‡∏ß‡∏à‡∏™‡∏≠‡∏ö', items: [
-    { id: 'approvalCenter', icon: 'bell', label: '‡∏®‡∏π‡∏ô‡∏¢‡πå‡∏≠‡∏ô‡∏∏‡∏°‡∏±‡∏ï‡∏¥' },
-    { id: 'rules', icon: 'shield', label: '‡∏Å‡∏é‡∏Å‡∏≤‡∏£‡∏ó‡∏≥‡∏á‡∏≤‡∏ô' },
-    { id: 'audit', icon: 'audit', label: '‡∏ö‡∏±‡∏ô‡∏ó‡∏∂‡∏Å‡∏Å‡∏≤‡∏£‡πÉ‡∏ä‡πâ‡∏á‡∏≤‡∏ô‡∏£‡∏∞‡∏ö‡∏ö' },
-    { id: 'dataQuality', icon: 'quality', label: '‡∏Ñ‡∏∏‡∏ì‡∏†‡∏≤‡∏û‡∏Ç‡πâ‡∏≠‡∏°‡∏π‡∏•' },
-    { id: 'systemHealth', icon: 'dashboard', label: '‡∏õ‡∏£‡∏∞‡∏™‡∏¥‡∏ó‡∏ò‡∏¥‡∏†‡∏≤‡∏û‡πÅ‡∏•‡∏∞‡∏™‡∏ñ‡∏≤‡∏ô‡∏∞‡∏£‡∏∞‡∏ö‡∏ö' }
-  ] },
-  { label: '‡∏ú‡∏π‡πâ‡πÉ‡∏ä‡πâ‡πÅ‡∏•‡∏∞‡∏™‡∏¥‡∏ó‡∏ò‡∏¥‡πå', items: [{ id: 'users', icon: 'users', label: '‡∏ú‡∏π‡πâ‡πÉ‡∏ä‡πâ‡πÅ‡∏•‡∏∞‡∏™‡∏¥‡∏ó‡∏ò‡∏¥‡πå' }] },
-  { label: '‡∏£‡∏≤‡∏¢‡∏á‡∏≤‡∏ô', items: [{ id: 'reportCenter', icon: 'report', label: '‡∏£‡∏≤‡∏¢‡∏á‡∏≤‡∏ô‡πÅ‡∏•‡∏∞‡∏ß‡∏¥‡πÄ‡∏Ñ‡∏£‡∏≤‡∏∞‡∏´‡πå' }] },
-  { label: '‡∏ï‡∏±‡πâ‡∏á‡∏Ñ‡πà‡∏≤', items: [
-    { id: 'securitySite', icon: 'location', label: '‡∏à‡∏∏‡∏î‡∏£‡∏±‡∏Å‡∏©‡∏≤‡∏Ñ‡∏ß‡∏≤‡∏°‡∏õ‡∏•‡∏≠‡∏î‡∏†‡∏±‡∏¢‡πÅ‡∏•‡∏∞ QR' },
-    { id: 'settings', icon: 'settings', label: '‡∏ï‡∏±‡πâ‡∏á‡∏Ñ‡πà‡∏≤‡∏£‡∏∞‡∏ö‡∏ö' }
-  ] }
-];
-
-function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [token, setToken] = useState<string>();
-  const [user, setUser] = useState<User>();
-  const [viewAs, setViewAs] = useState<{ token: string; user: User }>();
-  const primaryTokenRef = useRef<string>();
-  const viewAsTokenRef = useRef<string>();
-  primaryTokenRef.current = token;
-  viewAsTokenRef.current = viewAs?.token;
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string>();
-
-  const refresh = async () => {
-    const result = await refreshAuth();
-    setToken(result.accessToken);
-    setUser(result.user);
-    setViewAs(undefined);
-  };
-
-  useEffect(() => {
-    const applyRefreshedToken = (newToken: string, newUser: any) => {
-      setToken(newToken);
-      if (newUser) setUser(newUser);
-      if (viewAsTokenRef.current) throw new Error('Session context changed. Retry from the primary account.');
-    };
-    setTokenRefreshHandler(applyRefreshedToken);
-    setAttendanceTokenRefreshHandler(applyRefreshedToken);
-    setAttendanceTokenRefreshGuard((requestToken) => {
-      if (viewAsTokenRef.current && requestToken === viewAsTokenRef.current) return false;
-      return Boolean(primaryTokenRef.current && requestToken === primaryTokenRef.current);
-    });
-    refresh().catch(() => undefined).finally(() => setLoading(false));
-    const refreshWhenOnline = () => {
-      if (!primaryTokenRef.current) void refresh().catch(() => undefined);
-    };
-    window.addEventListener('online', refreshWhenOnline);
-    return () => {
-      window.removeEventListener('online', refreshWhenOnline);
-      setTokenRefreshHandler(null);
-      setAttendanceTokenRefreshHandler(null);
-      setAttendanceTokenRefreshGuard(null);
-    };
-  }, []);
-
-  const login = async (email: string, password: string) => {
-    setError(undefined);
-    try {
-      const result = await api.login(email, password);
-      setToken(result.accessToken);
-      setUser(result.user);
-      setViewAs(undefined);
-    } catch (reason) {
-      setError(formatRequestErrorMessage(reason, '‡πÑ‡∏°‡πà‡∏™‡∏≤‡∏°‡∏≤‡∏£‡∏ñ‡πÄ‡∏Ç‡πâ‡∏≤‡∏™‡∏π‡πà‡∏£‡∏∞‡∏ö‡∏ö‡πÑ‡∏î‡πâ'));
-      throw reason;
-    }
-  };
-
-  const passkeyLogin = async () => {
-    setError(undefined);
-    try {
-      if (!browserSupportsWebAuthn()) throw new Error('‡πÄ‡∏ö‡∏£‡∏≤‡∏ß‡πå‡πÄ‡∏ã‡∏≠‡∏£‡πå‡∏´‡∏£‡∏∑‡∏≠‡∏≠‡∏∏‡∏õ‡∏Å‡∏£‡∏ì‡πå‡∏ô‡∏µ‡πâ‡∏¢‡∏±‡∏á‡πÑ‡∏°‡πà‡∏£‡∏≠‡∏á‡∏£‡∏±‡∏ö Passkey');
-      const challenge = await api.passkeyLoginOptions();
-      const response = await startAuthentication({ optionsJSON: challenge.options });
-      const result = await api.passkeyLoginVerify(challenge.challengeId, response);
-      setToken(result.accessToken);
-      setUser(result.user);
-      setViewAs(undefined);
-    } catch (reason) {
-      setError(formatRequestErrorMessage(reason, '‡πÑ‡∏°‡πà‡∏™‡∏≤‡∏°‡∏≤‡∏£‡∏ñ‡πÄ‡∏Ç‡πâ‡∏≤‡∏™‡∏π‡πà‡∏£‡∏∞‡∏ö‡∏ö‡∏î‡πâ‡∏ß‡∏¢ Passkey ‡πÑ‡∏î‡πâ'));
-      throw reason;
-    }
-  };
-
-  const logout = async () => {
-    await api.logout();
-    setToken(undefined);
-    setUser(undefined);
-    setViewAs(undefined);
-  };
-
-  const beginViewAs = async (userId: string) => {
-    if (!token || user?.role !== 'ADMIN') throw new Error('View As requires an Admin account.');
-    const result = await api.viewAsUser(token, userId);
-    setViewAs({ token: result.data.accessToken, user: result.data.user });
-  };
-
-  const endViewAs = () => setViewAs(undefined);
-
-  return <AuthContext.Provider value={{ token: viewAs?.token || token, user: viewAs?.user || user, originalUser: user, loading, error, isViewingAs: Boolean(viewAs), login, passkeyLogin, logout, beginViewAs, endViewAs }}>{children}</AuthContext.Provider>;
-}
-
-
-function readLeaveMonthFromUrl(): string {
-  const params = new URLSearchParams(window.location.search);
-  const routeMonth = routeQueryMonth(window.location.search);
-  if (routeMonth) return routeMonth;
-  const year = params.get('year');
-  const month = params.get('month');
-  return normalizeMonthValue(year && month ? `${year}-${month}` : undefined);
-}
-
-function writeLeaveMonthToUrl(value: string): void {
-  const url = new URL(window.location.href);
-  const { year, month } = parseMonthValue(value);
-  url.searchParams.set('year', String(year));
-  url.searchParams.set('month', String(month));
-  window.history.pushState({ leaveMonth: `${year}-${String(month).padStart(2, '0')}` }, '', `${url.pathname}${url.search}${url.hash}`);
-}
-
-function AuthProgress({ flow, current }: { flow: 'registration' | 'reset'; current: number }) {
-  const steps = flow === 'registration'
-    ? ['‡∏Ç‡πâ‡∏≠‡∏°‡∏π‡∏•‡∏ú‡∏π‡πâ‡∏™‡∏°‡∏±‡∏Ñ‡∏£', '‡∏¢‡∏∑‡∏ô‡∏¢‡∏±‡∏ô‡∏≠‡∏µ‡πÄ‡∏°‡∏•', '‡∏£‡∏≠‡∏Å‡∏≤‡∏£‡∏ï‡∏£‡∏ß‡∏à‡∏™‡∏≠‡∏ö']
-    : ['‡∏≠‡∏µ‡πÄ‡∏°‡∏•', '‡∏¢‡∏∑‡∏ô‡∏¢‡∏±‡∏ô OTP', '‡∏ï‡∏±‡πâ‡∏á‡∏£‡∏´‡∏±‡∏™‡∏ú‡πà‡∏≤‡∏ô‡πÉ‡∏´‡∏°‡πà'];
-  return <ol className="auth-progress" aria-label={flow === 'registration' ? '‡∏Ç‡∏±‡πâ‡∏ô‡∏ï‡∏≠‡∏ô‡∏Å‡∏≤‡∏£‡∏•‡∏á‡∏ó‡∏∞‡πÄ‡∏ö‡∏µ‡∏¢‡∏ô' : '‡∏Ç‡∏±‡πâ‡∏ô‡∏ï‡∏≠‡∏ô‡∏Å‡∏≤‡∏£‡∏£‡∏µ‡πÄ‡∏ã‡πá‡∏ï‡∏£‡∏´‡∏±‡∏™‡∏ú‡πà‡∏≤‡∏ô'}>
-    {steps.map((label, index) => {
-      const step = index + 1;
-      const state = step < current ? 'complete' : step === current ? 'active' : 'upcoming';
-      return <li className={`auth-progress__step is-${state}`} key={label} aria-current={state === 'active' ? 'step' : undefined}>
-        <span className="auth-progress__number">{step}</span><span>{label}</span>
-      </li>;
-    })}
-  </ol>;
-}
-
-function Login() {
-  const auth = useContext(AuthContext)!;
-  const [mode, setMode] = useState<'login' | 'register' | 'registerVerify' | 'reset' | 'resetVerify'>('login');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [submittedName, setSubmittedName] = useState('');
-  const [departmentHint, setDepartmentHint] = useState('');
-  const [code, setCode] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [formMessage, setFormMessage] = useState<string>();
-  const [formError, setFormError] = useState<string>();
-  const [registrationState, setRegistrationState] = useState<string>();
-  const [resendSeconds, setResendSeconds] = useState(0);
-  const [passkeyEnabled, setPasskeyEnabled] = useState(false);
-  const [authMethod, setAuthMethod] = useState<'password' | 'passkey' | 'hardware'>('password');
-
-  useEffect(() => {
-    api.passkeyConfig().then((result) => setPasskeyEnabled(Boolean(result?.enabled) && browserSupportsWebAuthn())).catch(() => setPasskeyEnabled(false));
-  }, []);
-
-  useEffect(() => {
-    if (mode !== 'registerVerify' || resendSeconds <= 0) return undefined;
-    const timer = window.setInterval(() => setResendSeconds((value) => Math.max(0, value - 1)), 1000);
-    return () => window.clearInterval(timer);
-  }, [mode, resendSeconds]);
-
-  const resetView = (next: typeof mode) => { setMode(next); setAuthMethod('password'); setFormError(undefined); setFormMessage(undefined); setCode(''); setRegistrationState(undefined); if (next !== 'registerVerify') setResendSeconds(0); };
-  const signInWithPasskey = async (method: 'passkey' | 'hardware' = 'passkey') => {
-    setFormError(undefined); setFormMessage(undefined); setBusy(true);
-    try { await auth.passkeyLogin(); }
-    catch (reason) { setFormError(formatRequestErrorMessage(reason, method === 'hardware' ? '‡πÑ‡∏°‡πà‡∏™‡∏≤‡∏°‡∏≤‡∏£‡∏ñ‡πÄ‡∏Ç‡πâ‡∏≤‡∏™‡∏π‡πà‡∏£‡∏∞‡∏ö‡∏ö‡∏î‡πâ‡∏ß‡∏¢ Hardware Key ‡πÑ‡∏î‡πâ' : '‡πÑ‡∏°‡πà‡∏™‡∏≤‡∏°‡∏≤‡∏£‡∏ñ‡πÄ‡∏Ç‡πâ‡∏≤‡∏™‡∏π‡πà‡∏£‡∏∞‡∏ö‡∏ö‡∏î‡πâ‡∏ß‡∏¢ Passkey ‡πÑ‡∏î‡πâ')); }
-    finally { setBusy(false); }
-  };
-
-  const resultPresentation = registrationResultPresentation(registrationState);
-  const title = mode === 'login' ? '‡∏¢‡∏¥‡∏ô‡∏î‡∏µ‡∏ï‡πâ‡∏≠‡∏ô‡∏£‡∏±‡∏ö‡∏Å‡∏•‡∏±‡∏ö' : mode === 'register' ? '‡∏™‡πà‡∏á‡∏Ñ‡∏≥‡∏Ç‡∏≠‡∏•‡∏á‡∏ó‡∏∞‡πÄ‡∏ö‡∏µ‡∏¢‡∏ô' : mode === 'registerVerify' ? '‡∏¢‡∏∑‡∏ô‡∏¢‡∏±‡∏ô‡∏≠‡∏µ‡πÄ‡∏°‡∏•' : mode === 'reset' ? '‡∏•‡∏∑‡∏°‡∏£‡∏´‡∏±‡∏™‡∏ú‡πà‡∏≤‡∏ô' : '‡∏ï‡∏±‡πâ‡∏á‡∏£‡∏´‡∏±‡∏™‡∏ú‡πà‡∏≤‡∏ô‡πÉ‡∏´‡∏°‡πà';
-  const lead = mode === 'login' ? '‡πÄ‡∏Ç‡πâ‡∏≤‡∏™‡∏π‡πà‡∏£‡∏∞‡∏ö‡∏ö‡πÄ‡∏û‡∏∑‡πà‡∏≠‡πÉ‡∏ä‡πâ‡∏á‡∏≤‡∏ô Security Management System' : mode === 'register' ? '‡∏Å‡∏£‡∏≠‡∏Å‡∏Ç‡πâ‡∏≠‡∏°‡∏π‡∏•‡∏™‡∏≥‡∏´‡∏£‡∏±‡∏ö‡∏™‡πà‡∏á‡∏Ñ‡∏≥‡∏Ç‡∏≠‡πÉ‡∏´‡πâ‡∏ú‡∏π‡πâ‡∏î‡∏π‡πÅ‡∏•‡∏ï‡∏£‡∏ß‡∏à‡∏™‡∏≠‡∏ö' : mode === 'registerVerify' ? '‡∏¢‡∏∑‡∏ô‡∏¢‡∏±‡∏ô‡∏Ñ‡∏ß‡∏≤‡∏°‡πÄ‡∏õ‡πá‡∏ô‡πÄ‡∏à‡πâ‡∏≤‡∏Ç‡∏≠‡∏á‡∏≠‡∏µ‡πÄ‡∏°‡∏•‡∏î‡πâ‡∏ß‡∏¢‡∏£‡∏´‡∏±‡∏™ 6 ‡∏´‡∏•‡∏±‡∏Å' : mode === 'reset' ? '‡∏£‡∏∞‡∏ö‡∏∏‡∏≠‡∏µ‡πÄ‡∏°‡∏•‡πÄ‡∏û‡∏∑‡πà‡∏≠‡∏Ç‡∏≠‡∏£‡∏´‡∏±‡∏™‡∏¢‡∏∑‡∏ô‡∏¢‡∏±‡∏ô‡∏™‡∏≥‡∏´‡∏£‡∏±‡∏ö‡∏ï‡∏±‡πâ‡∏á‡∏£‡∏´‡∏±‡∏™‡∏ú‡πà‡∏≤‡∏ô‡πÉ‡∏´‡∏°‡πà' : '‡∏Å‡∏£‡∏≠‡∏Å‡∏£‡∏´‡∏±‡∏™ OTP ‡∏û‡∏£‡πâ‡∏≠‡∏°‡∏Å‡∏≥‡∏´‡∏ô‡∏î‡∏£‡∏´‡∏±‡∏™‡∏ú‡πà‡∏≤‡∏ô‡πÉ‡∏´‡∏°‡πà';
-  const submitDisabled = busy || (mode === 'register' && submittedName.trim().length < 2);
-  const maskedEmail = (() => {
-    const [local, domain] = email.trim().split('@');
-    if (!local || !domain) return email;
-    return `${local.slice(0, 1)}***@${domain}`;
-  })();
-  const registrationErrorMessage = (reason: unknown) => {
-    const status = typeof reason === 'object' && reason && 'status' in reason ? Number((reason as { status?: unknown }).status) : 0;
-    if (status === 429) return '‡∏™‡πà‡∏á‡∏£‡∏´‡∏±‡∏™‡∏¢‡∏∑‡∏ô‡∏¢‡∏±‡∏ô‡∏ö‡πà‡∏≠‡∏¢‡πÄ‡∏Å‡∏¥‡∏ô‡πÑ‡∏õ ‡∏Å‡∏£‡∏∏‡∏ì‡∏≤‡∏£‡∏≠‡∏™‡∏±‡∏Å‡∏Ñ‡∏£‡∏π‡πà‡πÅ‡∏•‡πâ‡∏ß‡∏•‡∏≠‡∏á‡πÉ‡∏´‡∏°‡πà';
-    if (status === 503) return '‡πÑ‡∏°‡πà‡∏™‡∏≤‡∏°‡∏≤‡∏£‡∏ñ‡∏™‡πà‡∏á‡∏£‡∏´‡∏±‡∏™‡∏¢‡∏∑‡∏ô‡∏¢‡∏±‡∏ô‡πÑ‡∏î‡πâ‡πÉ‡∏ô‡∏Ç‡∏ì‡∏∞‡∏ô‡∏µ‡πâ ‡∏Å‡∏£‡∏∏‡∏ì‡∏≤‡∏•‡∏≠‡∏á‡πÉ‡∏´‡∏°‡πà‡∏†‡∏≤‡∏¢‡∏´‡∏•‡∏±‡∏á';
-    return formatRequestErrorMessage(reason, '‡πÑ‡∏°‡πà‡∏™‡∏≤‡∏°‡∏≤‡∏£‡∏ñ‡∏î‡∏≥‡πÄ‡∏ô‡∏¥‡∏ô‡∏Å‡∏≤‡∏£‡πÑ‡∏î‡πâ');
-  };
-
-  const requestRegistrationCode = async (isResend = false) => {
-    const result = await api.requestRegistrationOtp({ submittedName: submittedName.trim(), email, password, departmentHint: departmentHint.trim() || undefined });
-    setMode('registerVerify');
-    setCode('');
-    setResendSeconds(60);
-    setFormMessage(isResend ? '‡∏™‡πà‡∏á‡∏£‡∏´‡∏±‡∏™‡∏¢‡∏∑‡∏ô‡∏¢‡∏±‡∏ô‡πÉ‡∏´‡∏°‡πà‡πÅ‡∏•‡πâ‡∏ß ‡∏Å‡∏£‡∏∏‡∏ì‡∏≤‡∏ï‡∏£‡∏ß‡∏à‡∏™‡∏≠‡∏ö‡∏≠‡∏µ‡πÄ‡∏°‡∏• ‡∏£‡∏ß‡∏°‡∏ñ‡∏∂‡∏á‡πÇ‡∏ü‡∏•‡πÄ‡∏î‡∏≠‡∏£‡πå Spam/Junk' : result.message);
-  };
-
-  const resendRegistrationCode = async () => {
-    if (busy || resendSeconds > 0) return;
-    setFormError(undefined); setFormMessage(undefined); setBusy(true);
-    try { await requestRegistrationCode(true); }
-    catch (reason) { setFormError(registrationErrorMessage(reason)); }
-    finally { setBusy(false); }
-  };
-
-  const submit = async (event: React.FormEvent) => {
-    event.preventDefault();
-    setFormError(undefined); setFormMessage(undefined);
-    setBusy(true);
-    try {
-      if (mode === 'login') await auth.login(email, password);
-      else if (mode === 'register') {
-        await requestRegistrationCode(false);
-      } else if (mode === 'registerVerify') {
-        const result = await api.verifyRegistrationOtp(email, code);
-        setRegistrationState(result.registrationState);
-        setMode('login'); setCode(''); setPassword(''); setResendSeconds(0); setFormMessage(result.message);
-      } else if (mode === 'reset') {
-        await api.requestPasswordResetOtp(email); resetView('resetVerify'); setFormMessage('‡∏´‡∏≤‡∏Å‡∏≠‡∏µ‡πÄ‡∏°‡∏•‡∏ô‡∏µ‡πâ‡πÉ‡∏ä‡πâ‡∏á‡∏≤‡∏ô‡πÑ‡∏î‡πâ ‡∏£‡∏∞‡∏ö‡∏ö‡πÑ‡∏î‡πâ‡∏™‡πà‡∏á‡∏£‡∏´‡∏±‡∏™‡∏¢‡∏∑‡∏ô‡∏¢‡∏±‡∏ô‡πÅ‡∏•‡πâ‡∏ß');
-      } else {
-        const result = await api.completePasswordReset(email, code, password); resetView('login'); setPassword(''); setFormMessage(result.message);
-      }
-    } catch (reason) {
-      setFormError((mode === 'register' || mode === 'registerVerify') ? registrationErrorMessage(reason) : formatRequestErrorMessage(reason, '‡πÑ‡∏°‡πà‡∏™‡∏≤‡∏°‡∏≤‡∏£‡∏ñ‡∏î‡∏≥‡πÄ‡∏ô‡∏¥‡∏ô‡∏Å‡∏≤‡∏£‡πÑ‡∏î‡πâ'));
-    }
-    finally { setBusy(false); }
-  };
-
-  const showAccountRecovery = registrationState === 'EXISTING_ACCOUNT' || registrationState === 'EMPLOYEE_ALREADY_HAS_ACCOUNT';
-  const registrationStep = mode === 'registerVerify' ? 2 : 1;
-  const resetStep = mode === 'resetVerify' ? 2 : 1;
-
-  const authStage = (
-    <section className="nexus-auth-stage" id="access">
-      <a className="auth-skip-link" href="#auth-login-form">‡∏Ç‡πâ‡∏≤‡∏°‡πÑ‡∏õ‡πÅ‡∏ö‡∏ö‡∏ü‡∏≠‡∏£‡πå‡∏°‡πÄ‡∏Ç‡πâ‡∏≤‡∏™‡∏π‡πà‡∏£‡∏∞‡∏ö‡∏ö</a>
-      {mode === 'login' && <div className="nexus-auth-heading"><span aria-hidden="true">ZERO-TRUST ENTERPRISE IDENTITY HUB</span><h2>‡∏®‡∏π‡∏ô‡∏¢‡πå‡∏¢‡∏∑‡∏ô‡∏¢‡∏±‡∏ô‡∏ï‡∏±‡∏ß‡∏ï‡∏ô Command Console SMS</h2><p>‡πÄ‡∏Ç‡πâ‡∏≤‡∏ñ‡∏∂‡∏á‡∏û‡∏∑‡πâ‡∏ô‡∏ó‡∏µ‡πà‡∏õ‡∏è‡∏¥‡∏ö‡∏±‡∏ï‡∏¥‡∏Å‡∏≤‡∏£‡∏£‡∏±‡∏Å‡∏©‡∏≤‡∏Ñ‡∏ß‡∏≤‡∏°‡∏õ‡∏•‡∏≠‡∏î‡∏†‡∏±‡∏¢‡∏î‡πâ‡∏ß‡∏¢‡∏Å‡∏≤‡∏£‡∏£‡∏±‡∏ö‡∏£‡∏≠‡∏á‡∏ï‡∏±‡∏ß‡∏ï‡∏ô‡∏´‡∏•‡∏≤‡∏¢‡∏õ‡∏±‡∏à‡∏à‡∏±‡∏¢‡πÅ‡∏•‡∏∞ Enterprise Identity Policy</p></div>}
-      <section className="login-shell auth-experience-shell nexus-auth-shell" aria-label="‡πÄ‡∏Ç‡πâ‡∏≤‡∏™‡∏π‡πà‡∏£‡∏∞‡∏ö‡∏ö Security Management System">
-        <aside className="login-intro auth-brand-panel nexus-auth-intro">
-          <div className="intro-brand auth-brand"><BrandLogo tone="dark-surface" /></div>
-          <div className="intro-copy auth-brand-copy">
-            <p className="auth-brand-eyebrow" aria-hidden="true">MULTI-FACTOR SECURITY ENCLAVE</p>
-            <h2>Zero-Trust Identity Hub<br />‡∏™‡∏≥‡∏´‡∏£‡∏±‡∏ö Command Console</h2>
-            <p>FIDO2 / WebAuthn ¬∑ Secure session ¬∑ Access governed by account role and enterprise policy</p>
-            <div className="auth-brand-points" aria-label="‡∏Ñ‡∏ß‡∏≤‡∏°‡∏™‡∏≤‡∏°‡∏≤‡∏£‡∏ñ‡∏´‡∏•‡∏±‡∏Å‡∏Ç‡∏≠‡∏á‡∏£‡∏∞‡∏ö‡∏ö">
-              <span><SmsIcon name="employees" size={18} />‡∏Ç‡πâ‡∏≠‡∏°‡∏π‡∏•‡∏ö‡∏∏‡∏Ñ‡∏•‡∏≤‡∏Å‡∏£</span>
-              <span><SmsIcon name="calendar" size={18} />‡∏ï‡∏≤‡∏£‡∏≤‡∏á‡∏Å‡∏∞‡πÅ‡∏•‡∏∞‡∏Å‡∏≤‡∏£‡∏•‡∏≤</span>
-              <span><SmsIcon name="shield" size={18} />‡∏™‡∏¥‡∏ó‡∏ò‡∏¥‡πå‡πÅ‡∏•‡∏∞‡∏Å‡∏é‡∏Å‡∏≤‡∏£‡∏ó‡∏≥‡∏á‡∏≤‡∏ô</span>
-            </div>
-          </div>
-          <div className="auth-pastel-illustration auth-security-shield-scene" aria-hidden="true">
-            <svg className="auth-security-shield" viewBox="0 0 420 290" role="presentation" focusable="false">
-              <defs>
-                <linearGradient id="security-shield-outer" x1="0" y1="0" x2="1" y2="1">
-                  <stop className="auth-security-shield__stop auth-security-shield__stop--violet" offset="0%" />
-                  <stop className="auth-security-shield__stop auth-security-shield__stop--indigo" offset="52%" />
-                  <stop className="auth-security-shield__stop auth-security-shield__stop--cyan" offset="100%" />
-                </linearGradient>
-                <linearGradient id="security-shield-middle" x1="0" y1="1" x2="1" y2="0">
-                  <stop className="auth-security-shield__stop auth-security-shield__stop--lavender" offset="0%" />
-                  <stop className="auth-security-shield__stop auth-security-shield__stop--violet" offset="50%" />
-                  <stop className="auth-security-shield__stop auth-security-shield__stop--sky" offset="100%" />
-                </linearGradient>
-                <radialGradient id="security-shield-inner" cx="50%" cy="42%" r="64%">
-                  <stop className="auth-security-shield__stop auth-security-shield__stop--light" offset="0%" />
-                  <stop className="auth-security-shield__stop auth-security-shield__stop--mint" offset="42%" />
-                  <stop className="auth-security-shield__stop auth-security-shield__stop--indigo" offset="100%" />
-                </radialGradient>
-                <linearGradient id="security-shield-lock" x1="0" y1="0" x2="0" y2="1">
-                  <stop className="auth-security-shield__stop auth-security-shield__stop--lock-top" offset="0%" />
-                  <stop className="auth-security-shield__stop auth-security-shield__stop--lock-bottom" offset="100%" />
-                </linearGradient>
-                <filter id="security-shield-bloom" x="-80%" y="-80%" width="260%" height="260%">
-                  <feGaussianBlur stdDeviation="14" />
-                </filter>
-              </defs>
-              <ellipse className="auth-security-shield__floor" cx="210" cy="254" rx="92" ry="13" />
-              <ellipse className="auth-security-shield__bloom" cx="210" cy="154" rx="104" ry="96" filter="url(#security-shield-bloom)" />
-              <g className="auth-security-shield__orbits" fill="none">
-                <ellipse cx="210" cy="157" rx="151" ry="73" />
-                <ellipse cx="210" cy="157" rx="124" ry="97" />
-              </g>
-              <g className="auth-security-shield__nodes">
-                <circle cx="69" cy="135" r="4" /><circle cx="351" cy="135" r="4" />
-                <circle cx="104" cy="211" r="3.5" /><circle cx="316" cy="211" r="3.5" />
-                <rect x="111" y="82" width="9" height="9" rx="2" transform="rotate(45 115.5 86.5)" />
-                <rect x="300" y="82" width="9" height="9" rx="2" transform="rotate(45 304.5 86.5)" />
-              </g>
-              <g className="auth-security-shield__body">
-                <path className="auth-security-shield__outer" d="M210 46 L304 82 V145 C304 207 266 246 210 266 C154 246 116 207 116 145 V82 Z" fill="url(#security-shield-outer)" />
-                <path className="auth-security-shield__middle" d="M210 66 L282 92 V145 C282 193 253 224 210 242 C167 224 138 193 138 145 V92 Z" fill="url(#security-shield-middle)" />
-                <path className="auth-security-shield__inner" d="M210 86 L260 104 V144 C260 177 241 199 210 214 C179 199 160 177 160 144 V104 Z" fill="url(#security-shield-inner)" />
-                <path className="auth-security-shield__axis" d="M210 57 V244" />
-              </g>
-              <g className="auth-security-shield__lock">
-                <path className="auth-security-shield__lock-shackle" d="M190 145 V132 C190 120.95 198.95 112 210 112 C221.05 112 230 120.95 230 132 V145" fill="none" />
-                <rect className="auth-security-shield__lock-body" x="181" y="142" width="58" height="47" rx="13" fill="url(#security-shield-lock)" />
-                <circle className="auth-security-shield__keyhole" cx="210" cy="162" r="5" />
-                <path className="auth-security-shield__keyhole-stem" d="M210 166 V174" />
-              </g>
-            </svg>
-          </div>          <p className="auth-brand-footnote"><SmsIcon name="shield" size={16} />‡∏Å‡∏≤‡∏£‡πÄ‡∏Ç‡πâ‡∏≤‡∏ñ‡∏∂‡∏á‡∏Ç‡πâ‡∏≠‡∏°‡∏π‡∏•‡πÄ‡∏õ‡πá‡∏ô‡πÑ‡∏õ‡∏ï‡∏≤‡∏°‡∏™‡∏¥‡∏ó‡∏ò‡∏¥‡πå‡∏Ç‡∏≠‡∏á‡∏ö‡∏±‡∏ç‡∏ä‡∏µ‡∏ú‡∏π‡πâ‡πÉ‡∏ä‡πâ‡∏á‡∏≤‡∏ô</p>
-        </aside>
-        <section className="login-form-panel auth-card-panel nexus-auth-panel">
-          <div className="login-theme-control auth-theme-control"><ThemeControl compact /></div>
-          <div className="auth-mobile-brand"><BrandLogo tone="dark-surface" /></div>
-          <form id="auth-login-form" className="login-form auth-form" onSubmit={submit} aria-busy={busy}>
-            {resultPresentation ? <section className={`auth-result auth-result--${resultPresentation.tone}`} aria-live="polite" aria-labelledby="registration-result-title">
-              <div className="auth-result__verified"><span className="auth-result__verified-icon"><SmsIcon name="approval" size={20} /></span><span><b>‡∏¢‡∏∑‡∏ô‡∏¢‡∏±‡∏ô‡∏≠‡∏µ‡πÄ‡∏°‡∏•‡∏™‡∏≥‡πÄ‡∏£‡πá‡∏à</b><small>‡∏Å‡∏≤‡∏£‡∏¢‡∏∑‡∏ô‡∏¢‡∏±‡∏ô‡∏≠‡∏µ‡πÄ‡∏°‡∏•‡∏¢‡∏±‡∏á‡πÑ‡∏°‡πà‡πÉ‡∏ä‡πà‡∏Å‡∏≤‡∏£‡∏≠‡∏ô‡∏∏‡∏°‡∏±‡∏ï‡∏¥‡∏ö‡∏±‡∏ç‡∏ä‡∏µ</small></span></div>
-              <div className="auth-result__body">
-                <h2 id="registration-result-title">{resultPresentation.heading}</h2>
-                <p>{resultPresentation.body}</p>
-                {resultPresentation.statusLabel && <div className="auth-result__status"><span>‡∏™‡∏ñ‡∏≤‡∏ô‡∏∞</span><strong>{resultPresentation.statusLabel}</strong></div>}
-              </div>
-              <div className="auth-result__actions">
-                <button className="btn-primary auth-primary-action" type="button" onClick={() => resetView('login')}>‡∏Å‡∏•‡∏±‡∏ö‡∏´‡∏ô‡πâ‡∏≤‡πÄ‡∏Ç‡πâ‡∏≤‡∏™‡∏π‡πà‡∏£‡∏∞‡∏ö‡∏ö</button>
-                {resultPresentation.recovery && <button className="auth-secondary-action" type="button" onClick={() => resetView('reset')}>‡∏•‡∏∑‡∏°‡∏£‡∏´‡∏±‡∏™‡∏ú‡πà‡∏≤‡∏ô</button>}
-              </div>
-            </section> : <>
-              <header className="auth-form-heading nexus-auth-card-header">
-                {mode === 'login' ? <><span className="nexus-enclave-badge" aria-hidden="true"><i />ZERO-TRUST ENCLAVE</span><h2>‡πÄ‡∏Ç‡πâ‡∏≤‡∏™‡∏π‡πà‡∏£‡∏∞‡∏ö‡∏ö‡∏õ‡∏è‡∏¥‡∏ö‡∏±‡∏ï‡∏¥‡∏Å‡∏≤‡∏£</h2><p className="nexus-protocol-label" aria-hidden="true">SELECT VERIFICATION PROTOCOL</p></> : <><span className="auth-form-kicker">SMS</span><h2>{title}</h2><p className="form-lead">{lead}</p></>}
-              </header>
-              {(mode === 'register' || mode === 'registerVerify') && <AuthProgress flow="registration" current={registrationStep} />}
-              {(mode === 'reset' || mode === 'resetVerify') && <AuthProgress flow="reset" current={resetStep} />}
-              {(formError || (mode === 'login' ? auth.error : undefined)) && <div className="alert alert-error auth-alert" role="alert" aria-live="assertive"><SmsIcon name="shield" size={18} /><span>{formError || auth.error}</span></div>}
-              {formMessage && <div className="login-help-action auth-notice" role="status" aria-live="polite"><SmsIcon name="approval" size={18} /><span>{formMessage}</span></div>}
-              {mode === 'login' && <div className="nexus-auth-methods" role="tablist" aria-label="‡∏ß‡∏¥‡∏ò‡∏µ‡πÄ‡∏Ç‡πâ‡∏≤‡∏™‡∏π‡πà‡∏£‡∏∞‡∏ö‡∏ö"><button type="button" role="tab" aria-selected={authMethod === 'password'} className={authMethod === 'password' ? 'is-active' : ''} onClick={() => setAuthMethod('password')}>‡∏≠‡∏µ‡πÄ‡∏°‡∏• / ‡∏£‡∏´‡∏±‡∏™‡∏ú‡πà‡∏≤‡∏ô</button><button type="button" role="tab" aria-selected={authMethod === 'passkey'} className={authMethod === 'passkey' ? 'is-active' : ''} onClick={() => setAuthMethod('passkey')}>Passkey</button><button type="button" role="tab" aria-selected={authMethod === 'hardware'} className={authMethod === 'hardware' ? 'is-active' : ''} onClick={() => setAuthMethod('hardware')}>Hardware Key</button></div>}
-
-              {mode === 'register' && <>
-                <label className="field-group auth-field" htmlFor="registration-name"><span>‡∏ä‡∏∑‡πà‡∏≠-‡∏ô‡∏≤‡∏°‡∏™‡∏Å‡∏∏‡∏•</span><input id="registration-name" value={submittedName} onChange={(event) => setSubmittedName(event.target.value)} type="text" minLength={2} maxLength={200} required autoComplete="name" /><small className="field-hint">‡πÉ‡∏ä‡πâ‡∏™‡∏≥‡∏´‡∏£‡∏±‡∏ö‡∏™‡πà‡∏á‡∏Ñ‡∏≥‡∏Ç‡∏≠‡πÉ‡∏´‡πâ‡∏ú‡∏π‡πâ‡∏î‡∏π‡πÅ‡∏•‡∏ï‡∏£‡∏ß‡∏à‡∏™‡∏≠‡∏ö ‡∏Ç‡πâ‡∏≠‡∏°‡∏π‡∏•‡∏ô‡∏µ‡πâ‡πÑ‡∏°‡πà‡πÉ‡∏ä‡πà‡∏Ç‡πâ‡∏≠‡∏°‡∏π‡∏•‡∏¢‡∏∑‡∏ô‡∏¢‡∏±‡∏ô‡∏ï‡∏±‡∏ß‡∏ö‡∏∏‡∏Ñ‡∏Ñ‡∏•‡∏à‡∏≤‡∏Å‡∏ó‡∏∞‡πÄ‡∏ö‡∏µ‡∏¢‡∏ô‡∏û‡∏ô‡∏±‡∏Å‡∏á‡∏≤‡∏ô</small></label>
-                <label className="field-group auth-field" htmlFor="registration-department"><span>‡∏´‡∏ô‡πà‡∏ß‡∏¢‡∏á‡∏≤‡∏ô / ‡∏û‡∏∑‡πâ‡∏ô‡∏ó‡∏µ‡πà <em>‡∏ñ‡πâ‡∏≤‡∏°‡∏µ</em></span><input id="registration-department" value={departmentHint} onChange={(event) => setDepartmentHint(event.target.value)} type="text" maxLength={100} /><small className="field-hint">‡∏£‡∏∞‡∏ö‡∏∏‡∏´‡∏ô‡πà‡∏ß‡∏¢‡∏á‡∏≤‡∏ô‡∏´‡∏£‡∏∑‡∏≠‡∏û‡∏∑‡πâ‡∏ô‡∏ó‡∏µ‡πà‡πÄ‡∏û‡∏∑‡πà‡∏≠‡∏ä‡πà‡∏ß‡∏¢‡∏ú‡∏π‡πâ‡∏î‡∏π‡πÅ‡∏•‡∏ï‡∏£‡∏ß‡∏à‡∏™‡∏≠‡∏ö ‡∏Ç‡πâ‡∏≠‡∏°‡∏π‡∏•‡∏ô‡∏µ‡πâ‡πÑ‡∏°‡πà‡πÅ‡∏Å‡πâ‡πÑ‡∏Ç‡∏ó‡∏∞‡πÄ‡∏ö‡∏µ‡∏¢‡∏ô‡∏û‡∏ô‡∏±‡∏Å‡∏á‡∏≤‡∏ô</small></label>
-              </>}
-
-              {mode === 'registerVerify' && <div className="auth-otp-intro"><span><SmsIcon name="shield" size={18} /></span><div><b>‡πÄ‡∏£‡∏≤‡πÑ‡∏î‡πâ‡∏™‡πà‡∏á‡∏£‡∏´‡∏±‡∏™ 6 ‡∏´‡∏•‡∏±‡∏Å‡πÑ‡∏õ‡∏¢‡∏±‡∏á</b><strong>{maskedEmail}</strong></div></div>}
-              {mode === 'resetVerify' && <div className="auth-otp-intro"><span><SmsIcon name="shield" size={18} /></span><div><b>‡∏Å‡∏£‡∏≠‡∏Å‡∏£‡∏´‡∏±‡∏™‡∏¢‡∏∑‡∏ô‡∏¢‡∏±‡∏ô‡∏ó‡∏µ‡πà‡πÑ‡∏î‡πâ‡∏£‡∏±‡∏ö‡∏ó‡∏≤‡∏á‡∏≠‡∏µ‡πÄ‡∏°‡∏•</b><strong>{maskedEmail}</strong><small>OTP ‡πÅ‡∏•‡∏∞‡∏£‡∏´‡∏±‡∏™‡∏ú‡πà‡∏≤‡∏ô‡πÉ‡∏´‡∏°‡πà‡∏à‡∏∞‡∏ñ‡∏π‡∏Å‡∏ï‡∏£‡∏ß‡∏à‡∏™‡∏≠‡∏ö‡∏û‡∏£‡πâ‡∏≠‡∏°‡∏Å‡∏±‡∏ô‡πÄ‡∏°‡∏∑‡πà‡∏≠‡∏Å‡∏î‡∏¢‡∏∑‡∏ô‡∏¢‡∏±‡∏ô</small></div></div>}
-
-              {(mode !== 'login' || authMethod === 'password') && <label className="field-group auth-field" htmlFor="email"><span>{mode === 'login' ? '‡∏≠‡∏µ‡πÄ‡∏°‡∏•‡∏≠‡∏á‡∏Ñ‡πå‡∏Å‡∏£' : '‡∏≠‡∏µ‡πÄ‡∏°‡∏•'}</span><input id="email" value={email} onChange={(event) => { event.currentTarget.setCustomValidity(''); setEmail(event.target.value); }} type="email" placeholder={mode === 'login' ? 'operator@sms.local' : 'name@company.com'} required onInvalid={(event) => { const input = event.currentTarget; input.setCustomValidity(input.validity.valueMissing ? '‡∏Å‡∏£‡∏∏‡∏ì‡∏≤‡∏Å‡∏£‡∏≠‡∏Å‡∏≠‡∏µ‡πÄ‡∏°‡∏•‡∏≠‡∏á‡∏Ñ‡πå‡∏Å‡∏£' : '‡∏Å‡∏£‡∏∏‡∏ì‡∏≤‡∏Å‡∏£‡∏≠‡∏Å‡∏≠‡∏µ‡πÄ‡∏°‡∏•‡πÉ‡∏´‡πâ‡∏ñ‡∏π‡∏Å‡∏ï‡πâ‡∏≠‡∏á'); }} autoComplete={mode === 'login' ? 'username' : 'email'} disabled={mode === 'registerVerify'} /></label>}
-
-              {(mode === 'registerVerify' || mode === 'resetVerify') && <label className="field-group auth-field auth-otp-field" htmlFor="otp-code"><span>‡∏£‡∏´‡∏±‡∏™ OTP 6 ‡∏´‡∏•‡∏±‡∏Å</span><input id="otp-code" value={code} onChange={(event) => setCode(event.target.value.replace(/\D/g, '').slice(0, 6))} inputMode="numeric" pattern="[0-9]{6}" maxLength={6} required autoComplete="one-time-code" aria-describedby={mode === 'registerVerify' ? 'registration-otp-help' : undefined} placeholder="000000" /></label>}
-
-              {(((mode === 'login' && authMethod === 'password') || mode === 'register' || mode === 'resetVerify')) && <label className="field-group auth-field" htmlFor="password"><span>{mode === 'resetVerify' ? '‡∏£‡∏´‡∏±‡∏™‡∏ú‡πà‡∏≤‡∏ô‡πÉ‡∏´‡∏°‡πà' : mode === 'login' ? '‡∏£‡∏´‡∏±‡∏™‡∏ú‡πà‡∏≤‡∏ô‡∏Ñ‡∏ß‡∏≤‡∏°‡∏õ‡∏•‡∏≠‡∏î‡∏†‡∏±‡∏¢ (Security Passphrase)' : '‡∏£‡∏´‡∏±‡∏™‡∏ú‡πà‡∏≤‡∏ô'}</span><span className="password-field auth-password-field"><input id="password" value={password} onChange={(event) => setPassword(event.target.value)} type={showPassword ? 'text' : 'password'} placeholder={mode === 'resetVerify' ? '‡∏≠‡∏¢‡πà‡∏≤‡∏á‡∏ô‡πâ‡∏≠‡∏¢ 8 ‡∏ï‡∏±‡∏ß‡∏≠‡∏±‡∏Å‡∏©‡∏£' : undefined} minLength={mode === 'login' ? undefined : 8} required autoComplete={mode === 'login' ? 'current-password' : 'new-password'} /><button className="password-toggle auth-password-toggle" type="button" aria-label={showPassword ? '‡∏ã‡πà‡∏≠‡∏ô' : '‡πÅ‡∏™‡∏î‡∏á'} aria-pressed={showPassword} onMouseDown={(event) => event.preventDefault()} onClick={() => setShowPassword((visible) => !visible)}><SmsIcon name={showPassword ? 'eyeOff' : 'eye'} size={18} /><span>{showPassword ? '‡∏ã‡πà‡∏≠‡∏ô' : '‡πÅ‡∏™‡∏î‡∏á'}</span></button></span></label>}
-
-              {mode === 'login' && authMethod === 'password' && <div className="nexus-password-meta"><span aria-hidden="true">SECURE CREDENTIAL CHANNEL</span><button type="button" onClick={() => resetView('reset')}>‡∏•‡∏∑‡∏°‡∏£‡∏´‡∏±‡∏™‡∏ú‡πà‡∏≤‡∏ô?</button></div>}
-              {(mode !== 'login' || authMethod === 'password') && <button className="btn-primary auth-primary-action" type="submit" disabled={submitDisabled}>{busy ? '‡∏Å‡∏≥‡∏•‡∏±‡∏á‡∏î‡∏≥‡πÄ‡∏ô‡∏¥‡∏ô‡∏Å‡∏≤‡∏£‚Ä¶' : mode === 'login' ? '‡πÄ‡∏Ç‡πâ‡∏≤‡∏™‡∏π‡πà‡∏£‡∏∞‡∏ö‡∏ö‡∏õ‡∏è‡∏¥‡∏ö‡∏±‡∏ï‡∏¥‡∏Å‡∏≤‡∏£ ‚Üí' : mode === 'register' ? '‡∏™‡πà‡∏á‡∏Ñ‡∏≥‡∏Ç‡∏≠‡πÅ‡∏•‡∏∞‡∏£‡∏´‡∏±‡∏™ OTP' : mode === 'registerVerify' ? '‡∏¢‡∏∑‡∏ô‡∏¢‡∏±‡∏ô‡∏≠‡∏µ‡πÄ‡∏°‡∏•' : mode === 'reset' ? '‡∏™‡πà‡∏á‡∏£‡∏´‡∏±‡∏™ OTP' : '‡∏ï‡∏±‡πâ‡∏á‡∏£‡∏´‡∏±‡∏™‡∏ú‡πà‡∏≤‡∏ô‡πÉ‡∏´‡∏°‡πà'}</button>}
-
-              {mode === 'login' && authMethod === 'passkey' && <div className="nexus-webauthn-panel"><div className="nexus-auth-method-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 11c0 3.5-1 6.8-2.75 9.57M5.8 18.53l.06-.09A13.9 13.9 0 008 11a4 4 0 118 0c0 1.02-.07 2.02-.2 3M13.68 20.84A21.9 21.9 0 0015.17 17M19 18.13A20.7 20.7 0 0020 11.8 8 8 0 004 12m0 0c0 1.55.29 3.04.82 4.4M7.3 19.71A16 16 0 0012 21c2.25 0 4.36-.47 6.28-1.3"/></svg></div><h4>‡∏™‡πÅ‡∏Å‡∏ô‡∏•‡∏≤‡∏¢‡∏ô‡∏¥‡πâ‡∏ß‡∏°‡∏∑‡∏≠‡∏´‡∏£‡∏∑‡∏≠‡πÉ‡∏ö‡∏´‡∏ô‡πâ‡∏≤ (Passkey)</h4><p>‡πÉ‡∏ä‡πâ Touch ID, Face ID, Windows Hello ‡∏´‡∏£‡∏∑‡∏≠ Passkey ‡∏ö‡∏ô‡∏≠‡∏∏‡∏õ‡∏Å‡∏£‡∏ì‡πå‡∏Ç‡∏≠‡∏á‡∏Ñ‡∏∏‡∏ì</p><small>FIDO2 / WEBAUTHN ¬∑ PLATFORM AUTHENTICATOR</small>{!passkeyEnabled && <em>WebAuthn ‡∏¢‡∏±‡∏á‡πÑ‡∏°‡πà‡∏û‡∏£‡πâ‡∏≠‡∏°‡πÉ‡∏ä‡πâ‡∏á‡∏≤‡∏ô‡πÉ‡∏ô environment ‡∏ô‡∏µ‡πâ</em>}<button type="button" disabled={busy || !passkeyEnabled} onClick={() => signInWithPasskey('passkey')}>‡πÄ‡∏£‡∏¥‡πà‡∏°‡∏Å‡∏≤‡∏£‡∏¢‡∏∑‡∏ô‡∏¢‡∏±‡∏ô‡∏î‡πâ‡∏ß‡∏¢ Passkey ‚Üí</button></div>}
-              {mode === 'login' && authMethod === 'hardware' && <div className="nexus-webauthn-panel"><div className="nexus-auth-method-icon is-hardware" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.74 5.74L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.59a1 1 0 01.29-.7l5.97-5.97A6 6 0 1121 9z"/></svg></div><h4>‡πÄ‡∏™‡∏µ‡∏¢‡∏ö‡∏Å‡∏∏‡∏ç‡πÅ‡∏à‡∏Æ‡∏≤‡∏£‡πå‡∏î‡πÅ‡∏ß‡∏£‡πå‡∏Ñ‡∏ß‡∏≤‡∏°‡∏õ‡∏•‡∏≠‡∏î‡∏†‡∏±‡∏¢</h4><p>‡πÄ‡∏™‡∏µ‡∏¢‡∏ö YubiKey ‡∏´‡∏£‡∏∑‡∏≠ USB Security Key ‡πÅ‡∏•‡πâ‡∏ß‡πÅ‡∏ï‡∏∞‡πÄ‡∏ã‡∏ô‡πÄ‡∏ã‡∏≠‡∏£‡πå‡πÄ‡∏û‡∏∑‡πà‡∏≠‡∏¢‡∏∑‡∏ô‡∏¢‡∏±‡∏ô‡∏ï‡∏±‡∏ß‡∏ï‡∏ô</p><small>FIDO2 / WEBAUTHN ¬∑ ROAMING SECURITY KEY</small>{!passkeyEnabled && <em>WebAuthn ‡∏¢‡∏±‡∏á‡πÑ‡∏°‡πà‡∏û‡∏£‡πâ‡∏≠‡∏°‡πÉ‡∏ä‡πâ‡∏á‡∏≤‡∏ô‡πÉ‡∏ô environment ‡∏ô‡∏µ‡πâ</em>}<button type="button" disabled={busy || !passkeyEnabled} onClick={() => signInWithPasskey('hardware')}>‡∏ï‡∏£‡∏ß‡∏à‡∏´‡∏≤‡∏Å‡∏∏‡∏ç‡πÅ‡∏à‡∏Æ‡∏≤‡∏£‡πå‡∏î‡πÅ‡∏ß‡∏£‡πå (Scan USB) ‚Üí</button></div>}
-
-              {mode === 'registerVerify' && <div className="auth-resend" id="registration-otp-help"><p>‡∏´‡∏≤‡∏Å‡∏¢‡∏±‡∏á‡πÑ‡∏°‡πà‡∏û‡∏ö‡∏≠‡∏µ‡πÄ‡∏°‡∏• ‡∏Å‡∏£‡∏∏‡∏ì‡∏≤‡∏ï‡∏£‡∏ß‡∏à‡∏™‡∏≠‡∏ö Spam/Junk</p><button type="button" disabled={busy || resendSeconds > 0} onClick={resendRegistrationCode}>{resendSeconds > 0 ? `‡∏™‡πà‡∏á‡∏£‡∏´‡∏±‡∏™‡∏≠‡∏µ‡∏Å‡∏Ñ‡∏£‡∏±‡πâ‡∏á‡πÉ‡∏ô ${resendSeconds} ‡∏ß‡∏¥‡∏ô‡∏≤‡∏ó‡∏µ` : '‡∏™‡πà‡∏á‡∏£‡∏´‡∏±‡∏™‡∏≠‡∏µ‡∏Å‡∏Ñ‡∏£‡∏±‡πâ‡∏á'}</button></div>}
-
-              {mode === 'login' && <div className="nexus-auth-security-footer" aria-hidden="true"><span><i className="is-ready" />ENCLAVE READY</span><b>‚Ä¢</b><span><i />SESSION SECURE</span><b>‚Ä¢</b><span><i className={passkeyEnabled ? 'is-ready' : ''} />FIDO2 / WEBAUTHN</span></div>}
-              {mode === 'login' ? <div className="login-links auth-links">{!showAccountRecovery && <button type="button" onClick={() => resetView('register')}>‡∏™‡πà‡∏á‡∏Ñ‡∏≥‡∏Ç‡∏≠‡∏•‡∏á‡∏ó‡∏∞‡πÄ‡∏ö‡∏µ‡∏¢‡∏ô</button>}</div> : <div className="login-links auth-links auth-links--back"><button type="button" onClick={() => resetView('login')}>‡∏Å‡∏•‡∏±‡∏ö‡∏´‡∏ô‡πâ‡∏≤‡πÄ‡∏Ç‡πâ‡∏≤‡∏™‡∏π‡πà‡∏£‡∏∞‡∏ö‡∏ö</button></div>}
-              <p className="login-help auth-support-note">‡∏û‡∏ö‡∏õ‡∏±‡∏ç‡∏´‡∏≤‡∏Å‡∏≤‡∏£‡πÉ‡∏ä‡πâ‡∏á‡∏≤‡∏ô ‡∏Å‡∏£‡∏∏‡∏ì‡∏≤‡∏ï‡∏¥‡∏î‡∏ï‡πà‡∏≠‡∏ú‡∏π‡πâ‡∏î‡∏π‡πÅ‡∏•‡∏£‡∏∞‡∏ö‡∏ö‡∏Ç‡∏≠‡∏á‡∏´‡∏ô‡πà‡∏ß‡∏¢‡∏á‡∏≤‡∏ô</p>
-            </>}
-          </form>
-        </section>
-      </section>
-    </section>
-  );
-
-  const focusLoginEmail = () => {
-    const emailField = document.querySelector<HTMLInputElement>('#email');
-    if (!emailField) return;
-    emailField.focus();
-  };
-
-  return (
-    <main className="login-page auth-experience-page award-auth-page">
-      <React.Suspense fallback={mode === 'login' ? authStage : null}>
-        <AwardPublicExperience
-          showLanding={mode === 'login'}
-          renderLogo={() => <BrandLogo tone="dark-surface" />}
-          accessContent={mode === 'login' ? authStage : undefined}
-          onRequestAccess={focusLoginEmail}
-        />
-      </React.Suspense>
-      {mode !== 'login' && authStage}
-
-      <footer className="award-public-footer"><span lang="th">SMS ¬∑ ‡∏£‡∏∞‡∏ö‡∏ö‡∏ö‡∏£‡∏¥‡∏´‡∏≤‡∏£‡∏á‡∏≤‡∏ô‡∏£‡∏±‡∏Å‡∏©‡∏≤‡∏Ñ‡∏ß‡∏≤‡∏°‡∏õ‡∏•‡∏≠‡∏î‡∏†‡∏±‡∏¢</span><small lang="en">Secure operations, designed for clarity.</small></footer>
-    </main>
-  );
-}
-const text = (value: unknown) => value === null || value === undefined || value === '' ? '-' : String(value);
-const leaveTypeDisplayText = (row: DataRow) => {
-  const snapshot = String(row.leaveTypeNameSnapshot || '').trim();
-  if (snapshot) return snapshot;
-  const code = String(row.leaveType || '').trim().toUpperCase();
-  if (code === 'SICK') return '‡∏•‡∏≤‡∏õ‡πà‡∏ß‡∏¢';
-  if (code === 'PERSONAL') return '‡∏•‡∏≤‡∏Å‡∏¥‡∏à';
-  if (code === 'VACATION') return '‡∏•‡∏≤‡∏û‡∏±‡∏Å‡∏£‡πâ‡∏≠‡∏ô';
-  return String(row.leaveType || '-');
-};
-
-const semanticStatusTone = (value: unknown) => {
-  const status = String(value ?? '').trim().toUpperCase().replace(/[\s-]+/g, '_');
-  const scheduleTone = scheduleApprovalTone(value);
-  if (scheduleTone) return scheduleTone;
-  if (['APPROVED', 'ACTIVE', 'COMPLETED', 'COMPLETE', 'DONE', 'VALID', 'ENABLED', 'SUCCESS'].includes(status)) return 'success';
-  if (['PENDING', 'WAITING', 'SUBMITTED', 'REQUESTED', 'IN_REVIEW', 'UNDER_REVIEW'].includes(status)) return 'warning';
-  if (['EXPIRING', 'ATTENTION', 'DUE_SOON', 'RETURNED_FOR_CORRECTION'].includes(status)) return 'attention';
-  if (['REJECTED', 'EXPIRED', 'CRITICAL', 'SUSPENDED', 'REVOKED', 'FAILED', 'ERROR'].includes(status)) return 'danger';
-  if (['INFO', 'INFORMATIONAL'].includes(status)) return 'info';
-  return 'neutral';
-};
-function ErrorAlert({ message, className = '' }: { message?: RequestErrorInput; className?: string }) {
-  return message ? <div className={`alert alert-error ${className}`.trim()} role="alert" aria-live="assertive"><strong>‡∏î‡∏≥‡πÄ‡∏ô‡∏¥‡∏ô‡∏Å‡∏≤‡∏£‡πÑ‡∏°‡πà‡∏™‡∏≥‡πÄ‡∏£‡πá‡∏à</strong><RequestErrorContent error={message} /></div> : null;
-}
-const date = (value: unknown) => {
-  if (!value) return '-';
-  const d = new Date(String(value));
-  if (isNaN(d.getTime())) return String(value);
-  return formatThaiDate(d);
-};
-const formatApprovalDateTime = (value: unknown) => {
-  if (!value) return '-';
-  const d = new Date(String(value));
-  if (isNaN(d.getTime())) return String(value);
-  return formatThaiDateTime(d, { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' });
-};
-const inputDate = (value: unknown) => value ? new Date(String(value)).toISOString().slice(0, 10) : '';
-const nested = (value: unknown): DataRow => value && typeof value === 'object' ? value as DataRow : {};
-const formPayload = (values: Record<string, string>, nullable: string[] = []) => Object.fromEntries(Object.entries(values).map(([key, value]) => [key, nullable.includes(key) && value === '' ? null : value]));
-const csvValue = (value: unknown) => `"${(value && typeof value === 'object' ? JSON.stringify(value) : text(value)).replace(/"/g, '""')}"`;
-const quotaBalanceText = (entitlement: unknown, used: unknown) => `${text(entitlement)} ‡∏™‡∏¥‡∏ó‡∏ò‡∏¥‡πå / ${text(used)} ‡πÉ‡∏ä‡πâ‡πÅ‡∏•‡πâ‡∏ß`;
-const quotaMatchStatusText = (value: unknown) => {
-  const status = String(value || '');
-  if (status === 'MATCHED' || status === 'DUPLICATE_MATCHED') return status === 'DUPLICATE_MATCHED' ? '‡∏à‡∏±‡∏ö‡∏Ñ‡∏π‡πà‡πÅ‡∏•‡πâ‡∏ß (‡∏û‡∏ö‡∏ä‡∏∑‡πà‡∏≠‡∏ã‡πâ‡∏≥)' : '‡∏à‡∏±‡∏ö‡∏Ñ‡∏π‡πà‡πÅ‡∏•‡πâ‡∏ß';
-  if (status === 'UNMATCHED' || status === 'DUPLICATE_UNMATCHED') return status === 'DUPLICATE_UNMATCHED' ? '‡∏¢‡∏±‡∏á‡πÑ‡∏°‡πà‡∏à‡∏±‡∏ö‡∏Ñ‡∏π‡πà (‡∏û‡∏ö‡∏ä‡∏∑‡πà‡∏≠‡∏ã‡πâ‡∏≥)' : '‡∏¢‡∏±‡∏á‡πÑ‡∏°‡πà‡∏à‡∏±‡∏ö‡∏Ñ‡∏π‡πà';
-  return text(value);
-};
-function leaveCsvRows(rows: DataRow[]) {
-  return rows.map((row) => ({
-    ‡∏û‡∏ô‡∏±‡∏Å‡∏á‡∏≤‡∏ô: text(row.employeeNameSnapshot),
-    ‡∏õ‡∏£‡∏∞‡πÄ‡∏†‡∏ó‡∏Å‡∏≤‡∏£‡∏•‡∏≤: leaveTypeDisplayText(row),
-    ‡∏ß‡∏±‡∏ô‡∏ó‡∏µ‡πà‡πÄ‡∏£‡∏¥‡πà‡∏°: date(row.startDate),
-    ‡∏ß‡∏±‡∏ô‡∏ó‡∏µ‡πà‡∏™‡∏¥‡πâ‡∏ô‡∏™‡∏∏‡∏î: date(row.endDate),
-    ‡∏à‡∏≥‡∏ô‡∏ß‡∏ô‡∏ß‡∏±‡∏ô: text(row.dayCount),
-    ‡∏™‡∏ñ‡∏≤‡∏ô‡∏∞: text(row.status)
-  }));
-}
-
-function downloadCsv(rows: DataRow[], filename: string) {
-  if (!rows.length) return;
-  const headers = Array.from(new Set(rows.flatMap((row) => Object.keys(row))));
-  const csv = [`\uFEFF${headers.map(csvValue).join(',')}`, ...rows.map((row) => headers.map((header) => csvValue(row[header])).join(','))].join('\r\n');
-  const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
-  const anchor = document.createElement('a'); anchor.href = url; anchor.download = `${filename}.csv`; anchor.click(); URL.revokeObjectURL(url);
-}
-
-function downloadBlob(blob: Blob, filename: string) {
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement('a');
-  anchor.href = url;
-  anchor.download = filename;
-  document.body.appendChild(anchor);
-  anchor.click();
-  anchor.remove();
-  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
-}
-
-function EditDialog({ editor, busy, error, onClose }: { editor: Editor; busy: boolean; error?: RequestErrorInput; onClose(): void }) {
-  const [values, setValues] = useState(editor.values);
-  const [files, setFiles] = useState<Record<string, File>>({});
-  const dialogRef = useRef<HTMLElement | null>(null);
-  const busyRef = useRef(busy);
-  const onCloseRef = useRef(onClose);
-  busyRef.current = busy;
-  onCloseRef.current = onClose;
-  useEffect(() => {
-    const previouslyFocused = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    const releaseScrollLock = acquireDocumentScrollLock();
-    const timer = window.setTimeout(() => {
-      const firstField = dialogRef.current?.querySelector<HTMLElement>('input:not([type="file"]), select, textarea, button[type="submit"]');
-      firstField?.focus({ preventScroll: true });
-    }, 0);
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && !busyRef.current) { event.preventDefault(); onCloseRef.current(); }
-    };
-    window.addEventListener('keydown', onKeyDown);
-    return () => {
-      window.clearTimeout(timer);
-      window.removeEventListener('keydown', onKeyDown);
-      releaseScrollLock();
-      previouslyFocused?.focus({ preventScroll: true });
-    };
-  }, []);
-  const submit = async (event: React.FormEvent) => {
-    event.preventDefault();
-    await editor.submit(values, files);
-  };
-  const personnelEditor = editor.experience === 'personnel';
-  return <div className="dialog-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !busy) onClose(); }}>
-    <section ref={dialogRef} className={`edit-dialog${personnelEditor ? ' personnel-editor' : ''}`} role="dialog" aria-modal="true" aria-labelledby="edit-dialog-title">
-      <div className="dialog-heading"><div><p className="eyebrow">{personnelEditor ? 'EMPLOYEE MASTER' : 'SMS staging'}</p><h2 id="edit-dialog-title">{editor.title}</h2></div><button type="button" aria-label="‡∏õ‡∏¥‡∏î" disabled={busy} onClick={onClose}><SmsIcon name="close" size={20} /></button></div>
-      {error && <div className="alert alert-error"><RequestErrorContent error={error} /></div>}
-      {editor.notice && <div className="preview-warning"><strong>‡∏ï‡∏£‡∏ß‡∏à‡∏™‡∏≠‡∏ö‡∏Ç‡πâ‡∏≠‡∏°‡∏π‡∏•‡πÄ‡∏î‡∏¥‡∏°</strong><p>{editor.notice}</p></div>}
-      <form onSubmit={submit}>
-        <div className="dialog-grid">{editor.fields.map((field) => <label className={['textarea', 'file'].includes(field.type || '') ? 'field-group full' : 'field-group'} key={field.name}><span>{field.label}</span>
-          {field.type === 'select' ? <select required={field.required} value={values[field.name] || ''} onChange={(event) => setValues({ ...values, [field.name]: event.target.value })}><option value="">‚Äî ‡πÄ‡∏•‡∏∑‡∏≠‡∏Å ‚Äî</option>{field.options?.map((option) => <option value={option.value} key={option.value}>{option.label}</option>)}</select>
-            : field.type === 'textarea' ? <textarea required={field.required} value={values[field.name] || ''} onChange={(event) => setValues({ ...values, [field.name]: event.target.value })} />
-              : field.type === 'file' ? <><input required={field.required} type="file" accept={field.accept} onChange={(event) => { const file = event.target.files?.[0]; if (file) setFiles({ ...files, [field.name]: file }); }} />{field.hint && <small className="field-hint">{field.hint}</small>}</>
-                : <input required={field.required} type={field.type || 'text'} step={field.type === 'number' ? '0.01' : undefined} min={field.min} max={field.max} value={values[field.name] || ''} onChange={(event) => setValues({ ...values, [field.name]: event.target.value })} />}
-        </label>)}</div>
-        <div className="dialog-actions"><button className="btn-secondary" type="button" disabled={busy} onClick={onClose}>‡∏¢‡∏Å‡πÄ‡∏•‡∏¥‡∏Å</button><button className="btn-primary compact" type="submit" disabled={busy}>{busy ? '‡∏Å‡∏≥‡∏•‡∏±‡∏á‡∏ö‡∏±‡∏ô‡∏ó‡∏∂‡∏Å‚Ä¶' : editor.submitLabel}</button></div>
-      </form>
-    </section>
-  </div>;
-}
-
-function EmployeeMagicWandModal({
-  target,
-  scheduleMonth,
-  token,
-  busy,
-  onClose,
-  onSubmit
-}: {
-  target: DataRow;
-  scheduleMonth: string;
-  token?: string;
-  busy: boolean;
-  onClose(): void;
-  onSubmit(autoContinue: boolean, startPhase: string, patternType: string): Promise<void>;
-}) {
-  const isSupervisorTarget = String(target.jobTitle || '').toLowerCase().includes('supervisor') || String(target.jobTitle || '').includes('‡∏´‡∏±‡∏ß‡∏´‡∏ô‡πâ‡∏≤');
-  const [patterns, setPatterns] = useState<AutoSchedulePattern[]>([]);
-  const [patternType, setPatternType] = useState('');
-  const [patternLoadError, setPatternLoadError] = useState<string>();
-  const [autoContinue, setAutoContinue] = useState(false);
-  const [startPhase, setStartPhase] = useState('');
-  const [analysisText, setAnalysisText] = useState('‡∏Å‡∏≥‡∏•‡∏±‡∏á‡∏≠‡πà‡∏≤‡∏ô‡πÅ‡∏û‡∏ó‡πÄ‡∏ó‡∏¥‡∏£‡πå‡∏ô‡πÅ‡∏•‡∏∞‡∏õ‡∏£‡∏∞‡∏ß‡∏±‡∏ï‡∏¥‡∏Å‡∏∞‚Ä¶');
-  const [suggestedCode, setSuggestedCode] = useState('');
-  const modalRoot = useShiftEditorModalRoot();
-  const initialFocusRef = useRef<HTMLInputElement>(null);
-  const onCloseRef = useRef(onClose);
-  const canCloseRef = useRef(!busy);
-  onCloseRef.current = onClose;
-  canCloseRef.current = !busy;
-
-  const selectedPattern = patterns.find((pattern) => pattern.code === patternType);
-  const selectedPhaseOptions = selectedPattern?.mode === 'CYCLE' ? selectedPattern.steps : [];
-
-  useEffect(() => {
-    if (!token) return;
-    let active = true;
-    setPatternLoadError(undefined);
-    getAutoSchedulePatterns(token)
-      .then((result) => {
-        if (!active) return;
-        const rows = (Array.isArray(result?.data) ? result.data : []) as AutoSchedulePattern[];
-        const usable = rows.filter((pattern) => pattern.isActive !== false);
-        setPatterns(usable);
-        const targetGroup = isSupervisorTarget ? 'SUPERVISOR' : 'GENERAL';
-        const preferred = usable.find((pattern) => pattern.targetGroup === targetGroup) || usable[0];
-        if (!preferred) {
-          setPatternLoadError('‡πÑ‡∏°‡πà‡∏û‡∏ö Auto Schedule Pattern ‡∏ó‡∏µ‡πà‡πÄ‡∏õ‡∏¥‡∏î‡πÉ‡∏ä‡πâ‡∏á‡∏≤‡∏ô');
-          setPatternType('');
-          return;
-        }
-        setPatternType(preferred.code);
-        const firstPhase = preferred.mode === 'CYCLE' ? preferred.steps[0]?.phaseCode || '' : '';
-        setStartPhase(firstPhase);
-        setSuggestedCode(firstPhase);
-      })
-      .catch((error) => {
-        if (!active) return;
-        setPatterns([]);
-        setPatternType('');
-        setPatternLoadError(formatRequestErrorMessage(error, '‡∏≠‡πà‡∏≤‡∏ô Auto Schedule Pattern ‡πÑ‡∏°‡πà‡∏™‡∏≥‡πÄ‡∏£‡πá‡∏à'));
-      });
-    return () => { active = false; };
-  }, [token, isSupervisorTarget]);
-
-  useEffect(() => {
-    if (!token || !target.id || !patternType) return;
-    let active = true;
-    api.previewEmployeeAutoSchedule(token, scheduleMonth, String(target.id), 'AUTO', patternType)
-      .then((res) => {
-        if (!active) return;
-        const analysis = nested(res.data).analysis as DataRow;
-        if (analysis?.text) setAnalysisText(text(analysis.text));
-        if (analysis?.code && selectedPattern?.mode === 'CYCLE') {
-          const code = text(analysis.code);
-          setSuggestedCode(code);
-          setStartPhase((current) => current || code);
-        }
-      })
-      .catch((error) => {
-        if (!active) return;
-        setAnalysisText(formatRequestErrorMessage(error, '‡∏ß‡∏¥‡πÄ‡∏Ñ‡∏£‡∏≤‡∏∞‡∏´‡πå Phase ‡∏à‡∏≤‡∏Å‡∏õ‡∏£‡∏∞‡∏ß‡∏±‡∏ï‡∏¥‡πÑ‡∏°‡πà‡∏™‡∏≥‡πÄ‡∏£‡πá‡∏à'));
-      });
-    return () => { active = false; };
-  }, [token, scheduleMonth, target.id, patternType, selectedPattern?.mode]);
-
-  useEffect(() => {
-    const releaseScrollLock = acquireDocumentScrollLock();
-    const previouslyFocusedElement = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    initialFocusRef.current?.focus({ preventScroll: true });
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && canCloseRef.current) onCloseRef.current();
-    };
-    document.addEventListener('keydown', handleKeyDown);
-
-    return () => {
-      releaseScrollLock();
-      document.removeEventListener('keydown', handleKeyDown);
-      previouslyFocusedElement?.focus({ preventScroll: true });
-    };
-  }, []);
-
-  const [yearStr, monthStr] = (scheduleMonth || '2026-08').split('-');
-  const dateObj = new Date(Date.UTC(Number(yearStr || 2026), Number(monthStr || 8) - 1, 1));
-  const thaiMonthName = new Intl.DateTimeFormat('th-TH', { month: 'long', timeZone: 'UTC' }).format(dateObj);
-  const thaiYearStr = Number(yearStr || 2026) + 543;
-  const thaiFullDateStr = `1 ${thaiMonthName} ${thaiYearStr}`;
-
-  const empName = text(target.displayName || `${text(target.firstName)} ${text(target.lastName)}`);
-  const empCode = text(target.employeeCode);
-
-  const selectPattern = (pattern: AutoSchedulePattern) => {
-    setPatternType(pattern.code);
-    setAutoContinue(false);
-    const firstPhase = pattern.mode === 'CYCLE' ? pattern.steps[0]?.phaseCode || '' : '';
-    setStartPhase(firstPhase);
-    setSuggestedCode(firstPhase);
-    setAnalysisText(pattern.mode === 'CYCLE' ? '‡∏Å‡∏≥‡∏•‡∏±‡∏á‡∏ß‡∏¥‡πÄ‡∏Ñ‡∏£‡∏≤‡∏∞‡∏´‡πå Phase ‡∏à‡∏≤‡∏Å‡∏õ‡∏£‡∏∞‡∏ß‡∏±‡∏ï‡∏¥‡∏Å‡∏∞‚Ä¶' : '‡πÅ‡∏û‡∏ó‡πÄ‡∏ó‡∏¥‡∏£‡πå‡∏ô‡∏£‡∏≤‡∏¢‡∏™‡∏±‡∏õ‡∏î‡∏≤‡∏´‡πå‡πÉ‡∏ä‡πâ‡∏ß‡∏±‡∏ô‡∏à‡∏±‡∏ô‡∏ó‡∏£‡πå-‡∏≠‡∏≤‡∏ó‡∏¥‡∏ï‡∏¢‡πå‡πÄ‡∏õ‡πá‡∏ô Phase ‡∏≠‡∏±‡∏ï‡πÇ‡∏ô‡∏°‡∏±‡∏ï‡∏¥');
-  };
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedPattern) return;
-    const phase = selectedPattern.mode === 'CYCLE'
-      ? (autoContinue ? suggestedCode : startPhase)
-      : 'AUTO';
-    onSubmit(autoContinue && selectedPattern.mode === 'CYCLE', phase || 'AUTO', selectedPattern.code);
-  };
-
-  const handleBackdropMouseDown = (event: React.MouseEvent<HTMLDivElement>) => {
-    if (event.target === event.currentTarget && !busy) onClose();
-  };
-
-  return createPortal(
-    <div className="employee-magic-wand-modal__viewport" role="presentation" onMouseDown={handleBackdropMouseDown}>
-      <section className="employee-magic-wand-modal__dialog magic-wand-dialog" role="dialog" aria-modal="true" aria-labelledby="magic-wand-title" onMouseDown={(event) => event.stopPropagation()}>
-        <div className="dialog-heading">
-          <h2 id="magic-wand-title">‡∏à‡∏±‡∏î‡∏Å‡∏∞‡πÅ‡∏û‡∏ó‡πÄ‡∏ó‡∏¥‡∏£‡πå‡∏ô‡∏î‡πà‡∏ß‡∏ô</h2>
-          <button type="button" aria-label="‡∏õ‡∏¥‡∏î" disabled={busy} onClick={onClose}><SmsIcon name="close" size={18} /></button>
-        </div>
-        <form onSubmit={handleSubmit}>
-          <div className="magic-wand-body">
-            <div className="wand-emp-badge">
-              <span>‡∏û‡∏ô‡∏±‡∏Å‡∏á‡∏≤‡∏ô: <strong>{empName} ({empCode})</strong></span>
-            </div>
-            <p className="wand-analysis-blue-text">‡∏Å‡∏≤‡∏£‡∏à‡∏±‡∏î‡∏Ñ‡∏£‡∏±‡πâ‡∏á‡∏ô‡∏µ‡πâ‡∏à‡∏∞‡∏™‡∏£‡πâ‡∏≤‡∏á Preview ‡πÄ‡∏õ‡πá‡∏ô‡∏â‡∏ö‡∏±‡∏ö‡∏£‡πà‡∏≤‡∏á‡∏à‡∏≤‡∏Å Pattern Master ‡∏õ‡∏±‡∏à‡∏à‡∏∏‡∏ö‡∏±‡∏ô ‡πÇ‡∏î‡∏¢‡∏Ñ‡∏á‡πÄ‡∏â‡∏û‡∏≤‡∏∞‡∏ß‡∏±‡∏ô‡∏•‡∏≤ (AL) ‡πÅ‡∏•‡∏∞ Admin override ‡πÑ‡∏ß‡πâ ‡∏ï‡πâ‡∏≠‡∏á‡∏Å‡∏î‡∏ö‡∏±‡∏ô‡∏ó‡∏∂‡∏Å‡∏Å‡∏≤‡∏£‡πÄ‡∏õ‡∏•‡∏µ‡πà‡∏¢‡∏ô‡πÅ‡∏õ‡∏•‡∏á‡∏ó‡∏±‡πâ‡∏á‡∏´‡∏°‡∏î‡πÄ‡∏û‡∏∑‡πà‡∏≠‡∏ö‡∏±‡∏ô‡∏ó‡∏∂‡∏Å‡∏à‡∏£‡∏¥‡∏á</p>
-
-            <div className="wand-section">
-              <h3 className="wand-section-title">1. ‡πÄ‡∏•‡∏∑‡∏≠‡∏Å‡∏£‡∏π‡∏õ‡πÅ‡∏ö‡∏ö‡πÅ‡∏û‡∏ó‡πÄ‡∏ó‡∏¥‡∏£‡πå‡∏ô (Pattern)</h3>
-              {patternLoadError && <div className="alert alert-error">{patternLoadError}</div>}
-              <div className="wand-options-list">
-                {patterns.map((pattern, index) => <label key={pattern.id || pattern.code} className={`wand-option-card ${patternType === pattern.code ? 'selected' : ''}`}>
-                  <input
-                    ref={index === 0 ? initialFocusRef : undefined}
-                    type="radio"
-                    name="pattern-type"
-                    checked={patternType === pattern.code}
-                    onChange={() => selectPattern(pattern)}
-                  />
-                  <div className="option-text">
-                    <strong>{pattern.name}</strong>
-                    <p>{describePattern(pattern)}</p>
-                    <small>{pattern.targetGroup === 'SUPERVISOR' ? '‡∏Ñ‡πà‡∏≤‡πÄ‡∏£‡∏¥‡πà‡∏°‡∏ï‡πâ‡∏ô‡∏´‡∏±‡∏ß‡∏´‡∏ô‡πâ‡∏≤‡∏á‡∏≤‡∏ô' : pattern.targetGroup === 'GENERAL' ? '‡∏Ñ‡πà‡∏≤‡πÄ‡∏£‡∏¥‡πà‡∏°‡∏ï‡πâ‡∏ô‡∏û‡∏ô‡∏±‡∏Å‡∏á‡∏≤‡∏ô‡∏ó‡∏±‡πà‡∏ß‡πÑ‡∏õ' : '‡πÅ‡∏û‡∏ó‡πÄ‡∏ó‡∏¥‡∏£‡πå‡∏ô‡πÄ‡∏•‡∏∑‡∏≠‡∏Å‡πÄ‡∏≠‡∏á'} ¬∑ {pattern.mode === 'WEEKLY' ? '‡∏£‡∏≤‡∏¢‡∏™‡∏±‡∏õ‡∏î‡∏≤‡∏´‡πå' : '‡∏ß‡∏ô‡∏ï‡∏≤‡∏° Phase'}</small>
-                  </div>
-                </label>)}
-              </div>
-            </div>
-
-            {selectedPattern?.mode === 'CYCLE' && (
-              <div className="wand-section">
-                <h3 className="wand-section-title">2. ‡πÄ‡∏•‡∏∑‡∏≠‡∏Å‡∏à‡∏∏‡∏î‡πÄ‡∏£‡∏¥‡πà‡∏°‡∏Ç‡∏≠‡∏á‡πÄ‡∏î‡∏∑‡∏≠‡∏ô‡∏ô‡∏µ‡πâ (‡∏™‡∏≥‡∏´‡∏£‡∏±‡∏ö‡∏ß‡∏±‡∏ô‡∏ó‡∏µ‡πà {thaiFullDateStr})</h3>
-                <label className="wand-checkbox-label">
-                  <input
-                    type="checkbox"
-                    checked={autoContinue}
-                    onChange={(e) => setAutoContinue(e.target.checked)}
-                  />
-                  <span>üîç ‡πÄ‡∏ä‡∏∑‡πà‡∏≠‡∏°‡∏ï‡πà‡∏≠‡∏•‡∏π‡∏õ‡∏à‡∏≤‡∏Å‡πÄ‡∏î‡∏∑‡∏≠‡∏ô‡∏Å‡πà‡∏≠‡∏ô‡∏´‡∏ô‡πâ‡∏≤‡∏≠‡∏±‡∏ï‡πÇ‡∏ô‡∏°‡∏±‡∏ï‡∏¥</span>
-                </label>
-
-                {autoContinue && <div className="wand-analysis-blue-text">{analysisText}</div>}
-
-                <div className="field-group phase-select-box">
-                  <select
-                    id="phase-select"
-                    disabled={autoContinue}
-                    value={autoContinue ? suggestedCode : startPhase}
-                    onChange={(e) => setStartPhase(e.target.value)}
-                  >
-                    {selectedPhaseOptions.map((step) => <option key={step.phaseCode} value={step.phaseCode}>{step.label}</option>)}
-                  </select>
-                </div>
-              </div>
-            )}
-          </div>
-          <div className="dialog-actions">
-            <button className="btn-secondary" type="button" disabled={busy} onClick={onClose}>‡∏¢‡∏Å‡πÄ‡∏•‡∏¥‡∏Å</button>
-            <button className="btn-primary compact wand-submit-btn" type="submit" disabled={busy || !selectedPattern}>
-              {busy ? '‡∏Å‡∏≥‡∏•‡∏±‡∏á‡∏™‡∏£‡πâ‡∏≤‡∏á‡∏£‡πà‡∏≤‡∏á‚Ä¶' : 'ü™Ñ ‡πÉ‡∏™‡πà‡∏•‡∏á‡πÉ‡∏ô‡∏â‡∏ö‡∏±‡∏ö‡∏£‡πà‡∏≤‡∏á'}
-            </button>
-          </div>
-        </form>
-      </section>
-    </div>,
-    modalRoot
-  );
-}
-
-type OperationalPage = Exclude<Page, 'dashboard' | 'employees' | 'approvalCenter' | 'attendance' | 'attendanceSupervisor' | 'attendanceHistory' | 'employeeSchedule' | 'attendanceDevice' | 'profile' | 'reportCenter' | 'reports' | 'executiveReport' | 'attendanceReport' | 'shiftSetup' | 'securitySite' | 'settings' | 'leavePending' | 'leaveHistory' | 'dataQuality' | 'systemHealth'>;
-
-const tablePages: Record<OperationalPage, { title: string; eyebrow: string; description: string; columns: Array<{ label: string; value: (row: DataRow) => React.ReactNode }> }> = {
-  licenses: { title: '‡πÉ‡∏ö‡∏≠‡∏ô‡∏∏‡∏ç‡∏≤‡∏ï‡∏û‡∏ô‡∏±‡∏Å‡∏á‡∏≤‡∏ô', eyebrow: '‡∏à‡∏±‡∏î‡∏Å‡∏≤‡∏£‡∏ö‡∏∏‡∏Ñ‡∏•‡∏≤‡∏Å‡∏£', description: '‡∏ï‡∏£‡∏ß‡∏à‡∏™‡∏≠‡∏ö‡∏õ‡∏£‡∏∞‡πÄ‡∏†‡∏ó ‡πÄ‡∏•‡∏Ç‡∏ó‡∏µ‡πà ‡∏™‡∏ñ‡∏≤‡∏ô‡∏∞ ‡πÅ‡∏•‡∏∞‡∏ß‡∏±‡∏ô‡∏´‡∏°‡∏î‡∏≠‡∏≤‡∏¢‡∏∏‡πÉ‡∏ö‡∏≠‡∏ô‡∏∏‡∏ç‡∏≤‡∏ï', columns: [
-    { label: '‡∏û‡∏ô‡∏±‡∏Å‡∏á‡∏≤‡∏ô', value: (row) => { const employee = nested(row.employee); return `${text(employee.firstName)} ${text(employee.lastName)}`; } },
-    { label: '‡∏£‡∏´‡∏±‡∏™', value: (row) => text(nested(row.employee).employeeCode) }, { label: '‡∏õ‡∏£‡∏∞‡πÄ‡∏†‡∏ó', value: (row) => text(row.licenseType) },
-    { label: '‡πÄ‡∏•‡∏Ç‡∏ó‡∏µ‡πà‡πÉ‡∏ö‡∏≠‡∏ô‡∏∏‡∏ç‡∏≤‡∏ï', value: (row) => text(row.licenseNumber) }, { label: '‡∏ß‡∏±‡∏ô‡∏´‡∏°‡∏î‡∏≠‡∏≤‡∏¢‡∏∏', value: (row) => date(row.expiryDate) },
-    { label: '‡∏™‡∏ñ‡∏≤‡∏ô‡∏∞', value: (row) => <span className={`status-badge status-badge--${semanticStatusTone(row.status)}`}>{text(row.status)}</span> }, { label: '‡∏î‡∏π‡πÑ‡∏ü‡∏•‡πå', value: () => null }
-  ] },
-  schedule: { title: '‡∏ï‡∏≤‡∏£‡∏≤‡∏á‡∏Å‡∏∞', eyebrow: '‡∏ï‡∏≤‡∏£‡∏≤‡∏á‡πÅ‡∏•‡∏∞‡∏Å‡∏é‡∏Å‡∏≤‡∏£‡∏ó‡∏≥‡∏á‡∏≤‡∏ô', description: '‡∏ï‡∏≤‡∏£‡∏≤‡∏á‡∏Å‡∏∞‡∏¢‡πâ‡∏≠‡∏ô‡∏´‡∏•‡∏±‡∏á‡πÄ‡∏£‡∏µ‡∏¢‡∏á‡∏à‡∏≤‡∏Å‡∏ß‡∏±‡∏ô‡∏ó‡∏µ‡πà‡∏•‡πà‡∏≤‡∏™‡∏∏‡∏î', columns: [
-    { label: '‡∏ß‡∏±‡∏ô‡∏ó‡∏µ‡πà', value: (row) => date(row.workDate) }, { label: '‡∏û‡∏ô‡∏±‡∏Å‡∏á‡∏≤‡∏ô', value: (row) => text(row.employeeNameSnapshot) },
-    { label: '‡∏´‡∏ô‡πà‡∏ß‡∏¢‡∏á‡∏≤‡∏ô', value: (row) => text(row.departmentSnapshot) }, { label: '‡∏Å‡∏∞', value: (row) => text(nested(row.shiftType).code) },
-    { label: '‡πÄ‡∏ß‡∏•‡∏≤', value: (row) => `${text(row.startTime)}‚Äì${text(row.endTime)}` }, { label: '‡∏ä‡∏±‡πà‡∏ß‡πÇ‡∏°‡∏á', value: (row) => text(row.hours) }
-  ] },
-  approvals: { title: '‡∏≠‡∏ô‡∏∏‡∏°‡∏±‡∏ï‡∏¥‡∏ï‡∏≤‡∏£‡∏≤‡∏á‡∏Å‡∏∞', eyebrow: '‡∏ï‡∏≤‡∏£‡∏≤‡∏á‡πÅ‡∏•‡∏∞‡∏Å‡∏é‡∏Å‡∏≤‡∏£‡∏ó‡∏≥‡∏á‡∏≤‡∏ô', description: '‡∏õ‡∏£‡∏∞‡∏ß‡∏±‡∏ï‡∏¥‡∏™‡∏ñ‡∏≤‡∏ô‡∏∞‡πÅ‡∏•‡∏∞‡∏â‡∏ö‡∏±‡∏ö‡πÅ‡∏Å‡πâ‡πÑ‡∏Ç‡∏Å‡∏≤‡∏£‡∏≠‡∏ô‡∏∏‡∏°‡∏±‡∏ï‡∏¥‡∏ï‡∏≤‡∏£‡∏≤‡∏á', columns: [
-    { label: '‡πÄ‡∏î‡∏∑‡∏≠‡∏ô', value: (row) => date(row.month) }, { label: '‡∏â‡∏ö‡∏±‡∏ö‡πÅ‡∏Å‡πâ‡πÑ‡∏Ç', value: (row) => text(row.revision) },
-    { label: '‡∏™‡∏ñ‡∏≤‡∏ô‡∏∞', value: (row) => { const superseded = isSupersededScheduleApproval(row); return <span className={`status-badge status-badge--${superseded ? 'neutral' : semanticStatusTone(row.status)}`}>{scheduleApprovalStatusLabel(row.status, superseded)}</span>; } },
-    { label: '‡∏õ‡∏£‡∏∞‡πÄ‡∏†‡∏ó‡∏Å‡∏≤‡∏£‡πÄ‡∏õ‡∏•‡∏µ‡πà‡∏¢‡∏ô', value: (row) => scheduleApprovalChangeTypeLabel(row.changeType) }, { label: '‡∏≠‡∏ô‡∏∏‡∏°‡∏±‡∏ï‡∏¥‡πÄ‡∏°‡∏∑‡πà‡∏≠', value: (row) => date(row.approvedAt) }, { label: '‡∏´‡∏°‡∏≤‡∏¢‡πÄ‡∏´‡∏ï‡∏∏', value: (row) => text(row.approvalNote) }
-  ] },
-  rules: { title: '‡∏Å‡∏é‡∏Å‡∏≤‡∏£‡∏ó‡∏≥‡∏á‡∏≤‡∏ô', eyebrow: '‡∏ï‡∏≤‡∏£‡∏≤‡∏á‡πÅ‡∏•‡∏∞‡∏Å‡∏é‡∏Å‡∏≤‡∏£‡∏ó‡∏≥‡∏á‡∏≤‡∏ô', description: '‡∏Å‡∏é‡∏ó‡∏µ‡πà‡πÉ‡∏ä‡πâ‡∏ï‡∏£‡∏ß‡∏à‡∏™‡∏≠‡∏ö‡πÅ‡∏•‡∏∞‡∏à‡∏±‡∏î‡∏ï‡∏≤‡∏£‡∏≤‡∏á‡∏Å‡∏≥‡∏•‡∏±‡∏á‡∏Ñ‡∏ô', columns: [
-    { label: '‡∏£‡∏´‡∏±‡∏™‡∏Å‡∏é', value: (row) => text(row.ruleId) }, { label: '‡∏ä‡∏∑‡πà‡∏≠‡∏Å‡∏é', value: (row) => text(row.name) },
-    { label: '‡∏Ñ‡πà‡∏≤', value: (row) => text(row.value) }, { label: '‡∏´‡∏ô‡πà‡∏ß‡∏¢', value: (row) => text(row.unit) },
-    { label: '‡∏™‡∏ñ‡∏≤‡∏ô‡∏∞', value: (row) => <span className={`status-badge ${row.enabled ? 'status-badge--success' : 'status-badge--neutral'}`}>{row.enabled ? '‡πÄ‡∏õ‡∏¥‡∏î‡πÉ‡∏ä‡πâ' : '‡∏õ‡∏¥‡∏î‡πÉ‡∏ä‡πâ'}</span> }
-  ] },
-  leave: { title: '‡∏Ñ‡∏≥‡∏Ç‡∏≠‡∏•‡∏≤', eyebrow: '‡∏Å‡∏≤‡∏£‡∏•‡∏≤', description: '‡∏õ‡∏£‡∏∞‡∏ß‡∏±‡∏ï‡∏¥‡∏Ñ‡∏≥‡∏Ç‡∏≠‡∏•‡∏≤‡πÅ‡∏•‡∏∞‡∏™‡∏ñ‡∏≤‡∏ô‡∏∞‡∏Å‡∏≤‡∏£‡∏≠‡∏ô‡∏∏‡∏°‡∏±‡∏ï‡∏¥', columns: [
-    { label: '‡∏û‡∏ô‡∏±‡∏Å‡∏á‡∏≤‡∏ô', value: (row) => text(row.employeeNameSnapshot) }, { label: '‡∏õ‡∏£‡∏∞‡πÄ‡∏†‡∏ó', value: (row) => leaveTypeDisplayText(row) },
-    { label: '‡∏ß‡∏±‡∏ô‡∏ó‡∏µ‡πà‡πÄ‡∏£‡∏¥‡πà‡∏°', value: (row) => date(row.startDate) }, { label: '‡∏ß‡∏±‡∏ô‡∏ó‡∏µ‡πà‡∏™‡∏¥‡πâ‡∏ô‡∏™‡∏∏‡∏î', value: (row) => date(row.endDate) },
-    { label: '‡∏à‡∏≥‡∏ô‡∏ß‡∏ô‡∏ß‡∏±‡∏ô', value: (row) => text(row.dayCount) }, { label: '‡∏™‡∏ñ‡∏≤‡∏ô‡∏∞', value: (row) => <span className={`status-badge status-badge--${semanticStatusTone(row.status)}`}>{text(row.status)}</span> }
-  ] },
-  quota: { title: '‡πÇ‡∏Ñ‡∏ß‡∏ï‡∏≤‡∏ß‡∏±‡∏ô‡∏•‡∏≤', eyebrow: '‡∏Å‡∏≤‡∏£‡∏•‡∏≤', description: '‡πÅ‡∏™‡∏î‡∏á‡∏™‡∏¥‡∏ó‡∏ò‡∏¥‡πå‡∏£‡∏≤‡∏¢‡∏õ‡∏µ ‡πÉ‡∏ä‡πâ‡πÅ‡∏•‡πâ‡∏ß ‡πÅ‡∏•‡∏∞‡∏Ñ‡∏á‡πÄ‡∏´‡∏•‡∏∑‡∏≠‡∏à‡∏≤‡∏Å‡πÉ‡∏ö‡∏•‡∏≤‡∏ó‡∏µ‡πà‡∏≠‡∏ô‡∏∏‡∏°‡∏±‡∏ï‡∏¥', columns: [
-    { label: '‡∏õ‡∏µ', value: (row) => row.quotaYear ? thaiQuotaYearLabel(Number(row.quotaYear)) : '‡∏Ç‡πâ‡∏≠‡∏°‡∏π‡∏•‡πÄ‡∏î‡∏¥‡∏° ‚Äî ‡∏¢‡∏±‡∏á‡πÑ‡∏°‡πà‡∏£‡∏∞‡∏ö‡∏∏‡∏õ‡∏µ' },
-    { label: '‡∏û‡∏ô‡∏±‡∏Å‡∏á‡∏≤‡∏ô', value: (row) => text(row.employeeNameSnapshot) },
-    { label: '‡∏•‡∏≤‡∏õ‡πà‡∏ß‡∏¢', value: (row) => quotaBalanceText(row.sickLeave, row.sickLeaveUsed) },
-    { label: '‡∏•‡∏≤‡∏Å‡∏¥‡∏à', value: (row) => quotaBalanceText(row.personalLeave, row.personalLeaveUsed) },
-    { label: '‡∏•‡∏≤‡∏û‡∏±‡∏Å‡∏£‡πâ‡∏≠‡∏ô', value: (row) => quotaBalanceText(row.vacationLeave, row.vacationLeaveUsed) },
-    { label: '‡∏Å‡∏≤‡∏£‡∏à‡∏±‡∏ö‡∏Ñ‡∏π‡πà‡∏Ç‡πâ‡∏≠‡∏°‡∏π‡∏•', value: (row) => quotaMatchStatusText(row.matchStatus) }
-  ] },
-  users: { title: '‡∏ú‡∏π‡πâ‡πÉ‡∏ä‡πâ‡πÅ‡∏•‡∏∞‡∏™‡∏¥‡∏ó‡∏ò‡∏¥‡πå', eyebrow: '‡∏ú‡∏π‡πâ‡∏î‡∏π‡πÅ‡∏•‡∏£‡∏∞‡∏ö‡∏ö', description: '‡∏ö‡∏±‡∏ç‡∏ä‡∏µ ‡∏ö‡∏ó‡∏ö‡∏≤‡∏ó ‡∏™‡∏ñ‡∏≤‡∏ô‡∏∞ ‡πÅ‡∏•‡∏∞‡∏Ç‡πâ‡∏≠‡∏Å‡∏≥‡∏´‡∏ô‡∏î‡πÄ‡∏õ‡∏•‡∏µ‡πà‡∏¢‡∏ô‡∏£‡∏´‡∏±‡∏™‡∏ú‡πà‡∏≤‡∏ô', columns: [
-    { label: '‡∏ä‡∏∑‡πà‡∏≠‡∏ú‡∏π‡πâ‡πÉ‡∏ä‡πâ', value: (row) => text(row.displayName) }, { label: '‡∏≠‡∏µ‡πÄ‡∏°‡∏•', value: (row) => text(row.email) },
-    { label: '‡∏ö‡∏ó‡∏ö‡∏≤‡∏ó', value: (row) => roleDisplayName(String(row.role || '')) }, { label: '‡∏™‡∏ñ‡∏≤‡∏ô‡∏∞‡∏ö‡∏±‡∏ç‡∏ä‡∏µ', value: (row) => text(row.accountStatus) },
-    { label: '‡πÄ‡∏õ‡∏•‡∏µ‡πà‡∏¢‡∏ô‡∏£‡∏´‡∏±‡∏™‡∏ú‡πà‡∏≤‡∏ô', value: (row) => row.passwordResetRequired ? '‡∏à‡∏≥‡πÄ‡∏õ‡πá‡∏ô' : '‡πÑ‡∏°‡πà‡∏à‡∏≥‡πÄ‡∏õ‡πá‡∏ô' }
-  ] },
-  audit: { title: '‡∏õ‡∏£‡∏∞‡∏ß‡∏±‡∏ï‡∏¥‡∏Å‡∏≤‡∏£‡∏ó‡∏≥‡∏£‡∏≤‡∏¢‡∏Å‡∏≤‡∏£', eyebrow: '‡∏ú‡∏π‡πâ‡∏î‡∏π‡πÅ‡∏•‡∏£‡∏∞‡∏ö‡∏ö', description: '‡πÄ‡∏´‡∏ï‡∏∏‡∏Å‡∏≤‡∏£‡∏ì‡πå‡∏™‡∏≥‡∏Ñ‡∏±‡∏ç‡∏Ç‡∏≠‡∏á‡∏£‡∏∞‡∏ö‡∏ö‡πÇ‡∏î‡∏¢‡πÑ‡∏°‡πà‡πÅ‡∏™‡∏î‡∏á payload ‡∏ó‡∏µ‡πà‡∏≠‡πà‡∏≠‡∏ô‡πÑ‡∏´‡∏ß', columns: [
-    { label: '‡πÄ‡∏ß‡∏•‡∏≤', value: (row) => date(row.createdAt) }, { label: '‡πÄ‡∏´‡∏ï‡∏∏‡∏Å‡∏≤‡∏£‡∏ì‡πå', value: (row) => text(row.action) },
-    { label: '‡∏õ‡∏£‡∏∞‡πÄ‡∏†‡∏ó‡∏Ç‡πâ‡∏≠‡∏°‡∏π‡∏•', value: (row) => text(row.entityType) }, { label: '‡∏ú‡∏π‡πâ‡∏î‡∏≥‡πÄ‡∏ô‡∏¥‡∏ô‡∏Å‡∏≤‡∏£', value: (row) => text(nested(row.actor).displayName) }
-  ] }
-};
-
-function OperationalTable({ page, response, loading, error, onPageChange, onAction, onCreate, onNavigate, role, token, refreshSignal, onLicenseDocumentChanged, onEditLicense, licenseEmployeeStatus = 'ACTIVE', onLicenseEmployeeStatusChange, printedBy }: { page: OperationalPage; response: DataResponse; loading: boolean; error?: RequestErrorInput; onPageChange(page: number): void; onAction(row: DataRow, action: string): void; onCreate(): void; onNavigate(page: Page): void; role: string; token?: string; refreshSignal: number; onLicenseDocumentChanged(message: string): void; onEditLicense?: (row: DataRow) => void; licenseEmployeeStatus?: LicenseEmployeeStatus; onLicenseEmployeeStatusChange?(status: LicenseEmployeeStatus): void; printedBy: string }) {
-  const config = tablePages[page];
-  const rows = Array.isArray(response.data) ? response.data : [];
-  const [tableSearch, setTableSearch] = useState('');
-  const [selectedRow, setSelectedRow] = useState<DataRow>();
-  const selectedRowId = useRef<string>();
-  useEffect(() => { setTableSearch(''); setSelectedRow(undefined); }, [page]);
-  const visibleRows = useMemo(() => {
-    if (page !== 'licenses') return rows;
-    const term = tableSearch.trim().toLowerCase();
-    if (!term) return rows;
-    return rows.filter((row) => {
-      const employee = nested(row.employee);
-      return [employee.employeeCode, employee.firstName, employee.lastName, employee.department, row.licenseType, row.licenseNumber, row.status, row.remark].map(text).join(' ').toLowerCase().includes(term);
-    });
-  }, [page, rows, tableSearch]);
-  const actionPages = ['licenses', 'schedule', 'approvals', 'rules', 'leave', 'quota', 'users'];
-  const canManage = ['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(role);
-  const canEditRows = canManage && (page !== 'approvals' || role === 'ADMIN');
-  const rowActions = (row: DataRow) => {
-    if (!canEditRows || !actionPages.includes(page)) return null;
-    if (page === 'approvals') return canDecideScheduleApproval(row) ? <><button className="btn-success compact" onClick={() => onAction(row, 'approve')}>‡∏≠‡∏ô‡∏∏‡∏°‡∏±‡∏ï‡∏¥</button><button className="btn-danger-outline compact" onClick={() => onAction(row, 'reject')}>‡πÑ‡∏°‡πà‡∏≠‡∏ô‡∏∏‡∏°‡∏±‡∏ï‡∏¥</button></> : null;
-    if (page === 'leave') return <><button className="btn-success compact" onClick={() => onAction(row, 'approve')}>‡∏≠‡∏ô‡∏∏‡∏°‡∏±‡∏ï‡∏¥</button><button className="btn-danger-outline compact" onClick={() => onAction(row, 'reject')}>‡πÑ‡∏°‡πà‡∏≠‡∏ô‡∏∏‡∏°‡∏±‡∏ï‡∏¥</button></>;
-    if (page === 'rules') return <><button className="btn-info-outline data-row-primary-action" onClick={() => onAction(row, 'edit')}>‡πÅ‡∏Å‡πâ‡πÑ‡∏Ç</button><button className="btn-neutral" onClick={() => onAction(row, 'toggle')}>{row.enabled ? '‡∏õ‡∏¥‡∏î‡πÉ‡∏ä‡πâ' : '‡πÄ‡∏õ‡∏¥‡∏î‡πÉ‡∏ä‡πâ'}</button></>;
-    if (page === 'licenses') return <><button className="btn-info-outline data-row-primary-action" aria-label="‡πÅ‡∏Å‡πâ‡πÑ‡∏Ç‡πÉ‡∏ö‡∏≠‡∏ô‡∏∏‡∏ç‡∏≤‡∏ï" onClick={() => (onEditLicense ? onEditLicense(row) : onAction(row, 'edit'))}>‡∏à‡∏±‡∏î‡∏Å‡∏≤‡∏£</button>{role === 'ADMIN' && <DataRowActionMenu label="‡∏Å‡∏≤‡∏£‡∏ó‡∏≥‡∏á‡∏≤‡∏ô‡πÄ‡∏û‡∏¥‡πà‡∏°‡πÄ‡∏ï‡∏¥‡∏°‡∏Ç‡∏≠‡∏á‡πÉ‡∏ö‡∏≠‡∏ô‡∏∏‡∏ç‡∏≤‡∏ï" actions={[{ label: '‡∏•‡∏ö‡πÉ‡∏ö‡∏≠‡∏ô‡∏∏‡∏ç‡∏≤‡∏ï', tone: 'danger', onSelect: () => onAction(row, 'delete') }]} />}</>;
-    if (page === 'quota') return <><button className="btn-info-outline data-row-primary-action" onClick={() => onAction(row, 'edit')}>‡πÅ‡∏Å‡πâ‡πÑ‡∏Ç‡πÇ‡∏Ñ‡∏ß‡∏ï‡∏≤</button>{role === 'ADMIN' && (row.quotaYear === null || row.quotaYear === undefined || row.quotaYear === '') && <button className="btn-info compact" onClick={() => onAction(row, 'link')}>{row.employeeId ? '‡∏à‡∏±‡∏î‡∏õ‡∏£‡∏∞‡πÄ‡∏†‡∏ó‡∏õ‡∏µ' : '‡∏à‡∏±‡∏ö‡∏Ñ‡∏π‡πà‡∏û‡∏ô‡∏±‡∏Å‡∏á‡∏≤‡∏ô‡πÅ‡∏•‡∏∞‡∏õ‡∏µ'}</button>}</>;
-    if (page === 'schedule') return <><button className="btn-info-outline" onClick={() => onAction(row, 'edit')}>‡πÅ‡∏Å‡πâ‡πÑ‡∏Ç</button><button className="btn-neutral" onClick={() => onAction(row, 'toggle-lock')}>{row.locked ? '‡∏õ‡∏•‡∏î‡∏•‡πá‡∏≠‡∏Å' : '‡∏•‡πá‡∏≠‡∏Å'}</button><button className="btn-danger-outline compact" onClick={() => onAction(row, 'delete')}>‡∏•‡∏ö</button></>;
-    return <><button className="btn-info-outline" onClick={() => onAction(row, 'edit')}>‡∏™‡∏¥‡∏ó‡∏ò‡∏¥‡πå</button><button className="btn-neutral" onClick={() => onAction(row, 'reset-password')}>‡∏ï‡∏±‡πâ‡∏á‡∏£‡∏´‡∏±‡∏™‡∏ú‡πà‡∏≤‡∏ô</button><button className="btn-neutral" onClick={() => onAction(row, 'toggle-user')}>{row.isActive ? '‡∏£‡∏∞‡∏á‡∏±‡∏ö' : '‡πÄ‡∏õ‡∏¥‡∏î‡πÉ‡∏ä‡πâ'}</button></>;
-  };
-  const showActions = canEditRows && actionPages.includes(page);
-  const canCreate = page === 'leave' || (canManage && ['schedule'].includes(page)) || (role === 'ADMIN' && page === 'licenses') || (page === 'quota' && canProvisionLeaveQuota(role));
-  const createLabel = page === 'leave' ? '+ ‡∏™‡πà‡∏á‡∏Ñ‡∏≥‡∏Ç‡∏≠‡∏•‡∏≤' : page === 'quota' ? '+ ‡∏Å‡∏≥‡∏´‡∏ô‡∏î‡πÇ‡∏Ñ‡∏ß‡∏ï‡∏≤' : '+ ‡πÄ‡∏û‡∏¥‡πà‡∏°‡∏£‡∏≤‡∏¢‡∏Å‡∏≤‡∏£';
-  const related: Partial<Record<typeof page, { page: Page; label: string }>> = {
-    licenses: { page: 'employees', label: '‡∏Ç‡πâ‡∏≠‡∏°‡∏π‡∏•‡∏û‡∏ô‡∏±‡∏Å‡∏á‡∏≤‡∏ô' }, schedule: { page: 'approvals', label: '‡∏≠‡∏ô‡∏∏‡∏°‡∏±‡∏ï‡∏¥‡∏ï‡∏≤‡∏£‡∏≤‡∏á‡∏Å‡∏∞' }, approvals: { page: 'schedule', label: '‡∏ï‡∏≤‡∏£‡∏≤‡∏á‡∏Å‡∏∞‡∏£‡∏≤‡∏¢‡πÄ‡∏î‡∏∑‡∏≠‡∏ô' }, leave: { page: 'quota', label: '‡πÇ‡∏Ñ‡∏ß‡∏ï‡∏≤‡∏ß‡∏±‡∏ô‡∏•‡∏≤' }, quota: { page: 'leave', label: '‡∏Ñ‡∏≥‡∏Ç‡∏≠‡∏•‡∏≤' }, audit: { page: 'settings', label: 'Settings' }
-  };
-  const relatedPage = related[page];
-  const showRelated = relatedPage && (relatedPage.page !== 'approvals' || role === 'ADMIN') && (relatedPage.page !== 'quota' || role === 'ADMIN');
-  const noResultsMessage = page === 'licenses' && tableSearch ? '‡πÑ‡∏°‡πà‡∏û‡∏ö‡πÉ‡∏ö‡∏≠‡∏ô‡∏∏‡∏ç‡∏≤‡∏ï‡∏ó‡∏µ‡πà‡∏ï‡∏£‡∏á‡∏Å‡∏±‡∏ö‡∏Ñ‡∏≥‡∏Ñ‡πâ‡∏ô‡∏´‡∏≤' : '‡∏¢‡∏±‡∏á‡πÑ‡∏°‡πà‡∏°‡∏µ‡∏Ç‡πâ‡∏≠‡∏°‡∏π‡∏•‡πÉ‡∏ô‡∏´‡∏°‡∏ß‡∏î‡∏ô‡∏µ‡πâ';
-  const currentPage = response.meta?.page ?? 1;
-  const totalPages = response.meta?.totalPages ?? 0;
-  const documentServices = {
-    list: async (licenseId: string) => (await api.licenseDocuments(token!, licenseId))?.data as LicenseDocument[] || [],
-    view: async (documentId: string) => (await api.viewLicenseDocument(token!, documentId))?.data,
-    approve: async (documentId: string) => { await api.approveLicenseDocument(token!, documentId); },
-    returnForCorrection: async (documentId: string, reason: string) => { await api.returnLicenseDocumentForCorrection(token!, documentId, reason); },
-    resubmit: async (documentId: string, data: { licenseNumber: string; proposedStartDate: string; proposedExpiryDate: string; note?: string }, file?: File) => { await api.resubmitLicenseDocument(token!, documentId, data, file); },
-    reject: async (documentId: string, reason: string) => { await api.rejectLicenseDocument(token!, documentId, reason); },
-    cancel: async (documentId: string) => { await api.cancelLicenseDocument(token!, documentId); },
-    permanentlyDelete: async (documentId: string) => { await api.permanentlyDeleteLicenseDocument(token!, documentId); }
-  };
-  const tableValue = (row: DataRow, column: { label: string; value: (row: DataRow) => React.ReactNode }) => column.value(row);
-  const licenseIdentity = (row: DataRow) => { const employee = nested(row.employee); return { id: String(row.id), licenseNumber: row.licenseNumber ? String(row.licenseNumber) : null, licenseType: row.licenseType ? String(row.licenseType) : null, issueDate: row.issueDate ? String(row.issueDate) : null, expiryDate: row.expiryDate ? String(row.expiryDate) : null, status: row.status ? String(row.status) : null, employee: { employeeCode: String(employee.employeeCode || ''), firstName: String(employee.firstName || ''), lastName: String(employee.lastName || ''), department: employee.department ? String(employee.department) : undefined } }; };
-  const renderLicenseCell = (row: DataRow, column: { label: string; value: (row: DataRow) => React.ReactNode }) => {
-    if (column.label === '‡∏™‡∏ñ‡∏≤‡∏ô‡∏∞' && token) return <LicenseTableDocumentColumns key={column.label} license={licenseIdentity(row)} summary={row.documentSummary as never} services={documentServices} isAdmin={role === 'ADMIN'} onChanged={onLicenseDocumentChanged} />;
-    if (column.label === '‡∏î‡∏π‡πÑ‡∏ü‡∏•‡πå') return null;
-    return <td key={column.label}>{tableValue(row, column)}</td>;
-  };
-  const selectRow = (row: DataRow) => { selectedRowId.current = String(row.id || ''); setSelectedRow(row); };
-  const closeDrawer = () => {
-    const id = selectedRowId.current;
-    setSelectedRow(undefined);
-    if (id) requestAnimationFrame(() => document.querySelector<HTMLElement>(`[data-operational-row="${id}"]`)?.focus());
-  };
-  const selectedEmployee = selectedRow ? nested(selectedRow.employee) : {};
-  const drawerTitle = selectedRow ? (page === 'licenses' ? `${text(selectedEmployee.firstName)} ${text(selectedEmployee.lastName)}`.trim() || text(selectedRow.licenseNumber) : page === 'quota' ? text(selectedRow.employeeNameSnapshot) : text(selectedRow.name || selectedRow.title || selectedRow.displayName || selectedRow.ruleType || selectedRow.id)) : '';
-  const drawerSubtitle = selectedRow ? (page === 'licenses' ? [selectedEmployee.employeeCode, selectedEmployee.department, selectedRow.licenseType].filter(Boolean).map(text).join(' ¬∑ ') : page === 'quota' ? (selectedRow.quotaYear ? thaiQuotaYearLabel(Number(selectedRow.quotaYear)) : '‡∏Ç‡πâ‡∏≠‡∏°‡∏π‡∏•‡πÄ‡∏î‡∏¥‡∏° ‚Äî ‡∏¢‡∏±‡∏á‡πÑ‡∏°‡πà‡∏£‡∏∞‡∏ö‡∏∏‡∏õ‡∏µ') : config.description) : '';
-  const drawerFields = selectedRow ? config.columns.filter((column) => column.label !== '‡∏î‡∏π‡πÑ‡∏ü‡∏•‡πå').slice(0, 8).map((column) => ({ label: column.label, value: tableValue(selectedRow, column) })) : [];
-  let primaryAction: OperationalDrawerAction | undefined;
-  const secondaryActions: OperationalDrawerAction[] = [];
-  if (selectedRow && canEditRows) {
-    if (page === 'licenses') primaryAction = { label: '‡∏à‡∏±‡∏î‡∏Å‡∏≤‡∏£‡πÉ‡∏ö‡∏≠‡∏ô‡∏∏‡∏ç‡∏≤‡∏ï‡πÅ‡∏•‡∏∞‡πÄ‡∏≠‡∏Å‡∏™‡∏≤‡∏£', icon: 'license', onSelect: () => { const row = selectedRow; closeDrawer(); (onEditLicense ? onEditLicense(row) : onAction(row, 'edit')); } };
-    else if (page === 'quota') primaryAction = { label: '‡πÅ‡∏Å‡πâ‡πÑ‡∏Ç‡πÇ‡∏Ñ‡∏ß‡∏ï‡∏≤', icon: 'edit', onSelect: () => { const row = selectedRow; closeDrawer(); onAction(row, 'edit'); } };
-    else if (page === 'rules') primaryAction = { label: '‡πÅ‡∏Å‡πâ‡πÑ‡∏Ç‡∏Å‡∏é', icon: 'edit', onSelect: () => { const row = selectedRow; closeDrawer(); onAction(row, 'edit'); } };
-    else if (page === 'schedule') primaryAction = { label: '‡πÅ‡∏Å‡πâ‡πÑ‡∏Ç‡∏Å‡∏∞', icon: 'calendar', onSelect: () => { const row = selectedRow; closeDrawer(); onAction(row, 'edit'); } };
-    else if (page === 'approvals' && canDecideScheduleApproval(selectedRow)) {
-      primaryAction = { label: '‡∏≠‡∏ô‡∏∏‡∏°‡∏±‡∏ï‡∏¥', icon: 'check', onSelect: () => { const row = selectedRow; closeDrawer(); onAction(row, 'approve'); } };
-      secondaryActions.push({ label: '‡πÑ‡∏°‡πà‡∏≠‡∏ô‡∏∏‡∏°‡∏±‡∏ï‡∏¥', tone: 'danger', icon: 'close', onSelect: () => { const row = selectedRow; closeDrawer(); onAction(row, 'reject'); } });
-    } else if (page === 'leave') primaryAction = { label: '‡∏≠‡∏ô‡∏∏‡∏°‡∏±‡∏ï‡∏¥', icon: 'check', onSelect: () => { const row = selectedRow; closeDrawer(); onAction(row, 'approve'); } };
-    if (page === 'rules') secondaryActions.push({ label: selectedRow.enabled ? '‡∏õ‡∏¥‡∏î‡πÉ‡∏ä‡πâ‡∏Å‡∏é' : '‡πÄ‡∏õ‡∏¥‡∏î‡πÉ‡∏ä‡πâ‡∏Å‡∏é', tone: 'secondary', icon: 'pause', onSelect: () => { const row = selectedRow; closeDrawer(); onAction(row, 'toggle'); } });
-    if (page === 'quota' && role === 'ADMIN' && (selectedRow.quotaYear === null || selectedRow.quotaYear === undefined || selectedRow.quotaYear === '')) secondaryActions.push({ label: selectedRow.employeeId ? '‡∏à‡∏±‡∏î‡∏õ‡∏£‡∏∞‡πÄ‡∏†‡∏ó‡∏õ‡∏µ' : '‡∏à‡∏±‡∏ö‡∏Ñ‡∏π‡πà‡∏û‡∏ô‡∏±‡∏Å‡∏á‡∏≤‡∏ô‡πÅ‡∏•‡∏∞‡∏õ‡∏µ', tone: 'secondary', icon: 'users', onSelect: () => { const row = selectedRow; closeDrawer(); onAction(row, 'link'); } });
-    if (page === 'licenses' && role === 'ADMIN') secondaryActions.push({ label: '‡∏•‡∏ö‡πÉ‡∏ö‡∏≠‡∏ô‡∏∏‡∏ç‡∏≤‡∏ï', tone: 'danger', icon: 'close', onSelect: () => { const row = selectedRow; closeDrawer(); onAction(row, 'delete'); } });
-  }
-  const licenseTableHeader = <tr>{config.columns.map((column) => <th key={column.label} scope="col">{column.label}</th>)}{showActions && <TableActionHeader label="‡∏î‡∏≥‡πÄ‡∏ô‡∏¥‡∏ô‡∏Å‡∏≤‡∏£" />}</tr>;
-  const licenseEmptyState = <DataTableState
-    variant="empty"
-    title={noResultsMessage}
-    description={page === 'licenses' && tableSearch ? '‡∏•‡∏≠‡∏á‡πÄ‡∏õ‡∏•‡∏µ‡πà‡∏¢‡∏ô‡∏Ñ‡∏≥‡∏Ñ‡πâ‡∏ô‡∏´‡∏≤ ‡∏´‡∏£‡∏∑‡∏≠‡∏•‡πâ‡∏≤‡∏á‡∏ï‡∏±‡∏ß‡∏Å‡∏£‡∏≠‡∏á‡πÅ‡∏•‡πâ‡∏ß‡∏Ñ‡πâ‡∏ô‡∏´‡∏≤‡∏≠‡∏µ‡∏Å‡∏Ñ‡∏£‡∏±‡πâ‡∏á' : '‡∏¢‡∏±‡∏á‡πÑ‡∏°‡πà‡∏°‡∏µ‡∏£‡∏≤‡∏¢‡∏Å‡∏≤‡∏£‡∏ó‡∏µ‡πà‡∏ï‡πâ‡∏≠‡∏á‡∏î‡∏≥‡πÄ‡∏ô‡∏¥‡∏ô‡∏Å‡∏≤‡∏£‡πÉ‡∏ô‡∏Ç‡∏≠‡∏ö‡πÄ‡∏Ç‡∏ï‡∏ô‡∏µ‡πâ'}
-    action={page === 'licenses' && tableSearch ? { label: '‡∏•‡πâ‡∏≤‡∏á‡∏Ñ‡∏≥‡∏Ñ‡πâ‡∏ô‡∏´‡∏≤', onClick: () => setTableSearch('') } : canCreate ? { label: createLabel, onClick: onCreate } : undefined}
-  />;
-  const licenseDesktop = error
-    ? <DataTableState variant="error" title="‡πÑ‡∏°‡πà‡∏™‡∏≤‡∏°‡∏≤‡∏£‡∏ñ‡πÇ‡∏´‡∏•‡∏î‡πÉ‡∏ö‡∏≠‡∏ô‡∏∏‡∏ç‡∏≤‡∏ï" description="‡∏Ç‡πâ‡∏≠‡∏°‡∏π‡∏•‡πÉ‡∏ö‡∏≠‡∏ô‡∏∏‡∏ç‡∏≤‡∏ï‡∏¢‡∏±‡∏á‡πÑ‡∏°‡πà‡∏û‡∏£‡πâ‡∏≠‡∏°‡πÉ‡∏ä‡πâ‡∏á‡∏≤‡∏ô" />
-    : loading
-      ? <div className="table-scroll data-table-scroll"><table className="data-table data-surface-table signature-data-table" aria-label="‡∏£‡∏≤‡∏¢‡∏Å‡∏≤‡∏£‡πÉ‡∏ö‡∏≠‡∏ô‡∏∏‡∏ç‡∏≤‡∏ï‡∏û‡∏ô‡∏±‡∏Å‡∏á‡∏≤‡∏ô"><thead>{licenseTableHeader}</thead><tbody><DataTableSkeletonRows columnCount={config.columns.length + (showActions ? 1 : 0)} /></tbody></table></div>
-      : <div className="table-scroll data-table-scroll"><table className="data-table data-surface-table signature-data-table" aria-label="‡∏£‡∏≤‡∏¢‡∏Å‡∏≤‡∏£‡πÉ‡∏ö‡∏≠‡∏ô‡∏∏‡∏ç‡∏≤‡∏ï‡∏û‡∏ô‡∏±‡∏Å‡∏á‡∏≤‡∏ô"><thead>{licenseTableHeader}</thead><tbody>{visibleRows.length ? visibleRows.map((row, index) => <tr key={text(row.id) + index} className="signature-data-row" data-operational-row={text(row.id)} tabIndex={0} aria-label={`‡πÄ‡∏õ‡∏¥‡∏î‡∏£‡∏≤‡∏¢‡∏•‡∏∞‡πÄ‡∏≠‡∏µ‡∏¢‡∏î‡πÉ‡∏ö‡∏≠‡∏ô‡∏∏‡∏ç‡∏≤‡∏ï ${text(nested(row.employee).firstName)} ${text(nested(row.employee).lastName)}`.trim()} onClick={() => selectRow(row)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); selectRow(row); } }}>{config.columns.map((column) => page === 'licenses' ? renderLicenseCell(row, column) : <td key={column.label}>{tableValue(row, column)}</td>)}{showActions && <TableActionCell className="row-actions data-row-actions" onClick={(event) => event.stopPropagation()}>{rowActions(row)}</TableActionCell>}</tr>) : <tr><td colSpan={config.columns.length + (showActions ? 1 : 0)} className="no-rows data-table-empty-cell">{licenseEmptyState}</td></tr>}</tbody></table></div>;
-  const licenseMobile = error
-    ? <DataTableState variant="error" title="‡πÑ‡∏°‡πà‡∏™‡∏≤‡∏°‡∏≤‡∏£‡∏ñ‡πÇ‡∏´‡∏•‡∏î‡πÉ‡∏ö‡∏≠‡∏ô‡∏∏‡∏ç‡∏≤‡∏ï" description="‡∏Ç‡πâ‡∏≠‡∏°‡∏π‡∏•‡πÉ‡∏ö‡∏≠‡∏ô‡∏∏‡∏ç‡∏≤‡∏ï‡∏¢‡∏±‡∏á‡πÑ‡∏°‡πà‡∏û‡∏£‡πâ‡∏≠‡∏°‡πÉ‡∏ä‡πâ‡∏á‡∏≤‡∏ô" />
-    : loading
-      ? <div className="signature-mobile-records"><DataTableSkeletonCards count={4} cardClassName="data-mobile-card license-mobile-skeleton" /></div>
-      : <div className="signature-mobile-records">{visibleRows.map((row) => <button type="button" key={`mobile-${text(row.id)}`} className="signature-mobile-record" data-operational-row={text(row.id)} aria-label={`‡πÄ‡∏õ‡∏¥‡∏î‡∏£‡∏≤‡∏¢‡∏•‡∏∞‡πÄ‡∏≠‡∏µ‡∏¢‡∏î‡πÉ‡∏ö‡∏≠‡∏ô‡∏∏‡∏ç‡∏≤‡∏ï ${text(nested(row.employee).firstName)} ${text(nested(row.employee).lastName)}`.trim()} onClick={() => selectRow(row)}><span className="signature-mobile-record__eyebrow">{config.eyebrow}</span><strong>{`${text(nested(row.employee).firstName)} ${text(nested(row.employee).lastName)}`.trim() || text(row.licenseNumber)}</strong><div>{config.columns.filter((column) => column.label !== '‡∏î‡∏π‡πÑ‡∏ü‡∏•‡πå').slice(0, 5).map((column) => <span key={column.label}><small>{column.label}</small>{tableValue(row, column)}</span>)}</div><em>‡πÅ‡∏ï‡∏∞‡πÄ‡∏û‡∏∑‡πà‡∏≠‡πÄ‡∏õ‡∏¥‡∏î‡∏£‡∏≤‡∏¢‡∏•‡∏∞‡πÄ‡∏≠‡∏µ‡∏¢‡∏î</em></button>)}</div>;
-  const quotaTableHeader = <tr>{config.columns.map((column) => <th key={column.label} scope="col">{column.label}</th>)}{showActions && <TableActionHeader label="‡∏î‡∏≥‡πÄ‡∏ô‡∏¥‡∏ô‡∏Å‡∏≤‡∏£" />}</tr>;
-  const quotaEmptyState = <DataTableState
-    variant="empty"
-    title={noResultsMessage}
-    description="‡∏¢‡∏±‡∏á‡πÑ‡∏°‡πà‡∏°‡∏µ‡∏£‡∏≤‡∏¢‡∏Å‡∏≤‡∏£‡πÇ‡∏Ñ‡∏ß‡∏ï‡∏≤‡πÉ‡∏ô‡∏Ç‡∏≠‡∏ö‡πÄ‡∏Ç‡∏ï‡∏ó‡∏µ‡πà‡πÄ‡∏•‡∏∑‡∏≠‡∏Å ‡∏´‡∏£‡∏∑‡∏≠‡∏Ç‡πâ‡∏≠‡∏°‡∏π‡∏•‡πÄ‡∏î‡∏¥‡∏°‡∏¢‡∏±‡∏á‡πÑ‡∏°‡πà‡∏û‡∏£‡πâ‡∏≠‡∏°‡πÅ‡∏™‡∏î‡∏á"
-    action={canCreate ? { label: createLabel, onClick: onCreate } : undefined}
-  />;
-  const quotaDesktop = error
-    ? <DataTableState variant="error" title="‡πÑ‡∏°‡πà‡∏™‡∏≤‡∏°‡∏≤‡∏£‡∏ñ‡πÇ‡∏´‡∏•‡∏î‡πÇ‡∏Ñ‡∏ß‡∏ï‡∏≤‡∏ß‡∏±‡∏ô‡∏•‡∏≤" description="‡∏Ç‡πâ‡∏≠‡∏°‡∏π‡∏•‡∏™‡∏¥‡∏ó‡∏ò‡∏¥‡πå‡∏£‡∏≤‡∏¢‡∏õ‡∏µ‡∏¢‡∏±‡∏á‡πÑ‡∏°‡πà‡∏û‡∏£‡πâ‡∏≠‡∏°‡πÉ‡∏ä‡πâ‡∏á‡∏≤‡∏ô" />
-    : loading
-      ? <div className="table-scroll data-table-scroll"><table className="data-table data-surface-table signature-data-table" aria-label="‡∏£‡∏≤‡∏¢‡∏Å‡∏≤‡∏£‡πÇ‡∏Ñ‡∏ß‡∏ï‡∏≤‡∏ß‡∏±‡∏ô‡∏•‡∏≤"><thead>{quotaTableHeader}</thead><tbody><DataTableSkeletonRows columnCount={config.columns.length + (showActions ? 1 : 0)} /></tbody></table></div>
-      : <div className="table-scroll data-table-scroll"><table className="data-table data-surface-table signature-data-table" aria-label="‡∏£‡∏≤‡∏¢‡∏Å‡∏≤‡∏£‡πÇ‡∏Ñ‡∏ß‡∏ï‡∏≤‡∏ß‡∏±‡∏ô‡∏•‡∏≤"><thead>{quotaTableHeader}</thead><tbody>{visibleRows.length ? visibleRows.map((row, index) => <tr key={text(row.id) + index} className="signature-data-row" data-operational-row={text(row.id)} tabIndex={0} aria-label={`‡πÄ‡∏õ‡∏¥‡∏î‡∏£‡∏≤‡∏¢‡∏•‡∏∞‡πÄ‡∏≠‡∏µ‡∏¢‡∏î‡πÇ‡∏Ñ‡∏ß‡∏ï‡∏≤ ${text(row.employeeNameSnapshot) || text(row.employeeId) || text(row.id)}`} onClick={() => selectRow(row)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); selectRow(row); } }}>{config.columns.map((column) => <td key={column.label}>{tableValue(row, column)}</td>)}{showActions && <TableActionCell className="row-actions data-row-actions" onClick={(event) => event.stopPropagation()}>{rowActions(row)}</TableActionCell>}</tr>) : <tr><td colSpan={config.columns.length + (showActions ? 1 : 0)} className="no-rows data-table-empty-cell">{quotaEmptyState}</td></tr>}</tbody></table></div>;
-  const quotaMobile = error
-    ? <DataTableState variant="error" title="‡πÑ‡∏°‡πà‡∏™‡∏≤‡∏°‡∏≤‡∏£‡∏ñ‡πÇ‡∏´‡∏•‡∏î‡πÇ‡∏Ñ‡∏ß‡∏ï‡∏≤‡∏ß‡∏±‡∏ô‡∏•‡∏≤" description="‡∏Ç‡πâ‡∏≠‡∏°‡∏π‡∏•‡∏™‡∏¥‡∏ó‡∏ò‡∏¥‡πå‡∏£‡∏≤‡∏¢‡∏õ‡∏µ‡∏¢‡∏±‡∏á‡πÑ‡∏°‡πà‡∏û‡∏£‡πâ‡∏≠‡∏°‡πÉ‡∏ä‡πâ‡∏á‡∏≤‡∏ô" />
-    : loading
-      ? <div className="signature-mobile-records"><DataTableSkeletonCards count={4} cardClassName="data-mobile-card quota-mobile-skeleton" /></div>
-      : <div className="signature-mobile-records">{visibleRows.map((row) => <button type="button" key={`mobile-${text(row.id)}`} className="signature-mobile-record" data-operational-row={text(row.id)} aria-label={`‡πÄ‡∏õ‡∏¥‡∏î‡∏£‡∏≤‡∏¢‡∏•‡∏∞‡πÄ‡∏≠‡∏µ‡∏¢‡∏î‡πÇ‡∏Ñ‡∏ß‡∏ï‡∏≤ ${text(row.employeeNameSnapshot) || text(row.employeeId) || text(row.id)}`} onClick={() => selectRow(row)}><span className="signature-mobile-record__eyebrow">{config.eyebrow}</span><strong>{text(row.employeeNameSnapshot) || (row.employeeId ? text(row.employeeId) : '‡∏Ç‡πâ‡∏≠‡∏°‡∏π‡∏•‡πÇ‡∏Ñ‡∏ß‡∏ï‡∏≤‡πÄ‡∏î‡∏¥‡∏° ‚Äî ‡∏¢‡∏±‡∏á‡πÑ‡∏°‡πà‡∏à‡∏±‡∏ö‡∏Ñ‡∏π‡πà‡∏û‡∏ô‡∏±‡∏Å‡∏á‡∏≤‡∏ô')}</strong><div>{config.columns.slice(0, 6).map((column) => <span key={column.label}><small>{column.label}</small>{tableValue(row, column)}</span>)}</div><em>‡πÅ‡∏ï‡∏∞‡πÄ‡∏û‡∏∑‡πà‡∏≠‡πÄ‡∏õ‡∏¥‡∏î‡∏£‡∏≤‡∏¢‡∏•‡∏∞‡πÄ‡∏≠‡∏µ‡∏¢‡∏î‡πÅ‡∏•‡∏∞‡∏Å‡∏≤‡∏£‡∏à‡∏±‡∏î‡∏Å‡∏≤‡∏£</em></button>)}</div>;
-  const quotaSurface = <ResponsiveDataTable ariaLabel="‡∏£‡∏≤‡∏¢‡∏Å‡∏≤‡∏£‡πÇ‡∏Ñ‡∏ß‡∏ï‡∏≤‡∏ß‡∏±‡∏ô‡∏•‡∏≤" loading={loading} error={Boolean(error)} loadingLabel="‡∏Å‡∏≥‡∏•‡∏±‡∏á‡∏≠‡πà‡∏≤‡∏ô‡∏Ç‡πâ‡∏≠‡∏°‡∏π‡∏•‡πÇ‡∏Ñ‡∏ß‡∏ï‡∏≤‡∏ß‡∏±‡∏ô‡∏•‡∏≤‚Ä¶" errorLabel="‡πÑ‡∏°‡πà‡∏™‡∏≤‡∏°‡∏≤‡∏£‡∏ñ‡πÇ‡∏´‡∏•‡∏î‡πÇ‡∏Ñ‡∏ß‡∏ï‡∏≤‡∏ß‡∏±‡∏ô‡∏•‡∏≤" className="signature-data-surface" desktop={quotaDesktop} mobile={quotaMobile} />;
-  const licenseSurface = <ResponsiveDataTable ariaLabel="‡∏£‡∏≤‡∏¢‡∏Å‡∏≤‡∏£‡πÉ‡∏ö‡∏≠‡∏ô‡∏∏‡∏ç‡∏≤‡∏ï‡∏û‡∏ô‡∏±‡∏Å‡∏á‡∏≤‡∏ô" loading={loading} error={Boolean(error)} loadingLabel="‡∏Å‡∏≥‡∏•‡∏±‡∏á‡∏≠‡πà‡∏≤‡∏ô‡∏Ç‡πâ‡∏≠‡∏°‡∏π‡∏•‡πÉ‡∏ö‡∏≠‡∏ô‡∏∏‡∏ç‡∏≤‡∏ï‚Ä¶" errorLabel="‡πÑ‡∏°‡πà‡∏™‡∏≤‡∏°‡∏≤‡∏£‡∏ñ‡πÇ‡∏´‡∏•‡∏î‡πÉ‡∏ö‡∏≠‡∏ô‡∏∏‡∏ç‡∏≤‡∏ï" className="signature-data-surface" desktop={licenseDesktop} mobile={licenseMobile} />;
-  const approvalTableHeader = <tr>{config.columns.map((column) => <th key={column.label} scope="col">{column.label}</th>)}{showActions && <TableActionHeader label="‡∏î‡∏≥‡πÄ‡∏ô‡∏¥‡∏ô‡∏Å‡∏≤‡∏£" />}</tr>;
-  const approvalEmptyState = <DataTableState variant="empty" title="‡∏¢‡∏±‡∏á‡πÑ‡∏°‡πà‡∏°‡∏µ‡∏õ‡∏£‡∏∞‡∏ß‡∏±‡∏ï‡∏¥‡∏Å‡∏≤‡∏£‡∏≠‡∏ô‡∏∏‡∏°‡∏±‡∏ï‡∏¥‡∏ï‡∏≤‡∏£‡∏≤‡∏á" description="‡∏¢‡∏±‡∏á‡πÑ‡∏°‡πà‡∏°‡∏µ‡∏£‡∏≤‡∏¢‡∏Å‡∏≤‡∏£‡∏â‡∏ö‡∏±‡∏ö‡πÅ‡∏Å‡πâ‡πÑ‡∏Ç‡∏Å‡∏≤‡∏£‡∏≠‡∏ô‡∏∏‡∏°‡∏±‡∏ï‡∏¥‡∏ï‡∏≤‡∏£‡∏≤‡∏á‡∏Å‡∏∞‡πÉ‡∏ô‡∏Ç‡∏≠‡∏ö‡πÄ‡∏Ç‡∏ï‡∏ô‡∏µ‡πâ" />;
-  const approvalRowLabel = (row: DataRow) => `‡πÄ‡∏õ‡∏¥‡∏î‡∏£‡∏≤‡∏¢‡∏•‡∏∞‡πÄ‡∏≠‡∏µ‡∏¢‡∏î‡∏Å‡∏≤‡∏£‡∏≠‡∏ô‡∏∏‡∏°‡∏±‡∏ï‡∏¥‡∏ï‡∏≤‡∏£‡∏≤‡∏á ${date(row.month)} ‡∏â‡∏ö‡∏±‡∏ö‡πÅ‡∏Å‡πâ‡πÑ‡∏Ç ${text(row.revision)}`;
-  const approvalDesktop = error
-    ? <DataTableState variant="error" title="‡πÑ‡∏°‡πà‡∏™‡∏≤‡∏°‡∏≤‡∏£‡∏ñ‡πÇ‡∏´‡∏•‡∏î‡∏õ‡∏£‡∏∞‡∏ß‡∏±‡∏ï‡∏¥‡∏Å‡∏≤‡∏£‡∏≠‡∏ô‡∏∏‡∏°‡∏±‡∏ï‡∏¥" description="‡∏Ç‡πâ‡∏≠‡∏°‡∏π‡∏•‡∏õ‡∏£‡∏∞‡∏ß‡∏±‡∏ï‡∏¥‡∏Å‡∏≤‡∏£‡∏≠‡∏ô‡∏∏‡∏°‡∏±‡∏ï‡∏¥‡∏ï‡∏≤‡∏£‡∏≤‡∏á‡∏¢‡∏±‡∏á‡πÑ‡∏°‡πà‡∏û‡∏£‡πâ‡∏≠‡∏°‡πÉ‡∏ä‡πâ‡∏á‡∏≤‡∏ô" />
-    : loading
-      ? <div className="table-scroll data-table-scroll"><table className="data-table data-surface-table signature-data-table" aria-label="‡∏£‡∏≤‡∏¢‡∏Å‡∏≤‡∏£‡∏õ‡∏£‡∏∞‡∏ß‡∏±‡∏ï‡∏¥‡∏Å‡∏≤‡∏£‡∏≠‡∏ô‡∏∏‡∏°‡∏±‡∏ï‡∏¥‡∏ï‡∏≤‡∏£‡∏≤‡∏á‡∏Å‡∏∞"><thead>{approvalTableHeader}</thead><tbody><DataTableSkeletonRows columnCount={config.columns.length + (showActions ? 1 : 0)} /></tbody></table></div>
-      : <div className="table-scroll data-table-scroll"><table className="data-table data-surface-table signature-data-table" aria-label="‡∏£‡∏≤‡∏¢‡∏Å‡∏≤‡∏£‡∏õ‡∏£‡∏∞‡∏ß‡∏±‡∏ï‡∏¥‡∏Å‡∏≤‡∏£‡∏≠‡∏ô‡∏∏‡∏°‡∏±‡∏ï‡∏¥‡∏ï‡∏≤‡∏£‡∏≤‡∏á‡∏Å‡∏∞"><thead>{approvalTableHeader}</thead><tbody>{visibleRows.length ? visibleRows.map((row, index) => <tr key={text(row.id) + index} className="signature-data-row" data-operational-row={text(row.id)} tabIndex={0} aria-label={approvalRowLabel(row)} onClick={() => selectRow(row)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); selectRow(row); } }}>{config.columns.map((column) => <td key={column.label}>{tableValue(row, column)}</td>)}{showActions && <TableActionCell className="row-actions data-row-actions" onClick={(event) => event.stopPropagation()}>{rowActions(row)}</TableActionCell>}</tr>) : <tr><td colSpan={config.columns.length + (showActions ? 1 : 0)} className="no-rows data-table-empty-cell">{approvalEmptyState}</td></tr>}</tbody></table></div>;
-  const approvalMobile = error
-    ? <DataTableState variant="error" title="‡πÑ‡∏°‡πà‡∏™‡∏≤‡∏°‡∏≤‡∏£‡∏ñ‡πÇ‡∏´‡∏•‡∏î‡∏õ‡∏£‡∏∞‡∏ß‡∏±‡∏ï‡∏¥‡∏Å‡∏≤‡∏£‡∏≠‡∏ô‡∏∏‡∏°‡∏±‡∏ï‡∏¥" description="‡∏Ç‡πâ‡∏≠‡∏°‡∏π‡∏•‡∏õ‡∏£‡∏∞‡∏ß‡∏±‡∏ï‡∏¥‡∏Å‡∏≤‡∏£‡∏≠‡∏ô‡∏∏‡∏°‡∏±‡∏ï‡∏¥‡∏ï‡∏≤‡∏£‡∏≤‡∏á‡∏¢‡∏±‡∏á‡πÑ‡∏°‡πà‡∏û‡∏£‡πâ‡∏≠‡∏°‡πÉ‡∏ä‡πâ‡∏á‡∏≤‡∏ô" />
-    : loading
-      ? <div className="signature-mobile-records"><DataTableSkeletonCards count={4} cardClassName="data-mobile-card approval-mobile-skeleton" /></div>
-      : <div className="signature-mobile-records approval-mobile-records">{visibleRows.length ? visibleRows.map((row) => <article key={`mobile-${text(row.id)}`} className="signature-mobile-record approval-mobile-record" data-operational-row={text(row.id)}><button type="button" className="approval-mobile-record__open" aria-label={approvalRowLabel(row)} onClick={() => selectRow(row)}><span className="signature-mobile-record__eyebrow">{config.eyebrow}</span><strong>{`‡∏ï‡∏≤‡∏£‡∏≤‡∏á ${date(row.month)} ¬∑ ‡∏â‡∏ö‡∏±‡∏ö‡πÅ‡∏Å‡πâ‡πÑ‡∏Ç ${text(row.revision)}`}</strong><div>{config.columns.map((column) => <span key={column.label}><small>{column.label}</small>{tableValue(row, column)}</span>)}</div><em>‡πÅ‡∏ï‡∏∞‡πÄ‡∏û‡∏∑‡πà‡∏≠‡πÄ‡∏õ‡∏¥‡∏î‡∏£‡∏≤‡∏¢‡∏•‡∏∞‡πÄ‡∏≠‡∏µ‡∏¢‡∏î</em></button>{showActions && <footer className="approval-mobile-actions">{rowActions(row)}</footer>}</article>) : approvalEmptyState}</div>;
-  const approvalSurface = <ResponsiveDataTable ariaLabel="‡∏£‡∏≤‡∏¢‡∏Å‡∏≤‡∏£‡∏õ‡∏£‡∏∞‡∏ß‡∏±‡∏ï‡∏¥‡∏Å‡∏≤‡∏£‡∏≠‡∏ô‡∏∏‡∏°‡∏±‡∏ï‡∏¥‡∏ï‡∏≤‡∏£‡∏≤‡∏á‡∏Å‡∏∞" loading={loading} error={Boolean(error)} loadingLabel="‡∏Å‡∏≥‡∏•‡∏±‡∏á‡∏≠‡πà‡∏≤‡∏ô‡∏õ‡∏£‡∏∞‡∏ß‡∏±‡∏ï‡∏¥‡∏Å‡∏≤‡∏£‡∏≠‡∏ô‡∏∏‡∏°‡∏±‡∏ï‡∏¥‡∏ï‡∏≤‡∏£‡∏≤‡∏á‚Ä¶" errorLabel="‡πÑ‡∏°‡πà‡∏™‡∏≤‡∏°‡∏≤‡∏£‡∏ñ‡πÇ‡∏´‡∏•‡∏î‡∏õ‡∏£‡∏∞‡∏ß‡∏±‡∏ï‡∏¥‡∏Å‡∏≤‡∏£‡∏≠‡∏ô‡∏∏‡∏°‡∏±‡∏ï‡∏¥" className="signature-data-surface" desktop={approvalDesktop} mobile={approvalMobile} />;
-  const shouldRenderLicenseSurface = () => page === 'licenses';
-  const shouldRenderQuotaSurface = () => page === 'quota';
-  const shouldRenderApprovalSurface = () => page === 'approvals';
-  const pageHeadingActions = <div className="heading-actions signature-page-actions">{showRelated && <button className="btn-neutral small-action" onClick={() => onNavigate(relatedPage.page)}>{relatedPage.label}</button>}{canCreate && <button className="btn-primary compact" onClick={onCreate}>{createLabel}</button>}<span className="record-chip">‡∏ó‡∏±‡πâ‡∏á‡∏´‡∏°‡∏î {loading ? '‚Äî' : response.meta?.total ?? rows.length} ‡∏£‡∏≤‡∏¢‡∏Å‡∏≤‡∏£</span><div className="signature-page-utilities"><button className="btn-info small-action" disabled={!visibleRows.length || loading} onClick={() => downloadCsv(page === 'leave' ? leaveCsvRows(visibleRows) : visibleRows, `${page}-page-${currentPage}`)}>CSV ‡∏´‡∏ô‡πâ‡∏≤‡∏ô‡∏µ‡πâ</button><button className="btn-info small-action" onClick={() => void printTableReport('.signature-data-table', { title: config.title, printedBy, filters: [...(page === 'licenses' ? [{ label: '‡∏™‡∏ñ‡∏≤‡∏ô‡∏∞‡∏û‡∏ô‡∏±‡∏Å‡∏á‡∏≤‡∏ô', value: licenseEmployeeStatus === 'ACTIVE' ? '‡∏õ‡∏è‡∏¥‡∏ö‡∏±‡∏ï‡∏¥‡∏á‡∏≤‡∏ô' : licenseEmployeeStatus === 'INACTIVE' ? '‡∏û‡πâ‡∏ô‡∏™‡∏†‡∏≤‡∏û' : '‡∏ó‡∏±‡πâ‡∏á‡∏´‡∏°‡∏î' }] : []), ...(tableSearch ? [{ label: '‡∏Ñ‡∏≥‡∏Ñ‡πâ‡∏ô‡∏´‡∏≤', value: tableSearch }] : [])] })}>‡∏û‡∏¥‡∏°‡∏û‡πå / PDF</button></div></div>;
-  return <section className={`view-pane data-surface-page data-surface-page--${page} ${page === 'licenses' ? 'layout-personnel-page layout-page-surface' : ''}`}>
-    {page === 'quota' ? <div className="layout-actions">{pageHeadingActions}</div> : page === 'licenses' ? <PageHeader kicker={config.eyebrow} title={config.title} description={config.description} actions={pageHeadingActions} /> : <div className="page-heading signature-page-header"><div><p className="eyebrow">{config.eyebrow}</p><h1>{config.title}</h1><p>{config.description}</p></div>{pageHeadingActions}</div>}
-    <ErrorAlert message={error} />
-    {page === 'licenses' && <div className="toolbar data-toolbar signature-filter-bar"><label className="search-box data-search-control"><span aria-hidden="true"><SmsIcon name="search" size={17} /></span><input aria-label="‡∏Ñ‡πâ‡∏ô‡∏´‡∏≤‡πÉ‡∏ö‡∏≠‡∏ô‡∏∏‡∏ç‡∏≤‡∏ï" value={tableSearch} onChange={(event) => setTableSearch(event.target.value)} placeholder="‡∏Ñ‡πâ‡∏ô‡∏´‡∏≤‡∏£‡∏´‡∏±‡∏™‡∏û‡∏ô‡∏±‡∏Å‡∏á‡∏≤‡∏ô ‡∏ä‡∏∑‡πà‡∏≠ ‡πÄ‡∏•‡∏Ç‡∏ó‡∏µ‡πà‡πÉ‡∏ö‡∏≠‡∏ô‡∏∏‡∏ç‡∏≤‡∏ï ‡∏´‡∏£‡∏∑‡∏≠‡∏™‡∏ñ‡∏≤‡∏ô‡∏∞" /></label><label className="license-employee-status-filter"><span>‡∏™‡∏ñ‡∏≤‡∏ô‡∏∞‡∏û‡∏ô‡∏±‡∏Å‡∏á‡∏≤‡∏ô</span><select aria-label="‡∏Å‡∏£‡∏≠‡∏á‡∏™‡∏ñ‡∏≤‡∏ô‡∏∞‡∏û‡∏ô‡∏±‡∏Å‡∏á‡∏≤‡∏ô" value={licenseEmployeeStatus} onChange={(event) => { onLicenseEmployeeStatusChange?.(event.target.value as LicenseEmployeeStatus); onPageChange(1); }}><option value="ACTIVE">‡∏õ‡∏è‡∏¥‡∏ö‡∏±‡∏ï‡∏¥‡∏á‡∏≤‡∏ô</option><option value="INACTIVE">‡∏û‡πâ‡∏ô‡∏™‡∏†‡∏≤‡∏û</option><option value="ALL">‡∏ó‡∏±‡πâ‡∏á‡∏´‡∏°‡∏î</option></select></label><span className="toolbar-count data-result-count">{loading ? '‡πÅ‡∏™‡∏î‡∏á ‚Äî ‡∏à‡∏≤‡∏Å ‚Äî ‡∏£‡∏≤‡∏¢‡∏Å‡∏≤‡∏£' : `‡πÅ‡∏™‡∏î‡∏á ${visibleRows.length} ‡∏à‡∏≤‡∏Å ${rows.length} ‡∏£‡∏≤‡∏¢‡∏Å‡∏≤‡∏£`}</span>{tableSearch && <button className="btn-neutral small-action" type="button" onClick={() => setTableSearch('')}>‡∏•‡πâ‡∏≤‡∏á‡∏Ñ‡∏≥‡∏Ñ‡πâ‡∏ô‡∏´‡∏≤</button>}</div>}
-    {shouldRenderLicenseSurface() ? <SectionCard kicker="‡πÉ‡∏ö‡∏≠‡∏ô‡∏∏‡∏ç‡∏≤‡∏ï ‡∏£‡∏õ‡∏†." title="‡∏£‡∏≤‡∏¢‡∏Å‡∏≤‡∏£‡πÉ‡∏ö‡∏≠‡∏ô‡∏∏‡∏ç‡∏≤‡∏ï" description="‡∏ï‡∏£‡∏ß‡∏à‡∏™‡∏ñ‡∏≤‡∏ô‡∏∞ ‡πÄ‡∏≠‡∏Å‡∏™‡∏≤‡∏£ ‡πÅ‡∏•‡∏∞‡∏≠‡∏≤‡∏¢‡∏∏‡πÉ‡∏ö‡∏≠‡∏ô‡∏∏‡∏ç‡∏≤‡∏ï‡∏à‡∏≤‡∏Å‡∏Ç‡πâ‡∏≠‡∏°‡∏π‡∏•‡∏ó‡∏µ‡πà‡∏£‡∏∞‡∏ö‡∏ö‡∏™‡πà‡∏á‡∏Å‡∏•‡∏±‡∏ö">{licenseSurface}</SectionCard> : shouldRenderQuotaSurface() ? <SectionCard kicker="‡∏™‡∏¥‡∏ó‡∏ò‡∏¥‡πå‡∏Å‡∏≤‡∏£‡∏•‡∏≤‡∏£‡∏≤‡∏¢‡∏õ‡∏µ" title="‡∏£‡∏≤‡∏¢‡∏Å‡∏≤‡∏£‡πÇ‡∏Ñ‡∏ß‡∏ï‡∏≤‡∏ß‡∏±‡∏ô‡∏•‡∏≤" description="‡∏™‡∏¥‡∏ó‡∏ò‡∏¥‡πå ‡πÉ‡∏ä‡πâ‡πÅ‡∏•‡πâ‡∏ß ‡πÅ‡∏•‡∏∞‡∏Ñ‡∏á‡πÄ‡∏´‡∏•‡∏∑‡∏≠‡∏à‡∏≤‡∏Å‡∏Ç‡πâ‡∏≠‡∏°‡∏π‡∏•‡πÉ‡∏ô‡∏õ‡∏µ‡πÅ‡∏•‡∏∞‡∏ï‡∏±‡∏ß‡∏Å‡∏£‡∏≠‡∏á‡∏ó‡∏µ‡πà‡πÄ‡∏•‡∏∑‡∏≠‡∏Å">{quotaSurface}</SectionCard> : shouldRenderApprovalSurface() ? approvalSurface : <div className="table-card data-surface-card signature-data-surface">{loading ? <div className="signature-table-skeleton" role="status" aria-label="‡∏Å‡∏≥‡∏•‡∏±‡∏á‡∏≠‡πà‡∏≤‡∏ô‡∏Ç‡πâ‡∏≠‡∏°‡∏π‡∏•">{Array.from({ length: 6 }, (_, index) => <span key={index} />)}</div> : <><div className="table-scroll data-table-scroll"><table className="data-table data-surface-table signature-data-table"><thead><tr>{config.columns.map((column) => <th key={column.label}>{column.label}</th>)}{showActions && <TableActionHeader label="‡∏î‡∏≥‡πÄ‡∏ô‡∏¥‡∏ô‡∏Å‡∏≤‡∏£" />}</tr></thead><tbody>{visibleRows.length ? visibleRows.map((row, index) => <tr key={text(row.id) + index} className="signature-data-row" data-operational-row={text(row.id)} tabIndex={0} aria-label={`‡πÄ‡∏õ‡∏¥‡∏î‡∏£‡∏≤‡∏¢‡∏•‡∏∞‡πÄ‡∏≠‡∏µ‡∏¢‡∏î ${config.title}`} onClick={() => selectRow(row)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); selectRow(row); } }}>{config.columns.map((column) => <td key={column.label}>{tableValue(row, column)}</td>)}{showActions && <TableActionCell className="row-actions data-row-actions" onClick={(event) => event.stopPropagation()}>{rowActions(row)}</TableActionCell>}</tr>) : <tr><td colSpan={config.columns.length + (showActions ? 1 : 0)} className="no-rows data-table-empty-cell"><div className="empty-state data-state data-state--empty"><span aria-hidden="true">‚åÅ</span><strong>{noResultsMessage}</strong><p>{page === 'licenses' && tableSearch ? '‡∏•‡∏≠‡∏á‡πÄ‡∏õ‡∏•‡∏µ‡πà‡∏¢‡∏ô‡∏Ñ‡∏≥‡∏Ñ‡πâ‡∏ô‡∏´‡∏≤ ‡∏´‡∏£‡∏∑‡∏≠‡∏•‡πâ‡∏≤‡∏á‡∏ï‡∏±‡∏ß‡∏Å‡∏£‡∏≠‡∏á‡πÅ‡∏•‡πâ‡∏ß‡∏Ñ‡πâ‡∏ô‡∏´‡∏≤‡∏≠‡∏µ‡∏Å‡∏Ñ‡∏£‡∏±‡πâ‡∏á' : '‡∏¢‡∏±‡∏á‡πÑ‡∏°‡πà‡∏°‡∏µ‡∏£‡∏≤‡∏¢‡∏Å‡∏≤‡∏£‡∏ó‡∏µ‡πà‡∏ï‡πâ‡∏≠‡∏á‡∏î‡∏≥‡πÄ‡∏ô‡∏¥‡∏ô‡∏Å‡∏≤‡∏£‡πÉ‡∏ô‡∏Ç‡∏≠‡∏ö‡πÄ‡∏Ç‡∏ï‡∏ô‡∏µ‡πâ'}</p>{canCreate && !(page === 'licenses' && tableSearch) && <button className="btn-neutral small-action" onClick={onCreate}>{createLabel}</button>}</div></td></tr>}</tbody></table></div><div className="signature-mobile-records">{visibleRows.map((row) => <button type="button" key={`mobile-${text(row.id)}`} className="signature-mobile-record" data-operational-row={text(row.id)} onClick={() => selectRow(row)}><span className="signature-mobile-record__eyebrow">{config.eyebrow}</span><strong>{text(row.employeeNameSnapshot || row.name || row.displayName || row.ruleType || row.id)}</strong><div>{config.columns.slice(0, 3).map((column) => <span key={column.label}><small>{column.label}</small>{tableValue(row, column)}</span>)}</div><em>‡πÅ‡∏ï‡∏∞‡πÄ‡∏û‡∏∑‡πà‡∏≠‡πÄ‡∏õ‡∏¥‡∏î‡∏£‡∏≤‡∏¢‡∏•‡∏∞‡πÄ‡∏≠‡∏µ‡∏¢‡∏î</em></button>)}</div></>}</div>}
-    {(page === 'licenses' || page === 'quota' || page === 'approvals') ? <DataTablePagination page={currentPage} totalPages={totalPages} onChange={onPageChange} ariaLabel={page === 'quota' ? '‡πÅ‡∏ö‡πà‡∏á‡∏´‡∏ô‡πâ‡∏≤‡πÇ‡∏Ñ‡∏ß‡∏ï‡∏≤‡∏ß‡∏±‡∏ô‡∏•‡∏≤' : page === 'approvals' ? '‡πÅ‡∏ö‡πà‡∏á‡∏´‡∏ô‡πâ‡∏≤‡∏õ‡∏£‡∏∞‡∏ß‡∏±‡∏ï‡∏¥‡∏Å‡∏≤‡∏£‡∏≠‡∏ô‡∏∏‡∏°‡∏±‡∏ï‡∏¥‡∏ï‡∏≤‡∏£‡∏≤‡∏á‡∏Å‡∏∞' : '‡πÅ‡∏ö‡πà‡∏á‡∏´‡∏ô‡πâ‡∏≤‡πÉ‡∏ö‡∏≠‡∏ô‡∏∏‡∏ç‡∏≤‡∏ï'} loading={loading} className="pagination-bar" /> : (loading || totalPages > 1) && <div className="pagination-bar data-pagination"><button aria-label="‡∏´‡∏ô‡πâ‡∏≤‡∏Å‡πà‡∏≠‡∏ô‡∏´‡∏ô‡πâ‡∏≤" disabled={currentPage <= 1 || loading} onClick={() => onPageChange(currentPage - 1)}>‚Äπ ‡∏Å‡πà‡∏≠‡∏ô‡∏´‡∏ô‡πâ‡∏≤</button><span>{loading ? '‡∏´‡∏ô‡πâ‡∏≤ ‚Äî ‡∏à‡∏≤‡∏Å ‚Äî' : `‡∏´‡∏ô‡πâ‡∏≤ ${currentPage} ‡∏à‡∏≤‡∏Å ${totalPages}`}</span><button aria-label="‡∏´‡∏ô‡πâ‡∏≤‡∏ñ‡∏±‡∏î‡πÑ‡∏õ" disabled={currentPage >= totalPages || loading} onClick={() => onPageChange(currentPage + 1)}>‡∏´‡∏ô‡πâ‡∏≤‡∏ñ‡∏±‡∏î‡πÑ‡∏õ ‚Ä∫</button></div>}
-    {selectedRow && <React.Suspense fallback={<div className="full-loader" role="status">‡∏Å‡∏≥‡∏•‡∏±‡∏á‡πÇ‡∏´‡∏•‡∏î‡∏£‡∏≤‡∏¢‡∏•‡∏∞‡πÄ‡∏≠‡∏µ‡∏¢‡∏î‚Ä¶</div>}><OperationalRecordDrawer open={Boolean(selectedRow)} eyebrow={config.eyebrow} title={drawerTitle || config.title} subtitle={drawerSubtitle} status={selectedRow?.status ? <span className={`status-badge status-badge--${isSupersededScheduleApproval(selectedRow) ? 'neutral' : semanticStatusTone(selectedRow.status)}`}>{page === 'approvals' ? scheduleApprovalStatusLabel(selectedRow.status, isSupersededScheduleApproval(selectedRow)) : text(selectedRow.status)}</span> : undefined} fields={drawerFields} primaryAction={primaryAction} secondaryActions={secondaryActions} onClose={closeDrawer} /></React.Suspense>}
-  </section>;
-}
-interface ShiftEditorModalProps {
-  shift?: DataRow;
-  defaults?: Record<string, string>;
-  employees: DataRow[];
-  shiftTypes: DataRow[];
-  licenses: DataRow[];
-  isAdmin: boolean;
-  onClose: () => void;
-  onSubmit: (data: {
-    employeeId: string;
-    workDate: string;
-    shiftTypeId: string;
-    remark: string;
-    licenseOverride: boolean;
-    overrideReason: string;
-  }) => void;
-}
-
-let ownedModalRoot: HTMLElement | null = null;
-let modalRootUsers = 0;
-
-function getOrCreateModalRoot() {
-  const existingRoot = document.getElementById('modal-root');
-  if (existingRoot) return existingRoot;
-
-  const modalRoot = document.createElement('div');
-  modalRoot.id = 'modal-root';
-  document.body.appendChild(modalRoot);
-  ownedModalRoot = modalRoot;
-  return modalRoot;
-}
-
-function useShiftEditorModalRoot() {
-  const [modalRoot] = useState<HTMLElement>(getOrCreateModalRoot);
-
-  useEffect(() => {
-    modalRootUsers += 1;
-
-    return () => {
-      modalRootUsers = Math.max(0, modalRootUsers - 1);
-      window.setTimeout(() => {
-        if (modalRootUsers === 0 && modalRoot === ownedModalRoot && modalRoot.childElementCount === 0) {
-          modalRoot.remove();
-          ownedModalRoot = null;
-        }
-      }, 0);
-    };
-  }, [modalRoot]);
-
-  return modalRoot;
-}
-
-function ShiftEditorModal({ shift, defaults, employees, shiftTypes, licenses, isAdmin, onClose, onSubmit }: ShiftEditorModalProps) {
-  const initialEmpId = String(shift?.employeeId || defaults?.employeeId || employees[0]?.id || '');
-  const initialDate = shift ? inputDate(shift.workDate) : String(defaults?.workDate || '');
-  const initialType = String(shift?.shiftTypeId || nested(shift?.shiftType).id || defaults?.shiftTypeId || shiftTypes[0]?.id || '');
-  const initialRemark = String(shift?.remark || '');
-  const initialOverride = Boolean(shift?.licenseOverride);
-  const initialOverrideReason = String(shift?.overrideReason || '');
-
-  const [employeeId, setEmployeeId] = useState(initialEmpId);
-  const [workDate, setWorkDate] = useState(initialDate);
-  const [shiftTypeId, setShiftTypeId] = useState(initialType);
-  const [remark, setRemark] = useState(initialRemark);
-  const [licenseOverride, setLicenseOverride] = useState(initialOverride);
-  const [overrideReason, setOverrideReason] = useState(initialOverrideReason);
-  const [modalError, setModalError] = useState<string | null>(null);
-  const modalRoot = useShiftEditorModalRoot();
-  const initialFocusRef = useRef<HTMLSelectElement>(null);
-  const dialogRef = useRef<HTMLElement>(null);
-  const onCloseRef = useRef(onClose);
-  onCloseRef.current = onClose;
-
-  const selectedEmp = employees.find((e) => String(e.id) === employeeId);
-  const empName = selectedEmp ? String(selectedEmp.displayName || `${String(selectedEmp.firstName || '')} ${String(selectedEmp.lastName || '')}`).trim() : '‡∏û‡∏ô‡∏±‡∏Å‡∏á‡∏≤‡∏ô';
-
-  const dateVal = workDate ? new Date(`${workDate}T00:00:00Z`) : null;
-  const dayNameStr = dateVal ? new Intl.DateTimeFormat('th-TH', { weekday: 'long', timeZone: 'UTC' }).format(dateVal) : '';
-  const dayNumStr = dateVal ? dateVal.getUTCDate() : '';
-  const monthNameStr = dateVal ? new Intl.DateTimeFormat('th-TH', { month: 'short', timeZone: 'UTC' }).format(dateVal) : '';
-  const formattedTitleDate = dateVal ? `${dayNameStr} ${dayNumStr} ${monthNameStr}` : workDate;
-
-  const titleStr = shift ? `‡πÅ‡∏Å‡πâ‡∏Å‡∏∞: ${empName} ¬∑ ${formattedTitleDate}` : `‡πÄ‡∏û‡∏¥‡πà‡∏°‡∏Å‡∏∞: ${empName} ¬∑ ${formattedTitleDate}`;
-
-  const historicalShiftType = nested(shift?.shiftType);
-  const historicalShiftTypeId = String(historicalShiftType.id || shift?.shiftTypeId || '');
-  const selectableShiftTypes = historicalShiftTypeId && !shiftTypes.some((item) => String(item.id) === historicalShiftTypeId)
-    ? [{ ...historicalShiftType, id: historicalShiftTypeId, isActive: false }, ...shiftTypes]
-    : shiftTypes;
-  const selectedType = selectableShiftTypes.find((t) => String(t.id) === shiftTypeId);
-  const shiftCode = String(selectedType?.code || '').toUpperCase();
-  const isWorkingShift = !['OFF', 'AL'].includes(shiftCode);
-
-  const empLicenses = licenses.filter((l) => {
-    const eId = String(l.employeeId || nested(l.employee).id || '');
-    return eId === employeeId;
-  });
-  const activeLicenses = empLicenses.filter((l) => ['active', 'valid'].includes(String(l.status || '').trim().toLowerCase()));
-  const validLic = activeLicenses.find((l) => {
-    const issue = l.issueDate ? inputDate(l.issueDate) : '';
-    const expiry = l.expiryDate ? inputDate(l.expiryDate) : '';
-    return issue && expiry && issue <= workDate && expiry >= workDate;
-  });
-
-  const isInvalidLicense = isWorkingShift && !validLic;
-
-  const formatThaiYearDate = (dStr?: unknown) => {
-    if (!dStr) return '';
-    const d = new Date(String(dStr));
-    if (isNaN(d.getTime())) return String(dStr);
-    const day = d.getUTCDate();
-    const monthName = new Intl.DateTimeFormat('th-TH', { month: 'long', timeZone: 'UTC' }).format(d);
-    const thaiYear = d.getUTCFullYear() + 543;
-    return `${day} ${monthName} ${thaiYear}`;
-  };
-
-  let warningDetailText = '‡πÑ‡∏°‡πà‡∏û‡∏ö‡∏Ç‡πâ‡∏≠‡∏°‡∏π‡∏•‡πÉ‡∏ö‡∏≠‡∏ô‡∏∏‡∏ç‡∏≤‡∏ï ‡∏£‡∏õ‡∏†. ‡πÉ‡∏ô‡∏£‡∏∞‡∏ö‡∏ö‡∏ó‡∏µ‡πà‡∏Ñ‡∏£‡∏≠‡∏ö‡∏Ñ‡∏•‡∏∏‡∏°‡∏ß‡∏±‡∏ô‡∏ó‡∏µ‡πà‡∏à‡∏±‡∏î‡∏Å‡∏∞‡∏ô‡∏µ‡πâ';
-  if (activeLicenses.length > 0) {
-    const lic = activeLicenses[0];
-    const issueStr = formatThaiYearDate(lic.issueDate);
-    const expiryStr = formatThaiYearDate(lic.expiryDate);
-    if (lic.issueDate && inputDate(lic.issueDate) > workDate) {
-      warningDetailText = `‡πÉ‡∏ö‡∏≠‡∏ô‡∏∏‡∏ç‡∏≤‡∏ï‡∏¢‡∏±‡∏á‡πÑ‡∏°‡πà‡∏ñ‡∏∂‡∏á‡∏ß‡∏±‡∏ô‡πÄ‡∏£‡∏¥‡πà‡∏°‡πÉ‡∏ä‡πâ‡∏á‡∏≤‡∏ô ¬∑ ‡∏ß‡∏±‡∏ô‡∏´‡∏°‡∏î‡∏≠‡∏≤‡∏¢‡∏∏ ${expiryStr}`;
-    } else if (lic.expiryDate && inputDate(lic.expiryDate) < workDate) {
-      warningDetailText = `‡πÉ‡∏ö‡∏≠‡∏ô‡∏∏‡∏ç‡∏≤‡∏ï‡∏´‡∏°‡∏î‡∏≠‡∏≤‡∏¢‡∏∏‡πÅ‡∏•‡πâ‡∏ß‡πÄ‡∏°‡∏∑‡πà‡∏≠ ${expiryStr}`;
-    } else {
-      warningDetailText = `‡πÉ‡∏ö‡∏≠‡∏ô‡∏∏‡∏ç‡∏≤‡∏ï‡πÑ‡∏°‡πà‡∏≠‡∏¢‡∏π‡πà‡πÉ‡∏ô‡∏™‡∏ñ‡∏≤‡∏ô‡∏∞‡∏ó‡∏µ‡πà‡πÉ‡∏ä‡πâ‡∏á‡∏≤‡∏ô‡πÑ‡∏î‡πâ ¬∑ ‡∏ß‡∏±‡∏ô‡∏´‡∏°‡∏î‡∏≠‡∏≤‡∏¢‡∏∏ ${expiryStr}`;
-    }
-  }
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    setModalError(null);
-
-    if (isInvalidLicense && !licenseOverride) {
-      setModalError('‡πÉ‡∏ö‡∏≠‡∏ô‡∏∏‡∏ç‡∏≤‡∏ï‡πÑ‡∏°‡πà‡∏ú‡πà‡∏≤‡∏ô‡πÄ‡∏Å‡∏ì‡∏ë‡πå ‡∏Å‡∏£‡∏∏‡∏ì‡∏≤‡∏¢‡∏∑‡∏ô‡∏¢‡∏±‡∏ô Override (‡πÄ‡∏â‡∏û‡∏≤‡∏∞ Admin) ‡∏´‡∏£‡∏∑‡∏≠‡πÄ‡∏õ‡∏•‡∏µ‡πà‡∏¢‡∏ô‡πÄ‡∏õ‡πá‡∏ô‡∏Å‡∏∞ OFF / AL');
-      return;
-    }
-
-    if (isInvalidLicense && licenseOverride && overrideReason.trim().length < 5) {
-      setModalError('‡∏Å‡∏£‡∏∏‡∏ì‡∏≤‡∏£‡∏∞‡∏ö‡∏∏‡πÄ‡∏´‡∏ï‡∏∏‡∏ú‡∏• Override ‡∏≠‡∏¢‡πà‡∏≤‡∏á‡∏ô‡πâ‡∏≠‡∏¢ 5 ‡∏ï‡∏±‡∏ß‡∏≠‡∏±‡∏Å‡∏©‡∏£');
-      return;
-    }
-
-    onSubmit({
-      employeeId,
-      workDate,
-      shiftTypeId,
-      remark: remark || 'Manual batch edit',
-      licenseOverride: isInvalidLicense ? licenseOverride : false,
-      overrideReason: isInvalidLicense && licenseOverride ? overrideReason : ''
-    });
-  };
-
-  useEffect(() => {
-    const releaseScrollLock = acquireDocumentScrollLock();
-    const previouslyFocusedElement = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    initialFocusRef.current?.focus({ preventScroll: true });
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onCloseRef.current();
-      if (event.key !== 'Tab') return;
-      const controls = Array.from(dialogRef.current?.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex="0"]') || []).filter((element) => element.getClientRects().length > 0);
-      const first = controls[0];
-      const last = controls[controls.length - 1];
-      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
-      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
-    };
-    document.addEventListener('keydown', handleKeyDown);
-
-    return () => {
-      releaseScrollLock();
-      document.removeEventListener('keydown', handleKeyDown);
-      previouslyFocusedElement?.focus({ preventScroll: true });
-    };
-  }, []);
-
-  const handleBackdropMouseDown = (event: React.MouseEvent<HTMLDivElement>) => {
-    if (event.target === event.currentTarget) onClose();
-  };
-
-  return createPortal(
-    <div className="shift-editor-modal__viewport" role="presentation" onMouseDown={handleBackdropMouseDown}>
-      <section
-        className="shift-editor-modal__dialog"
-        ref={dialogRef}
-        aria-describedby="shift-editor-draft-help"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="shift-editor-title"
-        onMouseDown={(event) => event.stopPropagation()}
-      >
-        <h3 id="shift-editor-title">{titleStr}</h3>
-        <p id="shift-editor-draft-help" className="shift-editor-help">‡∏£‡∏≤‡∏¢‡∏Å‡∏≤‡∏£‡∏ô‡∏µ‡πâ‡∏à‡∏∞‡∏≠‡∏¢‡∏π‡πà‡πÉ‡∏ô‡∏â‡∏ö‡∏±‡∏ö‡∏£‡πà‡∏≤‡∏á ‡πÄ‡∏°‡∏∑‡πà‡∏≠‡∏à‡∏±‡∏î‡∏Å‡∏∞‡∏Ñ‡∏£‡∏ö‡πÅ‡∏•‡πâ‡∏ß‡πÉ‡∏´‡πâ‡∏Å‡∏î‡∏ö‡∏±‡∏ô‡∏ó‡∏∂‡∏Å‡∏Å‡∏≤‡∏£‡πÄ‡∏õ‡∏•‡∏µ‡πà‡∏¢‡∏ô‡πÅ‡∏õ‡∏•‡∏á‡πÉ‡∏ô‡∏ï‡∏≤‡∏£‡∏≤‡∏á‡∏Å‡∏∞</p>
-        {modalError && <div className="shift-editor-error" role="alert">{modalError}</div>}
-        <form onSubmit={handleSubmit}>
-          <div className="schedule-modal-form-grid shift-editor-fields">
-            <div>
-              <label htmlFor="shift-editor-type">‡∏Å‡∏∞</label>
-              <select id="shift-editor-type" ref={initialFocusRef} value={shiftTypeId} onChange={(e) => setShiftTypeId(e.target.value)}>
-                {selectableShiftTypes.map((t) => (
-                  <option key={String(t.id)} value={String(t.id)}>{String(t.code || '')} ¬∑ {String(t.name || '')}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label htmlFor="shift-editor-remark">‡∏´‡∏°‡∏≤‡∏¢‡πÄ‡∏´‡∏ï‡∏∏</label>
-              <input id="shift-editor-remark" type="text" value={remark} onChange={(e) => setRemark(e.target.value)} placeholder="‡∏´‡∏°‡∏≤‡∏¢‡πÄ‡∏´‡∏ï‡∏∏‡∏™‡∏≥‡∏´‡∏£‡∏±‡∏ö‡∏Å‡∏∞‡∏ô‡∏µ‡πâ" />
-            </div>
-          </div>
-          {isInvalidLicense && <div className="shift-editor-license-warning" aria-labelledby="shift-editor-license-title">
-            <strong id="shift-editor-license-title">‚ö†Ô∏è ‡πÑ‡∏°‡πà‡∏™‡∏≤‡∏°‡∏≤‡∏£‡∏ñ‡∏•‡∏á‡∏Å‡∏∞‡∏ó‡∏≥‡∏á‡∏≤‡∏ô‡∏ï‡∏≤‡∏°‡∏õ‡∏Å‡∏ï‡∏¥‡πÑ‡∏î‡πâ</strong>
-            <p>{warningDetailText}</p>
-            {isAdmin ? <>
-              <label className="shift-editor-override-confirm" htmlFor="shift-editor-override">
-                <input id="shift-editor-override" type="checkbox" checked={licenseOverride} onChange={(e) => setLicenseOverride(e.target.checked)} aria-describedby="shift-editor-override-help" />
-                Admin ‡∏¢‡∏∑‡∏ô‡∏¢‡∏±‡∏ô‡∏à‡∏±‡∏î‡∏Å‡∏∞‡πÅ‡∏ö‡∏ö Manual ‡πÅ‡∏°‡πâ‡πÉ‡∏ö‡∏≠‡∏ô‡∏∏‡∏ç‡∏≤‡∏ï‡πÑ‡∏°‡πà‡∏ú‡πà‡∏≤‡∏ô
-              </label>
-              <p id="shift-editor-override-help" className="shift-editor-help">‡∏´‡∏≤‡∏Å‡∏ï‡πâ‡∏≠‡∏á‡∏à‡∏±‡∏î‡∏Å‡∏∞‡∏ó‡∏≥‡∏á‡∏≤‡∏ô ‡πÉ‡∏´‡πâ‡∏¢‡∏∑‡∏ô‡∏¢‡∏±‡∏ô Override ‡πÅ‡∏•‡∏∞‡∏£‡∏∞‡∏ö‡∏∏‡πÄ‡∏´‡∏ï‡∏∏‡∏ú‡∏•‡∏≠‡∏¢‡πà‡∏≤‡∏á‡∏ô‡πâ‡∏≠‡∏¢ 5 ‡∏ï‡∏±‡∏ß‡∏≠‡∏±‡∏Å‡∏©‡∏£ ‡∏´‡∏£‡∏∑‡∏≠‡πÄ‡∏•‡∏∑‡∏≠‡∏Å‡∏Å‡∏∞ OFF / AL</p>
-              {licenseOverride && <div className="shift-editor-override-reason">
-                <label htmlFor="shift-editor-reason">‡πÄ‡∏´‡∏ï‡∏∏‡∏ú‡∏• Override (‡∏à‡∏≥‡πÄ‡∏õ‡πá‡∏ô)</label>
-                <textarea id="shift-editor-reason" value={overrideReason} onChange={(e) => setOverrideReason(e.target.value)} placeholder="‡∏£‡∏∞‡∏ö‡∏∏‡πÄ‡∏´‡∏ï‡∏∏‡∏ú‡∏•‡∏≠‡∏¢‡πà‡∏≤‡∏á‡∏ô‡πâ‡∏≠‡∏¢ 5 ‡∏ï‡∏±‡∏ß‡∏≠‡∏±‡∏Å‡∏©‡∏£" rows={2} aria-required="true" aria-describedby="shift-editor-override-help" />
-              </div>}
-              <small className="shift-editor-audit-note">‡πÄ‡∏°‡∏∑‡πà‡∏≠‡∏ö‡∏±‡∏ô‡∏ó‡∏∂‡∏Å‡∏Å‡∏≤‡∏£‡πÄ‡∏õ‡∏•‡∏µ‡πà‡∏¢‡∏ô‡πÅ‡∏õ‡∏•‡∏á ‡∏£‡∏∞‡∏ö‡∏ö‡∏à‡∏∞‡∏ï‡∏£‡∏ß‡∏à‡∏™‡∏≠‡∏ö‡∏™‡∏¥‡∏ó‡∏ò‡∏¥‡πå‡πÅ‡∏•‡∏∞‡∏ö‡∏±‡∏ô‡∏ó‡∏∂‡∏Å Override ‡πÉ‡∏ô‡∏õ‡∏£‡∏∞‡∏ß‡∏±‡∏ï‡∏¥ ‡∏û‡∏£‡πâ‡∏≠‡∏°‡∏ä‡∏∑‡πà‡∏≠‡∏ú‡∏π‡πâ‡∏î‡∏π‡πÅ‡∏•‡∏£‡∏∞‡∏ö‡∏ö‡πÅ‡∏•‡∏∞‡πÄ‡∏ß‡∏•‡∏≤</small>
-            </> : <p className="shift-editor-help">‡πÄ‡∏â‡∏û‡∏≤‡∏∞ Admin ‡πÄ‡∏ó‡πà‡∏≤‡∏ô‡∏±‡πâ‡∏ô‡∏ó‡∏µ‡πà‡∏¢‡∏∑‡∏ô‡∏¢‡∏±‡∏ô Override ‡πÑ‡∏î‡πâ ‡∏Å‡∏£‡∏∏‡∏ì‡∏≤‡πÄ‡∏•‡∏∑‡∏≠‡∏Å‡∏Å‡∏∞ OFF / AL ‡∏´‡∏£‡∏∑‡∏≠‡∏ï‡∏¥‡∏î‡∏ï‡πà‡∏≠ Admin</p>}
-          </div>}
-          <div className="shift-editor-actions">
-            <button type="button" className="shift-editor-cancel" onClick={onClose}>‡∏¢‡∏Å‡πÄ‡∏•‡∏¥‡∏Å</button>
-            <button type="submit" className="shift-editor-submit" aria-describedby="shift-editor-draft-help">‡πÄ‡∏Å‡πá‡∏ö‡∏£‡∏≤‡∏¢‡∏Å‡∏≤‡∏£‡∏ô‡∏µ‡πâ (‡∏¢‡∏±‡∏á‡πÑ‡∏°‡πà‡∏ö‡∏±‡∏ô‡∏ó‡∏∂‡∏Å)</button>
-          </div>
-        </form>
-      </section>
-    </div>,
-    modalRoot
-  );
-}
-
-function LeaveManagementPage({ rows, loading, error, linked, remaining, quotaSummary, leavePolicy, leaveTypes, quotaYear, employeeId, currentUserId, currentUserRole, canManage, canSubmit, canCancelApprovedLeave, mutationsEnabled = true, mode = 'all', historyScope = 'mine', historyMonth, historyTotal, historyPage, historyTotalPages, historyStatusCounts, employeeOptions, onSubmit, onApprove, onReject, onReturnForCorrection, onEditReturned, onCancel, onRefresh, onHistoryMonthChange, onHistoryMonthStep, onHistoryPageChange, onAttachment, onPrint }: { rows: DataRow[]; loading: boolean; error?: RequestErrorInput; linked: boolean; remaining: DataRow; quotaSummary: DataRow; leavePolicy: DataRow; leaveTypes: LeaveTypeMaster[]; quotaYear?: number; employeeId?: string; currentUserId?: string; currentUserRole?: string; canManage: boolean; canSubmit: boolean; canCancelApprovedLeave: boolean; mutationsEnabled?: boolean; mode?: 'all' | 'pending' | 'history'; historyScope?: 'mine' | 'all'; historyMonth?: string; historyTotal?: number; historyPage?: number; historyTotalPages?: number; historyStatusCounts?: Record<string, number>; employeeOptions: Array<{ value: string; label: string }>; onSubmit(values: Record<string, string>, file?: File): Promise<void>; onApprove(row: DataRow): void; onReject(row: DataRow): void; onReturnForCorrection(row: DataRow): void; onEditReturned(row: DataRow): void; onCancel(row: DataRow): void; onRefresh(): void; onHistoryMonthChange?(value: string): void; onHistoryMonthStep?(delta: number): void; onHistoryPageChange?(page: number): void; onAttachment(row: DataRow): void; onPrint(row: DataRow): void }) {
-  const auth = useContext(AuthContext)!;
-  const [form, setForm] = useState({ employeeId: '', leaveType: '', startDate: '', endDate: '', substitute: '', reason: '' });
-  const [file, setFile] = useState<File>();
-  const [submitting, setSubmitting] = useState(false);
-  const [notice, setNotice] = useState<string>();
-  const [submitError, setSubmitError] = useState<RequestErrorInput>();
-  const [selectedPendingId, setSelectedPendingId] = useState<string>();
-  const [requestQuota, setRequestQuota] = useState<{ entitlement: unknown; used: unknown; remaining: unknown }>();
-  const [requestQuotaState, setRequestQuotaState] = useState<'idle' | 'loading' | 'ready' | 'missing' | 'error'>('idle');
-  const pendingRows = rows.filter((row) => row.status === 'PENDING');
-  const historyRows = historyScope === 'all' ? rows : rows.filter((row) => String(row.employeeId || '') === String(employeeId || ''));
-  const latestOwnRequest = [...historyRows].filter(row => String(row.employeeId || '') === String(employeeId || '') && Number.isFinite(Date.parse(String(row.createdAt || '')))).sort((a,b)=>(Date.parse(String(b.createdAt || '')) || 0)-(Date.parse(String(a.createdAt || '')) || 0))[0];
-  const days = form.startDate && form.endDate ? Math.max(0, Math.floor((Date.parse(`${form.endDate}T00:00:00Z`) - Date.parse(`${form.startDate}T00:00:00Z`)) / 86400000) + 1) : 0;
-  const rawAttachmentThreshold = Number(leavePolicy.sickAttachmentRequiredAfterDays);
-  const attachmentThresholdDays = Number.isFinite(rawAttachmentThreshold) && rawAttachmentThreshold >= 0 && rawAttachmentThreshold <= 30 ? rawAttachmentThreshold : 3;
-  const selectedLeaveType = leaveTypes.find((item) => item.code === form.leaveType);
-  const requiresAttachment = selectedLeaveType?.quotaBucket === 'SICK' && days > attachmentThresholdDays;
-  const summaryLoading = loading || Boolean(error);
-  const todayString = formatBangkokDateInput();
-  const selectedQuotaYear = Number(form.startDate.slice(0, 4)) || quotaYear || currentBangkokQuotaYear();
-  const requestSpansYears = Boolean(form.startDate && form.endDate && form.startDate.slice(0, 4) !== form.endDate.slice(0, 4));
-  const isRetroactive = form.startDate ? form.startDate < todayString : false;
-  const managerRetroactiveEnabled = leavePolicy.managerRetroactiveOnBehalfEnabled !== false && String(leavePolicy.managerRetroactiveOnBehalfEnabled ?? 'true').toLowerCase() !== 'false';
-  const rawManagerLookback = Number(leavePolicy.managerRetroactiveMaxDaysBack);
-  const managerRetroactiveMaxDaysBack = Number.isFinite(rawManagerLookback) && rawManagerLookback >= 0 && rawManagerLookback <= 3650 ? rawManagerLookback : 0;
-  const retroactiveDaysBackCount = isRetroactive && form.startDate
-    ? Math.max(0, Math.floor((Date.parse(`${todayString}T00:00:00Z`) - Date.parse(`${form.startDate}T00:00:00Z`)) / 86400000))
-    : 0;
-  const managerSelfRetroactive = ['MANAGER', 'SUPERVISOR'].includes(currentUserRole || '') && isRetroactive && Boolean(employeeId) && form.employeeId === employeeId;
-  const managerRetroactiveBlocked = ['MANAGER', 'SUPERVISOR'].includes(currentUserRole || '') && isRetroactive && (
-    managerSelfRetroactive
-    || !managerRetroactiveEnabled
-    || (managerRetroactiveMaxDaysBack > 0 && retroactiveDaysBackCount > managerRetroactiveMaxDaysBack)
-  );
-
-  useEffect(() => {
-    let active = true;
-    const bucket = selectedLeaveType?.quotaBucket;
-    if (!bucket || bucket === 'NONE' || !['SICK', 'PERSONAL', 'VACATION'].includes(bucket)) {
-      setRequestQuota(undefined);
-      setRequestQuotaState('idle');
-      return () => { active = false; };
-    }
-    if (canManage && !form.employeeId) {
-      setRequestQuota(undefined);
-      setRequestQuotaState('idle');
-      return () => { active = false; };
-    }
-    const field = bucket === 'SICK' ? 'sickLeave' : bucket === 'PERSONAL' ? 'personalLeave' : 'vacationLeave';
-    setRequestQuota(undefined);
-    setRequestQuotaState('loading');
-    const load = async () => {
-      try {
-        if (!auth.token) throw new Error('Missing authenticated session');
-        if (canManage) {
-          const result = await getEmployeeLeaveQuota(auth.token, selectedQuotaYear, form.employeeId);
-          if (!active) return;
-          const rows = Array.isArray(result?.data) ? result.data as DataRow[] : [];
-          const row = rows.find((item) => String(item.employeeId || '') === form.employeeId);
-          if (!row) { setRequestQuotaState('missing'); return; }
-          const entitlement = row[field];
-          const used = row[`${field}Used`];
-          const available = row[`${field}Remaining`];
-          if (entitlement === undefined || used === undefined || available === undefined) { setRequestQuotaState('missing'); return; }
-          setRequestQuota({ entitlement, used, remaining: available });
-          setRequestQuotaState('ready');
-          return;
-        }
-        const summary = Number(quotaSummary.quotaYear) === selectedQuotaYear
-          ? quotaSummary
-          : nested((await api.leaveSummary(auth.token, selectedQuotaYear))?.data);
-        if (!active) return;
-        const entitlement = nested(summary.entitlement)[field];
-        const used = nested(summary.used)[field];
-        const available = nested(summary.remaining)[field];
-        if (entitlement === undefined || used === undefined || available === undefined) { setRequestQuotaState('missing'); return; }
-        setRequestQuota({ entitlement, used, remaining: available });
-        setRequestQuotaState('ready');
-      } catch {
-        if (active) { setRequestQuota(undefined); setRequestQuotaState('error'); }
-      }
-    };
-    void load();
-    return () => { active = false; };
-  }, [auth.token, canManage, form.employeeId, quotaSummary, selectedLeaveType?.quotaBucket, selectedQuotaYear]);
-
-  const searchEmployees = async (query: string): Promise<EmployeeComboboxOption[]> => {
-    if (!auth.token) return [];
-    const result = await api.employees(auth.token, { page: 1, pageSize: 20, search: query, isActive: true });
-    const rows = Array.isArray(result?.data) ? result.data as DataRow[] : [];
-    return rows.map((row) => {
-      const name = String(row.displayName || `${row.firstName || ''} ${row.lastName || ''}`.trim());
-      const code = String(row.employeeCode || '').trim();
-      return { value: String(row.id || ''), label: [code, name].filter(Boolean).join(' ¬∑ ') };
-    }).filter((option) => option.value && option.label);
-  };
-
-  const formReady = Boolean((canManage ? form.employeeId : linked) && form.leaveType && form.startDate && form.endDate && form.substitute.trim() && (!isRetroactive || form.reason.trim()) && (!requiresAttachment || file) && !managerRetroactiveBlocked);
-  const update = (key: keyof typeof form, value: string) => setForm((current) => ({ ...current, [key]: value }));
-  const submit = async (event: React.FormEvent) => {
-    event.preventDefault();
-    if (!mutationsEnabled || !formReady) return;
-    setSubmitting(true); setNotice(undefined); setSubmitError(undefined);
-    try {
-      const payload: Record<string, string> = { ...form };
-      if (!canManage) delete payload.employeeId;
-      await onSubmit(payload, file);
-      setForm({ employeeId: '', leaveType: '', startDate: '', endDate: '', substitute: '', reason: '' }); setFile(undefined); setSubmitError(undefined); setNotice('‡∏™‡πà‡∏á‡∏Ñ‡∏≥‡∏Ç‡∏≠‡∏•‡∏≤‡∏™‡∏≥‡πÄ‡∏£‡πá‡∏à‡πÅ‡∏•‡πâ‡∏ß');
-    }
-    catch (reason) { setNotice(undefined); setSubmitError(toRequestErrorState(reason, '‡∏™‡πà‡∏á‡∏Ñ‡∏≥‡∏Ç‡∏≠‡∏•‡∏≤‡πÑ‡∏°‡πà‡∏™‡∏≥‡πÄ‡∏£‡πá‡∏à')); }
-    finally { setSubmitting(false); }
-  };
-  const status = (row: DataRow) => { const actorName = row.approvedByDisplayName ? String(row.approvedByDisplayName) : ''; const actorRole = roleDisplayName(String(row.approvedByRole || ''), '‡∏ú‡∏π‡πâ‡∏≠‡∏ô‡∏∏‡∏°‡∏±‡∏ï‡∏¥'); const actionDate = row.approvedAt ? String(date(row.approvedAt)) : ''; return <div className="leave-status-cell"><span className={`status-badge status-badge--${semanticStatusTone(row.status)}`}>{String(text(row.status))}</span>{actorName ? <small className="leave-action-log">‡∏î‡∏≥‡πÄ‡∏ô‡∏¥‡∏ô‡∏Å‡∏≤‡∏£‡πÇ‡∏î‡∏¢ {actorName} ({actorRole})<br />‡∏ß‡∏±‡∏ô‡∏ó‡∏µ‡πà {actionDate}</small> : null}</div>; };
-  const leaveEmployeeContext = (row: DataRow) => {
-    const employee = nested(row.employee);
-    return [employee.employeeCode, row.departmentSnapshot]
-      .filter((value) => value !== null && value !== undefined && String(value).trim())
-      .map(String)
-      .join(' ¬∑ ');
-  };
-  const leaveTable = (items: DataRow[], actions = false, emptyMessage = '‡πÑ‡∏°‡πà‡∏°‡∏µ‡∏£‡∏≤‡∏¢‡∏Å‡∏≤‡∏£', mobileHistory = false) => {
-    const showHistoryActions = !actions && (canCancelApprovedLeave || items.some((row) => Boolean(row.canEditReturned || row.canCancelReturned)));
-    const renderHistoryActions = (row: DataRow) => <>
-      {row.status === 'RETURNED_FOR_CORRECTION' && row.canEditReturned ? <button className="btn-primary compact" disabled={!mutationsEnabled} onClick={() => onEditReturned(row)}>‡πÅ‡∏Å‡πâ‡πÑ‡∏Ç‡πÅ‡∏•‡∏∞‡∏™‡πà‡∏á‡∏ï‡∏£‡∏ß‡∏à‡∏™‡∏≠‡∏ö‡∏≠‡∏µ‡∏Å‡∏Ñ‡∏£‡∏±‡πâ‡∏á</button> : null}
-      {row.status === 'RETURNED_FOR_CORRECTION' && row.canCancelReturned ? <button className="danger-action" disabled={!mutationsEnabled} onClick={() => onCancel(row)}>‡∏¢‡∏Å‡πÄ‡∏•‡∏¥‡∏Å‡∏Ñ‡∏≥‡∏Ç‡∏≠</button> : null}
-      {row.status === 'APPROVED' && canCancelApprovedLeave ? <button className="danger-action" disabled={!mutationsEnabled} onClick={() => onCancel(row)}>‡∏¢‡∏Å‡πÄ‡∏•‡∏¥‡∏Å‡πÉ‡∏ö‡∏•‡∏≤‡∏ó‡∏µ‡πà‡∏≠‡∏ô‡∏∏‡∏°‡∏±‡∏ï‡∏¥‡πÅ‡∏•‡πâ‡∏ß</button> : null}
-    </>;
-    const desktop = <div className={`table-scroll data-table-scroll ${mobileHistory ? 'leave-history-desktop-table' : ''}`.trim()}>
-      <table className="data-table leave-data-table data-surface-table">
-        <thead><tr><th>‡∏û‡∏ô‡∏±‡∏Å‡∏á‡∏≤‡∏ô</th><th>‡∏õ‡∏£‡∏∞‡πÄ‡∏†‡∏ó‡∏•‡∏≤</th><th>‡∏ß‡∏±‡∏ô‡∏ó‡∏µ‡πà‡∏•‡∏≤</th><th>‡∏ß‡∏±‡∏ô</th><th>‡πÅ‡∏ó‡∏ô / ‡πÄ‡∏´‡∏ï‡∏∏‡∏ú‡∏•</th><th>‡πÄ‡∏≠‡∏Å‡∏™‡∏≤‡∏£</th>{!actions && <th>‡∏™‡∏ñ‡∏≤‡∏ô‡∏∞</th>}<th>‡∏û‡∏¥‡∏°‡∏û‡πå</th>{(actions || showHistoryActions) && <th>‡∏à‡∏±‡∏î‡∏Å‡∏≤‡∏£</th>}</tr></thead>
-        <tbody>{items.length ? items.map((row) => <tr key={text(row.id)}>
-          <td className="employee-name">{text(row.employeeNameSnapshot)}<small className="cell-note">{text(row.departmentSnapshot)}</small></td>
-          <td>{leaveTypeDisplayText(row)}{row.isRetroactive ? <span className="status-badge status-badge--attention leave-retro-badge">‡∏¢‡πâ‡∏≠‡∏ô‡∏´‡∏•‡∏±‡∏á</span> : null}</td>
-          <td>{date(row.startDate)} ‚Äì {date(row.endDate)}</td>
-          <td>{text(row.dayCount)}</td>
-          <td>{text(row.reasonDetail || row.reason)}{row.status === 'RETURNED_FOR_CORRECTION' && row.returnReason ? <small className="cell-note">‡∏™‡πà‡∏á‡∏Å‡∏•‡∏±‡∏ö: {text(row.returnReason)}{row.returnedByDisplayName ? ` ¬∑ ${text(row.returnedByDisplayName)}` : ''}</small> : null}</td>
-          <td>{row.attachmentUrl ? <button className="attachment-link" onClick={() => onAttachment(row)}>‡πÄ‡∏õ‡∏¥‡∏î‡πÄ‡∏≠‡∏Å‡∏™‡∏≤‡∏£</button> : <span className="muted-text">‚Äì</span>}</td>
-          {!actions && <td>{status(row)}</td>}
-          <td>{row.status === 'APPROVED' ? <button className="btn-info leave-print-button" onClick={() => onPrint(row)}>‡∏û‡∏¥‡∏°‡∏û‡πå A4</button> : <span className="muted-text">‚Äì</span>}</td>
-          {actions && <td className="row-actions data-row-actions">{String(row.employeeId || '') === String(employeeId || '') ? <span className="muted-text" style={{ fontSize: '0.8rem', display: 'block', marginBottom: 4 }}>‡πÑ‡∏°‡πà‡∏™‡∏≤‡∏°‡∏≤‡∏£‡∏ñ‡∏ï‡∏£‡∏ß‡∏à‡∏™‡∏≠‡∏ö‡πÉ‡∏ö‡∏•‡∏≤‡∏Ç‡∏≠‡∏á‡∏ï‡∏ô‡πÄ‡∏≠‡∏á</span> : <><button className="btn-success" disabled={!mutationsEnabled} onClick={() => onApprove(row)}>‡∏≠‡∏ô‡∏∏‡∏°‡∏±‡∏ï‡∏¥</button><button className="btn-warning" disabled={!mutationsEnabled} onClick={() => onReturnForCorrection(row)}>‡∏™‡πà‡∏á‡∏Å‡∏•‡∏±‡∏ö‡πÑ‡∏õ‡πÅ‡∏Å‡πâ‡πÑ‡∏Ç</button><button className="danger-action" disabled={!mutationsEnabled} onClick={() => onReject(row)}>‡πÑ‡∏°‡πà‡∏≠‡∏ô‡∏∏‡∏°‡∏±‡∏ï‡∏¥</button></>}</td>}
-          {showHistoryActions && <td className="row-actions data-row-actions">{renderHistoryActions(row)}</td>}
-        </tr>) : <tr><td colSpan={(actions || showHistoryActions) ? 9 : 8} className="no-rows data-table-empty-cell"><div className="empty-state data-state data-state--empty" role="status" aria-live="polite"><strong>{emptyMessage}</strong></div></td></tr>}</tbody>
-      </table>
-    </div>;
-    if (!mobileHistory) return desktop;
-    const mobile = <div className="leave-history-mobile-list">{items.length ? items.map((row) => {
-      const employeeContext = leaveEmployeeContext(row);
-      const substitute = row.substitute || row.substituteName;
-      const hasActions = Boolean(row.attachmentUrl || row.status === 'APPROVED' || row.canEditReturned || row.canCancelReturned);
-      return <article className="leave-history-mobile-card" key={`leave-mobile-${text(row.id)}`}>
-        <header><div><small>‡∏û‡∏ô‡∏±‡∏Å‡∏á‡∏≤‡∏ô</small><h3>{text(row.employeeNameSnapshot)}</h3>{employeeContext && <small>{employeeContext}</small>}</div>{status(row)}</header>
-        <dl>
-          <div><dt>‡∏õ‡∏£‡∏∞‡πÄ‡∏†‡∏ó‡∏Å‡∏≤‡∏£‡∏•‡∏≤</dt><dd>{leaveTypeDisplayText(row)}{row.isRetroactive ? <><br /><span className="status-badge status-badge--attention leave-retro-badge">‡∏¢‡πâ‡∏≠‡∏ô‡∏´‡∏•‡∏±‡∏á</span></> : null}</dd></div>
-          <div><dt>‡∏à‡∏≥‡∏ô‡∏ß‡∏ô‡∏ß‡∏±‡∏ô</dt><dd>{text(row.dayCount)} ‡∏ß‡∏±‡∏ô</dd></div>
-          <div className="leave-history-mobile-wide"><dt>‡∏ß‡∏±‡∏ô‡∏ó‡∏µ‡πà‡∏•‡∏≤</dt><dd>{date(row.startDate)} ‚Äì {date(row.endDate)}</dd></div>
-          <div className="leave-history-mobile-wide"><dt>‡∏ú‡∏π‡πâ‡∏õ‡∏è‡∏¥‡∏ö‡∏±‡∏ï‡∏¥‡∏á‡∏≤‡∏ô‡πÅ‡∏ó‡∏ô</dt><dd>{text(substitute)}</dd></div>
-          <div className="leave-history-mobile-wide"><dt>‡πÄ‡∏´‡∏ï‡∏∏‡∏ú‡∏• / ‡∏£‡∏≤‡∏¢‡∏•‡∏∞‡πÄ‡∏≠‡∏µ‡∏¢‡∏î</dt><dd>{text(row.reasonDetail || row.reason)}</dd></div>
-          {row.status === 'RETURNED_FOR_CORRECTION' && row.returnReason ? <div className="leave-history-mobile-wide"><dt>‡πÄ‡∏´‡∏ï‡∏∏‡∏ú‡∏•‡∏ó‡∏µ‡πà‡∏™‡πà‡∏á‡∏Å‡∏•‡∏±‡∏ö</dt><dd>{text(row.returnReason)}{row.returnedByDisplayName ? ` ¬∑ ${text(row.returnedByDisplayName)}` : ''}</dd></div> : null}
-        </dl>
-        {hasActions && <footer>{Boolean(row.attachmentUrl) && <button className="attachment-link" onClick={() => onAttachment(row)}>‡πÄ‡∏õ‡∏¥‡∏î‡πÄ‡∏≠‡∏Å‡∏™‡∏≤‡∏£</button>}{row.status === 'APPROVED' && <button className="btn-info leave-print-button" onClick={() => onPrint(row)}>‡∏û‡∏¥‡∏°‡∏û‡πå A4</button>}{renderHistoryActions(row)}</footer>}
-      </article>;
-    }) : <div className="empty-state data-state data-state--empty" role="status" aria-live="polite"><strong>{emptyMessage}</strong></div>}</div>;
-    return <ResponsiveDataTable ariaLabel={mode === 'history' ? '‡∏õ‡∏£‡∏∞‡∏ß‡∏±‡∏ï‡∏¥‡∏Å‡∏≤‡∏£‡∏•‡∏≤‡∏û‡∏ô‡∏±‡∏Å‡∏á‡∏≤‡∏ô‡∏ó‡∏±‡πâ‡∏á‡∏´‡∏°‡∏î' : '‡∏õ‡∏£‡∏∞‡∏ß‡∏±‡∏ï‡∏¥‡∏Ñ‡∏≥‡∏Ç‡∏≠‡∏•‡∏≤‡∏Ç‡∏≠‡∏á‡∏â‡∏±‡∏ô'} hasRows={items.length > 0} className="leave-history-responsive-table" desktop={desktop} mobile={mobile} />;
-  };
-  const quotaCards: Array<[SmsIconName, string, unknown, string]> = [['attendance', '‡∏•‡∏≤‡∏õ‡πà‡∏ß‡∏¢‡∏Ñ‡∏á‡πÄ‡∏´‡∏•‡∏∑‡∏≠', remaining.sickLeave, 'green'], ['leave', '‡∏•‡∏≤‡∏Å‡∏¥‡∏à‡∏Ñ‡∏á‡πÄ‡∏´‡∏•‡∏∑‡∏≠', remaining.personalLeave, 'blue'], ['calendar', '‡∏•‡∏≤‡∏û‡∏±‡∏Å‡∏£‡πâ‡∏≠‡∏ô‡∏Ñ‡∏á‡πÄ‡∏´‡∏•‡∏∑‡∏≠', remaining.vacationLeave, 'amber']];
-  const selectedPending = pendingRows.find((row) => String(row.id) === selectedPendingId) || pendingRows[0];
-  const selectedPendingIsSelf = Boolean(selectedPending && String(selectedPending.employeeId || '') === String(employeeId || ''));
-  if (mode === 'pending') {
-    return <section className="view-pane leave-page leave-mode-pending leave-decision-page data-surface-page layout-roster-page layout-page-surface" aria-label="‡∏û‡∏∑‡πâ‡∏ô‡∏ó‡∏µ‡πà‡∏≠‡∏ô‡∏∏‡∏°‡∏±‡∏ï‡∏¥‡∏Ñ‡∏≥‡∏Ç‡∏≠‡∏•‡∏≤" aria-busy={loading}>
-      <PageHeader kicker="‡∏Å‡∏≤‡∏£‡∏•‡∏≤" title="‡∏≠‡∏ô‡∏∏‡∏°‡∏±‡∏ï‡∏¥‡∏Ñ‡∏≥‡∏Ç‡∏≠‡∏•‡∏≤" description="‡∏ï‡∏£‡∏ß‡∏à‡∏Ñ‡∏≥‡∏Ç‡∏≠‡πÅ‡∏•‡∏∞‡∏ï‡∏±‡∏î‡∏™‡∏¥‡∏ô‡πÉ‡∏à‡∏ï‡∏≤‡∏°‡∏™‡∏¥‡∏ó‡∏ò‡∏¥‡πå‡πÅ‡∏•‡∏∞‡∏Å‡∏é‡∏≠‡∏ô‡∏∏‡∏°‡∏±‡∏ï‡∏¥‡πÄ‡∏î‡∏¥‡∏°‡∏Ç‡∏≠‡∏á‡∏£‡∏∞‡∏ö‡∏ö" actions={<button type="button" onClick={onRefresh}><SmsIcon name="refresh" />‡∏£‡∏µ‡πÄ‡∏ü‡∏£‡∏ä</button>} />
-      <ErrorAlert message={error} className="leave-error" />
-      <div className="leave-decision-workspace">
-        <SectionCard className="leave-decision-queue" aria-label="‡∏£‡∏≤‡∏¢‡∏Å‡∏≤‡∏£‡∏£‡∏≠‡∏≠‡∏ô‡∏∏‡∏°‡∏±‡∏ï‡∏¥" kicker="‡∏Ñ‡∏¥‡∏ß‡∏á‡∏≤‡∏ô" title="‡∏£‡∏≠‡∏≠‡∏ô‡∏∏‡∏°‡∏±‡∏ï‡∏¥" description="‡πÄ‡∏•‡∏∑‡∏≠‡∏Å‡∏Ñ‡∏≥‡∏Ç‡∏≠‡∏à‡∏≤‡∏Å‡∏£‡∏≤‡∏¢‡∏Å‡∏≤‡∏£‡πÉ‡∏ô‡∏Ç‡∏≠‡∏ö‡πÄ‡∏Ç‡∏ï‡∏™‡∏¥‡∏ó‡∏ò‡∏¥‡πå‡∏Ç‡∏≠‡∏á‡∏Ñ‡∏∏‡∏ì" actions={<><b>{summaryLoading ? '‚Äî' : pendingRows.length}</b></>}>
-
-          {loading ? <div className="signature-table-skeleton compact-skeleton" role="status" aria-live="polite" aria-label="‡∏Å‡∏≥‡∏•‡∏±‡∏á‡πÇ‡∏´‡∏•‡∏î‡∏Ñ‡∏≥‡∏Ç‡∏≠‡∏•‡∏≤">{Array.from({ length: 5 }, (_, index) => <span key={index} />)}</div> : pendingRows.length ? <div className="leave-decision-list">{pendingRows.map((row) => {
-            const active = selectedPending && String(selectedPending.id) === String(row.id);
-            return <button type="button" key={text(row.id)} className={`leave-decision-item ${active ? 'is-active' : ''}`} aria-pressed={active} onClick={() => setSelectedPendingId(String(row.id))}><span><strong>{text(row.employeeNameSnapshot)}</strong><small>{text(row.departmentSnapshot)}</small></span><span><b>{leaveTypeDisplayText(row)}</b><small>{date(row.startDate)} ‚Äì {date(row.endDate)}</small></span></button>;
-          })}</div> : <div className="data-state data-state--empty" role="status" aria-live="polite"><span aria-hidden="true">‚úì</span><h2>‡πÑ‡∏°‡πà‡∏°‡∏µ‡∏Ñ‡∏≥‡∏Ç‡∏≠‡∏ó‡∏µ‡πà‡∏£‡∏≠‡∏≠‡∏ô‡∏∏‡∏°‡∏±‡∏ï‡∏¥</h2><p>‡∏Ç‡∏ì‡∏∞‡∏ô‡∏µ‡πâ‡πÑ‡∏°‡πà‡∏°‡∏µ‡∏£‡∏≤‡∏¢‡∏Å‡∏≤‡∏£‡∏ó‡∏µ‡πà‡∏ï‡πâ‡∏≠‡∏á‡∏ï‡∏±‡∏î‡∏™‡∏¥‡∏ô‡πÉ‡∏à‡πÉ‡∏ô‡∏Ç‡∏≠‡∏ö‡πÄ‡∏Ç‡∏ï‡∏™‡∏¥‡∏ó‡∏ò‡∏¥‡πå‡∏Ç‡∏≠‡∏á‡∏Ñ‡∏∏‡∏ì</p></div>}
-        </SectionCard>
-        <SectionCard className="leave-decision-detail" actions={selectedPending ? <span className={`status-badge status-badge--${semanticStatusTone(selectedPending.status)}`}>{text(selectedPending.status)}</span> : undefined} kicker="‡∏Ñ‡∏≥‡∏Ç‡∏≠‡∏ó‡∏µ‡πà‡πÄ‡∏•‡∏∑‡∏≠‡∏Å" title={selectedPending ? text(selectedPending.employeeNameSnapshot) : '‡∏£‡∏≤‡∏¢‡∏•‡∏∞‡πÄ‡∏≠‡∏µ‡∏¢‡∏î‡∏Ñ‡∏≥‡∏Ç‡∏≠'} description="‡∏ï‡∏£‡∏ß‡∏à‡∏ä‡πà‡∏ß‡∏á‡∏ß‡∏±‡∏ô‡∏ó‡∏µ‡πà ‡∏õ‡∏£‡∏∞‡πÄ‡∏†‡∏ó ‡πÄ‡∏≠‡∏Å‡∏™‡∏≤‡∏£‡πÅ‡∏•‡∏∞‡πÄ‡∏´‡∏ï‡∏∏‡∏ú‡∏•‡∏Ç‡∏≠‡∏á‡∏Ñ‡∏≥‡∏Ç‡∏≠">
-          {selectedPending ? <>
-
-            <div className="leave-decision-summary"><div><span>‡∏ß‡∏±‡∏ô‡∏ó‡∏µ‡πà‡∏•‡∏≤</span><strong>{date(selectedPending.startDate)} ‚Äì {date(selectedPending.endDate)}</strong></div><div><span>‡∏à‡∏≥‡∏ô‡∏ß‡∏ô‡∏ß‡∏±‡∏ô</span><strong>{text(selectedPending.dayCount)} ‡∏ß‡∏±‡∏ô</strong></div><div><span>‡∏õ‡∏£‡∏∞‡πÄ‡∏†‡∏ó</span><strong>{leaveTypeDisplayText(selectedPending)}</strong></div><div><span>‡∏Ñ‡∏≥‡∏Ç‡∏≠‡∏¢‡πâ‡∏≠‡∏ô‡∏´‡∏•‡∏±‡∏á</span><strong>{selectedPending.isRetroactive ? '‡πÉ‡∏ä‡πà' : '‡πÑ‡∏°‡πà‡πÉ‡∏ä‡πà'}</strong></div></div>
-            <section className="leave-decision-copy"><div><span>‡πÄ‡∏´‡∏ï‡∏∏‡∏ú‡∏• / ‡∏£‡∏≤‡∏¢‡∏•‡∏∞‡πÄ‡∏≠‡∏µ‡∏¢‡∏î</span><p>{text(selectedPending.reason)}</p></div><div><span>‡∏ú‡∏π‡πâ‡∏õ‡∏è‡∏¥‡∏ö‡∏±‡∏ï‡∏¥‡∏á‡∏≤‡∏ô‡πÅ‡∏ó‡∏ô</span><p>{text(selectedPending.substitute || selectedPending.substituteName || '-')}</p></div></section>
-            {selectedPending.attachmentUrl && <button type="button" className="btn-neutral leave-decision-attachment" onClick={() => onAttachment(selectedPending)}><SmsIcon name="report" /> ‡πÄ‡∏õ‡∏¥‡∏î‡πÄ‡∏≠‡∏Å‡∏™‡∏≤‡∏£‡πÅ‡∏ô‡∏ö</button>}
-          </> : <div className="data-state data-state--empty"><h2>‡πÄ‡∏•‡∏∑‡∏≠‡∏Å‡∏£‡∏≤‡∏¢‡∏Å‡∏≤‡∏£‡πÄ‡∏û‡∏∑‡πà‡∏≠‡∏î‡∏π‡∏£‡∏≤‡∏¢‡∏•‡∏∞‡πÄ‡∏≠‡∏µ‡∏¢‡∏î</h2><p>‡∏£‡∏≤‡∏¢‡∏•‡∏∞‡πÄ‡∏≠‡∏µ‡∏¢‡∏î‡∏Ñ‡∏≥‡∏Ç‡∏≠‡πÅ‡∏•‡∏∞‡∏Å‡∏≤‡∏£‡∏ï‡∏±‡∏î‡∏™‡∏¥‡∏ô‡πÉ‡∏à‡∏à‡∏∞‡πÅ‡∏™‡∏î‡∏á‡πÉ‡∏ô‡∏û‡∏∑‡πâ‡∏ô‡∏ó‡∏µ‡πà‡∏ô‡∏µ‡πâ</p></div>}
-        </SectionCard>
-        <SectionCard className="leave-decision-actions" aria-label="‡∏Å‡∏≤‡∏£‡∏ï‡∏±‡∏î‡∏™‡∏¥‡∏ô‡πÉ‡∏à" kicker="‡∏Å‡∏≤‡∏£‡∏ï‡∏±‡∏î‡∏™‡∏¥‡∏ô‡πÉ‡∏à" title="‡∏î‡∏≥‡πÄ‡∏ô‡∏¥‡∏ô‡∏Å‡∏≤‡∏£" description="‡∏ï‡∏£‡∏ß‡∏à‡∏™‡∏≠‡∏ö‡∏Ç‡πâ‡∏≠‡∏°‡∏π‡∏•‡∏Ñ‡∏≥‡∏Ç‡∏≠‡πÉ‡∏´‡πâ‡∏Ñ‡∏£‡∏ö‡∏Å‡πà‡∏≠‡∏ô‡πÄ‡∏•‡∏∑‡∏≠‡∏Å‡∏ú‡∏•‡∏Å‡∏≤‡∏£‡∏û‡∏¥‡∏à‡∏≤‡∏£‡∏ì‡∏≤" actions={<><p className="eyebrow">‡∏Å‡∏≤‡∏£‡∏ï‡∏±‡∏î‡∏™‡∏¥‡∏ô‡πÉ‡∏à</p><h2>‡∏î‡∏≥‡πÄ‡∏ô‡∏¥‡∏ô‡∏Å‡∏≤‡∏£</h2><p>‡∏ï‡∏£‡∏ß‡∏à‡∏™‡∏≠‡∏ö‡∏Ç‡πâ‡∏≠‡∏°‡∏π‡∏•‡∏Ñ‡∏≥‡∏Ç‡∏≠‡πÉ‡∏´‡πâ‡∏Ñ‡∏£‡∏ö‡∏Å‡πà‡∏≠‡∏ô‡πÄ‡∏•‡∏∑‡∏≠‡∏Å‡∏ú‡∏•‡∏Å‡∏≤‡∏£‡∏û‡∏¥‡∏à‡∏≤‡∏£‡∏ì‡∏≤</p></>}>
-
-          {selectedPendingIsSelf ? <div className="leave-self-approval-block"><strong>‡πÑ‡∏°‡πà‡∏™‡∏≤‡∏°‡∏≤‡∏£‡∏ñ‡∏≠‡∏ô‡∏∏‡∏°‡∏±‡∏ï‡∏¥‡πÉ‡∏ö‡∏•‡∏≤‡∏Ç‡∏≠‡∏á‡∏ï‡∏ô‡πÄ‡∏≠‡∏á</strong><p>‡∏£‡∏∞‡∏ö‡∏ö‡∏¢‡∏±‡∏á‡∏Ñ‡∏á‡∏ö‡∏±‡∏á‡∏Ñ‡∏±‡∏ö‡∏Å‡∏é self-approval ‡πÄ‡∏î‡∏¥‡∏° ‡∏£‡∏≤‡∏¢‡∏Å‡∏≤‡∏£‡∏ô‡∏µ‡πâ‡∏ï‡πâ‡∏≠‡∏á‡πÉ‡∏´‡πâ‡∏ú‡∏π‡πâ‡∏°‡∏µ‡∏≠‡∏≥‡∏ô‡∏≤‡∏à‡∏Ñ‡∏ô‡∏≠‡∏∑‡πà‡∏ô‡∏û‡∏¥‡∏à‡∏≤‡∏£‡∏ì‡∏≤</p></div> : selectedPending ? <div className="leave-decision-buttons"><button type="button" className="btn-success" disabled={!mutationsEnabled} onClick={() => onApprove(selectedPending)}><SmsIcon name="check" size={18} />‡∏≠‡∏ô‡∏∏‡∏°‡∏±‡∏ï‡∏¥‡∏Ñ‡∏≥‡∏Ç‡∏≠</button><button type="button" className="btn-warning" disabled={!mutationsEnabled} onClick={() => onReturnForCorrection(selectedPending)}>‡∏™‡πà‡∏á‡∏Å‡∏•‡∏±‡∏ö‡πÑ‡∏õ‡πÅ‡∏Å‡πâ‡πÑ‡∏Ç</button><button type="button" className="btn-danger-outline" disabled={!mutationsEnabled} onClick={() => onReject(selectedPending)}>‡πÑ‡∏°‡πà‡∏≠‡∏ô‡∏∏‡∏°‡∏±‡∏ï‡∏¥</button></div> : <p className="muted-text">‡∏¢‡∏±‡∏á‡πÑ‡∏°‡πà‡∏°‡∏µ‡∏£‡∏≤‡∏¢‡∏Å‡∏≤‡∏£‡∏ó‡∏µ‡πà‡πÄ‡∏•‡∏∑‡∏≠‡∏Å</p>}
-
-        </SectionCard>
-      </div>
-    </section>;
-  }
-  return <section className={`view-pane leave-page leave-mode-${mode} data-surface-page layout-roster-page layout-page-surface`}>
-    <PageHeader kicker="‡∏Å‡∏≤‡∏£‡∏•‡∏≤" title={mode === 'history' ? '‡∏õ‡∏£‡∏∞‡∏ß‡∏±‡∏ï‡∏¥‡∏Å‡∏≤‡∏£‡∏•‡∏≤' : '‡∏Ñ‡∏≥‡∏Ç‡∏≠‡∏•‡∏≤'} description="‡∏¢‡∏∑‡πà‡∏ô‡∏Ñ‡∏≥‡∏Ç‡∏≠‡∏•‡∏≤ ‡∏ï‡∏£‡∏ß‡∏à‡∏™‡∏≠‡∏ö‡πÇ‡∏Ñ‡∏ß‡∏ï‡∏≤ ‡πÅ‡∏•‡∏∞‡∏ï‡∏¥‡∏î‡∏ï‡∏≤‡∏°‡∏ú‡∏•‡∏Å‡∏≤‡∏£‡∏û‡∏¥‡∏à‡∏≤‡∏£‡∏ì‡∏≤‡∏ï‡∏≤‡∏°‡∏™‡∏¥‡∏ó‡∏ò‡∏¥‡πå" actions={<button onClick={onRefresh}><SmsIcon name="refresh" />‡∏£‡∏µ‡πÄ‡∏ü‡∏£‡∏ä‡∏Ç‡πâ‡∏≠‡∏°‡∏π‡∏•</button>} />
-    {mode === 'all' && <StepFlow title="‡∏•‡∏≥‡∏î‡∏±‡∏ö‡∏Ñ‡∏≥‡∏Ç‡∏≠‡∏•‡∏≤‡∏Ç‡∏≠‡∏á‡∏â‡∏±‡∏ô" description="‡∏™‡∏ñ‡∏≤‡∏ô‡∏∞‡∏Ñ‡∏≥‡∏Ç‡∏≠‡∏•‡πà‡∏≤‡∏™‡∏∏‡∏î‡∏Ç‡∏≠‡∏á‡∏Ñ‡∏∏‡∏ì‡πÉ‡∏ô‡∏£‡∏≤‡∏¢‡∏Å‡∏≤‡∏£‡∏ó‡∏µ‡πà‡πÇ‡∏´‡∏•‡∏î ‡πÑ‡∏°‡πà‡πÉ‡∏ä‡πà‡∏ú‡∏•‡πÅ‡∏ó‡∏ô‡∏Ñ‡∏≥‡∏Ç‡∏≠‡∏≠‡∏∑‡πà‡∏ô" steps={[
-{id:'submit',icon:'leave',label:'‡∏Ç‡∏±‡πâ‡∏ô‡∏ó‡∏µ‡πà‡∏´‡∏ô‡∏∂‡πà‡∏á',title:'‡∏¢‡∏∑‡πà‡∏ô‡∏•‡∏≤',desc:'‡∏Å‡∏£‡∏≠‡∏Å‡πÅ‡∏•‡∏∞‡∏™‡πà‡∏á‡∏Ñ‡∏≥‡∏Ç‡∏≠‡∏ï‡∏≤‡∏°‡∏™‡∏¥‡∏ó‡∏ò‡∏¥‡πå',completed:Boolean(latestOwnRequest),current:!latestOwnRequest || latestOwnRequest.status==='RETURNED_FOR_CORRECTION'},
-{id:'review',icon:'approval',label:'‡∏Ç‡∏±‡πâ‡∏ô‡∏ó‡∏µ‡πà‡∏™‡∏≠‡∏á',title:'‡∏£‡∏≠‡∏≠‡∏ô‡∏∏‡∏°‡∏±‡∏ï‡∏¥',desc:'‡∏ú‡∏π‡πâ‡∏°‡∏µ‡∏™‡∏¥‡∏ó‡∏ò‡∏¥‡πå‡∏û‡∏¥‡∏à‡∏≤‡∏£‡∏ì‡∏≤‡∏Ñ‡∏≥‡∏Ç‡∏≠',current:latestOwnRequest?.status==='PENDING',completed:Boolean(latestOwnRequest && ['APPROVED','REJECTED'].includes(String(latestOwnRequest.status)))},
-{id:'result',icon:'history',label:'‡∏Ç‡∏±‡πâ‡∏ô‡∏ó‡∏µ‡πà‡∏™‡∏≤‡∏°',title:'‡∏ú‡∏•‡∏Å‡∏≤‡∏£‡∏û‡∏¥‡∏à‡∏≤‡∏£‡∏ì‡∏≤',desc:latestOwnRequest ? String(text(latestOwnRequest.status)) : '‡∏¢‡∏±‡∏á‡πÑ‡∏°‡πà‡∏°‡∏µ‡∏ú‡∏•‡∏ó‡∏µ‡πà‡∏¢‡∏∑‡∏ô‡∏¢‡∏±‡∏ô‡πÑ‡∏î‡πâ',completed:Boolean(latestOwnRequest && ['APPROVED','REJECTED'].includes(String(latestOwnRequest.status)))}
-]} />}
-    {canManage && (
-      <div className="leave-quota-grid" style={{ marginBottom: '20px' }}>
-        <MetricCard className="leave-quota-metric" label="‡∏Ñ‡∏≥‡∏Ç‡∏≠‡∏£‡∏≠‡∏≠‡∏ô‡∏∏‡∏°‡∏±‡∏ï‡∏¥" icon="clock" value={<>{summaryLoading ? '‚Äî' : mode === 'history' ? historyStatusCounts?.PENDING ?? '‚Äî' : pendingRows.length}</>} loading={summaryLoading} description="‡∏à‡∏≥‡∏ô‡∏ß‡∏ô‡∏à‡∏≤‡∏Å‡∏£‡∏≤‡∏¢‡∏Å‡∏≤‡∏£‡πÉ‡∏ô‡∏Ç‡∏≠‡∏ö‡πÄ‡∏Ç‡∏ï‡∏ó‡∏µ‡πà‡πÇ‡∏´‡∏•‡∏î" />
-        <MetricCard className="leave-quota-metric" label="‡∏≠‡∏ô‡∏∏‡∏°‡∏±‡∏ï‡∏¥‡πÅ‡∏•‡πâ‡∏ß" icon="check" value={<>{summaryLoading ? '‚Äî' : mode === 'history' ? historyStatusCounts?.APPROVED ?? '‚Äî' : rows.filter((r) => r.status === 'APPROVED').length}</>} loading={summaryLoading} description="‡∏à‡∏≥‡∏ô‡∏ß‡∏ô‡∏à‡∏≤‡∏Å‡∏£‡∏≤‡∏¢‡∏Å‡∏≤‡∏£‡πÉ‡∏ô‡∏Ç‡∏≠‡∏ö‡πÄ‡∏Ç‡∏ï‡∏ó‡∏µ‡πà‡πÇ‡∏´‡∏•‡∏î" />
-        <MetricCard className="leave-quota-metric" label="‡πÑ‡∏°‡πà‡∏≠‡∏ô‡∏∏‡∏°‡∏±‡∏ï‡∏¥" icon="close" value={<>{summaryLoading ? '‚Äî' : mode === 'history' ? historyStatusCounts?.REJECTED ?? '‚Äî' : rows.filter((r) => r.status === 'REJECTED').length}</>} loading={summaryLoading} description="‡∏à‡∏≥‡∏ô‡∏ß‡∏ô‡∏à‡∏≤‡∏Å‡∏£‡∏≤‡∏¢‡∏Å‡∏≤‡∏£‡πÉ‡∏ô‡∏Ç‡∏≠‡∏ö‡πÄ‡∏Ç‡∏ï‡∏ó‡∏µ‡πà‡πÇ‡∏´‡∏•‡∏î" />
-      </div>
-    )}
-    {linked ? <div className="leave-quota-grid">{quotaCards.map(([icon, label, value, tone]) => <MetricCard key={label} className="leave-quota-metric" label={label} icon={icon} value={text(value)} description="‡∏™‡∏¥‡∏ó‡∏ò‡∏¥‡πå‡∏Ñ‡∏á‡πÄ‡∏´‡∏•‡∏∑‡∏≠‡∏à‡∏≤‡∏Å‡∏£‡∏∞‡∏ö‡∏ö (‡∏ß‡∏±‡∏ô)" loading={summaryLoading} />)}</div> : !canManage && <div className="alert alert-error">‡∏ö‡∏±‡∏ç‡∏ä‡∏µ‡∏ô‡∏µ‡πâ‡∏¢‡∏±‡∏á‡πÑ‡∏°‡πà‡πÑ‡∏î‡πâ‡∏ú‡∏π‡∏Å‡∏Å‡∏±‡∏ö‡∏Ç‡πâ‡∏≠‡∏°‡∏π‡∏•‡∏û‡∏ô‡∏±‡∏Å‡∏á‡∏≤‡∏ô ‡∏Å‡∏£‡∏∏‡∏ì‡∏≤‡∏ï‡∏¥‡∏î‡∏ï‡πà‡∏≠{roleDisplayName('ADMIN')}‡∏Å‡πà‡∏≠‡∏ô‡∏™‡πà‡∏á‡∏Ñ‡∏≥‡∏Ç‡∏≠‡∏•‡∏≤</div>}
-    <div className="leave-main-grid"><SectionCard className="leave-submit-card" kicker="‡∏Å‡∏≤‡∏£‡∏•‡∏≤" title="‡∏¢‡∏∑‡πà‡∏ô‡∏Ñ‡∏≥‡∏Ç‡∏≠‡∏•‡∏≤" description="‡∏Å‡∏£‡∏≠‡∏Å‡∏Ç‡πâ‡∏≠‡∏°‡∏π‡∏•‡πÉ‡∏´‡πâ‡∏Ñ‡∏£‡∏ö‡∏Å‡πà‡∏≠‡∏ô‡∏™‡πà‡∏á‡πÄ‡∏Ç‡πâ‡∏≤‡∏Ñ‡∏¥‡∏ß‡∏≠‡∏ô‡∏∏‡∏°‡∏±‡∏ï‡∏¥"><form onSubmit={submit}>{canManage ? <label className="field-group"><span><SmsIcon name="employees" /> ‡∏û‡∏ô‡∏±‡∏Å‡∏á‡∏≤‡∏ô <b>*</b></span><React.Suspense fallback={<span role="status">‡∏Å‡∏≥‡∏•‡∏±‡∏á‡πÄ‡∏ï‡∏£‡∏µ‡∏¢‡∏°‡∏Ñ‡πâ‡∏ô‡∏´‡∏≤‡∏û‡∏ô‡∏±‡∏Å‡∏á‡∏≤‡∏ô‚Ä¶</span>}><SearchableEmployeeCombobox id="leave-employee" value={form.employeeId} options={employeeOptions} onChange={(value) => update('employeeId', value)} onSearch={searchEmployees} /></React.Suspense></label> : linked && <div className="leave-self-employee leave-days-note" role="status"><strong>‡∏™‡πà‡∏á‡∏Ñ‡∏≥‡∏Ç‡∏≠‡πÉ‡∏ô‡∏ä‡∏∑‡πà‡∏≠‡∏Ç‡∏≠‡∏á‡∏Ñ‡∏∏‡∏ì</strong><span>{auth.user?.displayName || auth.user?.email || '‡∏ö‡∏±‡∏ç‡∏ä‡∏µ‡∏û‡∏ô‡∏±‡∏Å‡∏á‡∏≤‡∏ô'}</span><small>‡∏£‡∏≤‡∏¢‡∏Å‡∏≤‡∏£‡∏ô‡∏µ‡πâ‡∏™‡πà‡∏á‡∏™‡∏≥‡∏´‡∏£‡∏±‡∏ö‡∏ö‡∏±‡∏ç‡∏ä‡∏µ‡∏ó‡∏µ‡πà‡πÄ‡∏Ç‡πâ‡∏≤‡∏™‡∏π‡πà‡∏£‡∏∞‡∏ö‡∏ö ‡πÑ‡∏°‡πà‡∏™‡∏≤‡∏°‡∏≤‡∏£‡∏ñ‡πÄ‡∏õ‡∏•‡∏µ‡πà‡∏¢‡∏ô‡∏û‡∏ô‡∏±‡∏Å‡∏á‡∏≤‡∏ô‡πÑ‡∏î‡πâ</small></div>}<label className="field-group"><span><SmsIcon name="leave" /> ‡∏õ‡∏£‡∏∞‡πÄ‡∏†‡∏ó‡∏Å‡∏≤‡∏£‡∏•‡∏≤ <b>*</b></span><select required value={form.leaveType} onChange={(event) => update('leaveType', event.target.value)}><option value="">-- ‡∏Å‡∏£‡∏∏‡∏ì‡∏≤‡πÄ‡∏•‡∏∑‡∏≠‡∏Å‡∏õ‡∏£‡∏∞‡πÄ‡∏†‡∏ó‡∏Å‡∏≤‡∏£‡∏•‡∏≤ --</option>{leaveTypes.filter((item) => item.isActive).map((item) => <option key={item.id} value={item.code}>{item.name} ({item.code})</option>)}</select></label><div className="leave-date-grid"><label className="field-group"><span><SmsIcon name="calendar" /> ‡∏ß‡∏±‡∏ô‡∏ó‡∏µ‡πà‡πÄ‡∏£‡∏¥‡πà‡∏°‡∏ï‡πâ‡∏ô <b>*</b></span><input required type="date" min={!canManage ? todayString : undefined} value={form.startDate} onChange={(event) => update('startDate', event.target.value)} /></label><label className="field-group"><span><SmsIcon name="calendar" /> ‡∏ß‡∏±‡∏ô‡∏ó‡∏µ‡πà‡∏™‡∏¥‡πâ‡∏ô‡∏™‡∏∏‡∏î <b>*</b></span><input required type="date" min={form.startDate || (!canManage ? todayString : undefined)} value={form.endDate} onChange={(event) => update('endDate', event.target.value)} /></label></div>{days > 0 && <div className="leave-days-note">‡∏£‡∏∞‡∏¢‡∏∞‡πÄ‡∏ß‡∏•‡∏≤‡∏Å‡∏≤‡∏£‡∏•‡∏≤: <strong>{days}</strong> ‡∏ß‡∏±‡∏ô</div>}{selectedLeaveType?.quotaBucket === 'NONE' && <div className="leave-request-quota-note" role="status">‡∏õ‡∏£‡∏∞‡πÄ‡∏†‡∏ó‡∏Å‡∏≤‡∏£‡∏•‡∏≤‡∏ô‡∏µ‡πâ‡πÑ‡∏°‡πà‡∏°‡∏µ‡πÇ‡∏Ñ‡∏ß‡∏ï‡πâ‡∏≤‡∏£‡∏≤‡∏¢‡∏õ‡∏µ</div>}{selectedLeaveType && selectedLeaveType.quotaBucket !== 'NONE' && (canManage ? Boolean(form.employeeId) : linked) && <section className="leave-request-quota leave-days-note" aria-live="polite" aria-busy={requestQuotaState === 'loading'}><h3>‡∏™‡∏¥‡∏ó‡∏ò‡∏¥‡πå{selectedLeaveType.name} ¬∑ {thaiQuotaYearLabel(selectedQuotaYear)}</h3>{requestQuotaState === 'loading' ? <p role="status">‡∏Å‡∏≥‡∏•‡∏±‡∏á‡πÇ‡∏´‡∏•‡∏î‡∏Ç‡πâ‡∏≠‡∏°‡∏π‡∏•‡∏™‡∏¥‡∏ó‡∏ò‡∏¥‡πå‡∏à‡∏≤‡∏Å‡∏£‡∏∞‡∏ö‡∏ö‚Ä¶</p> : requestQuotaState === 'error' ? <p role="alert">‡πÇ‡∏´‡∏•‡∏î‡∏Ç‡πâ‡∏≠‡∏°‡∏π‡∏•‡∏™‡∏¥‡∏ó‡∏ò‡∏¥‡πå‡πÑ‡∏°‡πà‡∏™‡∏≥‡πÄ‡∏£‡πá‡∏à ‡∏Å‡∏£‡∏∏‡∏ì‡∏≤‡∏•‡∏≠‡∏á‡πÉ‡∏´‡∏°‡πà‡∏Å‡πà‡∏≠‡∏ô‡∏™‡πà‡∏á‡∏Ñ‡∏≥‡∏Ç‡∏≠</p> : requestQuotaState === 'missing' ? <p role="status">‡∏¢‡∏±‡∏á‡πÑ‡∏°‡πà‡∏°‡∏µ‡∏Ç‡πâ‡∏≠‡∏°‡∏π‡∏•‡∏™‡∏¥‡∏ó‡∏ò‡∏¥‡πå‡∏ó‡∏µ‡πà‡πÅ‡∏™‡∏î‡∏á‡πÑ‡∏î‡πâ‡∏™‡∏≥‡∏´‡∏£‡∏±‡∏ö‡∏û‡∏ô‡∏±‡∏Å‡∏á‡∏≤‡∏ô‡πÅ‡∏•‡∏∞‡∏õ‡∏µ‡∏ó‡∏µ‡πà‡πÄ‡∏•‡∏∑‡∏≠‡∏Å ‡∏£‡∏∞‡∏ö‡∏ö‡∏à‡∏∞‡∏ï‡∏£‡∏ß‡∏à‡∏™‡∏≠‡∏ö‡∏™‡∏¥‡∏ó‡∏ò‡∏¥‡πå‡πÄ‡∏°‡∏∑‡πà‡∏≠‡∏™‡πà‡∏á‡∏Ñ‡∏≥‡∏Ç‡∏≠</p> : requestQuotaState === 'ready' && requestQuota ? <><p><strong>‡∏™‡∏¥‡∏ó‡∏ò‡∏¥‡πå‡∏ó‡∏±‡πâ‡∏á‡∏´‡∏°‡∏î:</strong> {text(requestQuota.entitlement)} ‡∏ß‡∏±‡∏ô ¬∑ <strong>‡πÉ‡∏ä‡πâ‡πÅ‡∏•‡πâ‡∏ß:</strong> {text(requestQuota.used)} ‡∏ß‡∏±‡∏ô ¬∑ <strong>‡∏Ñ‡∏á‡πÄ‡∏´‡∏•‡∏∑‡∏≠:</strong> {text(requestQuota.remaining)} ‡∏ß‡∏±‡∏ô</p>{requestSpansYears ? <p className="leave-request-quota-note">‡∏ä‡πà‡∏ß‡∏á‡∏ß‡∏±‡∏ô‡∏ó‡∏µ‡πà‡∏•‡∏≤‡∏Ñ‡∏£‡πà‡∏≠‡∏°‡∏õ‡∏µ ‡∏£‡∏∞‡∏ö‡∏ö‡∏à‡∏∞‡∏ï‡∏£‡∏ß‡∏à‡∏™‡∏¥‡∏ó‡∏ò‡∏¥‡πå‡πÅ‡∏¢‡∏Å‡∏ï‡∏≤‡∏°‡πÅ‡∏ï‡πà‡∏•‡∏∞‡∏õ‡∏µ‡πÄ‡∏°‡∏∑‡πà‡∏≠‡∏™‡πà‡∏á‡∏Ñ‡∏≥‡∏Ç‡∏≠</p> : days > 0 && Number.isFinite(Number(requestQuota.remaining)) && days > Number(requestQuota.remaining) ? <p className="leave-request-quota-warning alert alert-warning" role="status">‡∏ß‡∏±‡∏ô‡∏ó‡∏µ‡πà‡πÄ‡∏•‡∏∑‡∏≠‡∏Å‡∏°‡∏≤‡∏Å‡∏Å‡∏ß‡πà‡∏≤‡∏™‡∏¥‡∏ó‡∏ò‡∏¥‡πå‡∏Ñ‡∏á‡πÄ‡∏´‡∏•‡∏∑‡∏≠ ‡∏Ç‡πâ‡∏≠‡∏°‡∏π‡∏•‡∏ô‡∏µ‡πâ‡πÄ‡∏õ‡πá‡∏ô‡∏Ñ‡∏≥‡πÄ‡∏ï‡∏∑‡∏≠‡∏ô‡πÄ‡∏ó‡πà‡∏≤‡∏ô‡∏±‡πâ‡∏ô ‡∏£‡∏∞‡∏ö‡∏ö‡∏à‡∏∞‡∏ï‡∏£‡∏ß‡∏à‡∏™‡∏¥‡∏ó‡∏ò‡∏¥‡πå‡∏≠‡∏µ‡∏Å‡∏Ñ‡∏£‡∏±‡πâ‡∏á‡πÄ‡∏°‡∏∑‡πà‡∏≠‡∏™‡πà‡∏á‡∏Ñ‡∏≥‡∏Ç‡∏≠</p> : <p className="leave-request-quota-note">‡∏Ç‡πâ‡∏≠‡∏°‡∏π‡∏•‡∏™‡∏¥‡∏ó‡∏ò‡∏¥‡πå‡∏à‡∏≤‡∏Å‡∏£‡∏∞‡∏ö‡∏ö ¬∑ ‡∏Å‡∏≤‡∏£‡∏™‡πà‡∏á‡∏Ñ‡∏≥‡∏Ç‡∏≠‡∏à‡∏∞‡∏ï‡∏£‡∏ß‡∏à‡∏™‡∏≠‡∏ö‡∏ï‡∏≤‡∏°‡∏Å‡∏ï‡∏¥‡∏Å‡∏≤‡∏ù‡∏±‡πà‡∏á‡∏£‡∏∞‡∏ö‡∏ö</p>}</> : requestQuotaState === 'idle' ? <p role="status">‡∏Å‡∏≥‡∏•‡∏±‡∏á‡πÄ‡∏ï‡∏£‡∏µ‡∏¢‡∏°‡∏Ç‡πâ‡∏≠‡∏°‡∏π‡∏•‡∏™‡∏¥‡∏ó‡∏ò‡∏¥‡πå‚Ä¶</p> : <p>‡πÄ‡∏•‡∏∑‡∏≠‡∏Å‡∏õ‡∏£‡∏∞‡πÄ‡∏†‡∏ó‡∏Å‡∏≤‡∏£‡∏•‡∏≤‡πÅ‡∏•‡∏∞‡∏ß‡∏±‡∏ô‡∏ó‡∏µ‡πà‡πÄ‡∏û‡∏∑‡πà‡∏≠‡∏î‡∏π‡∏Ç‡πâ‡∏≠‡∏°‡∏π‡∏•‡∏™‡∏¥‡∏ó‡∏ò‡∏¥‡πå</p>}</section>}<label className="field-group"><span><SmsIcon name="users" /> ‡∏ú‡∏π‡πâ‡∏õ‡∏è‡∏¥‡∏ö‡∏±‡∏ï‡∏¥‡∏á‡∏≤‡∏ô‡πÅ‡∏ó‡∏ô <b>*</b></span><input required value={form.substitute} placeholder="‡∏£‡∏∞‡∏ö‡∏∏‡∏ä‡∏∑‡πà‡∏≠-‡∏ô‡∏≤‡∏°‡∏™‡∏Å‡∏∏‡∏• ‡∏ú‡∏π‡πâ‡πÄ‡∏Ç‡πâ‡∏≤‡πÄ‡∏ß‡∏£/‡∏õ‡∏è‡∏¥‡∏ö‡∏±‡∏ï‡∏¥‡∏á‡∏≤‡∏ô‡πÅ‡∏ó‡∏ô" onChange={(event) => update('substitute', event.target.value)} /></label><label className="field-group"><span><SmsIcon name="edit" /> ‡πÄ‡∏´‡∏ï‡∏∏‡∏ú‡∏•‡∏Å‡∏≤‡∏£‡∏•‡∏≤ {isRetroactive && <b>*</b>}</span><textarea required={isRetroactive} rows={3} value={form.reason} placeholder={isRetroactive ? "‡∏ï‡πâ‡∏≠‡∏á‡∏£‡∏∞‡∏ö‡∏∏‡πÄ‡∏´‡∏ï‡∏∏‡∏ú‡∏•‡πÄ‡∏°‡∏∑‡πà‡∏≠‡πÄ‡∏•‡∏∑‡∏≠‡∏Å‡∏ß‡∏±‡∏ô‡∏•‡∏≤‡∏¢‡πâ‡∏≠‡∏ô‡∏´‡∏•‡∏±‡∏á" : "‡∏£‡∏∞‡∏ö‡∏∏‡πÄ‡∏´‡∏ï‡∏∏‡∏ú‡∏•‡∏´‡∏£‡∏∑‡∏≠‡∏Ñ‡∏ß‡∏≤‡∏°‡∏à‡∏≥‡πÄ‡∏õ‡πá‡∏ô‡πÉ‡∏ô‡∏Å‡∏≤‡∏£‡∏•‡∏≤... (‡πÑ‡∏°‡πà‡∏ö‡∏±‡∏á‡∏Ñ‡∏±‡∏ö)"} onChange={(event) => update('reason', event.target.value)} /></label><label className="leave-file-field"><span><SmsIcon name="report" /> ‡πÅ‡∏ô‡∏ö‡πÑ‡∏ü‡∏•‡πå‡πÄ‡∏≠‡∏Å‡∏™‡∏≤‡∏£ (‡πÉ‡∏ö‡∏£‡∏±‡∏ö‡∏£‡∏≠‡∏á‡πÅ‡∏û‡∏ó‡∏¢‡πå/‡∏£‡∏π‡∏õ‡∏†‡∏≤‡∏û/PDF)</span><small>{attachmentThresholdDays === 0 ? '‡∏•‡∏≤‡∏õ‡πà‡∏ß‡∏¢‡∏ó‡∏∏‡∏Å‡∏à‡∏≥‡∏ô‡∏ß‡∏ô‡∏ß‡∏±‡∏ô‡∏ï‡πâ‡∏≠‡∏á‡πÅ‡∏ô‡∏ö‡πÄ‡∏≠‡∏Å‡∏™‡∏≤‡∏£' : `‡∏à‡∏≥‡πÄ‡∏õ‡πá‡∏ô‡πÄ‡∏°‡∏∑‡πà‡∏≠‡∏•‡∏≤‡∏õ‡πà‡∏ß‡∏¢‡πÄ‡∏Å‡∏¥‡∏ô ${attachmentThresholdDays} ‡∏ß‡∏±‡∏ô`} ¬∑ ‡∏£‡∏∞‡∏ö‡∏ö‡∏õ‡∏£‡∏±‡∏ö‡πÑ‡∏ü‡∏•‡πå‡∏≠‡∏±‡∏ï‡πÇ‡∏ô‡∏°‡∏±‡∏ï‡∏¥: ‡∏£‡∏π‡∏õ 300‚Äì450 KB (‡∏™‡∏π‡∏á‡∏™‡∏∏‡∏î 500 KB) ¬∑ PDF ‡∏™‡∏π‡∏á‡∏™‡∏∏‡∏î 1 MB</small><input type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" onChange={(event) => setFile(event.target.files?.[0])} />{file && <em>‡πÄ‡∏•‡∏∑‡∏≠‡∏Å‡πÑ‡∏ü‡∏•‡πå‡πÅ‡∏•‡πâ‡∏ß: {file.name}</em>}</label>{managerRetroactiveBlocked && <div className="alert alert-error">{managerSelfRetroactive ? `${roleDisplayName('MANAGER')} ‡πÑ‡∏°‡πà‡∏™‡∏≤‡∏°‡∏≤‡∏£‡∏ñ‡∏ö‡∏±‡∏ô‡∏ó‡∏∂‡∏Å‡∏Å‡∏≤‡∏£‡∏•‡∏≤‡∏¢‡πâ‡∏≠‡∏ô‡∏´‡∏•‡∏±‡∏á‡πÉ‡∏´‡πâ‡∏ï‡∏ô‡πÄ‡∏≠‡∏á‡πÑ‡∏î‡πâ` : !managerRetroactiveEnabled ? `‡∏ô‡πÇ‡∏¢‡∏ö‡∏≤‡∏¢‡∏õ‡∏±‡∏à‡∏à‡∏∏‡∏ö‡∏±‡∏ô‡πÑ‡∏°‡πà‡∏≠‡∏ô‡∏∏‡∏ç‡∏≤‡∏ï‡πÉ‡∏´‡πâ ${roleDisplayName('MANAGER')} ‡∏ö‡∏±‡∏ô‡∏ó‡∏∂‡∏Å‡∏Å‡∏≤‡∏£‡∏•‡∏≤‡∏¢‡πâ‡∏≠‡∏ô‡∏´‡∏•‡∏±‡∏á‡πÅ‡∏ó‡∏ô‡∏û‡∏ô‡∏±‡∏Å‡∏á‡∏≤‡∏ô` : `‡∏ô‡πÇ‡∏¢‡∏ö‡∏≤‡∏¢‡∏õ‡∏±‡∏à‡∏à‡∏∏‡∏ö‡∏±‡∏ô‡∏≠‡∏ô‡∏∏‡∏ç‡∏≤‡∏ï‡πÉ‡∏´‡πâ ${roleDisplayName('MANAGER')} ‡∏¢‡πâ‡∏≠‡∏ô‡∏´‡∏•‡∏±‡∏á‡πÑ‡∏î‡πâ‡∏™‡∏π‡∏á‡∏™‡∏∏‡∏î ${managerRetroactiveMaxDaysBack} ‡∏ß‡∏±‡∏ô`}</div>}{notice && <div className="settings-notice success">{notice}</div>}{submitError && <ErrorAlert message={submitError} className="leave-submit-error" />}<button className="leave-submit-button" disabled={!mutationsEnabled || !canSubmit || !formReady || submitting} type="submit"><SmsIcon name="check" /> {submitting ? '‡∏Å‡∏≥‡∏•‡∏±‡∏á‡∏™‡πà‡∏á‡∏Ñ‡∏≥‡∏Ç‡∏≠‡∏•‡∏≤‚Ä¶' : '‡∏¢‡∏∑‡∏ô‡∏¢‡∏±‡∏ô‡πÅ‡∏•‡∏∞‡∏™‡πà‡∏á‡∏Ñ‡∏≥‡∏Ç‡∏≠‡∏•‡∏≤'}</button></form></SectionCard>
-      <SectionCard className="leave-history-card data-surface-card" kicker="‡∏õ‡∏£‡∏∞‡∏ß‡∏±‡∏ï‡∏¥‡∏Å‡∏≤‡∏£‡∏•‡∏≤" title={mode === 'history' ? '‡∏õ‡∏£‡∏∞‡∏ß‡∏±‡∏ï‡∏¥‡∏Å‡∏≤‡∏£‡∏•‡∏≤‡∏û‡∏ô‡∏±‡∏Å‡∏á‡∏≤‡∏ô‡∏ó‡∏±‡πâ‡∏á‡∏´‡∏°‡∏î' : '‡∏õ‡∏£‡∏∞‡∏ß‡∏±‡∏ï‡∏¥‡∏Ñ‡∏≥‡∏Ç‡∏≠‡∏•‡∏≤‡∏Ç‡∏≠‡∏á‡∏â‡∏±‡∏ô'} description="‡∏£‡∏≤‡∏¢‡∏Å‡∏≤‡∏£‡∏à‡∏≤‡∏Å‡∏£‡∏∞‡∏ö‡∏ö‡∏ï‡∏≤‡∏°‡∏Ç‡∏≠‡∏ö‡πÄ‡∏Ç‡∏ï‡∏™‡∏¥‡∏ó‡∏ò‡∏¥‡πå ‡πÄ‡∏•‡∏∑‡∏≠‡∏Å‡πÄ‡∏î‡∏∑‡∏≠‡∏ô‡πÅ‡∏•‡∏∞‡∏ï‡∏£‡∏ß‡∏à‡∏ú‡∏•‡∏Å‡∏≤‡∏£‡∏û‡∏¥‡∏à‡∏≤‡∏£‡∏ì‡∏≤">{mode === 'history' && historyMonth && onHistoryMonthChange && onHistoryMonthStep && <div className="leave-history-filter data-toolbar-panel"><div><strong>‡πÅ‡∏™‡∏î‡∏á‡∏Ç‡πâ‡∏≠‡∏°‡∏π‡∏•: {formatThaiMonth(historyMonth)}</strong><small>‡∏£‡∏≤‡∏¢‡∏Å‡∏≤‡∏£‡∏•‡∏≤‡∏ó‡∏µ‡πà‡∏°‡∏µ‡∏ä‡πà‡∏ß‡∏á‡∏ß‡∏±‡∏ô‡∏ó‡∏±‡∏ö‡∏ã‡πâ‡∏≠‡∏ô‡∏Å‡∏±‡∏ö‡πÄ‡∏î‡∏∑‡∏≠‡∏ô‡∏ó‡∏µ‡πà‡πÄ‡∏•‡∏∑‡∏≠‡∏Å</small></div><div className="leave-history-month-controls"><MonthGridPicker value={historyMonth} onChange={onHistoryMonthChange} /><button className="btn-neutral small-action" onClick={() => onHistoryMonthStep(-1)} disabled={loading}>‚Äπ ‡πÄ‡∏î‡∏∑‡∏≠‡∏ô‡∏Å‡πà‡∏≠‡∏ô</button><button className="btn-neutral small-action" onClick={() => onHistoryMonthStep(1)} disabled={loading}>‡πÄ‡∏î‡∏∑‡∏≠‡∏ô‡∏ñ‡∏±‡∏î‡πÑ‡∏õ ‚Ä∫</button></div></div>}{mode !== 'history' && <><div className="my-leave-quota-heading">‡πÇ‡∏Ñ‡∏ß‡∏ï‡πâ‡∏≤‡∏Ñ‡∏á‡πÄ‡∏´‡∏•‡∏∑‡∏≠{quotaYear ? ` ¬∑ ${thaiQuotaYearLabel(quotaYear)}` : ''}</div><div className="my-leave-quota-grid">{quotaCards.map(([icon, label, value, tone]) => <MetricCard key={`my-${label}`} className="leave-quota-metric" label={label} icon={icon} value={text(value)} description="‡∏™‡∏¥‡∏ó‡∏ò‡∏¥‡πå‡∏Ñ‡∏á‡πÄ‡∏´‡∏•‡∏∑‡∏≠‡∏à‡∏≤‡∏Å‡∏£‡∏∞‡∏ö‡∏ö (‡∏ß‡∏±‡∏ô)" loading={summaryLoading} />)}</div></>}{loading ? <DataTableState variant="loading" title="‡∏Å‡∏≥‡∏•‡∏±‡∏á‡∏î‡∏∂‡∏á‡∏õ‡∏£‡∏∞‡∏ß‡∏±‡∏ï‡∏¥‡∏Å‡∏≤‡∏£‡∏•‡∏≤‚Ä¶" /> : error ? <DataTableState variant="error" title="‡πÑ‡∏°‡πà‡∏™‡∏≤‡∏°‡∏≤‡∏£‡∏ñ‡πÇ‡∏´‡∏•‡∏î‡∏õ‡∏£‡∏∞‡∏ß‡∏±‡∏ï‡∏¥‡∏Å‡∏≤‡∏£‡∏•‡∏≤" description="‡∏£‡∏∞‡∏ö‡∏ö‡πÑ‡∏°‡πà‡∏û‡∏£‡πâ‡∏≠‡∏°‡πÉ‡∏ä‡πâ‡∏á‡∏≤‡∏ô‡∏ä‡∏±‡πà‡∏ß‡∏Ñ‡∏£‡∏≤‡∏ß ‡∏Å‡∏£‡∏∏‡∏ì‡∏≤‡∏•‡∏≠‡∏á‡πÉ‡∏´‡∏°‡πà‡∏≠‡∏µ‡∏Å‡∏Ñ‡∏£‡∏±‡πâ‡∏á" action={{ label: '‡∏•‡∏≠‡∏á‡πÉ‡∏´‡∏°‡πà', onClick: onRefresh }} /> : leaveTable(historyRows, false, mode === 'history' && historyMonth ? `‡πÑ‡∏°‡πà‡∏û‡∏ö‡∏õ‡∏£‡∏∞‡∏ß‡∏±‡∏ï‡∏¥‡∏Å‡∏≤‡∏£‡∏•‡∏≤‡πÉ‡∏ô‡πÄ‡∏î‡∏∑‡∏≠‡∏ô${formatThaiMonth(historyMonth)}` : '‡πÑ‡∏°‡πà‡∏°‡∏µ‡∏£‡∏≤‡∏¢‡∏Å‡∏≤‡∏£', true)}{mode === 'history' && onHistoryPageChange && (loading || Boolean(historyTotalPages)) && <DataTablePagination page={historyPage || 1} totalPages={historyTotalPages || 0} onChange={onHistoryPageChange} ariaLabel="‡∏Å‡∏≤‡∏£‡πÅ‡∏ö‡πà‡∏á‡∏´‡∏ô‡πâ‡∏≤‡∏õ‡∏£‡∏∞‡∏ß‡∏±‡∏ï‡∏¥‡∏Å‡∏≤‡∏£‡∏•‡∏≤" loading={loading} className="pagination-bar" />}{mode === 'history' && <div className="leave-history-total">‡∏ó‡∏±‡πâ‡∏á‡∏´‡∏°‡∏î {summaryLoading ? '‚Äî' : historyTotal ?? historyRows.length} ‡∏£‡∏≤‡∏¢‡∏Å‡∏≤‡∏£‡πÉ‡∏ô‡πÄ‡∏î‡∏∑‡∏≠‡∏ô‡∏ó‡∏µ‡πà‡πÄ‡∏•‡∏∑‡∏≠‡∏Å</div>}</SectionCard>
-    </div>
-    <ErrorAlert message={error} className="leave-error" />
-    {canManage && <SectionCard className="leave-pending-card data-surface-card" aria-busy={loading} kicker="‡∏Å‡∏≤‡∏£‡∏û‡∏¥‡∏à‡∏≤‡∏£‡∏ì‡∏≤" title="‡∏£‡∏≤‡∏¢‡∏Å‡∏≤‡∏£‡πÉ‡∏ö‡∏•‡∏≤‡∏ó‡∏µ‡πà‡∏£‡∏≠‡∏≠‡∏ô‡∏∏‡∏°‡∏±‡∏ï‡∏¥" description="‡∏ï‡∏£‡∏ß‡∏à‡∏Ñ‡∏≥‡∏Ç‡∏≠ ‡πÄ‡∏≠‡∏Å‡∏™‡∏≤‡∏£‡πÅ‡∏•‡∏∞‡∏™‡∏¥‡∏ó‡∏ò‡∏¥‡πå‡∏Å‡πà‡∏≠‡∏ô‡∏ï‡∏±‡∏î‡∏™‡∏¥‡∏ô‡πÉ‡∏à" actions={<><b><SmsIcon name="shield" /> ‡∏™‡∏¥‡∏ó‡∏ò‡∏¥‡πå‡∏ú‡∏π‡πâ‡∏ö‡∏£‡∏¥‡∏´‡∏≤‡∏£/‡∏´‡∏±‡∏ß‡∏´‡∏ô‡πâ‡∏≤‡∏á‡∏≤‡∏ô</b></>}>{loading ? <div className="loading-row data-state-inline data-state--loading" role="status" aria-live="polite">‡∏Å‡∏≥‡∏•‡∏±‡∏á‡∏ï‡∏£‡∏ß‡∏à‡∏™‡∏≠‡∏ö‡∏£‡∏≤‡∏¢‡∏Å‡∏≤‡∏£‡∏ó‡∏µ‡πà‡∏£‡∏≠‡∏≠‡∏ô‡∏∏‡∏°‡∏±‡∏ï‡∏¥‚Ä¶</div> : leaveTable(pendingRows, true)}</SectionCard>}
-  </section>;
-}
-
-function LeavePrintDocument({ row }: { row: DataRow }) {
-  const leaveDates = inputDate(row.startDate) === inputDate(row.endDate) ? date(row.startDate) : `${date(row.startDate)} ‚Äì ${date(row.endDate)}`;
-  return <section className="leave-print-document" aria-hidden="true">
-    <div className="leave-print-topline"><span>{formatApprovalDateTime(new Date())}</span><span>Security Management System ‚Äî ‡πÅ‡∏ö‡∏ö‡∏ö‡∏±‡∏ô‡∏ó‡∏∂‡∏Å‡∏Å‡∏≤‡∏£‡∏•‡∏≤‡∏û‡∏ô‡∏±‡∏Å‡∏á‡∏≤‡∏ô‡∏£‡∏±‡∏Å‡∏©‡∏≤‡∏Ñ‡∏ß‡∏≤‡∏°‡∏õ‡∏•‡∏≠‡∏î‡∏†‡∏±‡∏¢</span></div>
-    <div className="leave-print-heading"><h1>‡πÉ‡∏ö‡∏Ç‡∏≠‡∏≠‡∏ô‡∏∏‡∏°‡∏±‡∏ï‡∏¥‡∏•‡∏≤‡∏á‡∏≤‡∏ô</h1><p>‡∏û‡∏ô‡∏±‡∏Å‡∏á‡∏≤‡∏ô‡∏£‡∏±‡∏Å‡∏©‡∏≤‡∏Ñ‡∏ß‡∏≤‡∏°‡∏õ‡∏•‡∏≠‡∏î‡∏†‡∏±‡∏¢</p></div>
-    <div className="leave-print-person"><strong>‡∏ä‡∏∑‡πà‡∏≠‡∏û‡∏ô‡∏±‡∏Å‡∏á‡∏≤‡∏ô: {text(row.employeeNameSnapshot)}</strong><strong>‡∏ß‡∏±‡∏ô‡∏ó‡∏µ‡πà‡∏û‡∏¥‡∏°‡∏û‡πå: {date(new Date())}</strong></div>
-    <table className="leave-print-table"><thead><tr><th>‡∏ß‡∏±‡∏ô‡∏ó‡∏µ‡πà‡∏•‡∏≤‡∏á‡∏≤‡∏ô</th><th>‡∏õ‡∏£‡∏∞‡πÄ‡∏†‡∏ó‡∏Å‡∏≤‡∏£‡∏•‡∏≤</th><th>‡∏à‡∏≥‡∏ô‡∏ß‡∏ô‡∏ß‡∏±‡∏ô</th><th>‡∏ú‡∏π‡πâ‡∏õ‡∏è‡∏¥‡∏ö‡∏±‡∏ï‡∏¥‡∏á‡∏≤‡∏ô‡πÅ‡∏ó‡∏ô / ‡∏£‡∏≤‡∏¢‡∏•‡∏∞‡πÄ‡∏≠‡∏µ‡∏¢‡∏î</th></tr></thead><tbody><tr><td>{leaveDates}</td><td>{leaveTypeDisplayText(row)}</td><td>{text(row.dayCount)} ‡∏ß‡∏±‡∏ô</td><td><div className="leave-print-detail-lines"><strong>‡∏ú‡∏π‡πâ‡∏õ‡∏è‡∏¥‡∏ö‡∏±‡∏ï‡∏¥‡∏á‡∏≤‡∏ô‡πÅ‡∏ó‡∏ô:</strong> {text(row.substitute || row.substituteName)}<br /><strong>‡∏£‡∏≤‡∏¢‡∏•‡∏∞‡πÄ‡∏≠‡∏µ‡∏¢‡∏î:</strong> {text(row.reasonDetail || row.reason)}</div></td></tr></tbody></table>
-    <div className="leave-print-signatures">
-      <div className="leave-print-signature-block">
-        <div className="leave-print-signature-line">
-          <span className="leave-print-sig-label">‡∏•‡∏á‡∏ä‡∏∑‡πà‡∏≠</span>
-          <span className="leave-print-dots">........................................................</span>
-        </div>
-        <div className="leave-print-name">(........................................................)</div>
-        <strong className="leave-print-title">‡∏´‡∏±‡∏ß‡∏´‡∏ô‡πâ‡∏≤‡∏û‡∏ô‡∏±‡∏Å‡∏á‡∏≤‡∏ô‡∏£‡∏±‡∏Å‡∏©‡∏≤‡∏Ñ‡∏ß‡∏≤‡∏°‡∏õ‡∏•‡∏≠‡∏î‡∏†‡∏±‡∏¢</strong>
-      </div>
-      <div className="leave-print-signature-block">
-        <div className="leave-print-signature-line">
-          <span className="leave-print-notice">‡∏ó‡∏£‡∏≤‡∏ö /</span>
-          <span className="leave-print-sig-label">‡∏•‡∏á‡∏ä‡∏∑‡πà‡∏≠</span>
-          <span className="leave-print-dots">........................................................</span>
-        </div>
-        <div className="leave-print-name">(........................................................)</div>
-        <strong className="leave-print-title">‡∏ú‡∏π‡πâ‡∏à‡∏±‡∏î‡∏Å‡∏≤‡∏£‡πÄ‡∏Ç‡∏ï (‡∏ú‡∏π‡πâ‡∏≠‡∏ô‡∏∏‡∏°‡∏±‡∏ï‡∏¥)</strong>
-      </div>
-    </div>
-    <footer className="leave-print-footer"><span>Security Management System</span><span>1/1</span></footer>
-  </section>;
-}
-
-function Dashboard() {
-  const auth = useContext(AuthContext)!;
-  const actionDialog = useActionDialog();
-  const pwaShell = useMemo(() => isSmsPwaShellMode(), []);
-  const [activePage, setActivePageState] = useState<Page>(() => {
-    if (pwaShell) return initialSmsPwaPage();
-    const route = pageFromLocation();
-    return route.kind === 'page' ? route.page : 'dashboard';
-  });
-  const [activeSettingsSection, setActiveSettingsSection] = useState<SettingsSectionId>(() => settingsSectionFromPath(window.location.pathname));
-  const setActivePage = (page: Page) => {
-    applyRoutePage(page, false);
-    if (!pwaShell) navigate(page);
-  };
-  const setSettingsSection = (section: SettingsSectionId) => {
-    setActivePageState('settings');
-    setActiveSettingsSection(section);
-    navigateSettingsSection(section);
-  };
-  const [pwaOnline, setPwaOnline] = useState(() => typeof navigator === 'undefined' ? true : navigator.onLine);
-  const [employees, setEmployees] = useState<Employee[]>([]);
-  const [totalCount, setTotalCount] = useState(0);
-  const [empLoading, setEmpLoading] = useState(false);
-  const [fetchError, setFetchError] = useState<RequestErrorInput>();
-  const [search, setSearch] = useState(() => new URLSearchParams(window.location.search).get('search') || '');
-  const [operationResponseBinding, setOperationResponseBinding] = useState<PageResponseBinding<DataResponse>>();
-  const [operationRequestState, setOperationRequestState] = useState<OperationRequestState>();
-  const [leavePrintTarget, setLeavePrintTarget] = useState<DataRow>();
-  const [leaveDecision, setLeaveDecision] = useState<LeaveDecisionRequest>();
-  const [operationPage, setOperationPage] = useState(() => pwaShell ? 1 : routeQueryNumber('page'));
-  const [licenseEmployeeStatus, setLicenseEmployeeStatus] = useState<LicenseEmployeeStatus>(() => {
-    const status = new URLSearchParams(window.location.search).get('status');
-    return status === 'INACTIVE' || status === 'ALL' ? status : 'ACTIVE';
-  });
-  const [auditPageSize, setAuditPageSize] = useState(25);
-  const [auditFilters, setAuditFilters] = useState<AuditFilters>(defaultAuditFilters);
-  const [dataQualityPageSize, setDataQualityPageSize] = useState(25);
-  const [dataQualityFilters, setDataQualityFilters] = useState<DataQualityFilters>({ severity: '', module: '', rule: '', department: '', search: '' });
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
-  const [desktopView, setDesktopView] = useState(() => typeof window !== 'undefined' && window.localStorage.getItem('sms-display-mode') === 'desktop');
-  const toggleDesktopView = () => {
-    setDesktopView((current) => {
-      const next = !current;
-      if (typeof window !== 'undefined') window.localStorage.setItem('sms-display-mode', next ? 'desktop' : 'mobile');
-      setMobileMenuOpen(false);
-      setMobileUtilityOpen(false);
-      return next;
-    });
-  };
-  const mobileMenuTriggerRef = useRef<HTMLButtonElement>(null);
-
-  useEffect(() => {
-    if (!pwaShell) return;
-    const update = () => setPwaOnline(navigator.onLine);
-    window.addEventListener('online', update);
-    window.addEventListener('offline', update);
-    return () => { window.removeEventListener('online', update); window.removeEventListener('offline', update); };
-  }, [pwaShell]);
-
-  useEffect(() => {
-    if (!pwaShell) return;
-    const supervisorAllowed = activePage === 'attendanceSupervisor' && ['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(auth.user?.role || '') && !auth.isViewingAs;
-    if (!isSmsPwaPage(activePage) && !supervisorAllowed) setActivePage('attendance');
-  }, [activePage, auth.isViewingAs, auth.user?.role, pwaShell]);
-
-  const selectPwaPage = (page: SmsPwaPage, options: { today?: boolean } = {}) => {
-    setActivePage(page);
-    if (typeof window !== 'undefined') {
-      const url = new URL(window.location.href);
-      url.searchParams.set('pwa', '1');
-      url.searchParams.set('page', page);
-      if (page === 'attendanceHistory' && options.today) url.searchParams.set('today', '1');
-      else url.searchParams.delete('today');
-      window.history.replaceState(window.history.state, '', url);
-      window.dispatchEvent(new Event(ROUTE_CHANGE_EVENT));
-    }
-  };
-  const openPwaAttendanceSupervisor = () => {
-    if (!APPROVAL_REVIEWER_ROLES.some((role) => role === auth.user?.role) || auth.isViewingAs) return;
-    setActivePage('attendanceSupervisor');
-    if (typeof window !== 'undefined') {
-      const url = new URL(window.location.href);
-      url.searchParams.set('pwa', '1');
-      url.searchParams.set('page', 'attendanceSupervisor');
-      url.searchParams.delete('today');
-      window.history.replaceState(window.history.state, '', url);
-      window.dispatchEvent(new Event(ROUTE_CHANGE_EVENT));
-    }
-  };
-  const [mobileUtilityOpen, setMobileUtilityOpen] = useState(false);
-  const [passkeyPanelOpen, setPasskeyPanelOpen] = useState(false);
-  const mobileUtilityTriggerRef = useRef<HTMLButtonElement>(null);
-  useEffect(() => {
-    if (!mobileMenuOpen) return;
-    const releaseScrollLock = acquireDocumentScrollLock();
-    const onKeyDown = (event: KeyboardEvent) => { if (event.key === 'Escape') setMobileMenuOpen(false); };
-    window.addEventListener('keydown', onKeyDown);
-    return () => {
-      window.removeEventListener('keydown', onKeyDown);
-      releaseScrollLock();
-      mobileMenuTriggerRef.current?.focus();
-    };
-  }, [mobileMenuOpen]);
-  useEffect(() => {
-    if (!mobileUtilityOpen) return;
-    const releaseScrollLock = acquireDocumentScrollLock();
-    const onKeyDown = (event: KeyboardEvent) => { if (event.key === 'Escape') setMobileUtilityOpen(false); };
-    window.addEventListener('keydown', onKeyDown);
-    return () => {
-      window.removeEventListener('keydown', onKeyDown);
-      releaseScrollLock();
-      mobileUtilityTriggerRef.current?.focus();
-    };
-  }, [mobileUtilityOpen]);
-  useEffect(() => {
-    setMobileMenuOpen(false);
-    setMobileUtilityOpen(false);
-    if (activePage !== 'employees') setEmployeeGovernedEditTarget(undefined);
-    if (!['employees', 'approvalCenter'].includes(activePage)) {
-      setEmployeeChangeReviewOpen(false);
-      setEmployeeChangeReviewInitialId(undefined);
-    }
-  }, [activePage]);
-  const [operationRefresh, setOperationRefresh] = useState(0);
-  const [approvalSummary, setApprovalSummary] = useState<ApprovalCountSummary | null>(null);
-  const [approvalCountStatus, setApprovalCountStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
-  const [registrationReviewInitialRequestId, setRegistrationReviewInitialRequestId] = useState<string>();
-  const [approvalCenterRefresh, setApprovalCenterRefresh] = useState(0);
-  const [employeeRefresh, setEmployeeRefresh] = useState(0);
-  const [shiftTypes, setShiftTypes] = useState<DataRow[]>([]);
-  const activeShiftTypes = shiftTypes.filter((item) => item.isActive !== false);
-  const [shiftQuery, setShiftQuery] = useState('');
-  const [shiftStatusFilter, setShiftStatusFilter] = useState<'ALL' | 'ACTIVE' | 'INACTIVE'>('ALL');
-  const [shiftDeactivationTarget, setShiftDeactivationTarget] = useState<DataRow>();
-  const [shiftDeactivationImpact, setShiftDeactivationImpact] = useState<DataRow>();
-  const [shiftDeactivationReason, setShiftDeactivationReason] = useState('');
-  const visibleShiftTypes = useMemo(() => { const q = shiftQuery.trim().toLowerCase(); return shiftTypes.filter((row) => (!q || `${row.code || ''} ${row.name || ''}`.toLowerCase().includes(q)) && (shiftStatusFilter === 'ALL' || (shiftStatusFilter === 'ACTIVE' ? row.isActive !== false : row.isActive === false))); }, [shiftTypes, shiftQuery, shiftStatusFilter]);
-  const [editor, setEditor] = useState<Editor>();
-  const [editorBusy, setEditorBusy] = useState(false);
-  const [editorError, setEditorError] = useState<RequestErrorInput>();
-  const [employeeGovernedEditTarget, setEmployeeGovernedEditTarget] = useState<Employee>();
-  const [employeeChangeReviewOpen, setEmployeeChangeReviewOpen] = useState(false);
-  const [employeeChangeReviewInitialId, setEmployeeChangeReviewInitialId] = useState<string>();
-  const [licenseEditTarget, setLicenseEditTarget] = useState<DataRow>();
-  const [dashboardSummary, setDashboardSummary] = useState<DataRow>({});
-  const [dashboardLoading, setDashboardLoading] = useState(false);
-  const [dashboardError, setDashboardError] = useState<RequestErrorInput>();
-  const [dashboardFilters, setDashboardFilters] = useState<DashboardFilters>(() => { const date = bangkokDateInput(); return { date, month: date.slice(0, 7), department: '' }; });
-  const [scheduleMonth, setScheduleMonth] = useState(() => routeQueryMonth() || currentBangkokMonth());
-  const [leaveMonth, setLeaveMonth] = useState(readLeaveMonthFromUrl);
-  const [quotaYear, setQuotaYear] = useState(currentBangkokQuotaYear);
-  const leaveMonthRef = useRef(leaveMonth);
-  const quotaYearRef = useRef(quotaYear);
-  leaveMonthRef.current = leaveMonth;
-  quotaYearRef.current = quotaYear;
-  const [showLegacyQuotas, setShowLegacyQuotas] = useState(false);
-  const routeAppliedFilterStateRef = useRef(false);
-  const previousOperationFiltersRef = useRef({ leaveMonth, quotaYear, showLegacyQuotas });
-  const [legacyQuotaRows, setLegacyQuotaRows] = useState<DataRow[]>([]);
-  const [scheduleDepartment, setScheduleDepartment] = useState(() => new URLSearchParams(window.location.search).get('department') || '');
-  const applyRoutePage = (page: Page, syncSearch = true) => {
-    setActivePageState(page);
-    setActiveSettingsSection(settingsSectionFromPath(window.location.pathname));
-    const params = new URLSearchParams(window.location.search);
-    if (!pwaShell) setOperationPage(params.has('page') ? routeQueryNumber('page') : 1);
-    if (page === 'schedule') {
-      const month = routeQueryMonth();
-      if (month) setScheduleMonth(month);
-      setScheduleDepartment(params.get('department') || '');
-    }
-    if (page === 'leaveHistory') {
-      const nextLeaveMonth = readLeaveMonthFromUrl();
-      if (nextLeaveMonth !== leaveMonthRef.current) routeAppliedFilterStateRef.current = true;
-      setLeaveMonth(nextLeaveMonth);
-    }
-    if (page === 'quota') {
-      const requestedYear = Number(params.get('year'));
-      if (Number.isInteger(requestedYear) && requestedYear >= 2000 && requestedYear <= 9999 && requestedYear !== quotaYearRef.current) {
-        routeAppliedFilterStateRef.current = true;
-        setQuotaYear(requestedYear);
-      }
-    }
-    if (page === 'employees' && syncSearch) setSearch(params.get('search') || '');
-    if (page === 'licenses') {
-      const status = params.get('status');
-      setLicenseEmployeeStatus(status === 'INACTIVE' || status === 'ALL' ? status : 'ACTIVE');
-    }
-  };
-  useEffect(() => {
-    const syncBrowserHistory = () => {
-      const route = pageFromLocation();
-      if (route.kind === 'page') applyRoutePage(route.page);
-    };
-    const syncAppNavigation = () => {
-      const route = pageFromLocation();
-      if (route.kind === 'page') {
-        setActivePageState(route.page);
-        setActiveSettingsSection(settingsSectionFromPath(window.location.pathname));
-      }
-    };
-    window.addEventListener('popstate', syncBrowserHistory);
-    window.addEventListener(ROUTE_CHANGE_EVENT, syncAppNavigation);
-    return () => {
-      window.removeEventListener('popstate', syncBrowserHistory);
-      window.removeEventListener(ROUTE_CHANGE_EVENT, syncAppNavigation);
-    };
-  }, [pwaShell]);
-  useEffect(() => {
-    if (pwaShell) return;
-    const query: Record<string, string | undefined> = { page: operationPage > 1 ? String(operationPage) : undefined };
-    if (activePage === 'schedule') {
-      query.month = scheduleMonth;
-      query.department = scheduleDepartment || undefined;
-      query.year = undefined;
-    }
-    if (activePage === 'leaveHistory') {
-      const urlMonth = new URLSearchParams(window.location.search).get('month') || '';
-      if (!/^\d{4}-(0?[1-9]|1[0-2])$/.test(urlMonth)) {
-        const parsedMonth = parseMonthValue(leaveMonth);
-        query.year = String(parsedMonth.year);
-        query.month = String(parsedMonth.month);
-      }
-    }
-    if (activePage === 'quota') query.year = String(quotaYear);
-    if (activePage === 'employees') query.search = search || undefined;
-    if (['licenses'].includes(activePage)) query.status = licenseEmployeeStatus === 'ACTIVE' ? undefined : licenseEmployeeStatus;
-    updateRouteQuery(query);
-  }, [activePage, licenseEmployeeStatus, leaveMonth, operationPage, pwaShell, scheduleDepartment, scheduleMonth, search]);
-  const [leaveSummary, setLeaveSummary] = useState<DataRow>({});
-  const [leavePolicy, setLeavePolicy] = useState<DataRow>({ defaultSickDays: 30, defaultPersonalDays: 3, defaultVacationDays: 6, sickAttachmentRequiredAfterDays: 3, managerRetroactiveOnBehalfEnabled: true, managerRetroactiveMaxDaysBack: 0 });
-  const [leaveTypes, setLeaveTypes] = useState<LeaveTypeMaster[]>([]);
-  const [leaveTypesLoading, setLeaveTypesLoading] = useState(false);
-  const [ruleCheckResponse, setRuleCheckResponse] = useState<DataRow>({});
-  const [autoSchedulePreview, setAutoSchedulePreview] = useState<DataRow>();
-  const [autoScheduleBusy, setAutoScheduleBusy] = useState(false);
-  const [employeeAutoScheduleBusyId, setEmployeeAutoScheduleBusyId] = useState<string>();
-  const [employeeAutoScheduleTarget, setEmployeeAutoScheduleTarget] = useState<DataRow>();
-  const [employeeAutoContinue, setEmployeeAutoContinue] = useState(true);
-  const [employeeAutoStartPhase, setEmployeeAutoStartPhase] = useState('D1');
-  const [scheduleExportBusy, setScheduleExportBusy] = useState(false);
-  const [scheduleDrafts, setScheduleDrafts] = useState<Record<string, { action: 'create' | 'update' | 'delete'; id?: string; employeeId: string; workDate: string; shiftTypeId?: string; shiftCode?: string; shiftName?: string; startTime?: string; endTime?: string; color?: string; remark?: string; licenseStatus?: string; licenseOverride?: boolean; overrideReason?: string; payload?: unknown }>>({});
-  const [batchSaveBusy, setBatchSaveBusy] = useState(false);
-  const [batchSaveProgress, setBatchSaveProgress] = useState<ScheduleBatchProgress>();
-  const [batchSaveSummary, setBatchSaveSummary] = useState<string>();
-  const [selectedDepartments, setSelectedDepartments] = useState<string[]>([]);
-  const [deptMenuOpen, setDeptMenuOpen] = useState(false);
-
-  const operationResponseKey = JSON.stringify({
-    page: operationPage,
-    refresh: operationRefresh,
-    principal: auth.user?.id || '',
-    role: auth.user?.role || '',
-    ...(activePage === 'licenses' ? { employeeStatus: licenseEmployeeStatus } : {}),
-    ...(activePage === 'leaveHistory' ? { month: leaveMonth } : {}),
-    ...(activePage === 'quota' ? { year: quotaYear, legacy: showLegacyQuotas } : {}),
-    ...(activePage === 'audit' ? { pageSize: auditPageSize, filters: auditFilters } : {}),
-    ...(activePage === 'dataQuality' ? { pageSize: dataQualityPageSize, filters: dataQualityFilters } : {}),
-    ...(activePage === 'schedule' ? { month: scheduleMonth, department: scheduleDepartment } : {}),
-    ...(activePage === 'rules' ? { month: scheduleMonth } : {})
-  });
-  const operationResponse = responseForCurrentQuery(operationResponseBinding, activePage, operationResponseKey) || {};
-  const operationRequestMatches = operationRequestState?.page === activePage && operationRequestState.key === operationResponseKey;
-  const operationResponsePages: Page[] = ['licenses', 'approvals', 'rules', 'leave', 'leavePending', 'leaveHistory', 'quota', 'users', 'audit', 'dataQuality', 'schedule', 'settings'];
-  const operationLoading = Boolean(auth.token) && operationResponsePages.includes(activePage)
-    && (operationRequestMatches ? Boolean(operationRequestState?.loading) : !responseForCurrentQuery(operationResponseBinding, activePage, operationResponseKey));
-  const operationError = operationRequestMatches ? operationRequestState?.error : undefined;
-  const setOperationResponse = (response: DataResponse) => setOperationResponseBinding({ page: activePage, key: operationResponseKey, response });
-  const setOperationLoading = (loading: boolean) => setOperationRequestState((current) => {
-    const matches = current?.page === activePage && current.key === operationResponseKey;
-    if (!loading && !matches) return current;
-    return { page: activePage, key: operationResponseKey, loading, error: matches ? current.error : undefined };
-  });
-  const setOperationError = (error?: RequestErrorInput) => setOperationRequestState((current) => {
-    const matches = current?.page === activePage && current.key === operationResponseKey;
-    return { page: activePage, key: operationResponseKey, loading: matches ? current.loading : false, error };
-  });
-
-
-
-
-
-  const changeLeaveMonth = (value: string) => {
-    const normalized = normalizeMonthValue(value);
-    setLeaveMonth(normalized);
-    setOperationPage(1);
-    writeLeaveMonthToUrl(normalized);
-  };
-
-  useEffect(() => {
-    const handlePopState = () => setLeaveMonth(readLeaveMonthFromUrl());
-    window.addEventListener('popstate', handlePopState);
-    return () => window.removeEventListener('popstate', handlePopState);
-  }, []);
-
-  useEffect(() => {
-    if (!leavePrintTarget) return;
-    let active = true;
-    void printDocument('.leave-print-document', '‡πÉ‡∏ö‡∏Ç‡∏≠‡∏≠‡∏ô‡∏∏‡∏°‡∏±‡∏ï‡∏¥‡∏•‡∏≤‡∏á‡∏≤‡∏ô.pdf', { orientation: 'portrait', margin: '12mm' })
-      .catch(() => { if (active) setOperationError('‡πÑ‡∏°‡πà‡∏™‡∏≤‡∏°‡∏≤‡∏£‡∏ñ‡∏à‡∏±‡∏î‡πÄ‡∏ï‡∏£‡∏µ‡∏¢‡∏°‡πÄ‡∏≠‡∏Å‡∏™‡∏≤‡∏£‡∏û‡∏¥‡∏°‡∏û‡πå‡πÉ‡∏ö‡∏•‡∏≤‡πÑ‡∏î‡πâ'); })
-      .finally(() => { if (active) setLeavePrintTarget(undefined); });
-    return () => {
-      active = false;
-    };
-  }, [leavePrintTarget]);
-
-  const saveAllDrafts = async () => {
-    if (!auth.token || !Object.keys(scheduleDrafts).length) return;
-    setBatchSaveBusy(true); setOperationError(undefined);
-    setBatchSaveSummary(undefined);
-    setBatchSaveProgress({ total: Object.keys(scheduleDrafts).length, completed: 0, saved: 0, failed: 0 });
-    try {
-      const defaultType = activeShiftTypes.find((t) => String(t.code).toUpperCase() === 'D') || activeShiftTypes[0];
-      const validDefaultTypeId = String(defaultType?.id || '');
-      const draftSnapshot = scheduleDrafts;
-
-      const changes = Object.entries(scheduleDrafts)
-        .map(([draftKey, d]) => {
-          const shiftTypeId = (d.shiftTypeId && d.shiftTypeId.length >= 10) ? d.shiftTypeId : validDefaultTypeId;
-          return {
-            draftKey,
-            action: d.action,
-            id: d.id,
-            payload: d.action === 'delete' ? undefined : {
-              employeeId: String(d.employeeId),
-              shiftTypeId,
-              workDate: String(d.workDate),
-              remark: String(d.remark || '‡∏à‡∏±‡∏î‡∏ï‡∏≤‡∏£‡∏≤‡∏á‡∏Å‡∏∞'),
-              locked: true,
-              licenseOverride: Boolean(d.licenseOverride),
-              overrideReason: String(d.overrideReason || '')
-            }
-          };
-        });
-
-      if (!changes.length) {
-        return;
-      }
-
-      const result = await api.batchSaveShifts(auth.token, changes, setBatchSaveProgress);
-      const successfulDraftKeys = new Set(result.successfulChanges.map((change) => change.draftKey).filter((key): key is string => Boolean(key)));
-      setScheduleDrafts((current) => {
-        const remaining = { ...current };
-        for (const key of successfulDraftKeys) {
-          if (current[key] === draftSnapshot[key]) delete remaining[key];
-        }
-        return remaining;
-      });
-      setBatchSaveSummary(`‡∏ö‡∏±‡∏ô‡∏ó‡∏∂‡∏Å‡∏™‡∏≥‡πÄ‡∏£‡πá‡∏à ${result.successCount} / ‡∏•‡πâ‡∏°‡πÄ‡∏´‡∏•‡∏ß ${result.failureCount}`);
-      if (result.failureCount > 0) setOperationError('‡∏ö‡∏±‡∏ô‡∏ó‡∏∂‡∏Å‡πÑ‡∏°‡πà‡∏™‡∏≥‡πÄ‡∏£‡πá‡∏à ‡∏Ç‡πâ‡∏≠‡∏°‡∏π‡∏•‡∏¢‡∏±‡∏á‡∏≠‡∏¢‡∏π‡πà‡πÉ‡∏ô‡∏â‡∏ö‡∏±‡∏ö‡∏£‡πà‡∏≤‡∏á');
-
-      if (result.successCount > 0) {
-        try {
-          const updated = await api.scheduleCalendar(auth.token, scheduleMonth, operationPage, scheduleDepartment);
-          setOperationResponse(updated);
-        } catch (reason) {
-          if (result.failureCount === 0) setOperationError(toRequestErrorState(reason, '‡∏ö‡∏±‡∏ô‡∏ó‡∏∂‡∏Å‡πÅ‡∏•‡πâ‡∏ß ‡πÅ‡∏ï‡πà‡πÇ‡∏´‡∏•‡∏î‡∏ï‡∏≤‡∏£‡∏≤‡∏á‡∏•‡πà‡∏≤‡∏™‡∏∏‡∏î‡πÑ‡∏°‡πà‡∏™‡∏≥‡πÄ‡∏£‡πá‡∏à'));
-        }
-      }
-    } catch (reason) {
-      setOperationError(toRequestErrorState(reason, '‡∏ö‡∏±‡∏ô‡∏ó‡∏∂‡∏Å‡πÑ‡∏°‡πà‡∏™‡∏≥‡πÄ‡∏£‡πá‡∏à ‡∏Ç‡πâ‡∏≠‡∏°‡∏π‡∏•‡∏¢‡∏±‡∏á‡∏≠‡∏¢‡∏π‡πà‡πÉ‡∏ô‡∏â‡∏ö‡∏±‡∏ö‡∏£‡πà‡∏≤‡∏á'));
-    } finally {
-      setBatchSaveBusy(false);
-    }
-  };
-
-
-  useEffect(() => {
-    if (!auth.token || !['licenses', 'schedule', 'leave', 'leavePending', 'leaveHistory', 'quota'].includes(activePage)) return;
-    setEmpLoading(true);
-    setFetchError(undefined);
-    api.employees(auth.token)
-      .then((result) => {
-        const records = result?.data || [];
-        setEmployees(records);
-        setTotalCount(result?.meta?.total ?? records.length);
-      })
-      .catch((reason) => {
-        setFetchError(toRequestErrorState(reason, '‡πÑ‡∏°‡πà‡∏™‡∏≤‡∏°‡∏≤‡∏£‡∏ñ‡∏≠‡πà‡∏≤‡∏ô‡∏Ç‡πâ‡∏≠‡∏°‡∏π‡∏•‡∏û‡∏ô‡∏±‡∏Å‡∏á‡∏≤‡∏ô‡πÑ‡∏î‡πâ'));
-        setEmployees([]);
-        setTotalCount(0);
-      })
-      .finally(() => setEmpLoading(false));
-  }, [activePage, auth.token, employeeRefresh]);
-
-  useEffect(() => {
-    if (!auth.token || !['schedule', 'shiftSetup'].includes(activePage)) return;
-    getShiftTypes(auth.token, { includeInactive: auth.user?.role === 'ADMIN' }).then((result) => setShiftTypes(result?.data || [])).catch(() => setShiftTypes([]));
-  }, [activePage, auth.token, auth.user?.role, operationRefresh]);
-
-  useEffect(() => {
-    if (!auth.token || activePage !== 'dashboard') return;
-    setDashboardLoading(true);
-    setDashboardError(undefined);
-    api.dashboard(auth.token, dashboardFilters)
-      .then((result) => setDashboardSummary(result?.data || {}))
-      .catch((reason) => setDashboardError(toRequestErrorState(reason, '‡πÑ‡∏°‡πà‡∏™‡∏≤‡∏°‡∏≤‡∏£‡∏ñ‡∏≠‡πà‡∏≤‡∏ô‡∏Ç‡πâ‡∏≠‡∏°‡∏π‡∏•‡∏†‡∏≤‡∏û‡∏£‡∏ß‡∏°‡πÑ‡∏î‡πâ')))
-      .finally(() => setDashboardLoading(false));
-  }, [activePage, auth.token, operationRefresh, dashboardFilters.date, dashboardFilters.month, dashboardFilters.department]);
-
-  useEffect(() => {
-    if (!auth.token || !['leave', 'leavePending', 'leaveHistory'].includes(activePage)) return;
-    api.leaveSummary(auth.token).then((result) => setLeaveSummary(result?.data || {})).catch(() => setLeaveSummary({ linked: false }));
-  }, [activePage, auth.token, operationRefresh]);
-
-  useEffect(() => {
-    if (!auth.token || !['leave', 'leavePending', 'leaveHistory', 'quota'].includes(activePage)) return;
-    getLeavePolicy(auth.token)
-      .then((result) => setLeavePolicy(result?.data || {}))
-      .catch(() => setLeavePolicy({ defaultSickDays: 30, defaultPersonalDays: 3, defaultVacationDays: 6, sickAttachmentRequiredAfterDays: 3, managerRetroactiveOnBehalfEnabled: true, managerRetroactiveMaxDaysBack: 0 }));
-  }, [activePage, auth.token, operationRefresh]);
-
-  useEffect(() => {
-    if (!auth.token || !['settings', 'leave', 'leavePending', 'leaveHistory'].includes(activePage)) return;
-    let active = true;
-    setLeaveTypesLoading(true);
-    getLeaveTypes(auth.token, { includeInactive: activePage === 'settings' && auth.user?.role === 'ADMIN' })
-      .then((result) => { if (active) setLeaveTypes(Array.isArray(result?.data) ? result.data : []); })
-      .catch(() => { if (active) setLeaveTypes([]); })
-      .finally(() => { if (active) setLeaveTypesLoading(false); });
-    return () => { active = false; };
-  }, [activePage, auth.token, auth.user?.role, operationRefresh]);
-
-  useEffect(() => {
-    setApprovalSummary(null);
-    if (pwaShell || !auth.token || !APPROVAL_REVIEWER_ROLES.some((role) => role === auth.user?.role) || auth.isViewingAs) {
-      setApprovalCountStatus('idle');
-      return;
-    }
-    let active = true;
-    setApprovalCountStatus('loading');
-    let refreshApprovalCount: ReturnType<typeof import('./approval-count-refresh').createApprovalCountRefresh> | undefined;
-    void import('./approval-count-refresh').then(({ createApprovalCountRefresh }) => {
-      if (!active) return;
-      refreshApprovalCount = createApprovalCountRefresh({
-      read: () => getApprovalCenterSummary(auth.token!),
-      canRefresh: () => shouldPollApprovalCenter(document.visibilityState),
-      onUpdate: (summary) => {
-        if (!active) return;
-        setApprovalSummary(summary);
-        setApprovalCountStatus(summary ? 'ready' : 'error');
-      }
-      });
-      refreshApprovalCount.refresh();
-    }).catch(() => { if (active) setApprovalCountStatus('error'); });
-    const timer = window.setInterval(() => refreshApprovalCount?.refresh(), 60000);
-    const onVisibility = () => refreshApprovalCount?.refresh();
-    document.addEventListener('visibilitychange', onVisibility);
-    window.addEventListener('focus', onVisibility);
-    return () => { active = false; refreshApprovalCount?.dispose(); window.clearInterval(timer); document.removeEventListener('visibilitychange', onVisibility); window.removeEventListener('focus', onVisibility); };
-  }, [auth.token, auth.user?.role, auth.isViewingAs, pwaShell, operationRefresh, employeeRefresh, approvalCenterRefresh]);
-
-  useEffect(() => {
-    if (!auth.token || activePage !== 'rules') return;
-    api.ruleChecks(auth.token, scheduleMonth).then((result) => setRuleCheckResponse(result?.data || {})).catch((reason) => setOperationError(toRequestErrorState(reason, '‡πÑ‡∏°‡πà‡∏™‡∏≤‡∏°‡∏≤‡∏£‡∏ñ‡∏ï‡∏£‡∏ß‡∏à‡∏™‡∏≠‡∏ö‡∏Å‡∏é‡πÑ‡∏î‡πâ')));
-  }, [activePage, auth.token, operationRefresh, scheduleMonth]);
-
-  useEffect(() => {
-    if (!auth.token || activePage !== 'audit') return;
-    let active = true;
-    setOperationLoading(true); setOperationError(undefined);
-    api.auditEvents(auth.token, operationPage, auditPageSize, auditFilters)
-      .then((response) => { if (active) setOperationResponse(response); })
-      .catch((reason) => { if (active) setOperationError(toRequestErrorState(reason, '‡πÑ‡∏°‡πà‡∏™‡∏≤‡∏°‡∏≤‡∏£‡∏ñ‡∏≠‡πà‡∏≤‡∏ô‡∏ö‡∏±‡∏ô‡∏ó‡∏∂‡∏Å‡∏Å‡∏≤‡∏£‡∏ï‡∏£‡∏ß‡∏à‡∏™‡∏≠‡∏ö‡πÑ‡∏î‡πâ')); })
-      .finally(() => { if (active) setOperationLoading(false); });
-    return () => { active = false; };
-  }, [activePage, auth.token, auth.user?.id, auth.user?.role, operationPage, auditPageSize, auditFilters, operationRefresh]);
-
-  useEffect(() => {
-    if (!auth.token || activePage !== 'dataQuality') return;
-    let active = true;
-    setOperationLoading(true); setOperationError(undefined);
-    api.dataQualityIssues(auth.token, operationPage, dataQualityPageSize, dataQualityFilters)
-      .then((response) => { if (active) setOperationResponse(response); })
-      .catch((reason) => { if (active) setOperationError(toRequestErrorState(reason, '‡πÑ‡∏°‡πà‡∏™‡∏≤‡∏°‡∏≤‡∏£‡∏ñ‡∏≠‡πà‡∏≤‡∏ô‡∏Ç‡πâ‡∏≠‡∏°‡∏π‡∏•‡∏Ñ‡∏∏‡∏ì‡∏†‡∏≤‡∏û‡∏Ç‡πâ‡∏≠‡∏°‡∏π‡∏•‡πÑ‡∏î‡πâ')); })
-      .finally(() => { if (active) setOperationLoading(false); });
-    return () => { active = false; };
-  }, [activePage, auth.token, auth.user?.id, auth.user?.role, operationPage, dataQualityPageSize, dataQualityFilters, operationRefresh]);
-
-  useEffect(() => {
-    if (!auth.token || activePage === 'dashboard' || activePage === 'employees' || activePage === 'approvalCenter' || activePage === 'attendance' || activePage === 'attendanceSupervisor' || activePage === 'attendanceHistory' || activePage === 'employeeSchedule' || activePage === 'attendanceDevice' || activePage === 'profile' || activePage === 'shiftSetup' || activePage === 'schedule' || activePage === 'audit' || activePage === 'dataQuality' || activePage === 'systemHealth' || activePage === 'reportCenter' || activePage === 'reports' || activePage === 'executiveReport' || activePage === 'attendanceReport' || activePage === 'securitySite') return;
-    if (activePage === 'users' && !canLoadAccessManagement(auth.user?.role || 'VIEWER')) {
-      setOperationLoading(false);
-      setOperationError(undefined);
-      setOperationResponse({ data: [] });
-      return;
-    }
-    const loaders: Record<Exclude<Page, 'dashboard' | 'employees' | 'approvalCenter' | 'attendance' | 'attendanceSupervisor' | 'attendanceHistory' | 'employeeSchedule' | 'attendanceDevice' | 'profile' | 'shiftSetup' | 'schedule' | 'dataQuality' | 'systemHealth' | 'reportCenter' | 'reports' | 'executiveReport' | 'attendanceReport' | 'securitySite'>, (token: string, page: number) => Promise<DataResponse>> = {
-      licenses: api.licenses, approvals: api.scheduleApprovals,
-      rules: api.schedulingRules, leave: api.leaveRequests, leavePending: api.leaveRequests, leaveHistory: api.leaveRequests, quota: api.leaveQuotas,
-      users: api.users, audit: api.auditEvents, settings: api.systemSettings
-    };
-    let active = true;
-    setOperationLoading(true);
-    setOperationError(undefined);
-    if (activePage !== 'leaveHistory') setOperationResponse({});
-    const request = activePage === 'licenses'
-      ? api.licenses(auth.token, operationPage, licenseEmployeeStatus)
-      : activePage === 'leaveHistory'
-      ? api.leaveRequests(auth.token, operationPage, parseMonthValue(leaveMonth))
-      : activePage === 'quota'
-        ? api.leaveQuotas(auth.token, operationPage, showLegacyQuotas ? { legacy: true } : { year: quotaYear })
-        : loaders[activePage](auth.token, operationPage);
-    request
-      .then((response) => { if (active) setOperationResponse(response); })
-      .catch((reason) => { if (active) setOperationError(toRequestErrorState(reason, '‡πÑ‡∏°‡πà‡∏™‡∏≤‡∏°‡∏≤‡∏£‡∏ñ‡∏≠‡πà‡∏≤‡∏ô‡∏Ç‡πâ‡∏≠‡∏°‡∏π‡∏•‡πÑ‡∏î‡πâ')); })
-      .finally(() => { if (active) setOperationLoading(false); });
-    return () => { active = false; };
-  }, [activePage, auth.token, auth.user?.id, auth.user?.role, leaveMonth, licenseEmployeeStatus, operationPage, operationRefresh, quotaYear, showLegacyQuotas]);
-
-  useEffect(() => {
-    if (!auth.token || activePage !== 'quota' || auth.user?.role !== 'ADMIN') return;
-    let active = true;
-    api.leaveQuotas(auth.token, 1, { legacy: true })
-      .then((response) => { if (active) setLegacyQuotaRows(Array.isArray(response.data) ? response.data : []); })
-      .catch(() => { if (active) setLegacyQuotaRows([]); });
-    return () => { active = false; };
-  }, [activePage, auth.token, auth.user?.role, operationRefresh]);
-
-  useEffect(() => {
-    if (!auth.token || activePage !== 'schedule') return;
-    let active = true;
-    setOperationLoading(true); setOperationError(undefined);
-    api.scheduleCalendar(auth.token, scheduleMonth, operationPage, scheduleDepartment)
-      .then((response) => { if (active) setOperationResponse(response); })
-      .catch((reason) => { if (active) setOperationError(toRequestErrorState(reason, '‡πÑ‡∏°‡πà‡∏™‡∏≤‡∏°‡∏≤‡∏£‡∏ñ‡∏≠‡πà‡∏≤‡∏ô‡∏ï‡∏≤‡∏£‡∏≤‡∏á‡∏Å‡∏∞‡∏£‡∏≤‡∏¢‡πÄ‡∏î‡∏∑‡∏≠‡∏ô‡πÑ‡∏î‡πâ')); })
-      .finally(() => { if (active) setOperationLoading(false); });
-    return () => { active = false; };
-  }, [activePage, auth.token, auth.user?.id, auth.user?.role, operationPage, operationRefresh, scheduleDepartment, scheduleMonth]);
-
-  useEffect(() => {
-    const nextFilters = { leaveMonth, quotaYear, showLegacyQuotas };
-    const previousFilters = previousOperationFiltersRef.current;
-    previousOperationFiltersRef.current = nextFilters;
-    if (previousFilters.leaveMonth === leaveMonth
-      && previousFilters.quotaYear === quotaYear
-      && previousFilters.showLegacyQuotas === showLegacyQuotas) return;
-    if (routeAppliedFilterStateRef.current) {
-      routeAppliedFilterStateRef.current = false;
-      return;
-    }
-    setOperationPage(1);
-  }, [leaveMonth, quotaYear, showLegacyQuotas]);
-  useEffect(() => { setAutoSchedulePreview(undefined); }, [scheduleMonth]);
-
-  const parentPage: Partial<Record<Page, Page>> = { executiveReport: 'reportCenter', reports: 'reportCenter', attendanceReport: 'reportCenter' };
-  const navigationPage = parentPage[activePage] || activePage;
-  const pageTitle = activePage === 'profile' ? '‡πÇ‡∏õ‡∏£‡πÑ‡∏ü‡∏•‡πå' : activePage === 'attendanceHistory' ? '‡∏õ‡∏£‡∏∞‡∏ß‡∏±‡∏ï‡∏¥‡∏Å‡∏≤‡∏£‡∏•‡∏á‡πÄ‡∏ß‡∏•‡∏≤' : activePage === 'employeeSchedule' ? '‡∏ï‡∏≤‡∏£‡∏≤‡∏á‡∏á‡∏≤‡∏ô' : navigation.flatMap((section) => section.items).find((item) => item.id === navigationPage)?.label || tablePages[activePage as keyof typeof tablePages]?.title || '‡∏†‡∏≤‡∏û‡∏£‡∏ß‡∏°';
-  const pageSubtitle: Record<Page, string> = {
-    dashboard: '‡∏†‡∏≤‡∏û‡∏£‡∏ß‡∏°‡∏ï‡∏±‡∏ß‡∏ä‡∏µ‡πâ‡∏ß‡∏±‡∏î‡πÅ‡∏•‡∏∞‡∏™‡∏ñ‡∏≤‡∏ô‡∏∞‡∏Å‡∏≤‡∏£‡∏õ‡∏è‡∏¥‡∏ö‡∏±‡∏ï‡∏¥‡∏á‡∏≤‡∏ô',
-    employees: '‡∏Ç‡πâ‡∏≠‡∏°‡∏π‡∏•‡∏û‡∏ô‡∏±‡∏Å‡∏á‡∏≤‡∏ô‡πÅ‡∏•‡∏∞‡πÉ‡∏ö‡∏≠‡∏ô‡∏∏‡∏ç‡∏≤‡∏ï‡∏õ‡∏è‡∏¥‡∏ö‡∏±‡∏ï‡∏¥‡∏á‡∏≤‡∏ô',
-    approvalCenter: '‡∏£‡∏ß‡∏°‡∏á‡∏≤‡∏ô‡∏≠‡∏ô‡∏∏‡∏°‡∏±‡∏ï‡∏¥‡πÅ‡∏•‡∏∞‡∏ï‡∏£‡∏ß‡∏à‡∏™‡∏≠‡∏ö‡∏ó‡∏µ‡πà‡∏Ñ‡∏∏‡∏ì‡∏ï‡πâ‡∏≠‡∏á‡∏î‡∏≥‡πÄ‡∏ô‡∏¥‡∏ô‡∏Å‡∏≤‡∏£‡∏à‡∏≤‡∏Å‡∏ó‡∏∏‡∏Å‡πÇ‡∏°‡∏î‡∏π‡∏•',
-    licenses: '‡∏ó‡∏∞‡πÄ‡∏ö‡∏µ‡∏¢‡∏ô‡πÉ‡∏ö‡∏≠‡∏ô‡∏∏‡∏ç‡∏≤‡∏ï‡∏Ç‡∏≠‡∏á‡∏û‡∏ô‡∏±‡∏Å‡∏á‡∏≤‡∏ô',
-    attendance: '‡∏•‡∏á‡πÄ‡∏ß‡∏•‡∏≤‡πÄ‡∏Ç‡πâ‡∏≤‡πÅ‡∏•‡∏∞‡∏≠‡∏≠‡∏Å‡∏ï‡∏≤‡∏°‡∏ô‡πÇ‡∏¢‡∏ö‡∏≤‡∏¢‡∏£‡∏´‡∏±‡∏™ QR ‡∏ï‡∏≥‡πÅ‡∏´‡∏ô‡πà‡∏á GPS ‡πÅ‡∏•‡∏∞‡∏≠‡∏≥‡∏ô‡∏≤‡∏à‡∏ï‡∏±‡∏î‡∏™‡∏¥‡∏ô‡πÉ‡∏à‡∏Ç‡∏≠‡∏á‡∏£‡∏∞‡∏ö‡∏ö',
-    attendanceSupervisor: '‡∏™‡πà‡∏á‡∏Ñ‡∏≥‡∏Ç‡∏≠‡∏•‡∏á‡πÄ‡∏ß‡∏•‡∏≤‡πÅ‡∏ó‡∏ô‡∏û‡∏ô‡∏±‡∏Å‡∏á‡∏≤‡∏ô‡πÉ‡∏´‡πâ‡∏ú‡∏π‡πâ‡∏î‡∏π‡πÅ‡∏•‡∏£‡∏∞‡∏ö‡∏ö‡∏≠‡∏ô‡∏∏‡∏°‡∏±‡∏ï‡∏¥‡∏Å‡πà‡∏≠‡∏ô‡∏°‡∏µ‡∏ú‡∏•',
-    attendanceHistory: '‡∏õ‡∏£‡∏∞‡∏ß‡∏±‡∏ï‡∏¥‡∏Å‡∏≤‡∏£‡∏•‡∏á‡πÄ‡∏ß‡∏•‡∏≤‡∏Ç‡∏≠‡∏á‡∏ö‡∏±‡∏ç‡∏ä‡∏µ‡∏û‡∏ô‡∏±‡∏Å‡∏á‡∏≤‡∏ô‡∏ó‡∏µ‡πà‡πÄ‡∏Ç‡πâ‡∏≤‡∏™‡∏π‡πà‡∏£‡∏∞‡∏ö‡∏ö',
-    employeeSchedule: '‡∏ï‡∏≤‡∏£‡∏≤‡∏á‡∏á‡∏≤‡∏ô‡∏ó‡∏µ‡πà‡∏≠‡∏ô‡∏∏‡∏°‡∏±‡∏ï‡∏¥‡πÅ‡∏•‡∏∞‡∏•‡πá‡∏≠‡∏Å‡πÅ‡∏•‡πâ‡∏ß‡∏Ç‡∏≠‡∏á‡∏û‡∏ô‡∏±‡∏Å‡∏á‡∏≤‡∏ô',
-    attendanceDevice: '‡∏•‡∏á‡∏ó‡∏∞‡πÄ‡∏ö‡∏µ‡∏¢‡∏ô‡πÅ‡∏•‡∏∞‡∏ï‡∏£‡∏ß‡∏à‡∏™‡∏≠‡∏ö‡∏≠‡∏∏‡∏õ‡∏Å‡∏£‡∏ì‡πå‡∏´‡∏•‡∏±‡∏Å‡∏™‡∏≥‡∏´‡∏£‡∏±‡∏ö‡∏•‡∏á‡πÄ‡∏ß‡∏•‡∏≤‡πÅ‡∏•‡∏∞‡∏ï‡∏£‡∏ß‡∏à‡∏û‡∏∑‡πâ‡∏ô‡∏ó‡∏µ‡πà',
-    profile: '‡∏Ç‡πâ‡∏≠‡∏°‡∏π‡∏•‡∏ö‡∏±‡∏ç‡∏ä‡∏µ‡πÅ‡∏•‡∏∞‡∏Ñ‡∏ß‡∏≤‡∏°‡∏õ‡∏•‡∏≠‡∏î‡∏†‡∏±‡∏¢',
-    shiftSetup: '‡∏Å‡∏≥‡∏´‡∏ô‡∏î‡∏õ‡∏£‡∏∞‡πÄ‡∏†‡∏ó‡∏Å‡∏∞‡πÅ‡∏•‡∏∞‡πÄ‡∏ß‡∏•‡∏≤‡∏õ‡∏è‡∏¥‡∏ö‡∏±‡∏ï‡∏¥‡∏á‡∏≤‡∏ô',
-    schedule: '‡∏à‡∏±‡∏î‡∏ï‡∏≤‡∏£‡∏≤‡∏á‡∏Å‡∏∞‡∏£‡∏≤‡∏¢‡πÄ‡∏î‡∏∑‡∏≠‡∏ô‡πÅ‡∏•‡∏∞‡∏™‡πà‡∏á‡∏≠‡∏ô‡∏∏‡∏°‡∏±‡∏ï‡∏¥',
-    approvals: '‡∏ï‡∏£‡∏ß‡∏à‡∏™‡∏≠‡∏ö‡πÅ‡∏•‡∏∞‡∏≠‡∏ô‡∏∏‡∏°‡∏±‡∏ï‡∏¥‡∏ï‡∏≤‡∏£‡∏≤‡∏á‡∏Å‡∏∞',
-    leave: '‡∏¢‡∏∑‡πà‡∏ô‡∏Ñ‡∏≥‡∏Ç‡∏≠‡∏•‡∏≤',
-    leavePending: '‡∏£‡∏≤‡∏¢‡∏Å‡∏≤‡∏£‡πÉ‡∏ö‡∏•‡∏≤‡∏ó‡∏µ‡πà‡∏£‡∏≠‡∏≠‡∏ô‡∏∏‡∏°‡∏±‡∏ï‡∏¥',
-    leaveHistory: '‡∏õ‡∏£‡∏∞‡∏ß‡∏±‡∏ï‡∏¥‡∏Å‡∏≤‡∏£‡∏•‡∏≤‡∏û‡∏ô‡∏±‡∏Å‡∏á‡∏≤‡∏ô‡∏ó‡∏±‡πâ‡∏á‡∏´‡∏°‡∏î',
-    quota: '‡∏™‡∏¥‡∏ó‡∏ò‡∏¥‡πå‡πÅ‡∏•‡∏∞‡πÇ‡∏Ñ‡∏ß‡∏ï‡πâ‡∏≤‡∏ß‡∏±‡∏ô‡∏•‡∏≤',
-    rules: '‡∏ï‡∏£‡∏ß‡∏à‡∏™‡∏≠‡∏ö‡∏Å‡∏é‡∏Å‡∏≤‡∏£‡∏ó‡∏≥‡∏á‡∏≤‡∏ô‡πÅ‡∏•‡∏∞‡∏Ñ‡∏ß‡∏≤‡∏°‡∏û‡∏£‡πâ‡∏≠‡∏°‡∏Ç‡∏≠‡∏á‡∏Å‡∏≥‡∏•‡∏±‡∏á‡∏û‡∏•',
-    dataQuality: '‡∏ï‡∏£‡∏ß‡∏à‡∏™‡∏≠‡∏ö‡∏Ñ‡∏ß‡∏≤‡∏°‡∏ú‡∏¥‡∏î‡∏õ‡∏Å‡∏ï‡∏¥‡∏Ç‡∏≠‡∏á‡∏Ç‡πâ‡∏≠‡∏°‡∏π‡∏•‡πÅ‡∏ö‡∏ö‡∏≠‡πà‡∏≤‡∏ô‡∏≠‡∏¢‡πà‡∏≤‡∏á‡πÄ‡∏î‡∏µ‡∏¢‡∏ß',
-    systemHealth: '‡∏ï‡∏£‡∏ß‡∏à‡∏™‡∏≠‡∏ö‡∏Ñ‡∏ß‡∏≤‡∏°‡∏´‡∏ô‡πà‡∏ß‡∏á‡∏Ç‡∏≠‡∏á‡∏ö‡∏£‡∏¥‡∏Å‡∏≤‡∏£ ‡∏Ç‡πâ‡∏≠‡∏ú‡∏¥‡∏î‡∏û‡∏•‡∏≤‡∏î HTTP ‡∏Ñ‡∏ß‡∏≤‡∏°‡∏û‡∏£‡πâ‡∏≠‡∏°‡∏Ç‡∏≠‡∏á‡∏ê‡∏≤‡∏ô‡∏Ç‡πâ‡∏≠‡∏°‡∏π‡∏• ‡πÅ‡∏•‡∏∞‡∏Ç‡πâ‡∏≠‡∏°‡∏π‡∏•‡∏™‡∏†‡∏≤‡∏û‡πÅ‡∏ß‡∏î‡∏•‡πâ‡∏≠‡∏°‡∏Ç‡∏ì‡∏∞‡∏ó‡∏≥‡∏á‡∏≤‡∏ô‡πÅ‡∏ö‡∏ö‡∏≠‡πà‡∏≤‡∏ô‡∏≠‡∏¢‡πà‡∏≤‡∏á‡πÄ‡∏î‡∏µ‡∏¢‡∏ß',
-    reportCenter: '‡∏®‡∏π‡∏ô‡∏¢‡πå‡∏£‡∏≤‡∏¢‡∏á‡∏≤‡∏ô‡πÅ‡∏•‡∏∞‡∏ß‡∏¥‡πÄ‡∏Ñ‡∏£‡∏≤‡∏∞‡∏´‡πå‡∏™‡∏≥‡∏´‡∏£‡∏±‡∏ö‡∏ú‡∏π‡πâ‡∏ö‡∏£‡∏¥‡∏´‡∏≤‡∏£‡πÅ‡∏•‡∏∞‡∏á‡∏≤‡∏ô‡∏õ‡∏è‡∏¥‡∏ö‡∏±‡∏ï‡∏¥‡∏Å‡∏≤‡∏£',
-    reports: '‡∏£‡∏≤‡∏¢‡∏á‡∏≤‡∏ô‡∏™‡∏£‡∏∏‡∏õ‡∏Ç‡πâ‡∏≠‡∏°‡∏π‡∏•‡∏Å‡∏≤‡∏£‡∏õ‡∏è‡∏¥‡∏ö‡∏±‡∏ï‡∏¥‡∏á‡∏≤‡∏ô',
-    executiveReport: '‡∏™‡∏£‡∏∏‡∏õ‡∏Ç‡πâ‡∏≠‡∏°‡∏π‡∏•‡∏™‡∏≥‡∏Ñ‡∏±‡∏ç‡∏™‡∏≥‡∏´‡∏£‡∏±‡∏ö‡∏Å‡∏≤‡∏£‡∏ï‡∏¥‡∏î‡∏ï‡∏≤‡∏°‡πÅ‡∏•‡∏∞‡∏ö‡∏£‡∏¥‡∏´‡∏≤‡∏£‡∏á‡∏≤‡∏ô',
-    attendanceReport: '‡∏£‡∏≤‡∏¢‡∏á‡∏≤‡∏ô‡∏Å‡∏≤‡∏£‡∏•‡∏á‡πÄ‡∏ß‡∏•‡∏≤‡∏õ‡∏£‡∏∞‡∏à‡∏≥‡πÄ‡∏î‡∏∑‡∏≠‡∏ô‡∏ó‡∏µ‡πà‡∏£‡∏±‡∏ö‡∏£‡∏≠‡∏á‡πÅ‡∏•‡πâ‡∏ß ‡∏û‡∏£‡πâ‡∏≠‡∏° PDF ‡πÅ‡∏•‡∏∞ Excel',
-    users: '‡∏Å‡∏≥‡∏´‡∏ô‡∏î‡∏ö‡∏ó‡∏ö‡∏≤‡∏ó‡πÅ‡∏•‡∏∞‡πÅ‡∏ú‡∏ô‡∏Å‡∏Å‡πà‡∏≠‡∏ô‡∏≠‡∏ô‡∏∏‡∏°‡∏±‡∏ï‡∏¥‡∏ö‡∏±‡∏ç‡∏ä‡∏µ',
-    securitySite: '‡∏Å‡∏≥‡∏´‡∏ô‡∏î‡∏à‡∏∏‡∏î‡∏£‡∏±‡∏Å‡∏©‡∏≤‡∏Ñ‡∏ß‡∏≤‡∏°‡∏õ‡∏•‡∏≠‡∏î‡∏†‡∏±‡∏¢ ‡∏Ç‡∏≠‡∏ö‡πÄ‡∏Ç‡∏ï‡∏û‡∏∑‡πâ‡∏ô‡∏ó‡∏µ‡πà ‡∏Å‡∏≤‡∏£‡πÄ‡∏ä‡∏∑‡πà‡∏≠‡∏°‡πÇ‡∏¢‡∏á‡∏´‡∏ô‡πà‡∏ß‡∏¢‡∏á‡∏≤‡∏ô ‡πÅ‡∏•‡∏∞‡∏ß‡∏á‡∏à‡∏£‡∏£‡∏´‡∏±‡∏™ QR ‡∏™‡∏≥‡∏´‡∏£‡∏±‡∏ö‡∏•‡∏á‡πÄ‡∏ß‡∏•‡∏≤',
-    settings: '‡∏ï‡∏±‡πâ‡∏á‡∏Ñ‡πà‡∏≤‡∏£‡∏∞‡∏ö‡∏ö‡∏™‡∏≥‡∏´‡∏£‡∏±‡∏ö‡∏Ñ‡πà‡∏≤‡∏ó‡∏µ‡πà‡∏ú‡πà‡∏≤‡∏ô‡∏Å‡∏≤‡∏£‡∏Å‡∏≥‡∏Å‡∏±‡∏ö ‡∏ï‡∏£‡∏ß‡∏à‡∏™‡∏≠‡∏ö‡∏Ñ‡∏ß‡∏≤‡∏°‡∏ñ‡∏π‡∏Å‡∏ï‡πâ‡∏≠‡∏á ‡πÅ‡∏•‡∏∞‡∏ö‡∏±‡∏ô‡∏ó‡∏∂‡∏Å‡∏õ‡∏£‡∏∞‡∏ß‡∏±‡∏ï‡∏¥',
-    audit: '‡∏õ‡∏£‡∏∞‡∏ß‡∏±‡∏ï‡∏¥‡∏Å‡∏≤‡∏£‡πÉ‡∏ä‡πâ‡∏á‡∏≤‡∏ô‡πÅ‡∏•‡∏∞‡∏Å‡∏≤‡∏£‡πÄ‡∏õ‡∏•‡∏µ‡πà‡∏¢‡∏ô‡πÅ‡∏õ‡∏•‡∏á‡∏Ç‡πâ‡∏≠‡∏°‡∏π‡∏•',
-  };
-  const initials = auth.user?.displayName?.split(/\s+/).map((part) => part[0]).join('').slice(0, 2).toUpperCase() || 'SM';
-  const canManage = !auth.isViewingAs && ['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(auth.user?.role || '');
-  const canViewPage = (page: Page) => canViewRoutePage(page, auth);
-  const visibleNavigation = navigation
-    .map((section) => ({ ...section, items: section.items.filter((item) => canViewPage(item.id)) }))
-    .filter((section) => section.items.length > 0);
-  const workflowCommands = visibleNavigation.flatMap((section) => section.items.map((item) => ({ ...item, group: section.label })));
-  useEffect(() => {
-    if (pwaShell) return;
-    const openCommandPalette = (event: KeyboardEvent) => {
-      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
-        event.preventDefault();
-        setCommandPaletteOpen(true);
-      }
-    };
-    window.addEventListener('keydown', openCommandPalette);
-    return () => window.removeEventListener('keydown', openCommandPalette);
-  }, [pwaShell]);
-  const employeeOptions = employees.map((employee) => ({ value: employee.id, label: `${employee.employeeCode} ¬∑ ${employee.firstName} ${employee.lastName}` }));
-  const activeLeaveTypes = leaveTypes.filter((item) => item.isActive);
-  const leaveTypeOptions = activeLeaveTypes.map((item) => ({ value: item.code, label: item.name }));
-  const leaveTypeOptionsForRow = (row: DataRow) => leaveTypeOptions.some((option) => option.value === String(row.leaveType || '')) ? leaveTypeOptions : [{ value: String(row.leaveType || ''), label: leaveTypeDisplayText(row) }, ...leaveTypeOptions].filter((option) => option.value);
-  const quotaRows = Array.isArray(operationResponse.data) ? operationResponse.data : [];
-  const quotaEmployeeOptions = quotaProvisioningEmployeeOptions(employees, [...quotaRows, ...legacyQuotaRows], quotaYear);
-  const showQuotaLegacyWarning = Number(operationResponse.meta?.unmatchedLegacyCount || 0) > 0 || hasUnmatchedLegacyQuota([...quotaRows, ...legacyQuotaRows]);
-  const quotaYearOptions: Array<{ value: string; label: string }> = Array.from({ length: 7 }, (_, index) => currentBangkokQuotaYear() - 2 + index).map((year) => ({ value: String(year), label: thaiQuotaYearLabel(year) }));
-  const shiftTypeOptions = activeShiftTypes.map((shiftType) => ({ value: String(shiftType.id), label: `${text(shiftType.code)} ¬∑ ${text(shiftType.name)}` }));
-
-  const runEditor = (definition: Omit<Editor, 'submit'>, action: (values: Record<string, string>, files: Record<string, File>) => Promise<unknown>, refresh: 'employees' | 'operations' = 'operations') => {
-    setEditorError(undefined);
-    setEditor({
-      ...definition,
-      submit: async (values, files) => {
-        setEditorBusy(true); setEditorError(undefined);
-        try {
-          await action(values, files);
-          setEditor(undefined);
-          if (refresh === 'employees') setEmployeeRefresh((value) => value + 1);
-          else setOperationRefresh((value) => value + 1);
-        } catch (reason) {
-          setEditorError(toRequestErrorState(reason, '‡∏ö‡∏±‡∏ô‡∏ó‡∏∂‡∏Å‡∏Ç‡πâ‡∏≠‡∏°‡∏π‡∏•‡πÑ‡∏°‡πà‡∏™‡∏≥‡πÄ‡∏£‡πá‡∏à'));
-        } finally { setEditorBusy(false); }
-      }
-    });
-  };
-
-  const licenseDocumentServices = {
-    list: async (licenseId: string) => (await api.licenseDocuments(auth.token!, licenseId))?.data as LicenseDocument[] || [],
-    view: async (documentId: string) => (await api.viewLicenseDocument(auth.token!, documentId))?.data,
-    approve: async (documentId: string) => { await api.approveLicenseDocument(auth.token!, documentId); },
-    returnForCorrection: async (documentId: string, reason: string) => { await api.returnLicenseDocumentForCorrection(auth.token!, documentId, reason); },
-    resubmit: async (documentId: string, data: { licenseNumber: string; proposedStartDate: string; proposedExpiryDate: string; note?: string }, file?: File) => { await api.resubmitLicenseDocument(auth.token!, documentId, data, file); },
-    reject: async (documentId: string, reason: string) => { await api.rejectLicenseDocument(auth.token!, documentId, reason); },
-    cancel: async (documentId: string) => { await api.cancelLicenseDocument(auth.token!, documentId); },
-    permanentlyDelete: async (documentId: string) => { await api.permanentlyDeleteLicenseDocument(auth.token!, documentId); }
-  };
-  const openLicenseEdit = (row: DataRow) => { if (auth.token) setLicenseEditTarget(row); };
-
-  const openEmployeeEditor = async (employee?: Employee) => {
-    if (!auth.token) return;
-    if (employee) {
-      setEmployeeGovernedEditTarget(employee);
-      return;
-    }
-    try {
-      const result = await api.personnelMasters(auth.token, true);
-      const masters = result?.data as { departments?: Array<{ id: string; name: string }>; positions?: Array<{ id: string; name: string }> } | undefined;
-      const departments = Array.isArray(masters?.departments) ? masters!.departments : [];
-      const positions = Array.isArray(masters?.positions) ? masters!.positions : [];
-      const fields: FormField[] = [
-        { name: 'employeeCode', label: '‡∏£‡∏´‡∏±‡∏™‡∏†‡∏≤‡∏¢‡πÉ‡∏ô', required: true },
-        { name: 'firstName', label: '‡∏ä‡∏∑‡πà‡∏≠', required: true },
-        { name: 'lastName', label: '‡∏ô‡∏≤‡∏°‡∏™‡∏Å‡∏∏‡∏•', required: true },
-        { name: 'email', label: '‡∏≠‡∏µ‡πÄ‡∏°‡∏•', type: 'email' },
-        { name: 'phone', label: '‡πÇ‡∏ó‡∏£‡∏®‡∏±‡∏û‡∏ó‡πå' },
-        { name: 'department', label: '‡∏´‡∏ô‡πà‡∏ß‡∏¢‡∏á‡∏≤‡∏ô', type: 'select', options: [{ value: '', label: '‡πÑ‡∏°‡πà‡∏£‡∏∞‡∏ö‡∏∏‡∏´‡∏ô‡πà‡∏ß‡∏¢‡∏á‡∏≤‡∏ô' }, ...departments.map((item) => ({ value: item.name, label: item.name }))] },
-        { name: 'jobTitle', label: '‡∏ï‡∏≥‡πÅ‡∏´‡∏ô‡πà‡∏á', type: 'select', options: [{ value: '', label: '‡πÑ‡∏°‡πà‡∏£‡∏∞‡∏ö‡∏∏‡∏ï‡∏≥‡πÅ‡∏´‡∏ô‡πà‡∏á' }, ...positions.map((item) => ({ value: item.name, label: item.name }))] },
-        { name: 'hiredAt', label: '‡∏ß‡∏±‡∏ô‡∏ó‡∏µ‡πà‡πÄ‡∏£‡∏¥‡πà‡∏°‡∏á‡∏≤‡∏ô', type: 'date' }
-      ];
-      runEditor(
-        { title: '‡πÄ‡∏û‡∏¥‡πà‡∏°‡∏û‡∏ô‡∏±‡∏Å‡∏á‡∏≤‡∏ô', submitLabel: '‡πÄ‡∏û‡∏¥‡πà‡∏°‡∏û‡∏ô‡∏±‡∏Å‡∏á‡∏≤‡∏ô', fields, values: {}, experience: 'personnel' },
-        (form) => api.createEmployee(auth.token!, formPayload(form, ['email', 'phone', 'department', 'jobTitle', 'hiredAt'])),
-        'employees'
-      );
-    } catch (reason) {
-      setOperationError(toRequestErrorState(reason, '‡πÑ‡∏°‡πà‡∏™‡∏≤‡∏°‡∏≤‡∏£‡∏ñ‡πÇ‡∏´‡∏•‡∏î ‡∏£‡∏≤‡∏¢‡∏Å‡∏≤‡∏£‡∏´‡∏ô‡πà‡∏ß‡∏¢‡∏á‡∏≤‡∏ô‡πÅ‡∏•‡∏∞‡∏ï‡∏≥‡πÅ‡∏´‡∏ô‡πà‡∏á ‡∏™‡∏≥‡∏´‡∏£‡∏±‡∏ö‡πÄ‡∏û‡∏¥‡πà‡∏°‡∏û‡∏ô‡∏±‡∏Å‡∏á‡∏≤‡∏ô‡πÑ‡∏î‡πâ'));
-    }
-  };
-
-  const [shiftEditorTarget, setShiftEditorTarget] = useState<{ shift?: DataRow; defaults?: Record<string, string>; clickPos?: { x: number; y: number } } | null>(null);
-  const [licensesData, setLicensesData] = useState<DataRow[]>([]);
-
-  useEffect(() => {
-    if (auth.token) {
-      api.licenses(auth.token).then(res => setLicensesData(Array.isArray(res.data) ? res.data : [])).catch(() => undefined);
-    }
-  }, [auth.token, operationRefresh]);
-
-  const openShiftEditor = (shift?: DataRow, defaults: Record<string, string> = {}, e?: React.MouseEvent) => {
-    if (!auth.token) return;
-    const clickPos = e ? { x: e.clientX, y: e.clientY } : undefined;
-    if ((activePage as string) === 'schedule') {
-      setShiftEditorTarget({ shift, defaults, clickPos });
-      return;
-    }
-    const fields: FormField[] = [
-      { name: 'employeeId', label: '‡∏û‡∏ô‡∏±‡∏Å‡∏á‡∏≤‡∏ô', type: 'select', required: true, options: employeeOptions },
-      { name: 'shiftTypeId', label: '‡∏õ‡∏£‡∏∞‡πÄ‡∏†‡∏ó‡∏Å‡∏∞', type: 'select', required: true, options: shiftTypeOptions },
-      { name: 'workDate', label: '‡∏ß‡∏±‡∏ô‡∏ó‡∏µ‡πà', type: 'date', required: true },
-      { name: 'remark', label: '‡∏´‡∏°‡∏≤‡∏¢‡πÄ‡∏´‡∏ï‡∏∏', type: 'textarea' }
-    ];
-    if (auth.user?.role === 'ADMIN') fields.push(
-      { name: 'licenseOverride', label: '‡∏¢‡∏∑‡∏ô‡∏¢‡∏±‡∏ô Override ‡πÉ‡∏ö‡∏≠‡∏ô‡∏∏‡∏ç‡∏≤‡∏ï', type: 'select', options: [{ value: 'false', label: '‡πÑ‡∏°‡πà Override' }, { value: 'true', label: 'Override ‡πÇ‡∏î‡∏¢ Admin' }] },
-      { name: 'overrideReason', label: '‡πÄ‡∏´‡∏ï‡∏∏‡∏ú‡∏• Override', type: 'textarea' }
-    );
-    const values: Record<string, string> = shift ? {
-      employeeId: String(shift.employeeId || ''), shiftTypeId: String(shift.shiftTypeId || nested(shift.shiftType).id || ''),
-      workDate: inputDate(shift.workDate), remark: String(shift.remark || ''), licenseOverride: String(Boolean(shift.licenseOverride)), overrideReason: String(shift.overrideReason || '')
-    } : { licenseOverride: 'false', ...defaults };
-    runEditor({ title: shift ? '‡πÅ‡∏Å‡πâ‡πÑ‡∏Ç‡∏ï‡∏≤‡∏£‡∏≤‡∏á‡∏Å‡∏∞ (‡πÉ‡∏™‡πà‡πÉ‡∏ô‡∏£‡πà‡∏≤‡∏á)' : '‡πÄ‡∏û‡∏¥‡πà‡∏°‡∏ï‡∏≤‡∏£‡∏≤‡∏á‡∏Å‡∏∞ (‡πÉ‡∏™‡πà‡πÉ‡∏ô‡∏£‡πà‡∏≤‡∏á)', submitLabel: shift ? '‡πÉ‡∏™‡πà‡∏ï‡∏≤‡∏£‡∏≤‡∏á‡∏Å‡∏∞ (‡∏â‡∏ö‡∏±‡∏ö‡∏£‡πà‡∏≤‡∏á)' : '‡∏ö‡∏±‡∏ô‡∏ó‡∏∂‡∏Å‡πÄ‡∏Ç‡πâ‡∏≤‡∏â‡∏ö‡∏±‡∏ö‡∏£‡πà‡∏≤‡∏á', fields, values }, (form) => {
-      if (activePage === 'schedule') {
-        const key = `${form.employeeId}_${form.workDate}`;
-        const selectedType = activeShiftTypes.find((t) => String(t.id) === form.shiftTypeId);
-        const payload: Record<string, unknown> = formPayload(form, ['remark', 'overrideReason']);
-        payload.licenseOverride = form.licenseOverride === 'true';
-        setScheduleDrafts((prev) => ({
-          ...prev,
-          [key]: {
-            action: shift ? 'update' : 'create',
-            id: shift ? String(shift.id) : undefined,
-            employeeId: form.employeeId,
-            workDate: form.workDate,
-            shiftTypeId: form.shiftTypeId,
-            shiftCode: String(selectedType?.code || ''),
-            shiftName: String(selectedType?.name || ''),
-            startTime: String(selectedType?.startTime || ''),
-            endTime: String(selectedType?.endTime || ''),
-            color: String(selectedType?.color || '#64748B'),
-            remark: form.remark,
-            licenseOverride: form.licenseOverride === 'true',
-            overrideReason: form.overrideReason,
-            payload
-          }
-        }));
-        return Promise.resolve();
-      }
-      const payload: Record<string, unknown> = formPayload(form, ['remark', 'overrideReason']);
-      payload.licenseOverride = form.licenseOverride === 'true';
-      return shift ? api.updateShift(auth.token!, String(shift.id), payload) : api.createShift(auth.token!, payload);
-    });
-  };
-
-  const openCreateOperation = () => {
-    if (!auth.token) return;
-    if (activePage === 'quota' && auth.user?.role === 'ADMIN') runEditor({
-      title: `‡∏Å‡∏≥‡∏´‡∏ô‡∏î‡πÇ‡∏Ñ‡∏ß‡∏ï‡∏≤‡∏ß‡∏±‡∏ô‡∏•‡∏≤ ‡∏õ‡∏µ ${thaiQuotaYearLabel(quotaYear)}`, submitLabel: '‡∏ö‡∏±‡∏ô‡∏ó‡∏∂‡∏Å‡πÇ‡∏Ñ‡∏ß‡∏ï‡∏≤',
-      notice: showQuotaLegacyWarning ? '‡∏°‡∏µ‡∏£‡∏≤‡∏¢‡∏Å‡∏≤‡∏£‡πÇ‡∏Ñ‡∏ß‡∏ï‡∏≤‡πÄ‡∏î‡∏¥‡∏°‡∏ó‡∏µ‡πà‡∏¢‡∏±‡∏á‡πÑ‡∏°‡πà‡∏à‡∏±‡∏ö‡∏Ñ‡∏π‡πà ‡∏´‡∏≤‡∏Å‡πÄ‡∏õ‡πá‡∏ô‡∏Ç‡πâ‡∏≠‡∏°‡∏π‡∏•‡∏Ç‡∏≠‡∏á‡∏û‡∏ô‡∏±‡∏Å‡∏á‡∏≤‡∏ô‡∏£‡∏≤‡∏¢‡∏ô‡∏µ‡πâ‡πÉ‡∏´‡πâ‡∏ï‡∏£‡∏ß‡∏à‡∏™‡∏≠‡∏ö‡πÅ‡∏•‡∏∞‡πÉ‡∏ä‡πâ ‚Äú‡∏à‡∏±‡∏ö‡∏Ñ‡∏π‡πà‡∏û‡∏ô‡∏±‡∏Å‡∏á‡∏≤‡∏ô‚Äù ‡πÅ‡∏ó‡∏ô‡∏Å‡∏≤‡∏£‡∏™‡∏£‡πâ‡∏≤‡∏á‡∏£‡∏≤‡∏¢‡∏Å‡∏≤‡∏£‡πÉ‡∏´‡∏°‡πà' : undefined,
-      fields: [
-        { name: 'employeeId', label: '‡∏û‡∏ô‡∏±‡∏Å‡∏á‡∏≤‡∏ô (‡∏£‡∏´‡∏±‡∏™ ¬∑ ‡∏ä‡∏∑‡πà‡∏≠ ¬∑ ‡∏´‡∏ô‡πà‡∏ß‡∏¢‡∏á‡∏≤‡∏ô)', type: 'select', required: true, options: quotaEmployeeOptions },
-        { name: 'sickLeave', label: '‡∏•‡∏≤‡∏õ‡πà‡∏ß‡∏¢', type: 'number', required: true, min: 0, max: 999 },
-        { name: 'personalLeave', label: '‡∏•‡∏≤‡∏Å‡∏¥‡∏à', type: 'number', required: true, min: 0, max: 999 },
-        { name: 'vacationLeave', label: '‡∏•‡∏≤‡∏û‡∏±‡∏Å‡∏£‡πâ‡∏≠‡∏ô', type: 'number', required: true, min: 0, max: 999 }
-      ],
-      values: { ...leaveQuotaDefaultsFromPolicy(leavePolicy), quotaYear: String(quotaYear) }
-    }, (form) => api.createLeaveQuota(auth.token!, buildLeaveQuotaProvisioningPayload({ ...form, quotaYear })));
-    if (activePage === 'licenses') runEditor({
-      title: '‡πÄ‡∏û‡∏¥‡πà‡∏°‡πÉ‡∏ö‡∏≠‡∏ô‡∏∏‡∏ç‡∏≤‡∏ï‡∏û‡∏ô‡∏±‡∏Å‡∏á‡∏≤‡∏ô', submitLabel: '‡∏ö‡∏±‡∏ô‡∏ó‡∏∂‡∏Å‡πÉ‡∏ö‡∏≠‡∏ô‡∏∏‡∏ç‡∏≤‡∏ï',
-      fields: [{ name: 'employeeId', label: '‡∏û‡∏ô‡∏±‡∏Å‡∏á‡∏≤‡∏ô', type: 'select', required: true, options: employeeOptions }, { name: 'licenseType', label: '‡∏õ‡∏£‡∏∞‡πÄ‡∏†‡∏ó‡πÉ‡∏ö‡∏≠‡∏ô‡∏∏‡∏ç‡∏≤‡∏ï', required: true }, { name: 'licenseNumber', label: '‡πÄ‡∏•‡∏Ç‡∏ó‡∏µ‡πà‡πÉ‡∏ö‡∏≠‡∏ô‡∏∏‡∏ç‡∏≤‡∏ï', required: true }, { name: 'issueDate', label: '‡∏ß‡∏±‡∏ô‡∏ó‡∏µ‡πà‡∏≠‡∏≠‡∏Å', type: 'date', required: true }, { name: 'expiryDate', label: '‡∏ß‡∏±‡∏ô‡∏´‡∏°‡∏î‡∏≠‡∏≤‡∏¢‡∏∏', type: 'date', required: true }, { name: 'status', label: '‡∏™‡∏ñ‡∏≤‡∏ô‡∏∞', type: 'select', required: true, options: [{ value: 'Active', label: '‡πÉ‡∏ä‡πâ‡∏á‡∏≤‡∏ô' }, { value: 'Suspended', label: '‡∏£‡∏∞‡∏á‡∏±‡∏ö' }, { value: 'Revoked', label: '‡πÄ‡∏û‡∏¥‡∏Å‡∏ñ‡∏≠‡∏ô' }, { value: 'Inactive', label: '‡πÑ‡∏°‡πà‡πÉ‡∏ä‡πâ‡∏á‡∏≤‡∏ô' }] }, { name: 'documentUrl', label: '‡∏•‡∏¥‡∏á‡∏Å‡πå‡πÄ‡∏≠‡∏Å‡∏™‡∏≤‡∏£' }, { name: 'remark', label: '‡∏´‡∏°‡∏≤‡∏¢‡πÄ‡∏´‡∏ï‡∏∏', type: 'textarea' }],
-      values: { status: 'Active' }
-    }, (form) => api.createLicense(auth.token!, formPayload(form, ['documentUrl', 'remark'])));
-    if (activePage === 'schedule') openShiftEditor();
-    if (activePage === 'leave') runEditor({
-      title: '‡∏™‡∏£‡πâ‡∏≤‡∏á‡∏Ñ‡∏≥‡∏Ç‡∏≠‡∏•‡∏≤', submitLabel: '‡∏™‡πà‡∏á‡∏Ñ‡∏≥‡∏Ç‡∏≠‡∏•‡∏≤',
-      fields: [{ name: 'employeeId', label: '‡∏û‡∏ô‡∏±‡∏Å‡∏á‡∏≤‡∏ô', type: 'select', required: auth.user?.role !== 'VIEWER', options: employeeOptions }, { name: 'leaveType', label: '‡∏õ‡∏£‡∏∞‡πÄ‡∏†‡∏ó‡∏Å‡∏≤‡∏£‡∏•‡∏≤', type: 'select', required: true, options: leaveTypeOptions }, { name: 'startDate', label: '‡∏ß‡∏±‡∏ô‡∏ó‡∏µ‡πà‡πÄ‡∏£‡∏¥‡πà‡∏°', type: 'date', required: true }, { name: 'endDate', label: '‡∏ß‡∏±‡∏ô‡∏ó‡∏µ‡πà‡∏™‡∏¥‡πâ‡∏ô‡∏™‡∏∏‡∏î', type: 'date', required: true }, { name: 'substitute', label: '‡∏ú‡∏π‡πâ‡πÄ‡∏Ç‡πâ‡∏≤‡πÄ‡∏ß‡∏£ / ‡∏õ‡∏è‡∏¥‡∏ö‡∏±‡∏ï‡∏¥‡∏á‡∏≤‡∏ô‡πÅ‡∏ó‡∏ô', required: true }, { name: 'reason', label: '‡πÄ‡∏´‡∏ï‡∏∏‡∏ú‡∏•', type: 'textarea' }, { name: 'attachment', label: '‡πÑ‡∏ü‡∏•‡πå‡πÅ‡∏ô‡∏ö (‡∏ñ‡πâ‡∏≤‡∏°‡∏µ)', type: 'file', accept: '.pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png', hint: '‡∏£‡∏∞‡∏ö‡∏ö‡∏õ‡∏£‡∏±‡∏ö‡πÑ‡∏ü‡∏•‡πå‡∏≠‡∏±‡∏ï‡πÇ‡∏ô‡∏°‡∏±‡∏ï‡∏¥ ¬∑ ‡∏£‡∏π‡∏õ‡πÄ‡∏õ‡πâ‡∏≤‡∏´‡∏°‡∏≤‡∏¢ 300‚Äì450 KB (‡∏™‡∏π‡∏á‡∏™‡∏∏‡∏î 500 KB) ¬∑ PDF ‡∏™‡∏π‡∏á‡∏™‡∏∏‡∏î 1 MB' }],
-      values: {}
-    }, (form, files) => files.attachment ? api.createLeaveRequestWithAttachment(auth.token!, form, files.attachment) : api.createLeaveRequest(auth.token!, formPayload(form)));
-  };
-
-  const shiftTypeEditorFields: FormField[] = [
-    { name: 'code', label: '‡∏£‡∏´‡∏±‡∏™‡∏Å‡∏∞', required: true },
-    { name: 'name', label: '‡∏ä‡∏∑‡πà‡∏≠‡∏Å‡∏∞', required: true },
-    { name: 'startTime', label: '‡πÄ‡∏ß‡∏•‡∏≤‡πÄ‡∏£‡∏¥‡πà‡∏°' },
-    { name: 'endTime', label: '‡πÄ‡∏ß‡∏•‡∏≤‡πÄ‡∏•‡∏¥‡∏Å' },
-    { name: 'hours', label: '‡∏ä‡∏±‡πà‡∏ß‡πÇ‡∏°‡∏á', type: 'number', required: true, min: 0, max: 24 },
-    { name: 'color', label: '‡∏™‡∏µ HEX', required: true },
-    { name: 'isActive', label: '‡∏™‡∏ñ‡∏≤‡∏ô‡∏∞‡πÉ‡∏ä‡πâ‡∏á‡∏≤‡∏ô', type: 'select', required: true, options: [{ value: 'true', label: '‡πÉ‡∏ä‡πâ‡∏á‡∏≤‡∏ô' }, { value: 'false', label: '‡∏õ‡∏¥‡∏î‡πÉ‡∏ä‡πâ‡∏á‡∏≤‡∏ô' }] }
-  ];
-
-  const shiftTypeMutationPayload = (form: Record<string, string>, options: { includeCode: boolean; includeActive: boolean }) => {
-    const payload: Record<string, unknown> = {
-      name: form.name,
-      startTime: form.startTime || null,
-      endTime: form.endTime || null,
-      hours: form.hours,
-      color: form.color
-    };
-    if (options.includeCode) payload.code = form.code;
-    if (options.includeActive) payload.isActive = form.isActive !== 'false';
-    return payload;
-  };
-
-  const openShiftTypeCreator = () => runEditor({
-    title: '‡πÄ‡∏û‡∏¥‡πà‡∏°‡∏£‡∏´‡∏±‡∏™‡∏Å‡∏∞', submitLabel: '‡∏ö‡∏±‡∏ô‡∏ó‡∏∂‡∏Å‡∏£‡∏´‡∏±‡∏™‡∏Å‡∏∞',
-    fields: shiftTypeEditorFields,
-    values: { color: '#2F80FF', hours: '8', isActive: 'true' }
-  }, (form) => api.createShiftType(auth.token!, shiftTypeMutationPayload(form, { includeCode: true, includeActive: true })));
-
-  const openShiftTypeEditor = (shiftType: DataRow) => {
-    const isCoreShiftType = ['D', 'N', 'OFF', 'AL'].includes(String(shiftType.code || '').toUpperCase());
-    return runEditor({
-      title: `‡πÅ‡∏Å‡πâ‡πÑ‡∏Ç‡∏£‡∏´‡∏±‡∏™‡∏Å‡∏∞ ${text(shiftType.code)}`,
-      submitLabel: '‡∏ö‡∏±‡∏ô‡∏ó‡∏∂‡∏Å‡∏Å‡∏≤‡∏£‡πÅ‡∏Å‡πâ‡πÑ‡∏Ç',
-      notice: isCoreShiftType
-        ? '‡∏£‡∏´‡∏±‡∏™‡πÅ‡∏•‡∏∞‡∏™‡∏ñ‡∏≤‡∏ô‡∏∞‡∏Ç‡∏≠‡∏á‡∏Å‡∏∞‡∏´‡∏•‡∏±‡∏Å D / N / OFF / AL ‡πÄ‡∏õ‡πá‡∏ô‡∏Ç‡πâ‡∏≠‡∏ö‡∏±‡∏á‡∏Ñ‡∏±‡∏ö‡∏Ç‡∏≠‡∏á‡∏£‡∏∞‡∏ö‡∏ö‡πÅ‡∏•‡∏∞‡πÅ‡∏Å‡πâ‡πÑ‡∏°‡πà‡πÑ‡∏î‡πâ ‡∏Å‡∏≤‡∏£‡πÅ‡∏Å‡πâ‡∏ä‡∏∑‡πà‡∏≠ ‡πÄ‡∏ß‡∏•‡∏≤ ‡∏ä‡∏±‡πà‡∏ß‡πÇ‡∏°‡∏á ‡∏´‡∏£‡∏∑‡∏≠‡∏™‡∏µ‡∏°‡∏µ‡∏ú‡∏•‡∏Å‡∏±‡∏ö‡∏Å‡∏≤‡∏£‡∏à‡∏±‡∏î‡∏Å‡∏∞‡πÉ‡∏´‡∏°‡πà‡πÄ‡∏ó‡πà‡∏≤‡∏ô‡∏±‡πâ‡∏ô ‡∏ï‡∏≤‡∏£‡∏≤‡∏á‡πÄ‡∏î‡∏¥‡∏°‡∏¢‡∏±‡∏á‡∏Ñ‡∏á‡∏Ç‡πâ‡∏≠‡∏°‡∏π‡∏•‡πÄ‡∏ß‡∏•‡∏≤‡πÅ‡∏•‡∏∞‡∏ä‡∏±‡πà‡∏ß‡πÇ‡∏°‡∏á‡∏ó‡∏µ‡πà‡∏ö‡∏±‡∏ô‡∏ó‡∏∂‡∏Å‡πÑ‡∏ß‡πâ'
-        : '‡∏£‡∏´‡∏±‡∏™‡∏Å‡∏∞‡πÄ‡∏õ‡πá‡∏ô‡∏Ç‡πâ‡∏≠‡∏°‡∏π‡∏•‡∏≠‡πâ‡∏≤‡∏á‡∏≠‡∏¥‡∏á‡∏ñ‡∏≤‡∏ß‡∏£‡πÅ‡∏•‡∏∞‡πÅ‡∏Å‡πâ‡πÑ‡∏°‡πà‡πÑ‡∏î‡πâ‡∏´‡∏•‡∏±‡∏á‡∏™‡∏£‡πâ‡∏≤‡∏á ‡∏Å‡∏≤‡∏£‡∏õ‡∏¥‡∏î‡πÉ‡∏ä‡πâ‡∏á‡∏≤‡∏ô‡∏à‡∏∞‡∏Å‡∏±‡∏ô‡πÑ‡∏°‡πà‡∏ô‡∏≥‡∏Å‡∏∞‡∏ô‡∏µ‡πâ‡πÑ‡∏õ‡∏à‡∏±‡∏î‡∏ï‡∏≤‡∏£‡∏≤‡∏á‡πÉ‡∏´‡∏°‡πà ‡πÅ‡∏ï‡πà‡πÑ‡∏°‡πà‡∏•‡∏ö‡∏´‡∏£‡∏∑‡∏≠‡πÅ‡∏Å‡πâ‡πÑ‡∏Ç‡∏ï‡∏≤‡∏£‡∏≤‡∏á‡πÄ‡∏î‡∏¥‡∏°',
-      fields: shiftTypeEditorFields.filter((field) => field.name !== 'code' && (!isCoreShiftType || field.name !== 'isActive')),
-      values: {
-        code: String(shiftType.code || ''),
-        name: String(shiftType.name || ''),
-        startTime: String(shiftType.startTime || ''),
-        endTime: String(shiftType.endTime || ''),
-        hours: String(shiftType.hours ?? ''),
-        color: String(shiftType.color || '#2F80FF'),
-        isActive: shiftType.isActive === false ? 'false' : 'true'
-      }
-    }, (form) => api.updateShiftType(auth.token!, String(shiftType.id), shiftTypeMutationPayload(form, { includeCode: false, includeActive: !isCoreShiftType })));
-  };
-
-  const toggleShiftTypeActive = async (shiftType: DataRow) => {
-    if (!auth.token) return;
-    const code = String(shiftType.code || '').toUpperCase();
-    if (['D', 'N', 'OFF', 'AL'].includes(code)) return;
-    const nextActive = shiftType.isActive === false;
-    if (nextActive) {
-      try { await api.updateShiftType(auth.token, String(shiftType.id), { isActive: true }); setOperationRefresh((value) => value + 1); }
-      catch (reason) { setOperationError(toRequestErrorState(reason, '‡πÄ‡∏õ‡∏¥‡∏î‡πÉ‡∏ä‡πâ‡∏á‡∏≤‡∏ô‡∏Å‡∏∞‡πÑ‡∏°‡πà‡∏™‡∏≥‡πÄ‡∏£‡πá‡∏à')); }
-      return;
-    }
-    try {
-      const result = await api.shiftTypeImpact(auth.token, String(shiftType.id));
-      setShiftDeactivationTarget(shiftType); setShiftDeactivationImpact(result?.data || {}); setShiftDeactivationReason('');
-    } catch (reason) { setOperationError(toRequestErrorState(reason, '‡∏ï‡∏£‡∏ß‡∏à‡∏™‡∏≠‡∏ö‡∏ú‡∏•‡∏Å‡∏£‡∏∞‡∏ó‡∏ö‡∏Ç‡∏≠‡∏á‡∏Å‡∏∞‡πÑ‡∏°‡πà‡∏™‡∏≥‡πÄ‡∏£‡πá‡∏à')); }
-  };
-  const confirmShiftDeactivation = async () => {
-    if (!auth.token || !shiftDeactivationTarget?.id || shiftDeactivationReason.trim().length < 3) return;
-    try {
-      await api.updateShiftType(auth.token, String(shiftDeactivationTarget.id), { isActive: false, confirmImpact: true, reason: shiftDeactivationReason.trim() });
-      setShiftDeactivationTarget(undefined); setShiftDeactivationImpact(undefined); setShiftDeactivationReason(''); setOperationRefresh((value) => value + 1);
-    } catch (reason) { setOperationError(toRequestErrorState(reason, '‡∏õ‡∏¥‡∏î‡πÉ‡∏ä‡πâ‡∏á‡∏≤‡∏ô‡∏Å‡∏∞‡πÑ‡∏°‡πà‡∏™‡∏≥‡πÄ‡∏£‡πá‡∏à')); }
-  };
-
-  const openLeaveDecision = (row: DataRow, action: LeaveDecisionAction) => {
-    setLeaveDecision({
-      row,
-      action,
-      target: {
-        employeeName: text(row.employeeNameSnapshot),
-        department: text(row.departmentSnapshot),
-        leaveType: leaveTypeDisplayText(row),
-        dateRange: `${date(row.startDate)} ‚Äì ${date(row.endDate)}`,
-        dayCount: text(row.dayCount),
-        reason: text(row.reasonDetail || row.reason),
-        substitute: text(row.substitute || row.substituteName),
-        status: text(row.status)
-      }
-    });
-    setOperationError(undefined);
-  };
-
-  const executeLeaveDecision = async (request: LeaveDecisionRequest, reason?: string) => {
-    if (!auth.token || !request.row.id) return false;
-    const id = String(request.row.id);
-    setOperationLoading(true);
-    setOperationError(undefined);
-    try {
-      if (request.action === 'return') await api.returnLeaveRequestForCorrection(auth.token, id, reason || '');
-      else if (request.action === 'cancel') await api.cancelLeaveRequest(auth.token, id, reason || '');
-      else await api.updateLeaveRequest(auth.token, id, { status: request.action === 'approve' ? 'APPROVED' : 'REJECTED' });
-      setOperationRefresh((value) => value + 1);
-      setApprovalCenterRefresh((value) => value + 1);
-      return true;
-    } catch (requestError) {
-      setOperationError(toRequestErrorState(requestError, '‡∏î‡∏≥‡πÄ‡∏ô‡∏¥‡∏ô‡∏Å‡∏≤‡∏£‡πÑ‡∏°‡πà‡∏™‡∏≥‡πÄ‡∏£‡πá‡∏à'));
-      return false;
-    } finally {
-      setOperationLoading(false);
-    }
-  };
-
-  const confirmLeaveDecision = async (reason?: string) => {
-    const request = leaveDecision;
-    if (!request) return;
-    if (await executeLeaveDecision(request, reason)) setLeaveDecision(undefined);
-  };
-
-  const handleOperationAction = async (row: DataRow, action: string) => {
-    if (!auth.token || !row.id) return;
-    const id = String(row.id);
-    if (['approve', 'reject', 'return', 'cancel'].includes(action) && ['leave', 'leavePending', 'leaveHistory'].includes(activePage)) {
-      openLeaveDecision(row, action as LeaveDecisionAction);
-      return;
-    }
-    let approvalNote: string | undefined;
-    const isScheduleRejection = activePage === 'approvals' && action === 'reject';
-    if (isScheduleRejection) {
-      const reason = await actionDialog.prompt({
-        title: '‡πÑ‡∏°‡πà‡∏≠‡∏ô‡∏∏‡∏°‡∏±‡∏ï‡∏¥‡∏ï‡∏≤‡∏£‡∏≤‡∏á‡∏Å‡∏∞',
-        message: '‡∏£‡∏∞‡∏ö‡∏∏‡πÄ‡∏´‡∏ï‡∏∏‡∏ú‡∏•‡πÄ‡∏û‡∏∑‡πà‡∏≠‡∏ö‡∏±‡∏ô‡∏ó‡∏∂‡∏Å‡∏õ‡∏£‡∏∞‡∏Å‡∏≠‡∏ö‡∏õ‡∏£‡∏∞‡∏ß‡∏±‡∏ï‡∏¥‡∏Å‡∏≤‡∏£‡∏û‡∏¥‡∏à‡∏≤‡∏£‡∏ì‡∏≤',
-        eyebrow: '‡πÄ‡∏´‡∏ï‡∏∏‡∏ú‡∏•‡∏Å‡∏≤‡∏£‡πÑ‡∏°‡πà‡∏≠‡∏ô‡∏∏‡∏°‡∏±‡∏ï‡∏¥',
-        fieldLabel: '‡πÄ‡∏´‡∏ï‡∏∏‡∏ú‡∏• (‡∏à‡∏≥‡πÄ‡∏õ‡πá‡∏ô)',
-        helperText: '‡∏Å‡∏£‡∏≠‡∏Å‡∏≠‡∏¢‡πà‡∏≤‡∏á‡∏ô‡πâ‡∏≠‡∏¢ 5 ‡∏ï‡∏±‡∏ß‡∏≠‡∏±‡∏Å‡∏©‡∏£',
-        minLength: 5,
-        maxLength: 2000,
-        multiline: true,
-        confirmLabel: '‡∏¢‡∏∑‡∏ô‡∏¢‡∏±‡∏ô‡πÑ‡∏°‡πà‡∏≠‡∏ô‡∏∏‡∏°‡∏±‡∏ï‡∏¥',
-        tone: 'danger'
-      });
-      if (reason === null) return;
-      approvalNote = reason.trim();
-    }
-    if (action === 'link' && activePage === 'quota') {
-      runEditor({ title: row.employeeId ? '‡∏à‡∏±‡∏î‡∏õ‡∏£‡∏∞‡πÄ‡∏†‡∏ó‡∏õ‡∏µ‡πÉ‡∏´‡πâ‡∏Ç‡πâ‡∏≠‡∏°‡∏π‡∏•‡πÇ‡∏Ñ‡∏ß‡∏ï‡∏≤‡πÄ‡∏î‡∏¥‡∏°' : '‡∏à‡∏±‡∏ö‡∏Ñ‡∏π‡πà‡∏Ç‡πâ‡∏≠‡∏°‡∏π‡∏•‡πÄ‡∏î‡∏¥‡∏°‡∏Å‡∏±‡∏ö‡∏û‡∏ô‡∏±‡∏Å‡∏á‡∏≤‡∏ô‡πÅ‡∏•‡∏∞‡∏õ‡∏µ', submitLabel: '‡∏¢‡∏∑‡∏ô‡∏¢‡∏±‡∏ô‡∏Å‡∏≤‡∏£‡∏à‡∏±‡∏î‡∏õ‡∏£‡∏∞‡πÄ‡∏†‡∏ó', fields: [{ name: 'employeeId', label: '‡∏û‡∏ô‡∏±‡∏Å‡∏á‡∏≤‡∏ô (‡∏£‡∏´‡∏±‡∏™ ¬∑ ‡∏ä‡∏∑‡πà‡∏≠ ¬∑ ‡∏´‡∏ô‡πà‡∏ß‡∏¢‡∏á‡∏≤‡∏ô)', type: 'select', required: true, options: row.employeeId ? employeeOptions.filter((option) => option.value === String(row.employeeId)) : employeeOptions }, { name: 'quotaYear', label: '‡∏õ‡∏µ‡∏™‡∏¥‡∏ó‡∏ò‡∏¥‡πå', type: 'select', required: true, options: quotaYearOptions }], values: { employeeId: String(row.employeeId || ''), quotaYear: String(quotaYear) } }, (form) => api.linkLeaveQuota(auth.token!, id, form.employeeId, Number(form.quotaYear)));
-      return;
-    }
-    if (action === 'document' && activePage === 'licenses') {
-      const employee = nested(row.employee);
-      runEditor({
-        title: `‡πÅ‡∏ô‡∏ö‡πÉ‡∏ö‡∏≠‡∏ô‡∏∏‡∏ç‡∏≤‡∏ï ¬∑ ${text(employee.employeeCode)} ${text(employee.firstName)} ${text(employee.lastName)}`,
-        submitLabel: '‡∏™‡πà‡∏á‡∏ï‡∏£‡∏ß‡∏à‡∏™‡∏≠‡∏ö',
-      fields: [{ name: 'licenseNumber', label: '‡πÄ‡∏•‡∏Ç‡πÉ‡∏ö‡∏≠‡∏ô‡∏∏‡∏ç‡∏≤‡∏ï', required: true }, { name: 'document', label: '‡πÑ‡∏ü‡∏•‡πå‡πÉ‡∏ö‡∏≠‡∏ô‡∏∏‡∏ç‡∏≤‡∏ï', type: 'file', required: true, accept: '.pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png', hint: '‡∏£‡∏∞‡∏ö‡∏ö‡∏õ‡∏£‡∏±‡∏ö‡πÑ‡∏ü‡∏•‡πå‡∏≠‡∏±‡∏ï‡πÇ‡∏ô‡∏°‡∏±‡∏ï‡∏¥ ¬∑ ‡∏£‡∏π‡∏õ‡πÄ‡∏õ‡πâ‡∏≤‡∏´‡∏°‡∏≤‡∏¢ 300‚Äì450 KB (‡∏™‡∏π‡∏á‡∏™‡∏∏‡∏î 500 KB) ¬∑ PDF ‡∏™‡∏π‡∏á‡∏™‡∏∏‡∏î 1 MB' }, { name: 'proposedStartDate', label: '‡∏ß‡∏±‡∏ô‡∏ó‡∏µ‡πà‡πÄ‡∏£‡∏¥‡πà‡∏°‡∏ï‡πâ‡∏ô', type: 'date', required: true }, { name: 'proposedExpiryDate', label: '‡∏ß‡∏±‡∏ô‡∏´‡∏°‡∏î‡∏≠‡∏≤‡∏¢‡∏∏', type: 'date', required: true }, { name: 'note', label: '‡∏´‡∏°‡∏≤‡∏¢‡πÄ‡∏´‡∏ï‡∏∏', type: 'textarea' }],
-        values: { licenseNumber: String(row.licenseNumber || ''), proposedStartDate: inputDate(row.issueDate), proposedExpiryDate: inputDate(row.expiryDate) }
-      }, (form, files) => {
-        const document = files.document;
-        if (!document) return Promise.reject(new Error('‡∏Å‡∏£‡∏∏‡∏ì‡∏≤‡πÄ‡∏•‡∏∑‡∏≠‡∏Å‡πÑ‡∏ü‡∏•‡πå‡πÉ‡∏ö‡∏≠‡∏ô‡∏∏‡∏ç‡∏≤‡∏ï'));
-        if (!['application/pdf', 'image/jpeg', 'image/png'].includes(document.type)) return Promise.reject(new Error('‡∏£‡∏≠‡∏á‡∏£‡∏±‡∏ö‡πÄ‡∏â‡∏û‡∏≤‡∏∞ PDF, JPG ‡πÅ‡∏•‡∏∞ PNG'));
-        if (!form.proposedStartDate || !form.proposedExpiryDate || form.proposedStartDate > form.proposedExpiryDate) return Promise.reject(new Error('‡∏ß‡∏±‡∏ô‡∏ó‡∏µ‡πà‡πÄ‡∏£‡∏¥‡πà‡∏°‡∏ï‡πâ‡∏ô‡∏ï‡πâ‡∏≠‡∏á‡πÑ‡∏°‡πà‡πÄ‡∏Å‡∏¥‡∏ô‡∏ß‡∏±‡∏ô‡∏´‡∏°‡∏î‡∏≠‡∏≤‡∏¢‡∏∏'));
-        return api.uploadLicenseDocument(auth.token!, id, { licenseNumber: form.licenseNumber, proposedStartDate: form.proposedStartDate, proposedExpiryDate: form.proposedExpiryDate, note: form.note }, document).catch((reason: unknown) => Promise.reject(toRequestErrorState(reason, sanitizeLicenseDocumentError(reason))));
-      });
-      return;
-    }
-    if (action === 'edit') {
-      if (activePage === 'licenses') runEditor({
-        title: '‡πÅ‡∏Å‡πâ‡πÑ‡∏Ç‡πÉ‡∏ö‡∏≠‡∏ô‡∏∏‡∏ç‡∏≤‡∏ï', submitLabel: '‡∏ö‡∏±‡∏ô‡∏ó‡∏∂‡∏Å‡∏Å‡∏≤‡∏£‡πÅ‡∏Å‡πâ‡πÑ‡∏Ç',
-        fields: [{ name: 'licenseType', label: '‡∏õ‡∏£‡∏∞‡πÄ‡∏†‡∏ó‡πÉ‡∏ö‡∏≠‡∏ô‡∏∏‡∏ç‡∏≤‡∏ï', required: true }, { name: 'licenseNumber', label: '‡πÄ‡∏•‡∏Ç‡∏ó‡∏µ‡πà‡πÉ‡∏ö‡∏≠‡∏ô‡∏∏‡∏ç‡∏≤‡∏ï', required: true }, { name: 'issueDate', label: '‡∏ß‡∏±‡∏ô‡∏ó‡∏µ‡πà‡∏≠‡∏≠‡∏Å', type: 'date', required: true }, { name: 'expiryDate', label: '‡∏ß‡∏±‡∏ô‡∏´‡∏°‡∏î‡∏≠‡∏≤‡∏¢‡∏∏', type: 'date', required: true }, { name: 'status', label: '‡∏™‡∏ñ‡∏≤‡∏ô‡∏∞', type: 'select', required: true, options: [{ value: 'Active', label: '‡πÉ‡∏ä‡πâ‡∏á‡∏≤‡∏ô' }, { value: 'Suspended', label: '‡∏£‡∏∞‡∏á‡∏±‡∏ö' }, { value: 'Revoked', label: '‡πÄ‡∏û‡∏¥‡∏Å‡∏ñ‡∏≠‡∏ô' }, { value: 'Inactive', label: '‡πÑ‡∏°‡πà‡πÉ‡∏ä‡πâ‡∏á‡∏≤‡∏ô' }] }, { name: 'remark', label: '‡∏´‡∏°‡∏≤‡∏¢‡πÄ‡∏´‡∏ï‡∏∏', type: 'textarea' }],
-        values: { licenseType: String(row.licenseType || ''), licenseNumber: String(row.licenseNumber || ''), issueDate: inputDate(row.issueDate), expiryDate: inputDate(row.expiryDate), status: String(row.status || ''), remark: String(row.remark || '') }
-      }, (form) => api.updateLicense(auth.token!, id, formPayload(form, ['remark'])));
-      else if (activePage === 'schedule') openShiftEditor(row);
-      else if (activePage === 'rules') runEditor({
-        title: '‡πÅ‡∏Å‡πâ‡πÑ‡∏Ç‡∏Å‡∏é‡∏Å‡∏≤‡∏£‡∏ó‡∏≥‡∏á‡∏≤‡∏ô', submitLabel: '‡∏ö‡∏±‡∏ô‡∏ó‡∏∂‡∏Å‡∏Å‡∏é',
-        fields: [{ name: 'value', label: '‡∏Ñ‡πà‡∏≤', required: true }, { name: 'unit', label: '‡∏´‡∏ô‡πà‡∏ß‡∏¢' }],
-        values: { value: String(row.value || ''), unit: String(row.unit || '') }
-      }, (form) => api.updateSchedulingRule(auth.token!, id, formPayload(form, ['unit'])));
-      else if (activePage === 'quota') runEditor({
-        title: '‡πÅ‡∏Å‡πâ‡πÑ‡∏Ç‡πÇ‡∏Ñ‡∏ß‡∏ï‡∏≤‡∏ß‡∏±‡∏ô‡∏•‡∏≤', submitLabel: '‡∏ö‡∏±‡∏ô‡∏ó‡∏∂‡∏Å‡πÇ‡∏Ñ‡∏ß‡∏ï‡∏≤',
-        fields: [{ name: 'sickLeave', label: '‡∏•‡∏≤‡∏õ‡πà‡∏ß‡∏¢', type: 'number', required: true }, { name: 'personalLeave', label: '‡∏•‡∏≤‡∏Å‡∏¥‡∏à', type: 'number', required: true }, { name: 'vacationLeave', label: '‡∏•‡∏≤‡∏û‡∏±‡∏Å‡∏£‡πâ‡∏≠‡∏ô', type: 'number', required: true }],
-        values: { sickLeave: String(row.sickLeave || '0'), personalLeave: String(row.personalLeave || '0'), vacationLeave: String(row.vacationLeave || '0') }
-      }, (form) => api.updateLeaveQuota(auth.token!, id, form));
-      else if (activePage === 'users') runEditor({
-        title: '‡πÅ‡∏Å‡πâ‡πÑ‡∏Ç‡∏ú‡∏π‡πâ‡πÉ‡∏ä‡πâ‡πÅ‡∏•‡∏∞‡∏™‡∏¥‡∏ó‡∏ò‡∏¥‡πå', submitLabel: '‡∏ö‡∏±‡∏ô‡∏ó‡∏∂‡∏Å‡∏™‡∏¥‡∏ó‡∏ò‡∏¥‡πå',
-        fields: [{ name: 'role', label: '‡∏ö‡∏ó‡∏ö‡∏≤‡∏ó', type: 'select', required: true, options: ['ADMIN', 'MANAGER', 'SUPERVISOR', 'VIEWER'].map((value) => ({ value, label: ROLE_DISPLAY_LABEL[value] || value })) }, { name: 'department', label: '‡∏´‡∏ô‡πà‡∏ß‡∏¢‡∏á‡∏≤‡∏ô' }, { name: 'accountStatus', label: '‡∏™‡∏ñ‡∏≤‡∏ô‡∏∞‡∏ö‡∏±‡∏ç‡∏ä‡∏µ', type: 'select', required: true, options: ['ACTIVE', 'PENDING', 'SUSPENDED', 'REJECTED'].map((value) => ({ value, label: value })) }],
-        values: { role: String(row.role || ''), department: String(row.department || ''), accountStatus: String(row.accountStatus || '') }
-      }, (form) => api.updateUser(auth.token!, id, form));
-      return;
-    }
-    if (action === 'reset-password') {
-      runEditor({
-        title: '‡∏ï‡∏±‡πâ‡∏á‡∏£‡∏´‡∏±‡∏™‡∏ú‡πà‡∏≤‡∏ô‡πÉ‡∏´‡∏°‡πà', submitLabel: '‡∏ï‡∏±‡πâ‡∏á‡∏£‡∏´‡∏±‡∏™‡∏ú‡πà‡∏≤‡∏ô‡πÅ‡∏•‡∏∞‡∏¢‡∏Å‡πÄ‡∏•‡∏¥‡∏Å session ‡πÄ‡∏î‡∏¥‡∏°',
-        fields: [{ name: 'newPassword', label: '‡∏£‡∏´‡∏±‡∏™‡∏ú‡πà‡∏≤‡∏ô‡πÉ‡∏´‡∏°‡πà (‡∏≠‡∏¢‡πà‡∏≤‡∏á‡∏ô‡πâ‡∏≠‡∏¢ 8 ‡∏ï‡∏±‡∏ß‡∏≠‡∏±‡∏Å‡∏©‡∏£)', type: 'password', required: true }],
-        values: {}
-      }, (form) => api.resetUserPassword(auth.token!, id, form.newPassword));
-      return;
-    }
-    const confirmMessage = action === 'return'
-      ? '‡∏¢‡∏∑‡∏ô‡∏¢‡∏±‡∏ô‡∏™‡πà‡∏á‡∏Ñ‡∏≥‡∏Ç‡∏≠‡∏ô‡∏µ‡πâ‡∏Å‡∏•‡∏±‡∏ö‡πÑ‡∏õ‡πÉ‡∏´‡πâ‡∏ú‡∏π‡πâ‡∏Ç‡∏≠‡πÅ‡∏Å‡πâ‡πÑ‡∏Ç?'
-      : action === 'cancel'
-        ? '‡∏¢‡∏∑‡∏ô‡∏¢‡∏±‡∏ô‡∏¢‡∏Å‡πÄ‡∏•‡∏¥‡∏Å‡∏Ñ‡∏≥‡∏Ç‡∏≠‡∏ô‡∏µ‡πâ? ‡∏Å‡∏≤‡∏£‡∏î‡∏≥‡πÄ‡∏ô‡∏¥‡∏ô‡∏Å‡∏≤‡∏£‡∏à‡∏∞‡∏ñ‡∏π‡∏Å‡∏ö‡∏±‡∏ô‡∏ó‡∏∂‡∏Å‡πÉ‡∏ô Audit'
-        : '‡∏¢‡∏∑‡∏ô‡∏¢‡∏±‡∏ô‡∏Å‡∏≤‡∏£‡∏î‡∏≥‡πÄ‡∏ô‡∏¥‡∏ô‡∏Å‡∏≤‡∏£‡∏ô‡∏µ‡πâ?';
-    const confirmed = isScheduleRejection ? true : await actionDialog.confirm({
-      title: action === 'delete' ? '‡∏¢‡∏∑‡∏ô‡∏¢‡∏±‡∏ô‡∏•‡∏ö‡∏£‡∏≤‡∏¢‡∏Å‡∏≤‡∏£' : action === 'cancel' ? '‡∏¢‡∏∑‡∏ô‡∏¢‡∏±‡∏ô‡∏¢‡∏Å‡πÄ‡∏•‡∏¥‡∏Å‡∏Ñ‡∏≥‡∏Ç‡∏≠' : action === 'return' ? '‡∏™‡πà‡∏á‡∏Å‡∏•‡∏±‡∏ö‡πÉ‡∏´‡πâ‡πÅ‡∏Å‡πâ‡πÑ‡∏Ç' : '‡∏¢‡∏∑‡∏ô‡∏¢‡∏±‡∏ô‡∏Å‡∏≤‡∏£‡∏î‡∏≥‡πÄ‡∏ô‡∏¥‡∏ô‡∏Å‡∏≤‡∏£',
-      message: confirmMessage,
-      context: `${activePage} ¬∑ ${id}`,
-      confirmLabel: action === 'delete' ? '‡∏¢‡∏∑‡∏ô‡∏¢‡∏±‡∏ô‡∏•‡∏ö' : action === 'cancel' ? '‡∏¢‡∏∑‡∏ô‡∏¢‡∏±‡∏ô‡∏¢‡∏Å‡πÄ‡∏•‡∏¥‡∏Å' : action === 'return' ? '‡∏¢‡∏∑‡∏ô‡∏¢‡∏±‡∏ô‡∏™‡πà‡∏á‡∏Å‡∏•‡∏±‡∏ö' : '‡∏¢‡∏∑‡∏ô‡∏¢‡∏±‡∏ô‡∏î‡∏≥‡πÄ‡∏ô‡∏¥‡∏ô‡∏Å‡∏≤‡∏£',
-      tone: action === 'delete' || action === 'cancel' || action === 'reject' ? 'danger' : action === 'return' ? 'warning' : 'primary'
-    });
-    if (!confirmed) return;
-    setOperationLoading(true); setOperationError(undefined);
-    try {
-      if (action === 'delete' && activePage === 'licenses') await api.deleteLicense(auth.token, id);
-      else if (action === 'delete' && activePage === 'schedule') await api.deleteShift(auth.token, id);
-      else if (activePage === 'approvals') await api.updateScheduleApproval(auth.token, id, { status: action === 'approve' ? 'APPROVED' : 'REJECTED', ...(action === 'reject' && { approvalNote }) });
-      else if (activePage === 'rules') await api.updateSchedulingRule(auth.token, id, { enabled: !row.enabled });
-      else if (activePage === 'schedule') await api.updateShift(auth.token, id, { locked: !row.locked });
-      else if (activePage === 'users') await api.updateUser(auth.token, id, { isActive: !row.isActive, accountStatus: row.isActive ? 'SUSPENDED' : 'ACTIVE' });
-      setOperationRefresh((value) => value + 1);
-    } catch (reason) {
-      const requestError = toRequestErrorState(reason, '‡∏î‡∏≥‡πÄ‡∏ô‡∏¥‡∏ô‡∏Å‡∏≤‡∏£‡πÑ‡∏°‡πà‡∏™‡∏≥‡πÄ‡∏£‡πá‡∏à');
-      const details = reason && typeof reason === 'object' && 'details' in reason ? reason.details : undefined;
-      const code = details && typeof details === 'object' && 'code' in details ? details.code : undefined;
-      const localizedMessage = activePage === 'approvals' ? scheduleApprovalErrorMessage(code) : undefined;
-      setOperationError(localizedMessage ? { ...requestError, message: localizedMessage } : requestError);
-    }
-    finally { setOperationLoading(false); }  };
-
-  const content = () => {
-    if (activePage === 'dashboard') return <DashboardPage summary={dashboardSummary} loading={dashboardLoading} error={dashboardError} user={auth.user} canManage={canManage} filters={dashboardFilters} pendingApprovalCount={approvalMenuCount('approvalCenter', approvalSummary)} onOpenApprovalCenter={() => setActivePage('approvalCenter')} onFiltersChange={(next) => setDashboardFilters((current) => ({ ...current, ...next }))} onNavigate={setActivePage} />;
-    // The former inline dashboard is intentionally disabled. DashboardPage above
-    // is the only runtime dashboard presentation.
-    if (false) {
-      const pendingTotal = Number(dashboardSummary.pendingLeaves || 0) + Number(dashboardSummary.pendingUsers || 0) + Number(dashboardSummary.expiringLicenses || 0);
-      const todayThaiStr = formatThaiDate(new Date(), { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' });
-
-      return (
-        <section className="view-pane dashboard-page">
-          <div className="dashboard-greeting-banner" style={{ background: 'linear-gradient(135deg, #0f172a 0%, #1e3a8a 60%, #2563eb 100%)', borderRadius: '16px', padding: '24px 28px', color: '#ffffff', marginBottom: '24px', boxShadow: '0 10px 25px -8px rgba(37, 99, 235, 0.35)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-              <div className="avatar" style={{ width: '48px', height: '48px', fontSize: '18px', background: 'linear-gradient(135deg, #3b82f6, #8b5cf6)', boxShadow: '0 4px 12px rgba(0,0,0,0.2)' }}>{initials}</div>
-              <div>
-                <h1 style={{ margin: 0, fontSize: '22px', fontWeight: 800, color: '#ffffff' }}>‡∏™‡∏ß‡∏±‡∏™‡∏î‡∏µ, {auth.user?.displayName || '‡∏ú‡∏π‡πâ‡∏î‡∏π‡πÅ‡∏•‡∏£‡∏∞‡∏ö‡∏ö'} üëã</h1>
-                <p style={{ margin: '4px 0 0', fontSize: '13px', color: 'rgba(255, 255, 255, 0.85)' }}>{todayThaiStr} ¬∑ ‡∏ö‡∏ó‡∏ö‡∏≤‡∏ó: <strong style={{ color: '#60a5fa' }}>{roleDisplayName(auth.user?.role || 'VIEWER')}</strong></p>
-              </div>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <span className="live-status" style={{ background: 'rgba(255, 255, 255, 0.15)', borderColor: 'rgba(255, 255, 255, 0.3)', color: '#ffffff' }}><i style={{ background: '#4ade80' }} /> ‡∏£‡∏∞‡∏ö‡∏ö‡∏û‡∏£‡πâ‡∏≠‡∏°‡πÉ‡∏ä‡πâ‡∏á‡∏≤‡∏ô</span>
-              <button className="btn-secondary compact action-nowrap" onClick={() => setActivePage('schedule')}>üóìÔ∏è ‡∏ï‡∏≤‡∏£‡∏≤‡∏á‡∏Å‡∏∞‡∏£‡∏≤‡∏¢‡πÄ‡∏î‡∏∑‡∏≠‡∏ô</button>
-            </div>
-          </div>
-
-          <div className="metrics-grid" style={{ marginBottom: '24px' }}>
-            <article className="metric-card" style={{ borderLeft: '4px solid #2563eb' }}>
-              <span className="metric-icon blue">üë•</span>
-              <div>
-                <p>‡∏û‡∏ô‡∏±‡∏Å‡∏á‡∏≤‡∏ô‡∏ó‡∏±‡πâ‡∏á‡∏´‡∏°‡∏î</p>
-                <strong>{text(dashboardSummary.totalEmployees || 0)}</strong>
-                <small>‡πÉ‡∏ä‡πâ‡∏á‡∏≤‡∏ô‡∏à‡∏£‡∏¥‡∏á <strong style={{ color: '#16a34a' }}>{text(dashboardSummary.activeEmployees || 0)}</strong> ‡∏Ñ‡∏ô</small>
-              </div>
-            </article>
-
-            <article className="metric-card" style={{ borderLeft: '4px solid #10b981' }}>
-              <span className="metric-icon green">üìÖ</span>
-              <div>
-                <p>‡∏Å‡∏∞‡πÄ‡∏î‡∏∑‡∏≠‡∏ô‡∏ô‡∏µ‡πâ</p>
-                <strong>{text(dashboardSummary.monthShifts || 0)}</strong>
-                <small>‡∏£‡∏ß‡∏° <strong style={{ color: '#2563eb' }}>{text(dashboardSummary.totalHours || 0)}</strong> ‡∏ä‡∏±‡πà‡∏ß‡πÇ‡∏°‡∏á</small>
-              </div>
-            </article>
-
-            <article className="metric-card" style={{ borderLeft: '4px solid #f59e0b' }}>
-              <span className="metric-icon amber">‚ö†Ô∏è</span>
-              <div>
-                <p>‡πÉ‡∏ö‡∏≠‡∏ô‡∏∏‡∏ç‡∏≤‡∏ï‡πÉ‡∏Å‡∏•‡πâ‡∏´‡∏°‡∏î‡∏≠‡∏≤‡∏¢‡∏∏</p>
-                <strong style={{ color: Number(dashboardSummary.expiringLicenses || 0) > 0 ? '#d97706' : '#1e293b' }}>{text(dashboardSummary.expiringLicenses || 0)}</strong>
-                <small>{Number(dashboardSummary.expiringLicenses || 0) > 0 ? '‡∏ï‡πâ‡∏≠‡∏á‡∏ï‡πà‡∏≠‡∏≠‡∏≤‡∏¢‡∏∏‡∏†‡∏≤‡∏¢‡πÉ‡∏ô 60 ‡∏ß‡∏±‡∏ô' : '‡πÑ‡∏°‡πà‡∏°‡∏µ‡πÉ‡∏ö‡∏≠‡∏ô‡∏∏‡∏ç‡∏≤‡∏ï‡∏ï‡∏¥‡∏î‡∏ö‡∏•‡πá‡∏≠‡∏Å'}</small>
-              </div>
-            </article>
-
-            <article className="metric-card" style={{ borderLeft: '4px solid #8b5cf6' }}>
-              <span className="metric-icon violet">üìù</span>
-              <div>
-                <p>‡∏Ñ‡∏≥‡∏Ç‡∏≠‡∏•‡∏≤‡∏Ñ‡πâ‡∏≤‡∏á‡∏≠‡∏ô‡∏∏‡∏°‡∏±‡∏ï‡∏¥</p>
-                <strong style={{ color: Number(dashboardSummary.pendingLeaves || 0) > 0 ? '#7c3aed' : '#1e293b' }}>{text(dashboardSummary.pendingLeaves || 0)}</strong>
-                <small>{Number(dashboardSummary.pendingLeaves || 0) > 0 ? '‡∏£‡∏≠‡∏ú‡∏π‡πâ‡∏ö‡∏£‡∏¥‡∏´‡∏≤‡∏£‡∏≠‡∏ô‡∏∏‡∏°‡∏±‡∏ï‡∏¥‡∏ß‡∏±‡∏ô‡∏•‡∏≤' : '‡πÑ‡∏°‡πà‡∏°‡∏µ‡∏Ñ‡∏≥‡∏Ç‡∏≠‡∏•‡∏≤‡∏Ñ‡πâ‡∏≤‡∏á'}</small>
-              </div>
-            </article>
-          </div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: '24px', marginBottom: '24px' }}>
-            <div className="table-card" style={{ padding: '24px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '18px' }}>
-                <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 800, color: '#0f172a' }}>üìä ‡∏™‡∏±‡∏î‡∏™‡πà‡∏ß‡∏ô‡∏Å‡∏∞‡∏õ‡∏è‡∏¥‡∏ö‡∏±‡∏ï‡∏¥‡∏á‡∏≤‡∏ô‡∏õ‡∏£‡∏∞‡∏à‡∏≥‡πÄ‡∏î‡∏∑‡∏≠‡∏ô</h3>
-                <span className="record-chip">‡∏£‡∏ß‡∏° {text(dashboardSummary.monthShifts || 0)} ‡∏Å‡∏∞</span>
-              </div>
-              <p style={{ fontSize: '13px', color: '#64748b', margin: '0 0 16px' }}>‡∏Å‡∏≤‡∏£‡∏Å‡∏£‡∏∞‡∏à‡∏≤‡∏¢‡∏Å‡∏≥‡∏•‡∏±‡∏á‡∏û‡∏•‡∏£‡∏±‡∏Å‡∏©‡∏≤‡∏Ñ‡∏ß‡∏≤‡∏°‡∏õ‡∏•‡∏≠‡∏î‡∏†‡∏±‡∏¢‡∏ï‡∏≤‡∏°‡∏õ‡∏£‡∏∞‡πÄ‡∏†‡∏ó‡∏Å‡∏∞‡πÄ‡∏î‡∏∑‡∏≠‡∏ô‡∏ô‡∏µ‡πâ</p>
-
-              <div style={{ display: 'grid', gap: '14px' }}>
-                <div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', fontWeight: 700, marginBottom: '6px' }}>
-                    <span style={{ color: '#15803d' }}>‚òÄÔ∏è ‡∏Å‡∏∞‡πÄ‡∏ä‡πâ‡∏≤ (D 07:00‚Äì19:00)</span>
-                    <span style={{ color: '#15803d' }}>48%</span>
-                  </div>
-                  <div style={{ height: '8px', background: '#dcfce7', borderRadius: '999px', overflow: 'hidden' }}>
-                    <div style={{ width: '48%', height: '100%', background: '#22c55e', borderRadius: '999px' }} />
-                  </div>
-                </div>
-
-                <div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', fontWeight: 700, marginBottom: '6px' }}>
-                    <span style={{ color: '#6b21a8' }}>üåô ‡∏Å‡∏∞‡∏î‡∏∂‡∏Å (N 19:00‚Äì07:00)</span>
-                    <span style={{ color: '#6b21a8' }}>38%</span>
-                  </div>
-                  <div style={{ height: '8px', background: '#f3e8ff', borderRadius: '999px', overflow: 'hidden' }}>
-                    <div style={{ width: '38%', height: '100%', background: '#a855f7', borderRadius: '999px' }} />
-                  </div>
-                </div>
-
-                <div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', fontWeight: 700, marginBottom: '6px' }}>
-                    <span style={{ color: '#be185d' }}>üèñÔ∏è ‡∏ß‡∏±‡∏ô‡∏´‡∏¢‡∏∏‡∏î (OFF / AL)</span>
-                    <span style={{ color: '#be185d' }}>14%</span>
-                  </div>
-                  <div style={{ height: '8px', background: '#ffe4e6', borderRadius: '999px', overflow: 'hidden' }}>
-                    <div style={{ width: '14%', height: '100%', background: '#f43f5e', borderRadius: '999px' }} />
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="table-card" style={{ padding: '24px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '18px' }}>
-                <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 800, color: '#0f172a' }}>‚ö° ‡∏£‡∏≤‡∏¢‡∏Å‡∏≤‡∏£‡πÅ‡∏à‡πâ‡∏á‡πÄ‡∏ï‡∏∑‡∏≠‡∏ô‡πÅ‡∏•‡∏∞‡∏Å‡∏≤‡∏£‡∏î‡πç‡∏≤‡πÄ‡∏ô‡∏¥‡∏ô‡∏Å‡∏≤‡∏£</h3>
-                <span className={`status-badge ${pendingTotal > 0 ? 'pending' : 'active'}`}>
-                  {pendingTotal > 0 ? `${pendingTotal} ‡∏£‡∏≤‡∏¢‡∏Å‡∏≤‡∏£‡∏î‡πà‡∏ß‡∏ô` : '‡∏õ‡∏Å‡∏ï‡∏¥‡∏î‡∏µ'}
-                </span>
-              </div>
-
-              <div style={{ display: 'grid', gap: '12px' }}>
-                {Number(dashboardSummary.expiringLicenses || 0) > 0 && (
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px', background: '#211807', border: '1px solid #fcd34d', borderRadius: '12px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      <span style={{ fontSize: '20px' }}>‚ö†Ô∏è</span>
-                      <div>
-                        <strong style={{ fontSize: '14px', color: '#92400e' }}>‡∏°‡∏µ‡πÉ‡∏ö‡∏≠‡∏ô‡∏∏‡∏ç‡∏≤‡∏ï {text(dashboardSummary.expiringLicenses)} ‡∏£‡∏≤‡∏¢‡∏Å‡∏≤‡∏£‡πÉ‡∏Å‡∏•‡πâ‡∏´‡∏°‡∏î‡∏≠‡∏≤‡∏¢‡∏∏</strong>
-                        <p style={{ margin: 0, fontSize: '12px', color: '#b45309' }}>‡∏ï‡∏£‡∏ß‡∏à‡∏™‡∏≠‡∏ö‡πÅ‡∏•‡∏∞‡∏≠‡∏±‡∏õ‡πÄ‡∏î‡∏ï‡∏ß‡∏±‡∏ô‡∏´‡∏°‡∏î‡∏≠‡∏≤‡∏¢‡∏∏‡πÄ‡∏û‡∏∑‡πà‡∏≠‡∏õ‡πâ‡∏≠‡∏á‡∏Å‡∏±‡∏ô License Block</p>
-                      </div>
-                    </div>
-                    <button className="btn-warning compact action-nowrap" onClick={() => setActivePage('licenses')}>‡∏à‡∏±‡∏î‡∏Å‡∏≤‡∏£</button>
-                  </div>
-                )}
-
-        {Number(dashboardSummary.pendingLeaves || 0) > 0 && (
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px', background: '#eff6ff', border: '1px solid #93c5fd', borderRadius: '12px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      <span style={{ fontSize: '20px' }}>‚è≥</span>
-                      <div>
-                        <strong style={{ fontSize: '14px', color: '#1e40af' }}>‡∏°‡∏µ {text(dashboardSummary.pendingLeaves)} ‡∏Ñ‡∏≥‡∏Ç‡∏≠‡∏•‡∏≤‡∏û‡∏±‡∏Å‡∏£‡∏≠‡∏Å‡∏≤‡∏£‡∏≠‡∏ô‡∏∏‡∏°‡∏±‡∏ï‡∏¥</strong>
-                        <p style={{ margin: 0, fontSize: '12px', color: '#1d4ed8' }}>‡∏≠‡∏ô‡∏∏‡∏°‡∏±‡∏ï‡∏¥‡∏´‡∏£‡∏∑‡∏≠‡∏õ‡∏è‡∏¥‡πÄ‡∏™‡∏ò‡∏Ñ‡∏≥‡∏Ç‡∏≠‡∏•‡∏≤‡πÄ‡∏Ç‡πâ‡∏≤‡∏™‡∏π‡πà‡∏ï‡∏≤‡∏£‡∏≤‡∏á‡∏Å‡∏∞</p>
-                      </div>
-                    </div>
-                    <button className="btn-info compact action-nowrap" onClick={() => setActivePage(canManage ? 'approvalCenter' : 'leave')}>{canManage ? '‡πÄ‡∏õ‡∏¥‡∏î‡∏®‡∏π‡∏ô‡∏¢‡πå‡∏≠‡∏ô‡∏∏‡∏°‡∏±‡∏ï‡∏¥' : '‡∏î‡∏π‡∏Ñ‡∏≥‡∏Ç‡∏≠‡∏•‡∏≤'}</button>
-                  </div>
-                )}
-
-                {Number(dashboardSummary.pendingUsers || 0) > 0 && (
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px', background: '#fef3c7', border: '1px solid #fde68a', borderRadius: '12px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      <span style={{ fontSize: '20px' }}>üë§</span>
-                      <div>
-                        <strong style={{ fontSize: '14px', color: '#92400e' }}>‡∏°‡∏µ {text(dashboardSummary.pendingUsers)} ‡∏ö‡∏±‡∏ç‡∏ä‡∏µ‡∏ú‡∏π‡πâ‡πÉ‡∏ä‡πâ‡πÉ‡∏´‡∏°‡πà‡∏£‡∏≠‡∏≠‡∏ô‡∏∏‡∏°‡∏±‡∏ï‡∏¥‡∏™‡∏¥‡∏ó‡∏ò‡∏¥‡πå</strong>
-                        <p style={{ margin: 0, fontSize: '12px', color: '#b45309' }}>‡∏Å‡∏≥‡∏´‡∏ô‡∏î‡∏ö‡∏ó‡∏ö‡∏≤‡∏ó Role ‡πÅ‡∏•‡∏∞‡πÄ‡∏õ‡∏¥‡∏î‡∏™‡∏¥‡∏ó‡∏ò‡∏¥‡πå‡πÄ‡∏Ç‡πâ‡∏≤‡πÉ‡∏ä‡πâ‡∏á‡∏≤‡∏ô</p>
-                      </div>
-                    </div>
-                    <button className="btn-warning compact action-nowrap" onClick={() => setActivePage('users')}>‡∏≠‡∏ô‡∏∏‡∏°‡∏±‡∏ï‡∏¥‡∏ö‡∏±‡∏ç‡∏ä‡∏µ</button>
-                  </div>
-                )}
-
-                {pendingTotal === 0 && (
-                  <div style={{ padding: '20px', textAlign: 'center', background: '#f0fdf4', border: '1px solid #86efac', borderRadius: '12px', color: '#166534' }}>
-                    <span style={{ fontSize: '28px', display: 'block', marginBottom: '4px' }}>‚úì</span>
-                    <strong style={{ fontSize: '15px' }}>‡πÑ‡∏°‡πà‡∏û‡∏ö‡∏£‡∏≤‡∏¢‡∏Å‡∏≤‡∏£‡πÅ‡∏à‡πâ‡∏á‡πÄ‡∏ï‡∏∑‡∏≠‡∏ô‡∏î‡πà‡∏ß‡∏ô</strong>
-                    <p style={{ margin: '4px 0 0', fontSize: '12px', color: '#15803d' }}>‡∏£‡∏∞‡∏ö‡∏ö‡∏ï‡∏≤‡∏£‡∏≤‡∏á‡∏Å‡∏∞‡πÅ‡∏•‡∏∞‡πÉ‡∏ö‡∏≠‡∏ô‡∏∏‡∏ç‡∏≤‡∏ï‡∏ó‡∏±‡πâ‡∏á‡∏´‡∏°‡∏î‡∏≠‡∏¢‡∏π‡πà‡πÉ‡∏ô‡∏™‡∏ñ‡∏≤‡∏ô‡∏∞‡∏õ‡∏Å‡∏ï‡∏¥</p>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-
-          <div className="table-card" style={{ padding: '20px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '14px', background: '#061421' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <span style={{ fontSize: '20px' }}>üöÄ</span>
-              <div>
-                <strong style={{ fontSize: '14px', color: '#0f172a' }}>‡∏ó‡∏≤‡∏á‡∏•‡∏±‡∏î‡∏Å‡∏≤‡∏£‡πÉ‡∏ä‡πâ‡∏á‡∏≤‡∏ô‡∏£‡∏∞‡∏ö‡∏ö (Quick Actions)</strong>
-                <p style={{ margin: 0, fontSize: '12px', color: '#64748b' }}>‡πÄ‡∏Ç‡πâ‡∏≤‡∏™‡∏π‡πà‡πÄ‡∏°‡∏ô‡∏π‡∏´‡∏•‡∏±‡∏Å‡∏ï‡πà‡∏≤‡∏á‡πÜ ‡πÑ‡∏î‡πâ‡∏≠‡∏¢‡πà‡∏≤‡∏á‡∏£‡∏ß‡∏î‡πÄ‡∏£‡πá‡∏ß</p>
-              </div>
-            </div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
-              <button className="btn-neutral small-action" style={{ display: 'flex', alignItems: 'center', gap: '6px' }} onClick={() => setActivePage('schedule')}>üóìÔ∏è ‡∏à‡∏±‡∏î‡∏ï‡∏≤‡∏£‡∏≤‡∏á‡∏Å‡∏∞</button>
-              <button className="btn-neutral small-action" style={{ display: 'flex', alignItems: 'center', gap: '6px' }} onClick={() => setActivePage('employees')}>üë§ ‡∏Ç‡πâ‡∏≠‡∏°‡∏π‡∏•‡∏û‡∏ô‡∏±‡∏Å‡∏á‡∏≤‡∏ô</button>
-              <button className="btn-neutral small-action" style={{ display: 'flex', alignItems: 'center', gap: '6px' }} onClick={() => setActivePage('licenses')}>‚ñ£ ‡πÉ‡∏ö‡∏≠‡∏ô‡∏∏‡∏ç‡∏≤‡∏ï</button>
-              <button className="btn-neutral small-action" style={{ display: 'flex', alignItems: 'center', gap: '6px' }} onClick={() => setActivePage('leave')}>‚ñ• ‡∏Ñ‡∏≥‡∏Ç‡∏≠‡∏•‡∏≤</button>
-              <button className="btn-neutral small-action" style={{ display: 'flex', alignItems: 'center', gap: '6px' }} onClick={() => setActivePage('rules')}>üõ°Ô∏è ‡∏Å‡∏é‡∏Å‡∏≤‡∏£‡∏ó‡∏≥‡∏á‡∏≤‡∏ô</button>
-            </div>
-          </div>
-        </section>
-      );
-    }
-    if (activePage === 'approvalCenter' && auth.token && ['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(auth.user?.role || '') && !auth.isViewingAs) return <ApprovalCenterPage token={auth.token} role={auth.user?.role || 'VIEWER'} currentEmployeeId={String(leaveSummary.employeeId || '')} refreshKey={approvalCenterRefresh} onChanged={() => { setApprovalCenterRefresh((value) => value + 1); setEmployeeRefresh((value) => value + 1); setOperationRefresh((value) => value + 1); }} onOpenEmployeeChange={(requestId) => { setEmployeeChangeReviewInitialId(requestId); setEmployeeChangeReviewOpen(true); }} onNavigate={(item) => { if (item.type === 'REGISTRATION_REQUEST') setRegistrationReviewInitialRequestId(item.requestId); setActivePage(item.sourcePage); }} onLeaveDecision={(item, action) => openLeaveDecision({ id: item.requestId, employeeId: item.employee?.id, employeeNameSnapshot: item.employee?.displayName || item.title, departmentSnapshot: item.employee?.department || item.metadata?.department, leaveTypeNameSnapshot: item.metadata?.leaveType, startDate: item.metadata?.startDate, endDate: item.metadata?.endDate, dayCount: item.metadata?.dayCount, reason: item.metadata?.reason, substitute: item.metadata?.substitute, status: item.status }, action)} />;
-    if (activePage === 'employees') return <PersonnelDirectoryPage token={auth.token} refreshKey={employeeRefresh} canManage={canManage} role={auth.user?.role || 'VIEWER'} searchValue={search} onSearchValueChange={setSearch} onAdd={() => openEmployeeEditor()} onReviewChanges={() => { if (auth.user?.role === 'ADMIN' && !auth.isViewingAs) { setEmployeeChangeReviewInitialId(undefined); setEmployeeChangeReviewOpen(true); } }} onEdit={openEmployeeEditor} />;
-    if (activePage === 'audit') {
-      const auditRows = Array.isArray(operationResponse.data) ? operationResponse.data : [];
-      const printFilters = [
-        auditFilters.dateFrom && { label: '‡∏ï‡∏±‡πâ‡∏á‡πÅ‡∏ï‡πà‡∏ß‡∏±‡∏ô‡∏ó‡∏µ‡πà', value: auditFilters.dateFrom },
-        auditFilters.dateTo && { label: '‡∏ñ‡∏∂‡∏á‡∏ß‡∏±‡∏ô‡∏ó‡∏µ‡πà', value: auditFilters.dateTo },
-        auditFilters.actor && { label: '‡∏ú‡∏π‡πâ‡πÉ‡∏ä‡πâ‡∏á‡∏≤‡∏ô', value: auditFilters.actor },
-        auditFilters.entityType && { label: '‡∏´‡∏°‡∏ß‡∏î‡∏á‡∏≤‡∏ô', value: auditFilters.entityType },
-        auditFilters.action && { label: '‡∏Å‡∏≤‡∏£‡∏î‡∏≥‡πÄ‡∏ô‡∏¥‡∏ô‡∏Å‡∏≤‡∏£', value: auditFilters.action },
-        auditFilters.category !== 'default' && { label: '‡∏õ‡∏£‡∏∞‡πÄ‡∏†‡∏ó‡πÄ‡∏´‡∏ï‡∏∏‡∏Å‡∏≤‡∏£‡∏ì‡πå', value: auditFilters.category === 'technical' ? '‡∏£‡∏∞‡∏ö‡∏ö‡πÅ‡∏•‡∏∞‡πÄ‡∏ó‡∏Ñ‡∏ô‡∏¥‡∏Ñ' : '‡∏ó‡∏±‡πâ‡∏á‡∏´‡∏°‡∏î' },
-        auditFilters.search && { label: '‡∏Ñ‡πâ‡∏ô‡∏´‡∏≤', value: auditFilters.search }
-      ].filter((item): item is { label: string; value: string } => Boolean(item));
-      return <AuditCompliancePage rows={auditRows} total={operationResponse.meta?.total ?? auditRows.length} page={operationResponse.meta?.page || operationPage} totalPages={operationResponse.meta?.totalPages || 1} pageSize={auditPageSize} loading={operationLoading} error={typeof operationError === 'string' ? operationError : operationError?.message} permissionDenied={auth.user?.role !== 'ADMIN'} filters={auditFilters} onFiltersChange={(filters) => { setAuditFilters(filters); setOperationPage(1); }} onRefresh={() => setOperationRefresh((value) => value + 1)} onPageChange={setOperationPage} onPageSize={(value) => { setAuditPageSize(value); setOperationPage(1); }} onExport={(rows) => downloadCsv(rows as DataRow[], `audit-events-page-${operationResponse.meta?.page || operationPage}`)} onPrint={() => void printTableReport('.audit-table', { title: '‡∏ö‡∏±‡∏ô‡∏ó‡∏∂‡∏Å‡πÄ‡∏´‡∏ï‡∏∏‡∏Å‡∏≤‡∏£‡∏ì‡πå‡∏Ñ‡∏ß‡∏≤‡∏°‡∏õ‡∏•‡∏≠‡∏î‡∏†‡∏±‡∏¢', printedBy: `${auth.user?.displayName || auth.user?.email || '‡∏ú‡∏π‡πâ‡πÉ‡∏ä‡πâ‡∏á‡∏≤‡∏ô'} ¬∑ ${roleDisplayName(auth.user?.role)}`, filters: printFilters })} />;
-    }
-    if (activePage === 'dataQuality') {
-      const qualityRows = Array.isArray(operationResponse.data) ? operationResponse.data as DataQualityIssue[] : [];
-      return <DataQualityCenterPage rows={qualityRows} summary={operationResponse.summary} total={operationResponse.meta?.total ?? operationResponse.summary?.total ?? qualityRows.length} page={operationResponse.meta?.page || operationPage} pageSize={operationResponse.meta?.pageSize || dataQualityPageSize} totalPages={operationResponse.meta?.totalPages || 0} loading={operationLoading} error={typeof operationError === 'string' ? operationError : operationError?.message} permissionDenied={auth.user?.role !== 'ADMIN'} filters={dataQualityFilters} onFiltersChange={(filters) => { setDataQualityFilters(filters); setOperationPage(1); }} onRefresh={() => setOperationRefresh((value) => value + 1)} onPageChange={setOperationPage} onPageSize={(value) => { setDataQualityPageSize(value); setOperationPage(1); }} onNavigate={(page) => setActivePage(page)} />;
-    }
-    if (activePage === 'systemHealth' && auth.token) return <SystemHealthPage token={auth.token} />;
-    if (activePage === 'shiftSetup') {
-      const renderShiftActions = (shiftType: DataRow, isCore: boolean, isActive: boolean) => auth.user?.role === 'ADMIN' ? <><button className="btn-secondary compact" onClick={() => openShiftTypeEditor(shiftType)}>‡πÅ‡∏Å‡πâ‡πÑ‡∏Ç</button>{isCore ? <span className="muted-text">‡∏•‡πá‡∏≠‡∏Å‡∏™‡∏ñ‡∏≤‡∏ô‡∏∞</span> : <button className={isActive ? 'btn-warning compact' : 'btn-success compact'} onClick={() => toggleShiftTypeActive(shiftType)}>{isActive ? '‡∏õ‡∏¥‡∏î‡πÉ‡∏ä‡πâ‡∏á‡∏≤‡∏ô' : '‡πÄ‡∏õ‡∏¥‡∏î‡πÉ‡∏ä‡πâ‡∏á‡∏≤‡∏ô'}</button>}</> : null;
-      const shiftDesktop = <div className="table-card shift-setup-desktop-table"><div className="table-scroll data-table-scroll"><table className="data-table data-surface-table"><thead><tr><th scope="col">‡∏£‡∏´‡∏±‡∏™‡∏Å‡∏∞</th><th scope="col">‡∏ä‡∏∑‡πà‡∏≠‡∏Å‡∏∞</th><th scope="col">‡πÄ‡∏ß‡∏•‡∏≤‡πÄ‡∏£‡∏¥‡πà‡∏°</th><th scope="col">‡πÄ‡∏ß‡∏•‡∏≤‡πÄ‡∏•‡∏¥‡∏Å</th><th scope="col">‡∏ä‡∏±‡πà‡∏ß‡πÇ‡∏°‡∏á</th><th scope="col">‡∏™‡∏µ</th><th scope="col">‡∏™‡∏ñ‡∏≤‡∏ô‡∏∞</th>{auth.user?.role === 'ADMIN' && <th scope="col">‡∏à‡∏±‡∏î‡∏Å‡∏≤‡∏£</th>}</tr></thead><tbody>{visibleShiftTypes.length ? visibleShiftTypes.map((shiftType) => { const code = String(shiftType.code || '').toUpperCase(); const isCore = ['D', 'N', 'OFF', 'AL'].includes(code); const isActive = shiftType.isActive !== false; return <tr key={text(shiftType.id)}><td><code>{text(shiftType.code)}</code>{isCore && <small className="cell-note">‡∏Å‡∏∞‡∏´‡∏•‡∏±‡∏Å</small>}</td><td className="employee-name">{text(shiftType.name)}</td><td>{text(shiftType.startTime)}</td><td>{text(shiftType.endTime)}</td><td>{text(shiftType.hours)}</td><td><span className="shift-color" style={{ backgroundColor: String(shiftType.color || '#2F80FF') }} /> {text(shiftType.color)}</td><td><span className={`status-badge ${isActive ? 'status-badge--success' : 'status-badge--neutral'}`}>{isActive ? '‡πÉ‡∏ä‡πâ‡∏á‡∏≤‡∏ô' : '‡∏õ‡∏¥‡∏î‡πÉ‡∏ä‡πâ‡∏á‡∏≤‡∏ô'}</span></td>{auth.user?.role === 'ADMIN' && <td className="row-actions data-row-actions">{renderShiftActions(shiftType, isCore, isActive)}</td>}</tr>; }) : <tr><td colSpan={auth.user?.role === 'ADMIN' ? 8 : 7} className="no-rows data-table-empty-cell"><div className="data-state data-state--empty"><strong>‡∏¢‡∏±‡∏á‡πÑ‡∏°‡πà‡∏°‡∏µ‡∏Ç‡πâ‡∏≠‡∏°‡∏π‡∏•‡∏£‡∏´‡∏±‡∏™‡∏Å‡∏∞</strong></div></td></tr>}</tbody></table></div></div>;
-      const shiftMobile = <div className="shift-setup-mobile-list" aria-label="‡∏£‡∏≤‡∏¢‡∏Å‡∏≤‡∏£‡∏£‡∏´‡∏±‡∏™‡∏Å‡∏∞‡∏™‡∏≥‡∏´‡∏£‡∏±‡∏ö‡∏°‡∏∑‡∏≠‡∏ñ‡∏∑‡∏≠">{visibleShiftTypes.length ? visibleShiftTypes.map((shiftType) => { const code = String(shiftType.code || '').toUpperCase(); const isCore = ['D', 'N', 'OFF', 'AL'].includes(code); const isActive = shiftType.isActive !== false; return <article className="shift-setup-mobile-card data-mobile-card" key={`shift-mobile-${text(shiftType.id)}`}><header><div><code>{text(shiftType.code)}</code>{isCore && <small>‡∏Å‡∏∞‡∏´‡∏•‡∏±‡∏Å</small>}</div><span className={`status-badge ${isActive ? 'status-badge--success' : 'status-badge--neutral'}`}>{isActive ? '‡πÉ‡∏ä‡πâ‡∏á‡∏≤‡∏ô' : '‡∏õ‡∏¥‡∏î‡πÉ‡∏ä‡πâ‡∏á‡∏≤‡∏ô'}</span></header><h2>{text(shiftType.name)}</h2><dl><div><dt>‡πÄ‡∏ß‡∏•‡∏≤</dt><dd>{text(shiftType.startTime)}‚Äì{text(shiftType.endTime)}</dd></div><div><dt>‡∏ä‡∏±‡πà‡∏ß‡πÇ‡∏°‡∏á</dt><dd>{text(shiftType.hours)}</dd></div><div><dt>‡∏™‡∏µ</dt><dd><span className="shift-color" style={{ backgroundColor: String(shiftType.color || '#2F80FF') }} /> {text(shiftType.color)}</dd></div></dl>{auth.user?.role === 'ADMIN' && <footer>{renderShiftActions(shiftType, isCore, isActive)}</footer>}</article>; }) : <div className="data-state data-state--empty"><strong>‡∏¢‡∏±‡∏á‡πÑ‡∏°‡πà‡∏°‡∏µ‡∏Ç‡πâ‡∏≠‡∏°‡∏π‡∏•‡∏£‡∏´‡∏±‡∏™‡∏Å‡∏∞</strong></div>}</div>;
-      return (
-        <section className="view-pane layout-roster-page layout-page-surface">
-          <PageHeader kicker="‡∏ï‡∏≤‡∏£‡∏≤‡∏á‡πÅ‡∏•‡∏∞‡∏Å‡∏é‡∏Å‡∏≤‡∏£‡∏ó‡∏≥‡∏á‡∏≤‡∏ô" title="‡∏£‡∏´‡∏±‡∏™‡∏Å‡∏∞‡πÅ‡∏•‡∏∞‡πÄ‡∏ß‡∏•‡∏≤" description="‡∏ö‡∏£‡∏¥‡∏´‡∏≤‡∏£‡∏ä‡∏∑‡πà‡∏≠ ‡πÄ‡∏ß‡∏•‡∏≤ ‡∏ä‡∏±‡πà‡∏ß‡πÇ‡∏°‡∏á ‡∏™‡∏µ ‡πÅ‡∏•‡∏∞‡∏™‡∏ñ‡∏≤‡∏ô‡∏∞‡πÉ‡∏ä‡πâ‡∏á‡∏≤‡∏ô‡∏Ç‡∏≠‡∏á‡∏Å‡∏∞ ‡πÇ‡∏î‡∏¢‡πÑ‡∏°‡πà‡πÄ‡∏Ç‡∏µ‡∏¢‡∏ô‡∏ó‡∏±‡∏ö snapshot ‡∏ï‡∏≤‡∏£‡∏≤‡∏á‡πÄ‡∏î‡∏¥‡∏°" actions={<div className="heading-actions">{auth.user?.role === 'ADMIN' && <button className="btn-primary compact" onClick={openShiftTypeCreator}>+ ‡πÄ‡∏û‡∏¥‡πà‡∏°‡∏£‡∏´‡∏±‡∏™‡∏Å‡∏∞</button>}<span className="record-chip">‡πÉ‡∏ä‡πâ‡∏á‡∏≤‡∏ô {activeShiftTypes.length} / ‡∏ó‡∏±‡πâ‡∏á‡∏´‡∏°‡∏î {shiftTypes.length}</span></div>} />
-          <ErrorAlert message={operationError} />
-          <div className="shift-governance-toolbar"><label className="field-group"><span>‡∏Ñ‡πâ‡∏ô‡∏´‡∏≤‡∏Å‡∏∞</span><input value={shiftQuery} placeholder="‡∏£‡∏´‡∏±‡∏™‡∏´‡∏£‡∏∑‡∏≠‡∏ä‡∏∑‡πà‡∏≠‡∏Å‡∏∞" onChange={(event) => setShiftQuery(event.target.value)} /></label><label className="field-group"><span>‡∏™‡∏ñ‡∏≤‡∏ô‡∏∞</span><select value={shiftStatusFilter} onChange={(event) => setShiftStatusFilter(event.target.value as 'ALL' | 'ACTIVE' | 'INACTIVE')}><option value="ALL">‡∏ó‡∏±‡πâ‡∏á‡∏´‡∏°‡∏î</option><option value="ACTIVE">‡πÉ‡∏ä‡πâ‡∏á‡∏≤‡∏ô</option><option value="INACTIVE">‡πÑ‡∏°‡πà‡πÉ‡∏ä‡πâ‡∏á‡∏≤‡∏ô</option></select></label></div>
-          {shiftDeactivationTarget && shiftDeactivationImpact && <section className="shift-impact-preview" aria-label="‡∏ï‡∏£‡∏ß‡∏à‡∏™‡∏≠‡∏ö‡∏ú‡∏•‡∏Å‡∏£‡∏∞‡∏ó‡∏ö‡∏Ç‡∏≠‡∏á‡∏£‡∏´‡∏±‡∏™‡∏Å‡∏∞"><h3>‡∏ï‡∏£‡∏ß‡∏à‡∏™‡∏≠‡∏ö‡∏ú‡∏•‡∏Å‡∏£‡∏∞‡∏ó‡∏ö‡∏Å‡πà‡∏≠‡∏ô‡∏õ‡∏¥‡∏î‡πÉ‡∏ä‡πâ‡∏á‡∏≤‡∏ô</h3><p><strong>{text(shiftDeactivationTarget.code)} ¬∑ {text(shiftDeactivationTarget.name)}</strong> ‡∏à‡∏∞‡πÑ‡∏°‡πà‡∏ñ‡∏π‡∏Å‡πÉ‡∏ä‡πâ‡∏Å‡∏±‡∏ö‡∏Å‡∏≤‡∏£‡∏à‡∏±‡∏î‡∏Å‡∏∞‡πÉ‡∏´‡∏°‡πà ‡∏ï‡∏≤‡∏£‡∏≤‡∏á‡πÄ‡∏î‡∏¥‡∏°‡∏à‡∏∞‡πÑ‡∏°‡πà‡∏ñ‡∏π‡∏Å‡πÅ‡∏Å‡πâ‡πÑ‡∏Ç ‡πÅ‡∏•‡∏∞ snapshot/‡∏õ‡∏£‡∏∞‡∏ß‡∏±‡∏ï‡∏¥‡πÄ‡∏î‡∏¥‡∏°‡∏¢‡∏±‡∏á‡∏Ñ‡∏á‡∏≠‡∏¢‡∏π‡πà</p><dl><div><dt>‡∏£‡∏≤‡∏¢‡∏Å‡∏≤‡∏£‡∏à‡∏±‡∏î‡∏Å‡∏∞</dt><dd>{text(shiftDeactivationImpact.assignmentCount)}</dd></div><div><dt>‡∏£‡∏≤‡∏¢‡∏Å‡∏≤‡∏£‡∏•‡∏á‡πÄ‡∏ß‡∏•‡∏≤</dt><dd>{text(shiftDeactivationImpact.attendanceCount)}</dd></div><div><dt>‡∏£‡∏ß‡∏°‡∏Å‡∏≤‡∏£‡∏≠‡πâ‡∏≤‡∏á‡∏≠‡∏¥‡∏á</dt><dd>{text(shiftDeactivationImpact.totalReferences)}</dd></div></dl><label className="field-group"><span>‡πÄ‡∏´‡∏ï‡∏∏‡∏ú‡∏•‡πÉ‡∏ô‡∏Å‡∏≤‡∏£‡∏õ‡∏¥‡∏î‡πÉ‡∏ä‡πâ‡∏á‡∏≤‡∏ô</span><textarea rows={3} maxLength={1000} value={shiftDeactivationReason} onChange={(event) => setShiftDeactivationReason(event.target.value)} /></label><div className="shift-impact-actions"><button className="btn-neutral small-action" onClick={() => { setShiftDeactivationTarget(undefined); setShiftDeactivationImpact(undefined); setShiftDeactivationReason(''); }}>‡∏¢‡∏Å‡πÄ‡∏•‡∏¥‡∏Å</button><button className="btn-danger small-action" disabled={shiftDeactivationReason.trim().length < 3} onClick={() => void confirmShiftDeactivation()}>‡∏¢‡∏∑‡∏ô‡∏¢‡∏±‡∏ô‡∏õ‡∏¥‡∏î‡πÉ‡∏ä‡πâ‡∏á‡∏≤‡∏ô</button></div></section>}
-          <SectionCard kicker="‡∏£‡∏´‡∏±‡∏™‡∏Å‡∏∞" title="‡∏£‡∏≤‡∏¢‡∏Å‡∏≤‡∏£‡∏£‡∏´‡∏±‡∏™‡∏Å‡∏∞" description="‡∏™‡∏ñ‡∏≤‡∏ô‡∏∞‡πÅ‡∏•‡∏∞‡∏Ç‡πâ‡∏≠‡∏°‡∏π‡∏•‡∏Å‡∏∞‡∏à‡∏≤‡∏Å‡∏£‡∏∞‡∏ö‡∏ö ‡∏ï‡∏≤‡∏£‡∏≤‡∏á‡πÅ‡∏•‡∏∞ snapshot ‡πÄ‡∏î‡∏¥‡∏°‡∏¢‡∏±‡∏á‡∏Ñ‡∏á‡∏≠‡∏¢‡∏π‡πà"><ResponsiveDataTable ariaLabel="‡∏£‡∏≤‡∏¢‡∏Å‡∏≤‡∏£‡∏£‡∏´‡∏±‡∏™‡∏Å‡∏∞" hasRows={visibleShiftTypes.length > 0} className="shift-setup-responsive-table" desktop={shiftDesktop} mobile={shiftMobile} /></SectionCard>
-        </section>
-      );
-    }
-    if (activePage === 'schedule') {
-      const calendar = !Array.isArray(operationResponse.data) ? operationResponse.data || {} : {};
-      const dates = Array.isArray(calendar.dates) ? calendar.dates.map(String) : [];
-      const rawCalendarEmployees = Array.isArray(calendar.employees) ? calendar.employees as DataRow[] : [];
-      const allCalendarEmployees = sortScheduleEmployeesByDepartment(rawCalendarEmployees);
-      const calendarEmployees = selectedDepartments.length > 0
-        ? allCalendarEmployees.filter((emp) => selectedDepartments.includes(text(emp.department)))
-        : allCalendarEmployees;
-      const todayScheduleDate = bangkokDateInput();
-      const approval = nested(calendar.approval);
-      const [yStr, mStr] = scheduleMonth.split('-');
-      const thaiYearNum = Number(yStr) + 543;
-      const monthNameOnly = new Intl.DateTimeFormat('th-TH', { month: 'long', timeZone: 'UTC' }).format(new Date(Date.UTC(Number(yStr), Number(mStr) - 1, 1)));
-      const monthLabel = `${monthNameOnly} ‡∏û.‡∏®. ${thaiYearNum}`;
-      const departments = Array.from(new Set(employees.map((employee) => employee.department || '').filter(Boolean))).sort();
-      const moveMonth = (delta: number) => { const value = new Date(`${scheduleMonth}-01T00:00:00Z`); value.setUTCMonth(value.getUTCMonth() + delta); setScheduleMonth(value.toISOString().slice(0, 7)); setOperationPage(1); };
-      const previewRows = Array.isArray(autoSchedulePreview?.rows) ? autoSchedulePreview.rows as DataRow[] : [];
-      const previewWarnings = Array.isArray(autoSchedulePreview?.warnings) ? autoSchedulePreview.warnings : [];
-      const previewSummary = nested(autoSchedulePreview?.summary);
-      const previewFillSummary = summarizeAutoSchedulePreview(previewRows, scheduleDrafts);
-
-      const buildPreviewDraft = (row: DataRow) => {
-          const workDateStr = inputDate(row.date);
-          const empId = String(row.employeeId || '');
-          if (!empId || !workDateStr) return undefined;
-          const key = `${empId}_${workDateStr}`;
-          const codeStr = String(row.code || 'OFF').toUpperCase();
-          const selectedType = activeShiftTypes.find((t) => String(t.code).toUpperCase() === codeStr)
-            || activeShiftTypes.find((t) => String(t.id) === row.shiftTypeId)
-            || activeShiftTypes[0];
-          const validShiftTypeId = String(selectedType?.id || '');
-          if (!validShiftTypeId || validShiftTypeId.length < 10) return undefined;
-
-          return { key, draft: {
-            action: row.existingShiftId ? 'update' as const : 'create' as const,
-            id: row.existingShiftId ? String(row.existingShiftId) : undefined,
-            employeeId: empId,
-            workDate: workDateStr,
-            shiftTypeId: validShiftTypeId,
-            shiftCode: codeStr,
-            shiftName: String(selectedType?.name || codeStr),
-            startTime: String(selectedType?.startTime || (codeStr === 'N' ? '22:00' : codeStr === 'D' ? '08:00' : '00:00')),
-            endTime: String(selectedType?.endTime || (codeStr === 'N' ? '06:00' : codeStr === 'D' ? '16:00' : '00:00')),
-            color: String(selectedType?.color || (codeStr === 'D' ? '#2563eb' : codeStr === 'N' ? '#7c3aed' : '#64748b')),
-            remark: String(row.remark || '‡∏à‡∏±‡∏î‡∏Å‡∏∞‡∏≠‡∏±‡∏ï‡πÇ‡∏ô‡∏°‡∏±‡∏ï‡∏¥ (‡∏â‡∏ö‡∏±‡∏ö‡∏£‡πà‡∏≤‡∏á)'),
-            licenseStatus: String(row.licenseStatus || ''),
-            licenseOverride: Boolean(row.licenseOverride),
-            overrideReason: String(row.overrideReason || ''),
-            payload: {
-              employeeId: empId,
-              workDate: workDateStr,
-              shiftTypeId: validShiftTypeId,
-              remark: String(row.remark || '‡∏à‡∏±‡∏î‡∏Å‡∏∞‡∏≠‡∏±‡∏ï‡πÇ‡∏ô‡∏°‡∏±‡∏ï‡∏¥'),
-              licenseOverride: Boolean(row.licenseOverride),
-              overrideReason: String(row.overrideReason || '')
-            }
-          } };
-      };
-
-      const applyPreviewToDrafts = (previewRowsParam: DataRow[], replaceEmployeeId?: string) => {
-        if (!replaceEmployeeId) {
-          setScheduleDrafts(addAutoSchedulePreviewDrafts(scheduleDrafts, previewRowsParam, (row) => buildPreviewDraft(row as DataRow)?.draft));
-          return;
-        }
-        const newDrafts = { ...scheduleDrafts };
-        for (const key of Object.keys(newDrafts)) {
-          if (key.startsWith(`${replaceEmployeeId}_`) && String(newDrafts[key].workDate || '').startsWith(scheduleMonth)) delete newDrafts[key];
-        }
-        for (const row of previewRowsParam) {
-          const prepared = buildPreviewDraft(row);
-          if (!prepared) continue;
-          newDrafts[prepared.key] = prepared.draft;
-        }
-        setScheduleDrafts(newDrafts);
-      };
-
-      const previewAutoSchedule = async () => {
-        if (!auth.token) return;
-        setAutoScheduleBusy(true); setOperationError(undefined);
-        try { const result = await api.previewAutoSchedule(auth.token, scheduleMonth); setAutoSchedulePreview(result.data || {}); }
-        catch (reason) { setOperationError(toRequestErrorState(reason, '‡∏™‡∏£‡πâ‡∏≤‡∏á‡∏ï‡∏±‡∏ß‡∏≠‡∏¢‡πà‡∏≤‡∏á‡∏ï‡∏≤‡∏£‡∏≤‡∏á‡∏≠‡∏±‡∏ï‡πÇ‡∏ô‡∏°‡∏±‡∏ï‡∏¥‡πÑ‡∏°‡πà‡∏™‡∏≥‡πÄ‡∏£‡πá‡∏à')); }
-        finally { setAutoScheduleBusy(false); }
-      };
-      const saveAutoSchedule = () => {
-        applyPreviewToDrafts(previewRows);
-        setAutoSchedulePreview(undefined);
-      };
-      const openEmployeeScheduleWizard = (employee: DataRow) => {
-        if (employeeAutoScheduleBusyId) return;
-        setEmployeeAutoContinue(true); setEmployeeAutoStartPhase('D1'); setEmployeeAutoScheduleTarget(employee);
-      };
-      const exportApprovedExcel = async () => {
-        if (!auth.token) return;
-        setScheduleExportBusy(true); setOperationError(undefined);
-        try {
-          const result = await api.exportScheduleExcel(auth.token, { month: scheduleMonth, scope: selectedDepartments.length ? 'selected' : 'all', departments: selectedDepartments });
-          downloadBlob(result.blob, result.fileName || `SMS-Schedule-${scheduleMonth}.xlsx`);
-        } catch (reason) { setOperationError(toRequestErrorState(reason, '‡∏™‡πà‡∏á‡∏≠‡∏≠‡∏Å Excel ‡πÑ‡∏°‡πà‡∏™‡∏≥‡πÄ‡∏£‡πá‡∏à')); }
-        finally { setScheduleExportBusy(false); }
-      };
-      return <section className="view-pane schedule-calendar-page nexus-roster-workspace layout-roster-page layout-page-surface">
-
-        <PageHeader kicker="‡∏ï‡∏≤‡∏£‡∏≤‡∏á‡πÅ‡∏•‡∏∞‡∏Å‡∏é‡∏Å‡∏≤‡∏£‡∏ó‡∏≥‡∏á‡∏≤‡∏ô" title="‡∏ï‡∏≤‡∏£‡∏≤‡∏á‡∏Å‡∏∞‡∏£‡∏≤‡∏¢‡πÄ‡∏î‡∏∑‡∏≠‡∏ô" description="‡∏à‡∏±‡∏î‡∏Å‡∏∞‡∏£‡∏≤‡∏¢‡πÄ‡∏î‡∏∑‡∏≠‡∏ô ‡πÅ‡∏Å‡πâ‡πÑ‡∏Ç‡πÉ‡∏ô‡∏â‡∏ö‡∏±‡∏ö‡∏£‡πà‡∏≤‡∏á‡πÅ‡∏•‡πâ‡∏ß‡∏ö‡∏±‡∏ô‡∏ó‡∏∂‡∏Å‡∏Å‡∏≤‡∏£‡πÄ‡∏õ‡∏•‡∏µ‡πà‡∏¢‡∏ô‡πÅ‡∏õ‡∏•‡∏á‡∏Å‡πà‡∏≠‡∏ô‡∏ï‡∏£‡∏ß‡∏à‡πÅ‡∏•‡∏∞‡∏™‡πà‡∏á‡∏≠‡∏ô‡∏∏‡∏°‡∏±‡∏ï‡∏¥" actions={<div className="heading-actions">{auth.user?.role === 'ADMIN' && !auth.isViewingAs && <button className="btn-neutral small-action" onClick={() => setActivePage('approvals')}>‡∏õ‡∏£‡∏∞‡∏ß‡∏±‡∏ï‡∏¥‡∏Å‡∏≤‡∏£‡∏≠‡∏ô‡∏∏‡∏°‡∏±‡∏ï‡∏¥</button>}{approval.status === 'APPROVED' && <><button className="excel-action" disabled={scheduleExportBusy} onClick={exportApprovedExcel}>‚ñ¶ {scheduleExportBusy ? '‡∏Å‡∏≥‡∏•‡∏±‡∏á‡∏™‡∏£‡πâ‡∏≤‡∏á Excel‚Ä¶' : `‡∏™‡πà‡∏á‡∏≠‡∏≠‡∏Å Excel${selectedDepartments.length ? ` ¬∑ ${selectedDepartments.length} ‡πÅ‡∏ú‡∏ô‡∏Å` : ''}`}</button><button className="btn-info small-action" onClick={() => void printScheduleDocument()}><SmsIcon name="report" /> ‡∏™‡πà‡∏á‡∏≠‡∏≠‡∏Å PDF</button></>}</div>} />
-        <StepFlow title="‡∏•‡∏≥‡∏î‡∏±‡∏ö‡∏Å‡∏≤‡∏£‡∏à‡∏±‡∏î‡∏ï‡∏≤‡∏£‡∏≤‡∏á‡∏Å‡∏∞" description="‡∏™‡∏ñ‡∏≤‡∏ô‡∏∞‡∏à‡∏≤‡∏Å‡∏£‡∏≤‡∏¢‡∏Å‡∏≤‡∏£‡∏ó‡∏µ‡πà‡πÇ‡∏´‡∏•‡∏î‡πÅ‡∏•‡∏∞‡∏â‡∏ö‡∏±‡∏ö‡∏£‡πà‡∏≤‡∏á ‡∏ï‡πâ‡∏≠‡∏á‡πÄ‡∏õ‡∏¥‡∏î‡∏ú‡∏•‡∏ï‡∏£‡∏ß‡∏à‡∏Å‡∏é‡∏Ç‡∏≠‡∏á‡πÄ‡∏î‡∏∑‡∏≠‡∏ô‡∏ô‡∏µ‡πâ‡πÅ‡∏¢‡∏Å‡∏ï‡πà‡∏≤‡∏á‡∏´‡∏≤‡∏Å" steps={[
-{id:'month',icon:'calendar',label:'‡∏Ç‡∏±‡πâ‡∏ô‡∏ó‡∏µ‡πà‡∏´‡∏ô‡∏∂‡πà‡∏á',title:'‡πÄ‡∏•‡∏∑‡∏≠‡∏Å‡πÄ‡∏î‡∏∑‡∏≠‡∏ô',desc:monthLabel,completed:!operationLoading && !operationError && calendar.month===scheduleMonth},
-{id:'arrange',icon:'edit',label:'‡∏Ç‡∏±‡πâ‡∏ô‡∏ó‡∏µ‡πà‡∏™‡∏≠‡∏á',title:'‡∏à‡∏±‡∏î‡∏Å‡∏∞',desc:Object.keys(scheduleDrafts).length ? '‡∏¢‡∏±‡∏á‡∏°‡∏µ‡∏â‡∏ö‡∏±‡∏ö‡∏£‡πà‡∏≤‡∏á‡∏ó‡∏µ‡πà‡∏ï‡πâ‡∏≠‡∏á‡∏ö‡∏±‡∏ô‡∏ó‡∏∂‡∏Å' : '‡∏ï‡∏£‡∏ß‡∏à‡∏£‡∏≤‡∏¢‡∏Å‡∏≤‡∏£‡∏ó‡∏µ‡πà‡∏ö‡∏±‡∏ô‡∏ó‡∏∂‡∏Å‡πÉ‡∏ô‡∏ï‡∏≤‡∏£‡∏≤‡∏á',completed:!operationLoading && !operationError && calendar.month===scheduleMonth && Object.keys(scheduleDrafts).length===0 && calendarEmployees.some(employee=>Array.isArray(employee.shifts) && employee.shifts.length>0)},
-{id:'rules',icon:'quality',label:'‡∏Ç‡∏±‡πâ‡∏ô‡∏ó‡∏µ‡πà‡∏™‡∏≤‡∏°',title:'‡∏ï‡∏£‡∏ß‡∏à‡∏Å‡∏é',desc:'‡πÄ‡∏õ‡∏¥‡∏î‡∏ú‡∏•‡∏ï‡∏£‡∏ß‡∏à‡∏à‡∏£‡∏¥‡∏á‡∏Ç‡∏≠‡∏á‡πÄ‡∏î‡∏∑‡∏≠‡∏ô‡∏ó‡∏µ‡πà‡πÄ‡∏•‡∏∑‡∏≠‡∏Å ‡πÑ‡∏°‡πà‡πÉ‡∏ä‡πâ‡∏ú‡∏•‡∏à‡∏≤‡∏Å‡πÄ‡∏î‡∏∑‡∏≠‡∏ô‡∏Å‡πà‡∏≠‡∏ô',onClick:()=>setActivePage('rules')},
-{id:'approval',icon:'approval',label:'‡∏Ç‡∏±‡πâ‡∏ô‡∏ó‡∏µ‡πà‡∏™‡∏µ‡πà',title:'‡∏™‡πà‡∏á‡∏≠‡∏ô‡∏∏‡∏°‡∏±‡∏ï‡∏¥',desc:approval.id ? '‡∏°‡∏µ‡∏£‡∏≤‡∏¢‡∏Å‡∏≤‡∏£‡∏≠‡∏ô‡∏∏‡∏°‡∏±‡∏ï‡∏¥‡∏à‡∏≤‡∏Å‡∏£‡∏∞‡∏ö‡∏ö ‡∏ï‡∏£‡∏ß‡∏à‡∏™‡∏ñ‡∏≤‡∏ô‡∏∞‡πÉ‡∏ô‡πÅ‡∏ñ‡∏ö‡∏î‡πâ‡∏≤‡∏ô‡∏•‡πà‡∏≤‡∏á' : '‡∏¢‡∏±‡∏á‡πÑ‡∏°‡πà‡∏°‡∏µ‡∏£‡∏≤‡∏¢‡∏Å‡∏≤‡∏£‡∏≠‡∏ô‡∏∏‡∏°‡∏±‡∏ï‡∏¥‡∏ó‡∏µ‡πà‡∏¢‡∏∑‡∏ô‡∏¢‡∏±‡∏ô‡πÑ‡∏î‡πâ',completed:Boolean(!operationLoading && !operationError && calendar.month===scheduleMonth && approval.id && ['PENDING','APPROVED'].includes(String(approval.status)))}
-]} />
-        <div className={`approval-banner ${approval.status === 'APPROVED' ? 'approved' : 'pending'}`}><div><strong>{approval.status === 'APPROVED' ? '‚úì ‡∏≠‡∏ô‡∏∏‡∏°‡∏±‡∏ï‡∏¥‡πÅ‡∏•‡πâ‡∏ß' : '‚óè ‡∏£‡∏≠‡∏≠‡∏ô‡∏∏‡∏°‡∏±‡∏ï‡∏¥'} ¬∑ {monthLabel}</strong><small>‡∏â‡∏ö‡∏±‡∏ö‡πÅ‡∏Å‡πâ‡πÑ‡∏Ç {text(approval.revision || 1)}{approval.approvedAt ? ` ¬∑ ‡∏≠‡∏ô‡∏∏‡∏°‡∏±‡∏ï‡∏¥‡πÇ‡∏î‡∏¢ ${text(approval.approvedBy || approval.approvedByDisplayName || '‡∏ú‡∏π‡πâ‡∏°‡∏µ‡∏≠‡∏≥‡∏ô‡∏≤‡∏à‡∏≠‡∏ô‡∏∏‡∏°‡∏±‡∏ï‡∏¥')} ‡πÄ‡∏°‡∏∑‡πà‡∏≠ ${date(approval.approvedAt)}` : ' ¬∑ ‡∏Å‡∏≤‡∏£‡πÅ‡∏Å‡πâ‡∏ï‡∏≤‡∏£‡∏≤‡∏á‡∏à‡∏∞‡∏™‡∏£‡πâ‡∏≤‡∏á‡∏â‡∏ö‡∏±‡∏ö‡πÅ‡∏Å‡πâ‡πÑ‡∏Ç‡πÉ‡∏´‡∏°‡πà‡πÇ‡∏î‡∏¢‡∏≠‡∏±‡∏ï‡πÇ‡∏ô‡∏°‡∏±‡∏ï‡∏¥'}</small></div>{['ADMIN', 'SUPERVISOR'].includes(auth.user?.role || '') && approval.status !== 'APPROVED' && <button className="btn-primary compact" style={{ backgroundColor: '#059669', borderColor: '#047857', fontWeight: 'bold' }} onClick={async () => { if (!auth.token) return; const confirmed = await actionDialog.confirm({ title: '‡∏≠‡∏ô‡∏∏‡∏°‡∏±‡∏ï‡∏¥‡∏ï‡∏≤‡∏£‡∏≤‡∏á‡∏Å‡∏∞‡∏£‡∏≤‡∏¢‡πÄ‡∏î‡∏∑‡∏≠‡∏ô', message: '‡∏Å‡∏≤‡∏£‡∏≠‡∏ô‡∏∏‡∏°‡∏±‡∏ï‡∏¥‡∏à‡∏∞‡πÄ‡∏õ‡∏•‡∏µ‡πà‡∏¢‡∏ô‡∏™‡∏ñ‡∏≤‡∏ô‡∏∞‡∏ï‡∏≤‡∏£‡∏≤‡∏á‡πÄ‡∏î‡∏∑‡∏≠‡∏ô‡∏ô‡∏µ‡πâ‡πÄ‡∏õ‡πá‡∏ô‡∏≠‡∏ô‡∏∏‡∏°‡∏±‡∏ï‡∏¥‡πÅ‡∏•‡πâ‡∏ß‡∏ï‡∏≤‡∏°‡∏Ç‡∏±‡πâ‡∏ô‡∏ï‡∏≠‡∏ô‡πÄ‡∏î‡∏¥‡∏° ‡πÅ‡∏•‡∏∞‡∏Å‡∏≤‡∏£‡πÅ‡∏Å‡πâ‡πÑ‡∏Ç‡∏†‡∏≤‡∏¢‡∏´‡∏•‡∏±‡∏á‡∏à‡∏∞‡∏™‡∏£‡πâ‡∏≤‡∏á‡∏â‡∏ö‡∏±‡∏ö‡πÅ‡∏Å‡πâ‡πÑ‡∏Ç‡πÉ‡∏´‡∏°‡πà‡πÇ‡∏î‡∏¢‡∏≠‡∏±‡∏ï‡πÇ‡∏ô‡∏°‡∏±‡∏ï‡∏¥', context: monthLabel, confirmLabel: '‡∏¢‡∏∑‡∏ô‡∏¢‡∏±‡∏ô‡∏≠‡∏ô‡∏∏‡∏°‡∏±‡∏ï‡∏¥‡∏ï‡∏≤‡∏£‡∏≤‡∏á', tone: 'primary' }); if (!confirmed) return; setOperationError(undefined); try { if (approval.id) { await api.updateScheduleApproval(auth.token, String(approval.id), { status: 'APPROVED' }); } else { await api.approveScheduleMonth(auth.token, scheduleMonth); } const updated = await api.scheduleCalendar(auth.token, scheduleMonth, operationPage, scheduleDepartment); setOperationResponse(updated); setApprovalCenterRefresh((value) => value + 1); } catch (reason) { setOperationError(toRequestErrorState(reason, '‡∏≠‡∏ô‡∏∏‡∏°‡∏±‡∏ï‡∏¥‡∏ï‡∏≤‡∏£‡∏≤‡∏á‡πÑ‡∏°‡πà‡∏™‡∏≥‡πÄ‡∏£‡πá‡∏à')); } }}>‡∏≠‡∏ô‡∏∏‡∏°‡∏±‡∏ï‡∏¥ ‡∏ï‡∏≤‡∏£‡∏≤‡∏á‡πÄ‡∏î‡∏∑‡∏≠‡∏ô‡∏ô‡∏µ‡πâ</button>}</div>
-        <SectionCard className="calendar-toolbar-box schedule-workbench" kicker="‡∏ï‡∏≤‡∏£‡∏≤‡∏á‡∏Å‡∏∞" title="‡πÄ‡∏•‡∏∑‡∏≠‡∏Å‡πÄ‡∏î‡∏∑‡∏≠‡∏ô‡πÅ‡∏•‡∏∞‡∏à‡∏±‡∏î‡∏Å‡∏∞" description="‡∏ö‡∏±‡∏ô‡∏ó‡∏∂‡∏Å‡∏â‡∏ö‡∏±‡∏ö‡∏£‡πà‡∏≤‡∏á‡∏Å‡πà‡∏≠‡∏ô‡∏ï‡∏£‡∏ß‡∏à‡πÅ‡∏•‡∏∞‡∏™‡πà‡∏á‡∏≠‡∏ô‡∏∏‡∏°‡∏±‡∏ï‡∏¥ ‡πÑ‡∏°‡πà‡∏°‡∏µ‡∏Å‡∏≤‡∏£‡πÄ‡∏õ‡∏•‡∏µ‡πà‡∏¢‡∏ô‡∏™‡∏ñ‡∏≤‡∏ô‡∏∞‡πÄ‡∏û‡∏µ‡∏¢‡∏á‡∏à‡∏≤‡∏Å‡∏Å‡∏≤‡∏£‡πÄ‡∏•‡∏∑‡∏≠‡∏Å‡πÄ‡∏î‡∏∑‡∏≠‡∏ô">
-          <div style={{ fontSize: '13px', fontWeight: 'bold', color: '#1e40af', marginBottom: '8px' }}>
-            ‡πÄ‡∏•‡∏∑‡∏≠‡∏Å‡πÄ‡∏î‡∏∑‡∏≠‡∏ô‡∏ó‡∏µ‡πà‡∏à‡∏∞‡∏à‡∏±‡∏î‡∏Å‡∏∞: {monthLabel} (‡∏™‡∏π‡∏á‡∏™‡∏∏‡∏î 1 ‡πÄ‡∏î‡∏∑‡∏≠‡∏ô)
-          </div>
-          <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
-            <MonthGridPicker value={scheduleMonth} onChange={(value) => { setScheduleMonth(value); setOperationPage(1); }} />
-            <button className="btn-neutral small-action" onClick={() => moveMonth(-1)}>‚Äπ ‡πÄ‡∏î‡∏∑‡∏≠‡∏ô‡∏Å‡πà‡∏≠‡∏ô</button>
-            <button className="btn-neutral small-action" onClick={() => moveMonth(1)}>‡πÄ‡∏î‡∏∑‡∏≠‡∏ô‡∏ñ‡∏±‡∏î‡πÑ‡∏õ ‚Ä∫</button>
-
-            <div className="schedule-department-control">
-              <button
-                type="button"
-                className="btn-neutral small-action schedule-department-trigger"
-                onClick={() => setDeptMenuOpen((prev) => !prev)}
-              >
-                <SmsIcon name="employees" /> ‡πÅ‡∏ú‡∏ô‡∏Å: {selectedDepartments.length === 0 ? '‡∏ó‡∏∏‡∏Å‡πÅ‡∏ú‡∏ô‡∏Å' : `${selectedDepartments.length} ‡πÅ‡∏ú‡∏ô‡∏Å‡∏ó‡∏µ‡πà‡πÄ‡∏•‡∏∑‡∏≠‡∏Å`} ‚ñæ
-              </button>
-              {deptMenuOpen && (
-                <div className="schedule-department-popover">
-                  <div className="schedule-department-popover-header">
-                    <span>‡πÄ‡∏•‡∏∑‡∏≠‡∏Å‡πÅ‡∏ú‡∏ô‡∏Å‡∏ó‡∏µ‡πà‡∏ï‡πâ‡∏≠‡∏á‡∏Å‡∏≤‡∏£‡∏Å‡∏£‡∏≠‡∏á</span>
-                    <button type="button" className="schedule-department-clear" onClick={() => setSelectedDepartments([])}>‡πÅ‡∏™‡∏î‡∏á‡∏ó‡∏∏‡∏Å‡πÅ‡∏ú‡∏ô‡∏Å</button>
-                  </div>
-                  <div style={{ maxHeight: '200px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                    {departments.map((dept) => {
-                      const checked = selectedDepartments.includes(dept);
-                      return (
-                        <label key={dept} className="schedule-department-option">
-                          <input
-                            type="checkbox"
-                            checked={checked}
-                            onChange={(e) => {
-                              if (e.target.checked) {
-                                setSelectedDepartments((prev) => [...prev, dept]);
-                              } else {
-                                setSelectedDepartments((prev) => prev.filter((d) => d !== dept));
-                              }
-                            }}
-                          />
-                          <span>{dept}</span>
-                        </label>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {auth.user?.role === 'ADMIN' && (
-              <button className="btn-primary compact" style={{ background: 'linear-gradient(135deg, #3b82f6 0%, #4f46e5 100%)', border: 'none', fontWeight: 'bold', padding: '8px 14px', borderRadius: '8px' }} disabled={autoScheduleBusy} onClick={previewAutoSchedule}>
-                {autoScheduleBusy ? '‡∏Å‡∏≥‡∏•‡∏±‡∏á‡∏Ñ‡∏≥‡∏ô‡∏ß‡∏ì‚Ä¶' : '‡∏î‡∏π‡∏ï‡∏±‡∏ß‡∏≠‡∏¢‡πà‡∏≤‡∏á‡∏à‡∏±‡∏î‡∏Å‡∏∞‡∏≠‡∏±‡∏ï‡πÇ‡∏ô‡∏°‡∏±‡∏ï‡∏¥'}
-              </button>
-            )}
-            <span className="toolbar-count" style={{ marginLeft: 'auto' }}>{operationLoading ? '‡πÅ‡∏™‡∏î‡∏á ‚Äî ‡∏à‡∏≤‡∏Å ‚Äî ‡∏Ñ‡∏ô' : `‡πÅ‡∏™‡∏î‡∏á ${calendarEmployees.length} ‡∏à‡∏≤‡∏Å ${allCalendarEmployees.length} ‡∏Ñ‡∏ô`}</span>
-          </div>
-
-          <div className="schedule-draft-actions" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '12px', paddingTop: '12px', borderTop: '1px dashed #bfdbfe' }}>
-            <button type="button" className="btn-primary compact" style={{ padding: '8px 18px', fontWeight: 'bold', fontSize: '14px', borderRadius: '8px' }} disabled={batchSaveBusy || Object.keys(scheduleDrafts).length === 0} onClick={saveAllDrafts}>
-              {batchSaveBusy ? `‡∏Å‡∏≥‡∏•‡∏±‡∏á‡∏ö‡∏±‡∏ô‡∏ó‡∏∂‡∏Å ${batchSaveProgress?.total ?? Object.keys(scheduleDrafts).length} ‡∏£‡∏≤‡∏¢‡∏Å‡∏≤‡∏£‚Ä¶` : `‡∏ö‡∏±‡∏ô‡∏ó‡∏∂‡∏Å‡∏Å‡∏≤‡∏£‡πÄ‡∏õ‡∏•‡∏µ‡πà‡∏¢‡∏ô‡πÅ‡∏õ‡∏•‡∏á‡∏ó‡∏±‡πâ‡∏á‡∏´‡∏°‡∏î (${Object.keys(scheduleDrafts).length})`}
-            </button>
-            <button
-              className="btn-danger compact"
-              style={{ fontSize: '13px', fontWeight: 'bold', padding: '8px 16px', borderRadius: '8px' }}
-              disabled={batchSaveBusy || Object.keys(scheduleDrafts).length === 0}
-              onClick={async () => { const draftCount = Object.keys(scheduleDrafts).length; if (!draftCount) return; const confirmed = await actionDialog.confirm({ title: '‡∏ó‡∏¥‡πâ‡∏á‡∏£‡∏≤‡∏¢‡∏Å‡∏≤‡∏£‡πÄ‡∏õ‡∏•‡∏µ‡πà‡∏¢‡∏ô‡πÅ‡∏õ‡∏•‡∏á‡∏ó‡∏µ‡πà‡∏¢‡∏±‡∏á‡πÑ‡∏°‡πà‡∏ö‡∏±‡∏ô‡∏ó‡∏∂‡∏Å', message: '‡∏£‡∏≤‡∏¢‡∏Å‡∏≤‡∏£‡πÅ‡∏Å‡πâ‡πÑ‡∏Ç‡∏Å‡∏∞‡∏ó‡∏µ‡πà‡∏¢‡∏±‡∏á‡πÑ‡∏°‡πà‡πÑ‡∏î‡πâ‡∏ö‡∏±‡∏ô‡∏ó‡∏∂‡∏Å‡∏à‡∏∞‡∏ñ‡∏π‡∏Å‡∏•‡πâ‡∏≤‡∏á‡∏≠‡∏≠‡∏Å‡∏à‡∏≤‡∏Å‡∏´‡∏ô‡πâ‡∏≤‡∏à‡∏≠ ‡πÅ‡∏•‡∏∞‡∏à‡∏∞‡πÑ‡∏°‡πà‡∏°‡∏µ‡∏Å‡∏≤‡∏£‡∏™‡πà‡∏á‡∏Ç‡πâ‡∏≠‡∏°‡∏π‡∏•‡πÑ‡∏õ‡∏¢‡∏±‡∏á Server', context: `${draftCount} ‡∏£‡∏≤‡∏¢‡∏Å‡∏≤‡∏£`, confirmLabel: '‡∏¢‡∏∑‡∏ô‡∏¢‡∏±‡∏ô‡∏•‡πâ‡∏≤‡∏á‡∏£‡∏≤‡∏¢‡∏Å‡∏≤‡∏£', tone: 'danger' }); if (confirmed) setScheduleDrafts({}); }}
-            >
-              ‡∏¢‡∏Å‡πÄ‡∏•‡∏¥‡∏Å‡∏£‡∏≤‡∏¢‡∏Å‡∏≤‡∏£‡πÄ‡∏õ‡∏•‡∏µ‡πà‡∏¢‡∏ô‡πÅ‡∏õ‡∏•‡∏á‡∏ó‡∏±‡πâ‡∏á‡∏´‡∏°‡∏î
-            </button>
-            {batchSaveBusy && batchSaveProgress && <span role="status" aria-live="polite" style={{ fontSize: '13px' }}>‡∏ö‡∏±‡∏ô‡∏ó‡∏∂‡∏Å‡∏™‡∏≥‡πÄ‡∏£‡πá‡∏à {batchSaveProgress.saved} / ‡∏•‡πâ‡∏°‡πÄ‡∏´‡∏•‡∏ß {batchSaveProgress.failed}</span>}
-            {!batchSaveBusy && batchSaveSummary && <span role="status" aria-live="polite" style={{ fontSize: '13px' }}>{batchSaveSummary}</span>}
-            <span style={{ fontSize: '13px', color: '#475569' }}>
-              ‡∏Ñ‡∏•‡∏¥‡∏Å‡∏ä‡πà‡∏≠‡∏á‡∏Å‡∏∞‡πÄ‡∏û‡∏∑‡πà‡∏≠‡πÅ‡∏Å‡πâ‡∏´‡∏•‡∏≤‡∏¢‡∏£‡∏≤‡∏¢‡∏Å‡∏≤‡∏£ ‡πÅ‡∏•‡πâ‡∏ß‡∏Ñ‡πà‡∏≠‡∏¢‡∏ö‡∏±‡∏ô‡∏ó‡∏∂‡∏Å‡∏Ñ‡∏£‡∏±‡πâ‡∏á‡πÄ‡∏î‡∏µ‡∏¢‡∏ß
-            </span>
-          </div>
-        </SectionCard>
-        {auth.user?.role === 'ADMIN' && autoSchedulePreview && (
-          <div className="dialog-backdrop" role="presentation" onMouseDown={(e) => { if (e.target === e.currentTarget && !autoScheduleBusy) setAutoSchedulePreview(undefined); }}>
-            <section className="edit-dialog" style={{ maxWidth: '780px', backgroundColor: '#0f1d2a', borderRadius: '16px', padding: '24px', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)' }}>
-              <div className="dialog-heading" style={{ marginBottom: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 700, color: '#0f172a' }}><SmsIcon name="settings" /> ‡∏ï‡∏±‡∏ß‡∏≠‡∏¢‡πà‡∏≤‡∏á‡∏ï‡∏≤‡∏£‡∏≤‡∏á‡∏à‡∏±‡∏î‡∏Å‡∏∞‡∏≠‡∏±‡∏ï‡πÇ‡∏ô‡∏°‡∏±‡∏ï‡∏¥ ( Auto Schedule Preview )</h2>
-                <button type="button" aria-label="‡∏õ‡∏¥‡∏î‡∏ï‡∏±‡∏ß‡∏≠‡∏¢‡πà‡∏≤‡∏á‡∏ï‡∏≤‡∏£‡∏≤‡∏á‡∏à‡∏±‡∏î‡∏Å‡∏∞‡∏≠‡∏±‡∏ï‡πÇ‡∏ô‡∏°‡∏±‡∏ï‡∏¥" style={{ background: 'none', border: 'none', cursor: 'pointer' }} disabled={autoScheduleBusy} onClick={() => setAutoSchedulePreview(undefined)}><SmsIcon name="close" size={20} /></button>
-              </div>
-
-              <div className="preview-summary" style={{ display: 'flex', gap: '16px', marginBottom: '14px', fontSize: '13px', color: '#334155' }}>
-                <strong className="auto-schedule-fill-summary">‡∏à‡∏∞‡πÄ‡∏ï‡∏¥‡∏° {previewFillSummary.generated} ‡∏ä‡πà‡∏≠‡∏á‡∏ß‡πà‡∏≤‡∏á ¬∑ ‡∏Ñ‡∏á‡∏Å‡∏∞‡πÄ‡∏î‡∏¥‡∏°‡πÑ‡∏ß‡πâ {previewFillSummary.preservedExisting} ‡∏ä‡πà‡∏≠‡∏á</strong>
-                <span><b>{text(previewSummary.employees)}</b> ‡∏û‡∏ô‡∏±‡∏Å‡∏á‡∏≤‡∏ô</span>
-                <span><b>{text(previewSummary.totalRows)}</b> ‡∏Å‡∏∞‡∏ó‡∏±‡πâ‡∏á‡∏´‡∏°‡∏î</span>
-                <span><b>{previewWarnings.length}</b> ‡∏Ñ‡∏≥‡πÄ‡∏ï‡∏∑‡∏≠‡∏ô</span>
-              </div>
-
-              {previewFillSummary.generated === 0 && <div className="auto-schedule-empty-notice" role="status">‡∏ó‡∏∏‡∏Å‡∏ä‡πà‡∏≠‡∏á‡∏à‡∏±‡∏î‡πÑ‡∏ß‡πâ‡πÅ‡∏•‡πâ‡∏ß ‡πÑ‡∏°‡πà‡∏°‡∏µ‡∏≠‡∏∞‡πÑ‡∏£‡πÉ‡∏´‡πâ‡πÄ‡∏ï‡∏¥‡∏°</div>}
-
-              {previewWarnings.length > 0 && (
-                <div className="preview-warning" style={{ backgroundColor: '#211807', border: '1px solid #ffedd5', color: '#c2410c', padding: '12px', borderRadius: '10px', marginBottom: '14px', fontSize: '13px' }}>
-                  <strong>‡∏£‡∏≤‡∏¢‡∏Å‡∏≤‡∏£‡∏ó‡∏µ‡πà‡∏ï‡πâ‡∏≠‡∏á‡∏ï‡∏£‡∏ß‡∏à‡∏™‡∏≠‡∏ö:</strong>
-                  {previewWarnings.slice(0, 8).map((warning, index) => <p key={`${String(warning)}-${index}`} style={{ margin: '4px 0 0 0' }}>‚Ä¢ {text(warning)}</p>)}
-                </div>
-              )}
-
-              <div className="table-scroll preview-table-wrap" style={{ maxHeight: '320px', overflowY: 'auto', marginBottom: '16px', border: '1px solid #e2e8f0', borderRadius: '10px' }}>
-                <table className="data-table preview-table" style={{ width: '100%' }}>
-                  <thead>
-                    <tr><th>‡∏û‡∏ô‡∏±‡∏Å‡∏á‡∏≤‡∏ô</th><th>‡∏ß‡∏±‡∏ô‡∏ó‡∏µ‡πà</th><th>‡∏Å‡∏∞</th><th>‡πÄ‡∏´‡∏ï‡∏∏‡∏ú‡∏•</th><th>‡∏™‡∏ñ‡∏≤‡∏ô‡∏∞</th></tr>
-                  </thead>
-                  <tbody>
-                    {previewRows.slice(0, 50).map((row, index) => {
-                      const draftKey = `${text(row.employeeId)}_${inputDate(row.date)}`;
-                      const hasDraft = Object.prototype.hasOwnProperty.call(scheduleDrafts, draftKey);
-                      const preserved = Boolean(row.locked || row.preserved || row.existingShiftId || hasDraft);
-                      return <tr key={`${text(row.employeeId)}-${text(row.date)}-${index}`} className={preserved ? 'auto-schedule-preview-preserved' : 'auto-schedule-preview-generated'}>
-                        <td>{text(row.employeeName)}</td>
-                        <td>{date(row.date)}</td>
-                        <td><span className={`status-badge ${row.code === 'OFF' ? 'inactive' : 'active'}`}>{text(row.code)}</span></td>
-                        <td>{text(row.remark)}</td>
-                        <td><span className={`auto-schedule-origin ${preserved ? 'is-preserved' : 'is-generated'}`}>{hasDraft ? '‡∏Ñ‡∏á‡∏â‡∏ö‡∏±‡∏ö‡∏£‡πà‡∏≤‡∏á' : preserved ? '‡∏Ñ‡∏á‡∏Å‡∏∞‡πÄ‡∏î‡∏¥‡∏°' : '‡πÄ‡∏ï‡∏¥‡∏°‡∏≠‡∏±‡∏ï‡πÇ‡∏ô‡∏°‡∏±‡∏ï‡∏¥'}</span></td>
-                      </tr>;
-                    })}
-                  </tbody>
-                </table>
-              </div>
-
-              <div className="preview-actions" style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
-                <button className="btn-secondary" style={{ padding: '9px 18px', borderRadius: '10px', border: '1px solid #cbd5e1', backgroundColor: '#0f1d2a', cursor: 'pointer' }} disabled={autoScheduleBusy} onClick={() => setAutoSchedulePreview(undefined)}>‡∏¢‡∏Å‡πÄ‡∏•‡∏¥‡∏Å Preview</button>
-                <button className="btn-primary compact" style={{ padding: '9px 20px', borderRadius: '10px', border: 'none', background: 'linear-gradient(135deg, #3b82f6 0%, #6366f1 100%)', color: '#ffffff', fontWeight: 700, cursor: 'pointer' }} disabled={autoScheduleBusy || previewFillSummary.generated === 0} onClick={saveAutoSchedule}><SmsIcon name="settings" /> ‡πÉ‡∏™‡πà‡∏•‡∏á‡πÉ‡∏ô‡∏â‡∏ö‡∏±‡∏ö‡∏£‡πà‡∏≤‡∏á (‡∏¢‡∏±‡∏á‡πÑ‡∏°‡πà‡∏ö‡∏±‡∏ô‡∏ó‡∏∂‡∏Å)</button>
-              </div>
-            </section>
-          </div>
-        )}
-        <ErrorAlert message={operationError} />
-        <SectionCard className="table-card calendar-card" kicker="‡∏ï‡∏≤‡∏£‡∏≤‡∏á‡∏Å‡∏∞" title="‡∏ï‡∏≤‡∏£‡∏≤‡∏á‡πÄ‡∏ß‡∏£‡∏Ç‡∏≠‡∏á‡πÄ‡∏î‡∏∑‡∏≠‡∏ô‡∏ó‡∏µ‡πà‡πÄ‡∏•‡∏∑‡∏≠‡∏Å" description="‡∏£‡∏≤‡∏¢‡∏Å‡∏≤‡∏£‡∏à‡∏£‡∏¥‡∏á‡πÅ‡∏•‡∏∞‡∏â‡∏ö‡∏±‡∏ö‡∏£‡πà‡∏≤‡∏á‡πÉ‡∏ô‡∏ï‡∏±‡∏ß‡∏Å‡∏£‡∏≠‡∏á‡∏õ‡∏±‡∏à‡∏à‡∏∏‡∏ö‡∏±‡∏ô ‡∏Å‡∏é‡πÉ‡∏ö‡∏≠‡∏ô‡∏∏‡∏ç‡∏≤‡∏ï‡πÅ‡∏•‡∏∞‡∏Å‡∏≤‡∏£‡∏•‡πá‡∏≠‡∏Å‡∏Å‡∏∞‡∏¢‡∏±‡∏á‡πÉ‡∏ä‡πâ‡πÄ‡∏á‡∏∑‡πà‡∏≠‡∏ô‡πÑ‡∏Ç‡πÄ‡∏î‡∏¥‡∏°">{operationLoading && !calendarEmployees.length ? <div className="loading-row">‡∏Å‡∏≥‡∏•‡∏±‡∏á‡∏≠‡πà‡∏≤‡∏ô‡∏ï‡∏≤‡∏£‡∏≤‡∏á‡∏Å‡∏∞‡∏£‡∏≤‡∏¢‡πÄ‡∏î‡∏∑‡∏≠‡∏ô‚Ä¶</div> : <div className="table-scroll schedule-grid-scroll" onMouseDown={(e) => { if ((e.target as HTMLElement).closest('button,input,select,textarea,a')) return; const el = e.currentTarget; el.dataset.isDown = 'true'; el.dataset.startX = String(e.pageX - el.offsetLeft); el.dataset.startY = String(e.pageY - el.offsetTop); el.dataset.scrollLeft = String(el.scrollLeft); el.dataset.scrollTop = String(el.scrollTop); }} onMouseLeave={(e) => { e.currentTarget.dataset.isDown = 'false'; }} onMouseUp={(e) => { e.currentTarget.dataset.isDown = 'false'; }} onMouseMove={(e) => { const el = e.currentTarget; if (el.dataset.isDown !== 'true') return; e.preventDefault(); const x = e.pageX - el.offsetLeft; const y = e.pageY - el.offsetTop; const walkX = (x - Number(el.dataset.startX || 0)) * 1.5; const walkY = (y - Number(el.dataset.startY || 0)) * 1.5; el.scrollLeft = Number(el.dataset.scrollLeft || 0) - walkX; el.scrollTop = Number(el.dataset.scrollTop || 0) - walkY; }}><table className="schedule-grid"><thead><tr><th className="employee-sticky">‡∏û‡∏ô‡∏±‡∏Å‡∏á‡∏≤‡∏ô</th>{dates.map((day) => { const dayValue = new Date(`${day}T00:00:00Z`); const weekend = [0, 6].includes(dayValue.getUTCDay()); const dayClasses = [weekend ? 'weekend' : '', day === todayScheduleDate ? 'today' : ''].filter(Boolean).join(' '); return <th key={day} className={dayClasses}><b>{dayValue.getUTCDate()}</b><small>{new Intl.DateTimeFormat('th-TH', { weekday: 'short', timeZone: 'UTC' }).format(dayValue)}</small></th>; })}</tr></thead><tbody>{calendarEmployees.length ? calendarEmployees.map((employee) => { const employeeShifts = Array.isArray(employee.shifts) ? employee.shifts as DataRow[] : []; const isSchedulingEmployee = employeeAutoScheduleBusyId === String(employee.id); return <tr key={text(employee.id)}><td className="employee-sticky"><strong>{text(employee.displayName || `${text(employee.firstName)} ${text(employee.lastName)}`)}{canManage && <button className="employee-magic-button" disabled={Boolean(employeeAutoScheduleBusyId)} title="ü™Ñ ‡∏à‡∏±‡∏î‡∏Å‡∏∞‡πÅ‡∏û‡∏ó‡πÄ‡∏ó‡∏¥‡∏£‡πå‡∏ô‡∏î‡πà‡∏ß‡∏ô: 6 ‡∏ß‡∏±‡∏ô‡∏ó‡∏≥‡∏á‡∏≤‡∏ô / 1 ‡∏ß‡∏±‡∏ô‡∏´‡∏¢‡∏∏‡∏î" onClick={() => openEmployeeScheduleWizard(employee)}>{isSchedulingEmployee ? '‚Ä¶' : <SmsIcon name="settings" />}</button>}</strong><small>{text(employee.employeeCode)} ¬∑ {text(employee.department)}</small></td>{dates.map((day) => { const draftKey = `${employee.id}_${day}`; const draftItem = scheduleDrafts[draftKey]; const shift = employeeShifts.find((item) => inputDate(item.workDate) === day); const shiftType = nested(shift?.shiftType); const shiftCode = text(shiftType.code).toLowerCase(); const coreShift = ['d', 'n', 'off', 'al'].includes(shiftCode); const weekend = [0, 6].includes(new Date(`${day}T00:00:00Z`).getUTCDay()); const dayClassName = [weekend ? 'weekend' : '', day === todayScheduleDate ? 'today' : ''].filter(Boolean).join(' '); if (draftItem) { if (draftItem.action === 'delete') { return <td key={day} className={dayClassName}><div className="calendar-shift-wrap"><button className="empty-shift" style={{ color: '#ef4444', borderColor: '#fca5a5' }} title="‡∏Å‡∏∞‡∏ñ‡∏π‡∏Å‡∏•‡∏ö‡πÉ‡∏ô‡∏â‡∏ö‡∏±‡∏ö‡∏£‡πà‡∏≤‡∏á (‡∏Ñ‡∏•‡∏¥‡∏Å‡∏Ñ‡∏∑‡∏ô‡∏Ñ‡πà‡∏≤)" onClick={() => { const next = { ...scheduleDrafts }; delete next[draftKey]; setScheduleDrafts(next); }}>‚úï ‡∏•‡∏ö‡πÅ‡∏•‡πâ‡∏ß</button></div></td>; } const draftCore = ['d', 'n', 'off', 'al'].includes((draftItem.shiftCode || '').toLowerCase()); return <td key={day} className={dayClassName}><div className="calendar-shift-wrap"><button className={`calendar-shift shift-${(draftItem.shiftCode || 'd').toLowerCase()}`} style={draftCore ? { border: '2px dashed #2563eb' } : { backgroundColor: String(draftItem.color || '#64748B'), border: '2px dashed #2563eb' }} title="‡∏Å‡∏∞‡∏â‡∏ö‡∏±‡∏ö‡∏£‡πà‡∏≤‡∏á (‡∏¢‡∏±‡∏á‡πÑ‡∏°‡πà‡πÑ‡∏î‡πâ‡∏ö‡∏±‡∏ô‡∏ó‡∏∂‡∏Å)" onClick={(e) => canManage && openShiftEditor(undefined, { employeeId: String(employee.id), workDate: day, shiftTypeId: String(draftItem.shiftTypeId || '') }, e)}><b>{text(draftItem.shiftCode)} *</b><small className="schedule-time">{text(draftItem.startTime)}‚Äì{text(draftItem.endTime)}</small><small className="shift-note" style={{ color: '#2563eb', fontWeight: 'bold' }}>‡∏£‡πà‡∏≤‡∏á</small></button><button className="calendar-delete" aria-label={`‡∏¢‡∏Å‡πÄ‡∏•‡∏¥‡∏Å‡∏â‡∏ö‡∏±‡∏ö‡∏£‡πà‡∏≤‡∏á ${day}`} title="‡∏¢‡∏Å‡πÄ‡∏•‡∏¥‡∏Å‡∏â‡∏ö‡∏±‡∏ö‡∏£‡πà‡∏≤‡∏á" onClick={() => { const next = { ...scheduleDrafts }; delete next[draftKey]; setScheduleDrafts(next); }}><SmsIcon name="close" size={14} /></button></div></td>; } return <td key={day} className={dayClassName}>{shift ? <div className="calendar-shift-wrap"><button className={`calendar-shift shift-${shiftCode}`} style={coreShift ? undefined : { backgroundColor: String(shiftType.color || '#64748B') }} title={`${text(shiftType.name)} ¬∑ ${text(shift.startTime)}-${text(shift.endTime)}`} onClick={(e) => canManage && openShiftEditor(shift, {}, e)}><b>{text(shiftType.code).toUpperCase()}</b><small className={text(shiftType.code).toUpperCase() === 'OFF' ? 'schedule-shift-kind' : 'schedule-time'}>{text(shiftType.code).toUpperCase() === 'OFF' ? '‡∏ß‡∏±‡∏ô‡∏´‡∏¢‡∏∏‡∏î' : `${text(shift.startTime || '07:00')}‚Äì${text(shift.endTime || '19:00')}`}</small>{(() => {
-  const licStatus = String(shift.licenseStatus || '').toUpperCase();
-  const remarkStr = String(shift.remark || '');
-  const isBlocked = ['EXPIRED', 'MISSING', 'INVALID'].includes(licStatus) || remarkStr.toLowerCase().includes('license block') || remarkStr.includes('‡πÉ‡∏ö‡∏≠‡∏ô‡∏∏‡∏ç‡∏≤‡∏ï‡πÑ‡∏°‡πà‡∏ú‡πà‡∏≤‡∏ô');
-  const isOverridden = licStatus === 'OVERRIDDEN';
-  const isManual = shift.source === 'SMS_V3' && !isBlocked;
-  return (
-    <>
-      {Boolean(shift.locked) && <span className="shift-note schedule-lock-marker" role="img" aria-label="‡∏Å‡∏∞‡∏•‡πá‡∏≠‡∏Å" title="‡∏Å‡∏∞‡∏ó‡∏µ‡πà‡∏•‡πá‡∏≠‡∏Å"><SmsIcon name="shield" /></span>}
-      {isManual && <small className="shift-note schedule-manual-label" data-label-type="manual" title="‡∏à‡∏±‡∏î‡∏Å‡∏∞‡∏ú‡πà‡∏≤‡∏ô‡∏ú‡∏π‡πâ‡πÉ‡∏ä‡πâ‡πÉ‡∏ô‡∏£‡∏∞‡∏ö‡∏ö">MANUAL</small>}
-      {isOverridden && <small className="shift-note" data-label-type="override" style={{ color: '#2563eb', fontWeight: 700, display: 'block' }}>OVERRIDE <SmsIcon name="shield" /></small>}
-      {isBlocked && <small className="shift-note schedule-license-block" data-label-type="license-block" style={{ color: '#dc2626', fontWeight: 700, display: 'block' }}>License Block</small>}
-    </>
-  );
-})()}</button>{canManage && <button className="calendar-delete" aria-label={`‡∏•‡∏ö‡∏Å‡∏∞ ${day}`} onClick={() => { const key = `${employee.id}_${day}`; setScheduleDrafts((prev) => ({ ...prev, [key]: { action: 'delete', id: String(shift.id), employeeId: String(employee.id), workDate: day } })); }}><SmsIcon name="close" size={14} /></button>}</div> : canManage ? <button className="empty-shift" title="‡πÄ‡∏û‡∏¥‡πà‡∏°‡∏Å‡∏∞" onClick={(e) => openShiftEditor(undefined, { employeeId: String(employee.id), workDate: day }, e)}>+</button> : <span className="empty-shift read-only">‚Äì</span>}</td>; })}</tr>; }) : <tr><td colSpan={dates.length + 1} className="no-rows">‡πÑ‡∏°‡πà‡∏°‡∏µ‡∏û‡∏ô‡∏±‡∏Å‡∏á‡∏≤‡∏ô‡∏´‡∏£‡∏∑‡∏≠‡∏ï‡∏≤‡∏£‡∏≤‡∏á‡∏Å‡∏∞‡πÉ‡∏ô‡∏ï‡∏±‡∏ß‡∏Å‡∏£‡∏≠‡∏á‡∏ô‡∏µ‡πâ</td></tr>}</tbody></table></div>}</SectionCard>
-        {(operationLoading || (operationResponse.meta?.totalPages || 0) > 1) && <div className="pagination-bar"><button disabled={operationLoading || (operationResponse.meta?.page || 1) <= 1} onClick={() => setOperationPage((operationResponse.meta?.page || 1) - 1)}>‚Äπ ‡∏Å‡πà‡∏≠‡∏ô‡∏´‡∏ô‡πâ‡∏≤</button><span>{operationLoading ? '‡∏´‡∏ô‡πâ‡∏≤ ‚Äî ‡∏à‡∏≤‡∏Å ‚Äî' : `‡∏´‡∏ô‡πâ‡∏≤ ${operationResponse.meta?.page} ‡∏à‡∏≤‡∏Å ${operationResponse.meta?.totalPages}`}</span><button disabled={operationLoading || (operationResponse.meta?.page || 1) >= (operationResponse.meta?.totalPages || 0)} onClick={() => setOperationPage((operationResponse.meta?.page || 1) + 1)}>‡∏´‡∏ô‡πâ‡∏≤‡∏ñ‡∏±‡∏î‡πÑ‡∏õ ‚Ä∫</button></div>}
-        {employeeAutoScheduleTarget && <EmployeeMagicWandModal target={employeeAutoScheduleTarget} scheduleMonth={scheduleMonth} token={auth.token} busy={Boolean(employeeAutoScheduleBusyId)} onClose={() => setEmployeeAutoScheduleTarget(undefined)} onSubmit={async (autoContinue, startPhase, patternType) => { if (!auth.token || !employeeAutoScheduleTarget || employeeAutoScheduleBusyId) return; const employeeId = String(employeeAutoScheduleTarget.id || ''); if (!employeeId) return; const phase = autoContinue ? 'AUTO' : startPhase; setEmployeeAutoScheduleBusyId(employeeId); setOperationError(undefined); try { const result = await api.previewEmployeeAutoSchedule(auth.token, scheduleMonth, employeeId, phase, patternType); const rows = Array.isArray(result?.data?.rows) ? result.data.rows as DataRow[] : []; applyPreviewToDrafts(rows, employeeId); setEmployeeAutoScheduleTarget(undefined); } catch (reason) { setOperationError(toRequestErrorState(reason, '‡∏™‡∏£‡πâ‡∏≤‡∏á‡∏â‡∏ö‡∏±‡∏ö‡∏£‡πà‡∏≤‡∏á‡∏à‡∏±‡∏î‡∏Å‡∏∞‡∏≠‡∏±‡∏ï‡πÇ‡∏ô‡∏°‡∏±‡∏ï‡∏¥‡∏£‡∏≤‡∏¢‡∏ö‡∏∏‡∏Ñ‡∏Ñ‡∏•‡πÑ‡∏°‡πà‡∏™‡∏≥‡πÄ‡∏£‡πá‡∏à')); } finally { setEmployeeAutoScheduleBusyId(undefined); } }} />}
-        {shiftEditorTarget && (
-          <ShiftEditorModal
-            shift={shiftEditorTarget.shift}
-            defaults={shiftEditorTarget.defaults}
-            employees={calendarEmployees.length ? calendarEmployees : (Array.isArray(operationResponse.data) ? operationResponse.data as DataRow[] : [])}
-            shiftTypes={activeShiftTypes}
-            licenses={licensesData}
-            isAdmin={auth.user?.role === 'ADMIN'}
-            onClose={() => setShiftEditorTarget(null)}
-            onSubmit={(data) => {
-              const key = `${data.employeeId}_${data.workDate}`;
-              const selectedType = activeShiftTypes.find((t) => String(t.id) === data.shiftTypeId);
-              const payload: Record<string, unknown> = {
-                employeeId: data.employeeId,
-                shiftTypeId: data.shiftTypeId,
-                workDate: data.workDate,
-                remark: data.remark,
-                licenseOverride: data.licenseOverride,
-                overrideReason: data.overrideReason
-              };
-              setScheduleDrafts((prev) => ({
-                ...prev,
-                [key]: {
-                  action: shiftEditorTarget.shift ? 'update' : 'create',
-                  id: shiftEditorTarget.shift ? String(shiftEditorTarget.shift.id) : undefined,
-                  employeeId: data.employeeId,
-                  workDate: data.workDate,
-                  shiftTypeId: data.shiftTypeId,
-                  shiftCode: String(selectedType?.code || ''),
-                  shiftName: String(selectedType?.name || ''),
-                  startTime: String(selectedType?.startTime || ''),
-                  endTime: String(selectedType?.endTime || ''),
-                  color: String(selectedType?.color || '#64748B'),
-                  remark: data.remark,
-                  licenseOverride: data.licenseOverride,
-                  overrideReason: data.overrideReason,
-                  payload
-                }
-              }));
-              setShiftEditorTarget(null);
-            }}
-          />
-        )}
-      </section>;
-    }
-    if (['leave', 'leavePending', 'leaveHistory'].includes(activePage)) {
-      const rows = Array.isArray(operationResponse.data) ? operationResponse.data : [];
-      const remaining = nested(leaveSummary.remaining);
-        const canCancelApprovedLeave = auth.user?.role === 'ADMIN';
-        return <LeaveManagementPage mode={activePage === 'leavePending' ? 'pending' : activePage === 'leaveHistory' ? 'history' : 'all'} historyScope={activePage === 'leaveHistory' ? 'all' : 'mine'} historyMonth={activePage === 'leaveHistory' ? leaveMonth : undefined} historyTotal={activePage === 'leaveHistory' ? operationResponse.meta?.total : undefined} historyPage={activePage === 'leaveHistory' ? operationResponse.meta?.page : undefined} historyTotalPages={activePage === 'leaveHistory' ? operationResponse.meta?.totalPages : undefined} historyStatusCounts={activePage === 'leaveHistory' ? operationResponse.meta?.statusCounts : undefined} employeeId={String(leaveSummary.employeeId || '')} currentUserId={auth.user?.id} currentUserRole={auth.user?.role} leavePolicy={leavePolicy} leaveTypes={activeLeaveTypes} rows={rows} loading={operationLoading} error={operationError} linked={Boolean(leaveSummary.linked)} remaining={remaining} quotaSummary={leaveSummary} quotaYear={Number(leaveSummary.quotaYear || currentBangkokQuotaYear())} canManage={pwaShell ? false : canManage} canSubmit={(pwaShell ? pwaOnline : true) && (auth.user?.role !== 'VIEWER' || Boolean(leaveSummary.linked))} canCancelApprovedLeave={canCancelApprovedLeave} mutationsEnabled={!pwaShell || pwaOnline} employeeOptions={employeeOptions} onRefresh={() => setOperationRefresh((value) => value + 1)} onHistoryMonthChange={changeLeaveMonth} onHistoryMonthStep={(delta) => changeLeaveMonth(shiftMonthValue(leaveMonth, delta))} onHistoryPageChange={setOperationPage} onApprove={(row) => handleOperationAction(row, 'approve')} onReject={(row) => handleOperationAction(row, 'reject')} onReturnForCorrection={(row) => handleOperationAction(row, 'return')} onEditReturned={(row) => runEditor({
-          title: `‡πÅ‡∏Å‡πâ‡πÑ‡∏Ç‡∏Ñ‡∏≥‡∏Ç‡∏≠‡∏•‡∏≤ ¬∑ ${text(row.employeeNameSnapshot)}`,
-          submitLabel: '‡∏ö‡∏±‡∏ô‡∏ó‡∏∂‡∏Å‡πÅ‡∏•‡∏∞‡∏™‡πà‡∏á‡∏ï‡∏£‡∏ß‡∏à‡∏™‡∏≠‡∏ö‡∏≠‡∏µ‡∏Å‡∏Ñ‡∏£‡∏±‡πâ‡∏á',
-          fields: [
-            { name: 'leaveType', label: '‡∏õ‡∏£‡∏∞‡πÄ‡∏†‡∏ó‡∏Å‡∏≤‡∏£‡∏•‡∏≤', type: 'select', required: true, options: leaveTypeOptionsForRow(row) },
-            { name: 'startDate', label: '‡∏ß‡∏±‡∏ô‡∏ó‡∏µ‡πà‡πÄ‡∏£‡∏¥‡πà‡∏°‡∏•‡∏≤', type: 'date', required: true },
-            { name: 'endDate', label: '‡∏ß‡∏±‡∏ô‡∏ó‡∏µ‡πà‡∏™‡∏¥‡πâ‡∏ô‡∏™‡∏∏‡∏î', type: 'date', required: true },
-            { name: 'substitute', label: '‡∏ú‡∏π‡πâ‡∏õ‡∏è‡∏¥‡∏ö‡∏±‡∏ï‡∏¥‡∏á‡∏≤‡∏ô‡πÅ‡∏ó‡∏ô', required: true },
-            { name: 'reason', label: '‡πÄ‡∏´‡∏ï‡∏∏‡∏ú‡∏• / ‡∏£‡∏≤‡∏¢‡∏•‡∏∞‡πÄ‡∏≠‡∏µ‡∏¢‡∏î', type: 'textarea' }
-          ],
-          values: {
-            leaveType: String(row.leaveType || ''),
-            startDate: inputDate(row.startDate),
-            endDate: inputDate(row.endDate),
-            substitute: String(row.substitute || ''),
-            reason: String(row.reasonDetail || '')
-          }
-        }, async (form) => {
-          await api.updateReturnedLeaveRequest(auth.token!, String(row.id), form);
-          await api.resubmitLeaveRequest(auth.token!, String(row.id));
-        })} onCancel={(row) => handleOperationAction(row, 'cancel')} onPrint={setLeavePrintTarget} onAttachment={async (row) => { if (!auth.token) return; try { const result = await api.downloadLeaveAttachment(auth.token, String(row.id)); const url = URL.createObjectURL(result.blob); window.open(url, '_blank', 'noopener,noreferrer'); window.setTimeout(() => URL.revokeObjectURL(url), 60000); } catch (reason) { setOperationError(toRequestErrorState(reason, '‡πÄ‡∏õ‡∏¥‡∏î‡πÑ‡∏ü‡∏•‡πå‡πÅ‡∏ô‡∏ö‡πÑ‡∏°‡πà‡∏™‡∏≥‡πÄ‡∏£‡πá‡∏à')); } }} onSubmit={async (form, file) => { if (!auth.token) return; if (file) await api.createLeaveRequestWithAttachment(auth.token, form, file); else await api.createLeaveRequest(auth.token, form); setOperationRefresh((value) => value + 1); }} />;
-    }
-    if (activePage === 'rules') {
-      const rules = Array.isArray(operationResponse.data) ? operationResponse.data : [];
-      const ruleMonthAnchor = currentBangkokMonth();
-      const ruleMonthOptions = [...new Set([
-        ...Array.from({ length: 24 }, (_, index) => shiftMonthValue(ruleMonthAnchor, index - 12)),
-        normalizeMonthValue(scheduleMonth),
-      ])].sort();
-      const results = Array.isArray(ruleCheckResponse.ruleResults) ? ruleCheckResponse.ruleResults as DataRow[] : [];
-      const violations = Array.isArray(ruleCheckResponse.violations) ? ruleCheckResponse.violations as DataRow[] : [];
-      const metrics = nested(ruleCheckResponse.metrics);
-      return <section className="view-pane layout-roster-page layout-page-surface"><PageHeader kicker="‡∏ï‡∏≤‡∏£‡∏≤‡∏á‡πÅ‡∏•‡∏∞‡∏Å‡∏é‡∏Å‡∏≤‡∏£‡∏ó‡∏≥‡∏á‡∏≤‡∏ô" title="‡∏ï‡∏£‡∏ß‡∏à‡∏™‡∏≠‡∏ö‡∏Å‡∏é‡∏Å‡∏≤‡∏£‡∏ó‡∏≥‡∏á‡∏≤‡∏ô" description="‡∏ï‡∏£‡∏ß‡∏à‡∏ï‡∏≤‡∏£‡∏≤‡∏á‡∏Å‡∏∞‡πÉ‡∏ô‡πÄ‡∏î‡∏∑‡∏≠‡∏ô‡∏ó‡∏µ‡πà‡πÄ‡∏•‡∏∑‡∏≠‡∏Å‡∏Å‡∏±‡∏ö‡∏Å‡∏é‡∏Å‡∏≤‡∏£‡∏ó‡∏≥‡∏á‡∏≤‡∏ô‡∏à‡∏≤‡∏Å‡∏£‡∏∞‡∏ö‡∏ö" actions={<div className="heading-actions"><label className="month-filter"><span>‡πÄ‡∏î‡∏∑‡∏≠‡∏ô</span><select value={scheduleMonth} onChange={(event) => { setScheduleMonth(event.target.value); setOperationPage(1); }} style={{ padding: '6px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontWeight: 600, fontSize: '13px', backgroundColor: '#0f1d2a', color: '#e2e8f0' }}>{ruleMonthOptions.map((value) => <option key={value} value={value}>{formatThaiMonth(value)}</option>)}</select></label><button className="btn-neutral small-action" onClick={() => setOperationRefresh((value) => value + 1)}>‡∏ï‡∏£‡∏ß‡∏à‡∏™‡∏≠‡∏ö‡∏≠‡∏µ‡∏Å‡∏Ñ‡∏£‡∏±‡πâ‡∏á</button></div>} />
-        <ErrorAlert message={operationError} />
-        <div className="rule-summary-grid"><MetricCard label="‡∏£‡∏≤‡∏¢‡∏Å‡∏≤‡∏£‡∏Ç‡∏±‡∏î‡∏Å‡∏é‡∏ó‡∏±‡πâ‡∏á‡∏´‡∏°‡∏î" value={operationLoading || operationError ? '‚Äî' : text(metrics.violations)} description="‡∏£‡∏≤‡∏¢‡∏Å‡∏≤‡∏£‡∏Ç‡∏±‡∏î‡∏Å‡∏é‡πÉ‡∏ô‡∏ú‡∏•‡∏ó‡∏µ‡πà‡πÇ‡∏´‡∏•‡∏î" icon="quality" /><MetricCard label="‡∏Å‡∏é‡∏ó‡∏µ‡πà‡∏ú‡πà‡∏≤‡∏ô" value={operationLoading || operationError ? '‚Äî' : `${text(metrics.rulesPassed)} / ${text(metrics.rulesChecked)}`} description="‡∏Å‡∏é‡∏ó‡∏µ‡πà‡∏ú‡πà‡∏≤‡∏ô‡πÄ‡∏ó‡∏µ‡∏¢‡∏ö‡∏Å‡∏±‡∏ö‡∏Å‡∏é‡∏ó‡∏µ‡πà‡∏ï‡∏£‡∏ß‡∏à" icon="check" /><MetricCard label="‡∏û‡∏ô‡∏±‡∏Å‡∏á‡∏≤‡∏ô‡∏ó‡∏µ‡πà‡∏õ‡∏è‡∏¥‡∏ö‡∏±‡∏ï‡∏¥‡∏á‡∏≤‡∏ô" value={operationLoading || operationError ? '‚Äî' : text(metrics.activeEmployees)} description="‡∏à‡∏≥‡∏ô‡∏ß‡∏ô‡∏à‡∏≤‡∏Å‡∏ú‡∏•‡∏ï‡∏£‡∏ß‡∏à‡∏Ç‡∏≠‡∏á‡∏£‡∏∞‡∏ö‡∏ö" icon="employees" /><MetricCard label="‡∏ä‡∏±‡πà‡∏ß‡πÇ‡∏°‡∏á‡∏£‡∏ß‡∏°" value={operationLoading || operationError ? '‚Äî' : text(metrics.totalHours)} description="‡∏ä‡∏±‡πà‡∏ß‡πÇ‡∏°‡∏á‡∏ï‡∏≤‡∏°‡∏Ç‡πâ‡∏≠‡∏°‡∏π‡∏•‡∏ó‡∏µ‡πà‡πÉ‡∏ä‡πâ‡∏ï‡∏£‡∏ß‡∏à‡∏Å‡∏é" icon="clock" /></div>
-        <RuleCheckingDataSurfaces rules={rules} results={results} violations={violations} loading={operationLoading} canManage={canManage} onAction={(row, action) => handleOperationAction(row, action)} />
-      </section>;
-    }
-    if (activePage === 'attendance' && auth.token) {
-      return <AttendanceSimplePage
-        token={auth.token}
-        displayName={auth.user?.displayName}
-        department={auth.user?.department}
-        readOnly={auth.isViewingAs}
-        online={!pwaShell || pwaOnline}
-        employeeV4={pwaShell}
-        onTodayHistory={() => selectPwaPage('attendanceHistory', { today: true })}
-        onOpenSettings={() => selectPwaPage('profile')}
-        onOpenAttendanceDevice={() => selectPwaPage('attendanceDevice')}
-        onOpenSupervisor={pwaShell && ['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(auth.user?.role || '') && !auth.isViewingAs ? openPwaAttendanceSupervisor : undefined}
-      />;
-    }
-    if (activePage === 'attendanceSupervisor' && auth.token && ['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(auth.user?.role || '') && !auth.isViewingAs) {
-      return <AttendanceSupervisorPage token={auth.token} role={auth.user?.role || 'VIEWER'} department={auth.user?.department} userId={auth.user?.id} onOpenAttendanceReport={!pwaShell && auth.user?.role === 'ADMIN' ? () => setActivePage('attendanceReport') : undefined} onApprovalQueueChanged={() => { setOperationRefresh((value) => value + 1); setApprovalCenterRefresh((value) => value + 1); }} />;
-    }
-    if (activePage === 'attendanceHistory' && auth.token && pwaShell) {
-      return <AttendanceHistoryPwaPage token={auth.token} online={pwaOnline} />;
-    }
-    if (activePage === 'employeeSchedule' && auth.token && pwaShell) {
-      return <AttendanceSchedulePwaPage token={auth.token} online={pwaOnline} />;
-    }
-    if (activePage === 'profile' && auth.token) {
-      return <PwaProfilePage user={auth.user} online={pwaOnline} readOnly={auth.isViewingAs} onOpenPasskeys={() => setPasskeyPanelOpen(true)} onLogout={() => auth.logout()} />;
-    }
-    if (activePage === 'attendanceDevice' && auth.token) {
-      return <AttendanceDevicePage token={auth.token} role={auth.user?.role || 'VIEWER'} readOnly={auth.isViewingAs} onApprovalQueueChanged={() => { setOperationRefresh((value) => value + 1); setApprovalCenterRefresh((value) => value + 1); }} />;
-    }
-    if (activePage === 'users') {
-      const users = Array.isArray(operationResponse.data) ? operationResponse.data : [];
-      return <div className="users-access-workspace layout-personnel-page layout-page-surface">
-        <AccessManagementPage
-          rows={users as Array<{ id: string; displayName?: string; role?: string; department?: string | null; accountStatus?: string; isActive?: boolean; passwordResetRequired?: boolean; createdAt?: string; updatedAt?: string }>}
-          loading={operationLoading}
-          error={typeof operationError === 'string' ? operationError : operationError?.message}
-          role={auth.user?.role || 'VIEWER'}
-          originalUserId={auth.originalUser?.id}
-          onRefresh={() => setOperationRefresh((value) => value + 1)}
-          onUpdate={async (id, payload) => { await api.updateUser(auth.token!, id, payload); setOperationRefresh((value) => value + 1); }}
-          onResetPassword={async (id, newPassword) => { await api.resetUserPassword(auth.token!, id, newPassword); setOperationRefresh((value) => value + 1); }}
-          onViewAs={async (id) => { await auth.beginViewAs(id); setActivePage('dashboard'); }}
-          onOpenAudit={() => setActivePage('audit')}
-          onProvisionG06Uat={async () => {
-            const response = await api.provisionG06Uat(auth.token!);
-            setOperationRefresh((value) => value + 1);
-            return (response as { data: G06UatProvisionResult }).data;
-          }}
-        />
-        <RegistrationReviewPanel token={auth.token!} role={auth.user?.role || 'VIEWER'} refreshSignal={operationRefresh} initialRequestId={registrationReviewInitialRequestId} onInitialRequestHandled={() => setRegistrationReviewInitialRequestId(undefined)} onChanged={() => setOperationRefresh((value) => value + 1)} onOpenEmployeeMaster={() => setActivePage('employees')} />
-      </div>;
-    }
-    if (activePage === 'securitySite' && auth.token) {
-      return <SecuritySiteManagementPanel token={auth.token} />;
-    }
-    if (activePage === 'settings') {
-      const settings = Array.isArray(operationResponse.data) ? operationResponse.data : [];
-      return <SettingsPage token={auth.token!} settings={settings} leaveTypes={leaveTypes} leaveTypesLoading={leaveTypesLoading} loading={operationLoading} error={operationError} section={activeSettingsSection} onSectionChange={setSettingsSection} onRefresh={() => setOperationRefresh((value) => value + 1)} onAudit={() => setActivePage('audit')} onSaveTemplates={async (newLeave, leaveStatus) => { if (!auth.token) return; await Promise.all([api.updateSystemSetting(auth.token, 'LINE_TEMPLATE_NEW_LEAVE', { value: newLeave, description: '‡πÄ‡∏ó‡∏°‡πÄ‡∏û‡∏•‡∏ï‡∏Ç‡πâ‡∏≠‡∏Ñ‡∏ß‡∏≤‡∏°‡∏Ñ‡∏≥‡∏Ç‡∏≠‡∏•‡∏≤‡πÉ‡∏´‡∏°‡πà (‡∏£‡∏π‡∏õ‡πÅ‡∏ö‡∏ö‡πÄ‡∏î‡∏¥‡∏°)' }), api.updateSystemSetting(auth.token, 'LINE_TEMPLATE_LEAVE_STATUS', { value: leaveStatus, description: '‡πÄ‡∏ó‡∏°‡πÄ‡∏û‡∏•‡∏ï‡∏Ç‡πâ‡∏≠‡∏Ñ‡∏ß‡∏≤‡∏°‡∏≠‡∏±‡∏õ‡πÄ‡∏î‡∏ï‡∏™‡∏ñ‡∏≤‡∏ô‡∏∞‡∏Å‡∏≤‡∏£‡∏•‡∏≤ (‡∏£‡∏π‡∏õ‡πÅ‡∏ö‡∏ö‡πÄ‡∏î‡∏¥‡∏°)' })]); setOperationRefresh((value) => value + 1); }} onSaveAttendancePolicy={async (policy) => { if (!auth.token) return; await Promise.all([api.updateSystemSetting(auth.token, attendancePolicyKeys.qrPolicy, { value: policy.qrPolicy, description: 'Attendance QR policy: ADAPTIVE / REQUIRED / DISABLED' }), api.updateSystemSetting(auth.token, attendancePolicyKeys.maxAccuracyMeters, { value: String(policy.maxAccuracyMeters), description: 'GPS accuracy ‡∏™‡∏π‡∏á‡∏™‡∏∏‡∏î‡∏ó‡∏µ‡πà Attendance ‡∏¢‡∏≠‡∏°‡∏£‡∏±‡∏ö (‡πÄ‡∏°‡∏ï‡∏£)' }), api.updateSystemSetting(auth.token, attendancePolicyKeys.maxAgeSeconds, { value: String(policy.maxAgeSeconds), description: '‡∏≠‡∏≤‡∏¢‡∏∏ GPS sample ‡∏™‡∏π‡∏á‡∏™‡∏∏‡∏î (‡∏ß‡∏¥‡∏ô‡∏≤‡∏ó‡∏µ)' }), api.updateSystemSetting(auth.token, attendancePolicyKeys.futureSkewSeconds, { value: String(policy.futureSkewSeconds), description: 'GPS future clock skew ‡∏™‡∏π‡∏á‡∏™‡∏∏‡∏î (‡∏ß‡∏¥‡∏ô‡∏≤‡∏ó‡∏µ)' }), api.updateSystemSetting(auth.token, attendancePolicyKeys.autoPassAccuracyMeters, { value: String(policy.autoPassAccuracyMeters), description: 'GPS accuracy ‡∏™‡∏≥‡∏´‡∏£‡∏±‡∏ö‡∏Ç‡πâ‡∏≤‡∏° QR ‡πÉ‡∏ô Adaptive mode (‡πÄ‡∏°‡∏ï‡∏£)' }), api.updateSystemSetting(auth.token, attendancePolicyKeys.innerMarginMeters, { value: String(policy.innerMarginMeters), description: '‡∏£‡∏∞‡∏¢‡∏∞‡∏à‡∏≤‡∏Å‡∏Ç‡∏≠‡∏ö geofence ‡∏ó‡∏µ‡πà‡πÉ‡∏ä‡πâ‡∏ï‡∏±‡∏î‡∏™‡∏¥‡∏ô QR Step-up (‡πÄ‡∏°‡∏ï‡∏£)' }), api.updateSystemSetting(auth.token, attendancePolicyKeys.stepUpOnSiteOverlap, { value: String(policy.stepUpOnSiteOverlap), description: '‡∏Ç‡∏≠ QR Step-up ‡πÄ‡∏°‡∏∑‡πà‡∏≠ GPS ‡∏≠‡∏¢‡∏π‡πà‡πÉ‡∏ô‡∏´‡∏•‡∏≤‡∏¢ Site ‡∏û‡∏£‡πâ‡∏≠‡∏°‡∏Å‡∏±‡∏ô' })]); setOperationRefresh((value) => value + 1); }} onSaveLeavePolicy={async (policy) => { if (!auth.token) return; await Promise.all([api.updateSystemSetting(auth.token, leavePolicyKeys.defaultSickDays, { value: String(policy.defaultSickDays) }), api.updateSystemSetting(auth.token, leavePolicyKeys.defaultPersonalDays, { value: String(policy.defaultPersonalDays) }), api.updateSystemSetting(auth.token, leavePolicyKeys.defaultVacationDays, { value: String(policy.defaultVacationDays) }), api.updateSystemSetting(auth.token, leavePolicyKeys.sickAttachmentRequiredAfterDays, { value: String(policy.sickAttachmentRequiredAfterDays) }), api.updateSystemSetting(auth.token, leavePolicyKeys.managerRetroactiveOnBehalfEnabled, { value: String(policy.managerRetroactiveOnBehalfEnabled) }), api.updateSystemSetting(auth.token, leavePolicyKeys.managerRetroactiveMaxDaysBack, { value: String(policy.managerRetroactiveMaxDaysBack) })]); setOperationRefresh((value) => value + 1); }} onCreateLeaveType={async (input) => { if (!auth.token) return; await createLeaveType(auth.token, input); setOperationRefresh((value) => value + 1); }} onUpdateLeaveType={async (id, input) => { if (!auth.token) return; await updateLeaveType(auth.token, id, input); setOperationRefresh((value) => value + 1); }} />;
-    }
-    if ((activePage === 'reportCenter' || activePage === 'executiveReport' || activePage === 'reports' || activePage === 'attendanceReport') && auth.token) {
-      const initialTab = activePage === 'attendanceReport' ? 'export' : activePage === 'reports' ? 'details' : 'executive';
-      return <ReportCenterPage key={activePage} token={auth.token} role={auth.user?.role || 'VIEWER'} initialTab={initialTab} onNavigate={(page) => setActivePage(page as Page)} />;
-    }
-    if (activePage === 'quota') return <section className="view-pane layout-roster-page layout-page-surface"><PageHeader kicker="‡∏™‡∏¥‡∏ó‡∏ò‡∏¥‡πå‡∏Å‡∏≤‡∏£‡∏•‡∏≤‡∏£‡∏≤‡∏¢‡∏õ‡∏µ" title={`‡πÇ‡∏Ñ‡∏ß‡∏ï‡∏≤‡∏ß‡∏±‡∏ô‡∏•‡∏≤ ${showLegacyQuotas ? '‡∏Ç‡πâ‡∏≠‡∏°‡∏π‡∏•‡πÄ‡∏î‡∏¥‡∏°' : thaiQuotaYearLabel(quotaYear)}`} description={showLegacyQuotas ? '‡∏Ç‡πâ‡∏≠‡∏°‡∏π‡∏•‡πÄ‡∏î‡∏¥‡∏°‡∏ó‡∏µ‡πà‡∏¢‡∏±‡∏á‡πÑ‡∏°‡πà‡∏£‡∏∞‡∏ö‡∏∏‡∏õ‡∏µ ‡∏ï‡πâ‡∏≠‡∏á‡∏à‡∏±‡∏î‡∏õ‡∏£‡∏∞‡πÄ‡∏†‡∏ó‡∏Å‡πà‡∏≠‡∏ô‡πÉ‡∏ä‡πâ‡∏á‡∏≤‡∏ô‡∏£‡∏≤‡∏¢‡∏õ‡∏µ' : '‡∏™‡∏¥‡∏ó‡∏ò‡∏¥‡πå‡∏£‡∏≤‡∏¢‡∏õ‡∏µ‡πÅ‡∏¢‡∏Å‡∏ï‡∏≤‡∏°‡∏û‡∏ô‡∏±‡∏Å‡∏á‡∏≤‡∏ô‡πÅ‡∏•‡∏∞‡∏õ‡∏µ ‡∏ï‡∏£‡∏ß‡∏à‡∏Ç‡πâ‡∏≠‡∏°‡∏π‡∏•‡∏à‡∏£‡∏¥‡∏á‡∏Å‡πà‡∏≠‡∏ô‡∏Å‡∏≥‡∏´‡∏ô‡∏î‡πÇ‡∏Ñ‡∏ß‡∏ï‡∏≤'} actions={<div className="heading-actions"><label className="month-filter"><span>‡∏õ‡∏µ‡∏™‡∏¥‡∏ó‡∏ò‡∏¥‡πå</span><select aria-label="‡∏õ‡∏µ‡∏™‡∏¥‡∏ó‡∏ò‡∏¥‡πå‡πÇ‡∏Ñ‡∏ß‡∏ï‡∏≤‡∏ß‡∏±‡∏ô‡∏•‡∏≤" disabled={showLegacyQuotas} value={quotaYear} onChange={(event) => setQuotaYear(Number(event.target.value))}>{quotaYearOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label><button className="btn-neutral small-action" type="button" onClick={() => setShowLegacyQuotas((value) => !value)}>{showLegacyQuotas ? '‡∏Å‡∏•‡∏±‡∏ö‡∏£‡∏≤‡∏¢‡∏Å‡∏≤‡∏£‡∏£‡∏≤‡∏¢‡∏õ‡∏µ' : '‡∏î‡∏π‡∏Ç‡πâ‡∏≠‡∏°‡∏π‡∏•‡πÄ‡∏î‡∏¥‡∏°‡∏ó‡∏µ‡πà‡∏¢‡∏±‡∏á‡πÑ‡∏°‡πà‡∏£‡∏∞‡∏ö‡∏∏‡∏õ‡∏µ'}</button></div>} /><OperationalTable page={activePage as OperationalPage} response={operationResponse} loading={operationLoading} error={operationError} onPageChange={setOperationPage} onAction={handleOperationAction} onCreate={openCreateOperation} onNavigate={setActivePage} role={auth.user?.role || 'VIEWER'} token={auth.token} refreshSignal={operationRefresh} onLicenseDocumentChanged={() => setOperationRefresh((value) => value + 1)} printedBy={`${auth.user?.displayName || auth.user?.email || '‡∏ú‡∏π‡πâ‡πÉ‡∏ä‡πâ‡∏á‡∏≤‡∏ô'} ¬∑ ${roleDisplayName(auth.user?.role)}`} /></section>;
-    return <><OperationalTable page={activePage as OperationalPage} response={operationResponse} loading={operationLoading} error={operationError} onPageChange={setOperationPage} onAction={handleOperationAction} onCreate={openCreateOperation} onNavigate={setActivePage} role={auth.user?.role || 'VIEWER'} token={auth.token} refreshSignal={operationRefresh} onLicenseDocumentChanged={() => setOperationRefresh((value) => value + 1)} onEditLicense={activePage === 'licenses' ? openLicenseEdit : undefined} licenseEmployeeStatus={licenseEmployeeStatus} onLicenseEmployeeStatusChange={setLicenseEmployeeStatus} printedBy={`${auth.user?.displayName || auth.user?.email || '‡∏ú‡∏π‡πâ‡πÉ‡∏ä‡πâ‡∏á‡∏≤‡∏ô'} ¬∑ ${roleDisplayName(auth.user?.role)}`} />{licenseEditTarget && auth.token && <LicenseEditModal license={{ id: String(licenseEditTarget.id), licenseNumber: licenseEditTarget.licenseNumber ? String(licenseEditTarget.licenseNumber) : null, licenseType: licenseEditTarget.licenseType ? String(licenseEditTarget.licenseType) : null, issueDate: licenseEditTarget.issueDate ? String(licenseEditTarget.issueDate) : null, expiryDate: licenseEditTarget.expiryDate ? String(licenseEditTarget.expiryDate) : null, status: licenseEditTarget.status ? String(licenseEditTarget.status) : null, employee: { employeeCode: String(nested(licenseEditTarget.employee).employeeCode || ''), firstName: String(nested(licenseEditTarget.employee).firstName || ''), lastName: String(nested(licenseEditTarget.employee).lastName || ''), department: nested(licenseEditTarget.employee).department ? String(nested(licenseEditTarget.employee).department) : undefined } }} isAdmin={auth.user?.role === 'ADMIN'} currentUserId={auth.user?.id || ''} services={licenseDocumentServices} onUpload={async (data, file) => { await api.uploadLicenseDocument(auth.token!, String(licenseEditTarget.id), data, file); }} onChanged={() => setOperationRefresh((value) => value + 1)} onClose={() => setLicenseEditTarget(undefined)} />}</>;
-  };
-
-  const printData = useMemo(() => {
-    if (activePage !== 'schedule') return null;
-    const calendar = !Array.isArray(operationResponse.data) ? operationResponse.data || {} : {};
-    const dates = Array.isArray(calendar.dates) ? calendar.dates.map(String) : [];
-    const rawCalendarEmployees = Array.isArray(calendar.employees) ? calendar.employees as DataRow[] : [];
-    const allCalendarEmployees = sortScheduleEmployeesByDepartment(rawCalendarEmployees);
-    const calendarEmployees = selectedDepartments.length > 0
-      ? allCalendarEmployees.filter((emp) => selectedDepartments.includes(text(emp.department)))
-      : allCalendarEmployees;
-    const approval = nested(calendar.approval);
-    const [yStr, mStr] = scheduleMonth.split('-');
-    const thaiYearNum = Number(yStr) + 543;
-    const monthNameOnly = formatThaiMonthName(Number(mStr), Number(yStr));
-    const printMonthLabel = `${monthNameOnly} ${thaiYearNum}`;
-    const printDepartments = Array.from(new Set(calendarEmployees.map((e) => String(e.department ?? '').trim())));
-
-    return {
-      dates,
-      calendarEmployees,
-      approval,
-      printMonthLabel,
-      printDepartments
-    };
-  }, [activePage, operationResponse, selectedDepartments, scheduleMonth]);
-
-  return (
-    <>
-      {!pwaShell && <WorkflowCommandPalette open={commandPaletteOpen} items={workflowCommands} onClose={() => setCommandPaletteOpen(false)} onNavigate={(id) => setActivePage(id as Page)} />}
-      {leaveDecision && <React.Suspense fallback={<div className="full-loader" role="status">‡∏Å‡∏≥‡∏•‡∏±‡∏á‡πÇ‡∏´‡∏•‡∏î‡∏´‡∏ô‡πâ‡∏≤‡∏ï‡πà‡∏≤‡∏á‡∏¢‡∏∑‡∏ô‡∏¢‡∏±‡∏ô‚Ä¶</div>}><LeaveDecisionConfirmation
-        target={leaveDecision.target}
-        action={leaveDecision.action}
-        busy={operationLoading}
-        error={operationError}
-        onClose={() => { if (!operationLoading) setLeaveDecision(undefined); }}
-        onConfirm={confirmLeaveDecision}
-      /></React.Suspense>}
-      <div
-        className={`app-shell ${desktopView ? 'desktop-view' : ''} ${auth.isViewingAs ? 'view-as-active' : ''} ${pwaShell ? `pwa-shell pwa-page-${activePage}` : ''}`}
-        style={{ backgroundColor: 'var(--surface-page, #020813)', color: 'var(--text-on-surface, #f1f5f9)' }}
-      >
-      {editor && <EditDialog editor={editor} busy={editorBusy} error={editorError} onClose={() => { setEditor(undefined); setEditorError(undefined); }} />}
-      {employeeGovernedEditTarget && auth.token && !auth.isViewingAs && <React.Suspense fallback={<div className="full-loader" role="status">‡∏Å‡∏≥‡∏•‡∏±‡∏á‡πÇ‡∏´‡∏•‡∏î‡∏´‡∏ô‡πâ‡∏≤‡∏ï‡πà‡∏≤‡∏á‚Ä¶</div>}><EmployeeGovernedEditModal token={auth.token} employee={employeeGovernedEditTarget} role={auth.user?.role || 'VIEWER'} onClose={() => setEmployeeGovernedEditTarget(undefined)} onChanged={() => setEmployeeRefresh((value) => value + 1)} /></React.Suspense>}
-      {employeeChangeReviewOpen && auth.token && auth.user?.role === 'ADMIN' && !auth.isViewingAs && <React.Suspense fallback={<div className="full-loader" role="status">‡∏Å‡∏≥‡∏•‡∏±‡∏á‡πÇ‡∏´‡∏•‡∏î‡∏´‡∏ô‡πâ‡∏≤‡∏ï‡πà‡∏≤‡∏á‚Ä¶</div>}><EmployeeChangeReviewModal token={auth.token} initialRequestId={employeeChangeReviewInitialId} onClose={() => { setEmployeeChangeReviewOpen(false); setEmployeeChangeReviewInitialId(undefined); }} onChanged={() => { setEmployeeRefresh((value) => value + 1); setApprovalCenterRefresh((value) => value + 1); }} /></React.Suspense>}
-      {auth.isViewingAs && <div className="view-as-banner" role="status"><span><SmsIcon name="eye" size={16} /> ‡∏Å‡∏≥‡∏•‡∏±‡∏á‡∏î‡∏π‡∏£‡∏∞‡∏ö‡∏ö‡πÉ‡∏ô‡∏°‡∏∏‡∏°‡∏°‡∏≠‡∏á <strong>{auth.user?.displayName}</strong> ({roleDisplayName(auth.user?.role)}) ¬∑ ‡∏≠‡πà‡∏≤‡∏ô‡∏≠‡∏¢‡πà‡∏≤‡∏á‡πÄ‡∏î‡∏µ‡∏¢‡∏ß</span><button type="button" onClick={() => { auth.endViewAs(); setActivePage('users'); }}>‡∏Å‡∏•‡∏±‡∏ö‡∏™‡∏π‡πà‡∏ö‡∏±‡∏ç‡∏ä‡∏µ Admin</button></div>}
-      {mobileMenuOpen && <button className="sidebar-overlay" aria-label="‡∏õ‡∏¥‡∏î‡πÄ‡∏°‡∏ô‡∏π‡∏´‡∏•‡∏±‡∏Å" aria-controls="app-navigation-drawer" onClick={() => setMobileMenuOpen(false)} />}
-      <aside id="app-navigation-drawer" className={`sidebar ${mobileMenuOpen ? 'open' : ''}`} aria-label="‡πÄ‡∏°‡∏ô‡∏π‡∏´‡∏•‡∏±‡∏Å">
-        <div className="sidebar-brand">
-          <BrandLogo />
-          <button type="button" className="sidebar-close-button" aria-label="‡∏õ‡∏¥‡∏î‡πÄ‡∏°‡∏ô‡∏π‡∏´‡∏•‡∏±‡∏Å" onClick={() => setMobileMenuOpen(false)}><SmsIcon name="close" size={20} /></button>
-        </div>
-        <nav className="nav-menu" aria-label="‡πÄ‡∏°‡∏ô‡∏π‡∏´‡∏•‡∏±‡∏Å">{visibleNavigation.map((section) => (
-          <div className="nav-section" key={section.label}><p>{section.label}</p>{section.items.map((item) => {
-            const roleCanSeeCount = Boolean(auth.user?.role && APPROVAL_COUNT_MENU_ROLES[item.id]?.includes(auth.user.role));
-            const countEnabled = roleCanSeeCount && !pwaShell && !auth.isViewingAs && Boolean(auth.token);
-            const menuCount = countEnabled ? approvalMenuCount(item.id, approvalSummary) : null;
-            const badge = approvalBadgeText(menuCount);
-            const countStateTitle = countEnabled && approvalCountStatus === 'loading' ? '‡∏Å‡∏≥‡∏•‡∏±‡∏á‡πÇ‡∏´‡∏•‡∏î‡∏à‡∏≥‡∏ô‡∏ß‡∏ô‡∏£‡∏≤‡∏¢‡∏Å‡∏≤‡∏£‡∏£‡∏≠‡∏≠‡∏ô‡∏∏‡∏°‡∏±‡∏ï‡∏¥' : countEnabled && approvalCountStatus === 'error' ? '‡πÇ‡∏´‡∏•‡∏î‡∏à‡∏≥‡∏ô‡∏ß‡∏ô‡∏£‡∏≤‡∏¢‡∏Å‡∏≤‡∏£‡∏£‡∏≠‡∏≠‡∏ô‡∏∏‡∏°‡∏±‡∏ï‡∏¥‡πÑ‡∏°‡πà‡∏™‡∏≥‡πÄ‡∏£‡πá‡∏à' : undefined;
-            const countStateLabel = countStateTitle ? `${item.label}, ${countStateTitle}` : undefined;
-            const countTitle = badge && menuCount !== null ? `${menuCount} ‡∏£‡∏≤‡∏¢‡∏Å‡∏≤‡∏£‡∏£‡∏≠‡∏≠‡∏ô‡∏∏‡∏°‡∏±‡∏ï‡∏¥` : countStateTitle;
-            return <button type="button" key={item.id} data-navigation-id={item.id} aria-label={badge ? `${item.label}, ${countTitle}` : countStateLabel} title={countTitle} className={`nav-item ${navigationPage === item.id ? 'active' : ''} ${badge ? 'has-approval-count' : ''}`} onClick={() => { setActivePage(item.id); setMobileMenuOpen(false); }}><span className="nav-icon"><SmsIcon name={item.icon} size={19} /></span><span>{item.label}{badge && <b className="nav-count-badge" aria-hidden="true">{badge}</b>}</span></button>;
-          })}</div>
-        ))}</nav>
-        <div className="sidebar-footer">
-          <div className="sidebar-user sidebar-profile"><span className="avatar">{initials}</span><span><b>{auth.user?.displayName || '‡∏ú‡∏π‡πâ‡πÉ‡∏ä‡πâ‡∏á‡∏≤‡∏ô'}</b><small>{roleDisplayName(auth.user?.role || 'VIEWER')}</small></span></div>
-          <button type="button" className="sidebar-logout" onClick={() => auth.logout()}><SmsIcon name="logout" size={18} /><span>‡∏≠‡∏≠‡∏Å‡∏à‡∏≤‡∏Å‡∏£‡∏∞‡∏ö‡∏ö</span></button>
-        </div>
-      </aside>
-      <main className="main-area">
-        {pwaShell && activePage !== 'attendance' && <header className="pwa-mobile-header"><span className="pwa-mobile-brand"><BrandLogo tone="dark-surface" /></span><span className={`pwa-online-state ${pwaOnline ? '' : 'offline'}`}>{pwaOnline ? '‡∏≠‡∏≠‡∏ô‡πÑ‡∏•‡∏ô‡πå' : '‡∏≠‡∏≠‡∏ü‡πÑ‡∏•‡∏ô‡πå'}</span></header>}
-        {pwaShell && !pwaOnline && <div className="pwa-offline-banner">‡∏≠‡∏≠‡∏ü‡πÑ‡∏•‡∏ô‡πå ‚Äî ‡πÄ‡∏õ‡∏¥‡∏î‡∏î‡∏π shell ‡πÑ‡∏î‡πâ ‡πÅ‡∏ï‡πà‡∏Å‡∏≤‡∏£‡∏•‡∏á‡πÄ‡∏ß‡∏•‡∏≤‡πÅ‡∏•‡∏∞‡∏Å‡∏≤‡∏£‡∏™‡πà‡∏á‡∏Ñ‡∏≥‡∏Ç‡∏≠‡∏•‡∏≤‡∏ï‡πâ‡∏≠‡∏á‡∏£‡∏≠‡∏Å‡∏≤‡∏£‡πÄ‡∏ä‡∏∑‡πà‡∏≠‡∏°‡∏ï‡πà‡∏≠ Server</div>}
-        <header className="topbar">
-          <div className="topbar-left">
-            <button ref={mobileMenuTriggerRef} type="button" className="mobile-menu-button" aria-label="‡πÄ‡∏õ‡∏¥‡∏î‡πÄ‡∏°‡∏ô‡∏π‡∏´‡∏•‡∏±‡∏Å" aria-expanded={mobileMenuOpen} aria-controls="app-navigation-drawer" onClick={() => setMobileMenuOpen(true)}><SmsIcon name="menu" size={20} /></button>
-            <span className="mobile-brand"><BrandLogo /></span>
-            <span className="topbar-copy"><strong>{pageTitle}</strong><small>{pageSubtitle[navigationPage]}</small></span>
-          </div>
-          <label className="topbar-search"><span aria-hidden="true"><SmsIcon name="search" size={17} /></span><input aria-label="‡∏Ñ‡πâ‡∏ô‡∏´‡∏≤‡∏û‡∏ô‡∏±‡∏Å‡∏á‡∏≤‡∏ô" placeholder="‡∏Ñ‡πâ‡∏ô‡∏´‡∏≤‡∏û‡∏ô‡∏±‡∏Å‡∏á‡∏≤‡∏ô..." value={search} onChange={(event) => { setSearch(event.target.value); if (event.target.value && activePage !== 'employees') setActivePage('employees'); }} /></label>
-          <div className="topbar-actions">
-            {!pwaShell && <button type="button" className="workflow-command-trigger" title="‡πÑ‡∏õ‡∏¢‡∏±‡∏á‡∏á‡∏≤‡∏ô‡∏´‡∏£‡∏∑‡∏≠‡∏´‡∏ô‡πâ‡∏≤‡∏ó‡∏µ‡πà‡∏ï‡πâ‡∏≠‡∏á‡∏Å‡∏≤‡∏£" onClick={() => setCommandPaletteOpen(true)}><SmsIcon name="search" size={16} /><span>‡πÄ‡∏°‡∏ô‡∏π‡∏î‡πà‡∏ß‡∏ô</span><kbd>Ctrl K</kbd></button>}
-            <span className="environment-pill">{import.meta.env.PROD ? 'DEPLOYED' : 'LOCAL'}</span>
-            {['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(auth.user?.role || '') && !auth.isViewingAs && <ApprovalCenterNotificationButton count={approvalMenuCount('approvalCenter', approvalSummary)} onClick={() => setActivePage('approvalCenter')} />}
-            <ThemeControl compact />
-            <button type="button" className="display-mode-toggle" aria-pressed={desktopView} title={desktopView ? '‡∏Å‡∏•‡∏±‡∏ö‡∏°‡∏∏‡∏°‡∏°‡∏≠‡∏á‡∏°‡∏∑‡∏≠‡∏ñ‡∏∑‡∏≠' : '‡πÅ‡∏™‡∏î‡∏á‡πÅ‡∏ö‡∏ö‡πÄ‡∏î‡∏™‡∏Å‡πå‡∏ó‡πá‡∏≠‡∏õ'} onClick={toggleDesktopView}><SmsIcon name={desktopView ? 'device' : 'system'} size={16} /><span>{desktopView ? 'Mobile' : 'Desktop'}</span></button>
-            <button type="button" className="topbar-profile topbar-profile-button" title="‡∏Å‡∏≤‡∏£‡πÄ‡∏Ç‡πâ‡∏≤‡∏™‡∏π‡πà‡∏£‡∏∞‡∏ö‡∏ö‡πÅ‡∏•‡∏∞ Passkey" onClick={() => setPasskeyPanelOpen(true)}><span className="avatar">{initials}</span><span><b>{auth.user?.displayName || '‡∏ú‡∏π‡πâ‡πÉ‡∏ä‡πâ‡∏á‡∏≤‡∏ô'}</b><small>{roleDisplayName(auth.user?.role || 'VIEWER')}</small></span></button>
-            <button ref={mobileUtilityTriggerRef} type="button" className="mobile-utility-button" aria-label="‡πÄ‡∏õ‡∏¥‡∏î‡πÄ‡∏°‡∏ô‡∏π‡∏ö‡∏±‡∏ç‡∏ä‡∏µ‡πÅ‡∏•‡∏∞‡∏ò‡∏µ‡∏°" aria-expanded={mobileUtilityOpen} aria-controls="mobile-utility-panel" onClick={() => setMobileUtilityOpen((value) => !value)}><SmsIcon name="more" size={20} /></button>
-          </div>
-          {mobileUtilityOpen && createPortal(<>
-            <button type="button" className="mobile-utility-backdrop" aria-label="‡∏õ‡∏¥‡∏î‡πÄ‡∏°‡∏ô‡∏π‡∏ö‡∏±‡∏ç‡∏ä‡∏µ‡πÅ‡∏•‡∏∞‡∏ò‡∏µ‡∏°" onClick={() => setMobileUtilityOpen(false)} />
-            <div id="mobile-utility-panel" className="mobile-utility-panel" role="dialog" aria-modal="true" aria-label="‡∏ö‡∏±‡∏ç‡∏ä‡∏µ‡πÅ‡∏•‡∏∞‡∏Å‡∏≤‡∏£‡∏ï‡∏±‡πâ‡∏á‡∏Ñ‡πà‡∏≤‡∏´‡∏ô‡πâ‡∏≤‡∏à‡∏≠">
-              <div className="mobile-utility-profile"><span className="avatar">{initials}</span><span><b>{auth.user?.displayName || '‡∏ú‡∏π‡πâ‡πÉ‡∏ä‡πâ‡∏á‡∏≤‡∏ô'}</b><small>{roleDisplayName(auth.user?.role || 'VIEWER')}</small></span></div>
-              <label className="mobile-utility-search"><span aria-hidden="true"><SmsIcon name="search" size={17} /></span><input aria-label="‡∏Ñ‡πâ‡∏ô‡∏´‡∏≤‡∏û‡∏ô‡∏±‡∏Å‡∏á‡∏≤‡∏ô‡∏ö‡∏ô‡∏°‡∏∑‡∏≠‡∏ñ‡∏∑‡∏≠" placeholder="‡∏Ñ‡πâ‡∏ô‡∏´‡∏≤‡∏û‡∏ô‡∏±‡∏Å‡∏á‡∏≤‡∏ô..." value={search} onChange={(event) => { setSearch(event.target.value); if (event.target.value && activePage !== 'employees') setActivePage('employees'); }} /></label>
-              <button type="button" className="mobile-utility-security" onClick={() => { setMobileUtilityOpen(false); setCommandPaletteOpen(true); }}><SmsIcon name="search" size={18} />‡πÑ‡∏õ‡∏¢‡∏±‡∏á‡∏á‡∏≤‡∏ô‡∏´‡∏£‡∏∑‡∏≠‡∏´‡∏ô‡πâ‡∏≤‡∏≠‡∏∑‡πà‡∏ô</button>
-              <div className="mobile-utility-theme"><span>Theme</span><ThemeControl /></div>
-              <button type="button" className="mobile-utility-display-mode" aria-pressed={desktopView} onClick={toggleDesktopView}><SmsIcon name={desktopView ? 'device' : 'system'} size={16} />{desktopView ? '‡∏Å‡∏•‡∏±‡∏ö‡∏°‡∏∏‡∏°‡∏°‡∏≠‡∏á‡∏°‡∏∑‡∏≠‡∏ñ‡∏∑‡∏≠' : '‡πÅ‡∏™‡∏î‡∏á‡πÅ‡∏ö‡∏ö‡πÄ‡∏î‡∏™‡∏Å‡πå‡∏ó‡πá‡∏≠‡∏õ'}</button>
-              <button type="button" className="mobile-utility-security" onClick={() => { setMobileUtilityOpen(false); setPasskeyPanelOpen(true); }}><SmsIcon name="key" size={18} />‡∏Å‡∏≤‡∏£‡πÄ‡∏Ç‡πâ‡∏≤‡∏™‡∏π‡πà‡∏£‡∏∞‡∏ö‡∏ö‡πÅ‡∏•‡∏∞ Passkey</button>
-              <button type="button" className="mobile-utility-logout" onClick={() => auth.logout()}><SmsIcon name="logout" size={18} />‡∏≠‡∏≠‡∏Å‡∏à‡∏≤‡∏Å‡∏£‡∏∞‡∏ö‡∏ö</button>
-            </div>
-          </>, document.body)}
-        </header>
-        <div className="content-area"><React.Suspense fallback={<AppLoader variant="content" message={loadingMessages.page} />}>{content()}</React.Suspense></div>
-        {pwaShell && <nav className="pwa-bottom-nav" aria-label="‡πÄ‡∏°‡∏ô‡∏π PWA">
-          <button type="button" className={activePage === 'attendance' ? 'active' : ''} onClick={() => selectPwaPage('attendance')}><SmsIcon name="clock" size={20} /><span>‡∏•‡∏á‡πÄ‡∏ß‡∏•‡∏≤</span></button>
-          <button type="button" className={activePage === 'attendanceHistory' ? 'active' : ''} onClick={() => selectPwaPage('attendanceHistory')}><SmsIcon name="history" size={20} /><span>‡∏õ‡∏£‡∏∞‡∏ß‡∏±‡∏ï‡∏¥</span></button>
-          <button type="button" className={activePage === 'employeeSchedule' ? 'active' : ''} onClick={() => selectPwaPage('employeeSchedule')}><SmsIcon name="calendar" size={20} /><span>‡∏ï‡∏≤‡∏£‡∏≤‡∏á‡∏á‡∏≤‡∏ô</span></button>
-          <button type="button" className={activePage === 'leave' ? 'active' : ''} onClick={() => selectPwaPage('leave')}><SmsIcon name="leave" size={20} /><span>‡∏•‡∏≤</span></button>
-          <button type="button" className={activePage === 'profile' ? 'active' : ''} onClick={() => selectPwaPage('profile')}><SmsIcon name="users" size={20} /><span>‡πÇ‡∏õ‡∏£‡πÑ‡∏ü‡∏•‡πå</span></button>
-        </nav>}
-      </main>
-    </div>
-    {passkeyPanelOpen && auth.token && <React.Suspense fallback={<div className="full-loader" role="status">‡∏Å‡∏≥‡∏•‡∏±‡∏á‡πÇ‡∏´‡∏•‡∏î‡∏´‡∏ô‡πâ‡∏≤‡∏ï‡πà‡∏≤‡∏á‚Ä¶</div>}><PasskeySecurityPanel token={auth.token} onClose={() => setPasskeyPanelOpen(false)} /></React.Suspense>}
-    {printData && (
-      <div className="print-only">
-        {printData.printDepartments.length === 0 && (
-          <div className="print-page print-empty-page">
-            <div className="print-header">
-              Security Management System - ‡∏ï‡∏≤‡∏£‡∏≤‡∏á‡∏Å‡∏∞‡∏ó‡∏µ‡πà‡∏≠‡∏ô‡∏∏‡∏°‡∏±‡∏ï‡∏¥‡πÅ‡∏•‡πâ‡∏ß - {printData.printMonthLabel}
-            </div>
-            <div className="print-empty-state">
-              <strong>‡πÑ‡∏°‡πà‡∏û‡∏ö‡∏Ç‡πâ‡∏≠‡∏°‡∏π‡∏•‡∏ï‡∏≤‡∏£‡∏≤‡∏á‡∏Å‡∏∞‡∏™‡∏≥‡∏´‡∏£‡∏±‡∏ö‡πÄ‡∏î‡∏∑‡∏≠‡∏ô‡∏ô‡∏µ‡πâ</strong>
-              <span>‡∏Å‡∏£‡∏∏‡∏ì‡∏≤‡∏ï‡∏£‡∏ß‡∏à‡∏™‡∏≠‡∏ö‡πÄ‡∏î‡∏∑‡∏≠‡∏ô‡∏´‡∏£‡∏∑‡∏≠‡πÅ‡∏ú‡∏ô‡∏Å‡∏ó‡∏µ‡πà‡πÄ‡∏•‡∏∑‡∏≠‡∏Å‡∏Å‡πà‡∏≠‡∏ô‡∏™‡πà‡∏á‡∏≠‡∏≠‡∏Å PDF</span>
-            </div>
-          </div>
-        )}
-        {printData.printDepartments.map((dept) => {
-          const deptEmployees = printData.calendarEmployees.filter((e) => String(e.department ?? '').trim() === dept);
-          return (
-            <div className="print-page" key={dept}>
-              <div className="print-header">
-                Security Management System - ‡∏ï‡∏≤‡∏£‡∏≤‡∏á‡∏Å‡∏∞‡∏ó‡∏µ‡πà‡∏≠‡∏ô‡∏∏‡∏°‡∏±‡∏ï‡∏¥‡πÅ‡∏•‡πâ‡∏ß - {printData.printMonthLabel}
-              </div>
-              <div className="print-metadata">
-                <div className="print-metadata-left">
-                  <span>‡πÅ‡∏ú‡∏ô‡∏Å: <strong>{dept || '‡∏ó‡∏±‡πà‡∏ß‡πÑ‡∏õ'}</strong></span>
-                  <span style={{ marginLeft: '12px' }}>‡∏â‡∏ö‡∏±‡∏ö‡πÅ‡∏Å‡πâ‡πÑ‡∏Ç: <strong>{text(printData.approval.revision || 1)}</strong></span>
-                  <span style={{ marginLeft: '12px' }}>‡∏≠‡∏ô‡∏∏‡∏°‡∏±‡∏ï‡∏¥‡πÇ‡∏î‡∏¢: <strong>{text(printData.approval.approvedBy || printData.approval.approvedByDisplayName || roleDisplayName('ADMIN'))}</strong></span>
-                  <span style={{ marginLeft: '12px' }}>‡∏ß‡∏±‡∏ô‡∏ó‡∏µ‡πà‡∏≠‡∏ô‡∏∏‡∏°‡∏±‡∏ï‡∏¥: <strong>{printData.approval.approvedAt ? formatApprovalDateTime(printData.approval.approvedAt) : '-'}</strong></span>
-                </div>
-                <div className="print-metadata-right">
-                  <span>‡∏™‡πà‡∏á‡∏≠‡∏≠‡∏Å‡πÇ‡∏î‡∏¢: <strong>{auth.user?.email || roleDisplayName('ADMIN')}</strong></span>
-                  <span style={{ marginLeft: '12px' }}>‡∏ß‡∏±‡∏ô‡∏ó‡∏µ‡πà Export: <strong>{formatApprovalDateTime(new Date())}</strong></span>
-                </div>
-              </div>
-              <table className="print-table">
-                <thead>
-                  <tr>
-                    <th style={{ width: '40px' }}>‡∏•‡∏≥‡∏î‡∏±‡∏ö</th>
-                    <th>‡∏ä‡∏∑‡πà‡∏≠-‡∏ô‡∏≤‡∏°‡∏™‡∏Å‡∏∏‡∏•</th>
-                    <th>‡∏ï‡∏≥‡πÅ‡∏´‡∏ô‡πà‡∏á</th>
-                    {printData.dates.map((day) => {
-                      const dayValue = new Date(`${day}T00:00:00Z`);
-                      const dayOfWeek = dayValue.getUTCDay();
-                      let thClass = '';
-                      if (dayOfWeek === 6) thClass = 'weekend sat';
-                      else if (dayOfWeek === 0) thClass = 'weekend sun';
-                      return (
-                        <th key={day} className={thClass}>
-                          <b>{dayValue.getUTCDate()}</b>
-                          <small>{new Intl.DateTimeFormat('th-TH', { weekday: 'short', timeZone: 'UTC' }).format(dayValue).replace(/\./g, '')}</small>
-                        </th>
-                      );
-                    })}
-                    <th>‡∏ä‡∏°.‡∏£‡∏ß‡∏°‡πÄ‡∏î‡∏∑‡∏≠‡∏ô</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr className="schedule-department-group-row print-department-group-row">
-                    <th className="schedule-department-group-sticky" scope="rowgroup" colSpan={printData.dates.length + 4}>
-                      {dept || '‡πÑ‡∏°‡πà‡∏£‡∏∞‡∏ö‡∏∏‡πÅ‡∏ú‡∏ô‡∏Å'} ¬∑ {deptEmployees.length} ‡∏Ñ‡∏ô
-                    </th>
-                  </tr>
-                  {deptEmployees.map((employee, idx) => {
-                    const employeeShifts = Array.isArray(employee.shifts) ? (employee.shifts as DataRow[]) : [];
-                    let totalHours = 0;
-                    return (
-                      <tr key={String(employee.id)}>
-                        <td>{idx + 1}</td>
-                        <td className="emp-name-col">
-                          {text(employee.displayName || `${text(employee.firstName)} ${text(employee.lastName)}`)}
-                        </td>
-                        <td className="emp-role-col">{text(employee.jobTitle || 'Security Guard')}</td>
-                        {printData.dates.map((day) => {
-                          const shift = employeeShifts.find((item) => inputDate(item.workDate) === day);
-                          const shiftType = nested(shift?.shiftType);
-                          const shiftTypeCode = shift ? String(shiftType.code || '').toUpperCase() : 'OFF';
-                          const dayValue = new Date(`${day}T00:00:00Z`);
-                          const dayOfWeek = dayValue.getUTCDay();
-                          const hours = shift ? Number(shift.hours || 0) : 0;
-                          totalHours += hours;
-
-                          let cellClass = `shift-cell-${shiftTypeCode.toLowerCase()}`;
-                          if (dayOfWeek === 6) cellClass += ' sat';
-                          if (dayOfWeek === 0) cellClass += ' sun';
-
-                          return (
-                            <td key={day} className={cellClass}>
-                              {shiftTypeCode}
-                            </td>
-                          );
-                        })}
-                        <td style={{ fontWeight: 'bold' }}>{totalHours.toFixed(1)}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-              <div className="print-legend">
-                  <div style={{ fontWeight: 'bold', marginBottom: '6px', fontSize: '10px', color: '#1e293b' }}>‡∏Ñ‡∏≥‡∏≠‡∏ò‡∏¥‡∏ö‡∏≤‡∏¢‡∏£‡∏´‡∏±‡∏™‡∏Å‡∏∞</div>
-                  <table className="print-legend-table">
-                    <tbody>
-                      {shiftTypes.map((t) => {
-                        const codeStr = text(t.code).toUpperCase();
-                        const badgeClass = `print-legend-badge badge-${codeStr.toLowerCase()}`;
-                        return (
-                          <tr key={String(t.id)}>
-                            <td style={{ width: '40px', textAlign: 'center' }}>
-                              <span className={badgeClass} style={['D', 'N', 'OFF', 'AL'].includes(codeStr) ? undefined : { backgroundColor: String(t.color || '#cbd5e1'), color: '#fff' }}>
-                                {codeStr}
-                              </span>
-                            </td>
-                            <td style={{ fontWeight: 'bold' }}>{text(t.name)}</td>
-                            <td>{codeStr === 'OFF' ? '-' : `${text(t.startTime)} - ${text(t.endTime)}`}</td>
-                            <td>{Number(t.hours || 0)} ‡∏ä‡∏°.</td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-              </div>
-              <div className="print-footer-container">
-                <div className="print-signatures">
-                  <div className="signature-box">
-                    <div>‡∏•‡∏á‡∏ä‡∏∑‡πà‡∏≠....................................................................................</div>
-                    <div style={{ marginTop: '4px' }}>(....................................................................................)</div>
-                    <div className="signature-title">‡∏û‡∏ô‡∏±‡∏Å‡∏á‡∏≤‡∏ô‡∏ú‡∏π‡πâ‡∏à‡∏±‡∏î‡∏û‡∏¥‡∏°‡∏û‡πå‡∏£‡∏≤‡∏¢‡∏á‡∏≤‡∏ô / ‡∏´‡∏±‡∏ß‡∏´‡∏ô‡πâ‡∏≤‡∏û‡∏ô‡∏±‡∏Å‡∏á‡∏≤‡∏ô‡∏£‡∏±‡∏Å‡∏©‡∏≤‡∏Ñ‡∏ß‡∏≤‡∏°‡∏õ‡∏•‡∏≠‡∏î‡∏†‡∏±‡∏¢</div>
-                  </div>
-                  <div className="signature-box">
-                    <div>‡∏ó‡∏£‡∏≤‡∏ö / ‡∏•‡∏á‡∏ä‡∏∑‡πà‡∏≠..........................................................................</div>
-                    <div style={{ marginTop: '4px' }}>(....................................................................................)</div>
-                    <div className="signature-title">‡∏ú‡∏π‡πâ‡∏à‡∏±‡∏î‡∏Å‡∏≤‡∏£‡πÄ‡∏Ç‡∏ï (‡∏ú‡∏π‡πâ‡∏≠‡∏ô‡∏∏‡∏°‡∏±‡∏ï‡∏¥)</div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    )}
-    {leavePrintTarget && <LeavePrintDocument row={leavePrintTarget} />}
-    {actionDialog.dialog}
-    </>
-  );
-}
-
-const G06DeviceContextDiagnostic = React.lazy(() => import('./pages/attendance-device/G06DeviceContextDiagnosticPage').then(({ G06DeviceContextDiagnosticPage }) => ({ default: G06DeviceContextDiagnosticPage })));
-
-function OfflineAttendanceGate() {
-  const [state, setState] = useState<'CHECKING' | 'AVAILABLE' | 'UNAVAILABLE'>('CHECKING');
-
-  useEffect(() => {
-    let active = true;
-    if (navigator.onLine) {
-      setState('UNAVAILABLE');
-      return () => { active = false; };
-    }
-    readEncryptedBootstrap<SimpleBootstrap>()
-      .then((cached) => {
-        if (!active) return;
-        const expiresAt = cached?.offline?.expiresAt ? new Date(cached.offline.expiresAt) : null;
-        setState(cached && expiresAt && !Number.isNaN(expiresAt.getTime()) && Date.now() <= expiresAt.getTime() ? 'AVAILABLE' : 'UNAVAILABLE');
-      })
-      .catch(() => { if (active) setState('UNAVAILABLE'); });
-    return () => { active = false; };
-  }, []);
-
-  if (state === 'CHECKING') return <AppLoader message={loadingMessages.offlineCheck} />;
-  if (state !== 'AVAILABLE') return <Login />;
-  return <React.Suspense fallback={<AppLoader message={loadingMessages.offlineOpen} />}>
-    <AttendanceSimplePage online={false} />
-  </React.Suspense>;
-}
-
-function RouteNotice({ kind }: { kind: 'not-found' | 'forbidden' }) {
-  const notFound = kind === 'not-found';
-  return <main className="full-loader" role="main">
-    <section aria-labelledby="route-notice-title" style={{ maxWidth: 560, textAlign: 'center', padding: 24 }}>
-      <h1 id="route-notice-title">{notFound ? '‡πÑ‡∏°‡πà‡∏û‡∏ö‡∏´‡∏ô‡πâ‡∏≤‡∏ó‡∏µ‡πà‡∏ï‡πâ‡∏≠‡∏á‡∏Å‡∏≤‡∏£' : '‡πÑ‡∏°‡πà‡∏°‡∏µ‡∏™‡∏¥‡∏ó‡∏ò‡∏¥‡πå‡πÄ‡∏Ç‡πâ‡∏≤‡∏ñ‡∏∂‡∏á‡∏´‡∏ô‡πâ‡∏≤‡∏ô‡∏µ‡πâ'}</h1>
-      <p>{notFound ? '‡∏ï‡∏£‡∏ß‡∏à‡∏™‡∏≠‡∏ö‡∏ó‡∏µ‡πà‡∏≠‡∏¢‡∏π‡πà‡∏´‡∏ô‡πâ‡∏≤‡πÄ‡∏ß‡πá‡∏ö ‡∏´‡∏£‡∏∑‡∏≠‡∏Å‡∏•‡∏±‡∏ö‡πÑ‡∏õ‡∏¢‡∏±‡∏á‡∏†‡∏≤‡∏û‡∏£‡∏ß‡∏°' : '‡∏ö‡∏±‡∏ç‡∏ä‡∏µ‡∏ô‡∏µ‡πâ‡πÑ‡∏°‡πà‡∏°‡∏µ‡∏™‡∏¥‡∏ó‡∏ò‡∏¥‡πå‡πÄ‡∏õ‡∏¥‡∏î‡∏´‡∏ô‡πâ‡∏≤‡∏ô‡∏µ‡πâ'}</p>
-      <button type="button" className="btn-primary" onClick={() => navigate('dashboard')}>‡∏Å‡∏•‡∏±‡∏ö‡πÑ‡∏õ‡∏†‡∏≤‡∏û‡∏£‡∏ß‡∏°</button>
-    </section>
-  </main>;
-}
-
-function App() {
-  const auth = useContext(AuthContext)!;
-  const [route, setRoute] = useState<RouteResolution>(() => pageFromLocation());
-
-  useEffect(() => subscribeToRouteChanges(() => setRoute(pageFromLocation())), []);
-  useEffect(() => {
-    if (auth.token && canViewRoutePage('settings', auth) && route.kind === 'page' && route.page === 'settings' && window.location.pathname.replace(/\/+$/, '') === '/app/settings') {
-      navigateSettingsSection('overview', { replace: true });
-    }
-  }, [auth.isViewingAs, auth.token, auth.user?.role, route]);
-  useEffect(() => {
-    if (auth.loading) return;
-    const forbidden = route.kind === 'page' && Boolean(auth.token) && !canViewRoutePage(route.page, auth);
-    updateDocumentTitle(route.kind === 'page' ? route.page : null, route.kind === 'not-found' ? 'not-found' : forbidden ? 'forbidden' : 'page', settingsSectionFromPath(window.location.pathname));
-  }, [auth.isViewingAs, auth.loading, auth.token, auth.user?.role, route]);
-
-  if (auth.loading) return <AppLoader message={loadingMessages.session} />;
-  if (!auth.token) return <OfflineAttendanceGate />;
-  if (shouldOpenG06DeviceContextDiagnostic({ authenticated: Boolean(auth.token), diagnosticBuild: __SMSV3_G06_DEVICE_CONTEXT_DIAGNOSTIC__, search: window.location.search })) {
-    return <React.Suspense fallback={<AppLoader message={loadingMessages.readOnly} />}><G06DeviceContextDiagnostic /></React.Suspense>;
-  }
-  if (route.kind === 'not-found') return <RouteNotice kind="not-found" />;
-  if (!canViewRoutePage(route.page, auth)) return <RouteNotice kind="forbidden" />;
-  return <Dashboard />;
-}
-
-const appRoot = document.getElementById('root')!;
-const diagnosticQueryRequested = isG06DeviceContextDiagnosticRequested({
-  diagnosticBuild: __SMSV3_G06_DEVICE_CONTEXT_DIAGNOSTIC__,
-  search: window.location.search
-});
-if (!diagnosticQueryRequested) registerSmsPwa();
-createRoot(appRoot).render(<React.StrictMode><AuthProvider><App /></AuthProvider></React.StrictMode>);
+Y™Áäx-ÆÈ‹j◊ù¢Îi∫⁄+äßj[hëÈ‹¢ÈÌ◊]˝Ô¥Ëµ©h∫⁄n∂XßzÕZ[\‹ùôXX›»‹ôX]P€€ù^\ŸP€€ù^\ŸQYôôX›\ŸSY[[À\ŸTôYã\ŸT›]HHúõ€H	‹ôXX›	Œ¬ö[\‹ù»úõ›‹Ÿ\î›\‹ù’ŸXê]]ã›\ù]][ùXÿ][€àHúõ€H	–⁄[\]ŸXò]]ãÿúõ›‹Ÿ\âŒ¬ö[\‹ù»‹ôX]T‹ù[Húõ€H	‹ôXX›Y€IŒ¬ö[\‹ù»‹ôX]Tõ€›Húõ€H	‹ôXX›Y€Kÿ€Y[ù	Œ¬ö[\‹ù	–õ€ù€›\òŸK⁄ÿ[ö]›ZKMò‹‹…Œ¬ö[\‹ù	–õ€ù€›\òŸK⁄ÿ[ö]›ZKMLò‹‹…Œ¬ö[\‹ù	–õ€ù€›\òŸK⁄ÿ[ö]›ZKMåò‹‹…Œ¬ö[\‹ù	–õ€ù€›\òŸK⁄ÿ[ö]›ZKMÃò‹‹…Œ¬ö[\‹ù	–õ€ù€›\òŸK⁄ÿ[ö]›ZKNò‹‹…Œ¬ö[\‹ù	–õ€ù€›\òŸK‹\ÀZòZÿ\ùK\ÿ[úÀ€][ãMò‹‹…Œ¬ö[\‹ù	–õ€ù€›\òŸK‹\ÀZòZÿ\ùK\ÿ[úÀ€][ãMåò‹‹…Œ¬ö[\‹ù	–õ€ù€›\òŸK‹\ÀZòZÿ\ùK\ÿ[úÀ€][ãMÃò‹‹…Œ¬ö[\‹ù	–õ€ù€›\òŸK⁄ô]úòZ[úÀ[[€õÀ€][ãMLò‹‹…Œ¬ö[\‹ù	–õ€ù€›\òŸK⁄ô]úòZ[úÀ[[€õÀ€][ãMåò‹‹…Œ¬ö[\‹ù	–õ€ù€›\òŸK⁄ô]úòZ[úÀ[[€õÀ€][ãMÃò‹‹…Œ¬ö[\‹ù	–õ€ù€›\òŸK€õ›À\ÿ[úÀ]ZK›ZKMò‹‹…Œ¬ö[\‹ù	–õ€ù€›\òŸK€õ›À\ÿ[úÀ]ZK›ZKMLò‹‹…Œ¬ö[\‹ù	–õ€ù€›\òŸK€õ›À\ÿ[úÀ]ZK›ZKMåò‹‹…Œ¬ö[\‹ù	–õ€ù€›\òŸK€õ›À\ÿ[úÀ]ZK›ZKMÃò‹‹…Œ¬ö[\‹ù	–õ€ù€›\òŸK⁄[ù\ã€][ãMò‹‹…Œ¬ö[\‹ù	–õ€ù€›\òŸK⁄[ù\ã€][ãMLò‹‹…Œ¬ö[\‹ù	–õ€ù€›\òŸK⁄[ù\ã€][ãMåò‹‹…Œ¬ö[\‹ù	–õ€ù€›\òŸK⁄[ù\ã€][ãMÃò‹‹…Œ¬ö[\‹ù	–õ€ù€›\òŸK⁄XõK\^[[€õÀÕò‹‹…Œ¬ö[\‹ù	–õ€ù€›\òŸK⁄XõK\^[[€õÀÕLò‹‹…Œ¬ö[\‹ù	–õ€ù€›\òŸK⁄XõK\^[[€õÀÕåò‹‹…Œ¬ö[\‹ù»\KôYúô\⁄]]Ÿ]⁄Ÿ[îôYúô\⁄[ô\àHúõ€H	Àãÿ\IŒ¬ö[\‹ù»ÿ[ëX⁄YTÿ⁄Y[P\õ›ò[\‘›\\úŸYYÿ⁄Y[P\õ›ò[ÿ⁄Y[P\õ›ò[⁄[ôŸU\SXô[ÿ⁄Y[P\õ›ò[\úõ‹ìY\‹ÿYŸKÿ⁄Y[P\õ›ò[›]\”Xô[ÿ⁄Y[P\õ›ò[€ôHHúõ€H	Àãÿ\õ›ò[Y\‹^IŒ¬ö[\‹ù»Ÿ][\ﬁYYSX]ôT][›HHúõ€H	Àã€X]ôK\ô\]Y\›\][›KX\IŒ¬ö[\‹ù\H»ÿ⁄Y[Pò]⁄õŸ‹ô\‹»Húõ€H	Àãÿ\IŒ¬ö[\‹ù»\—Ãë]öXŸP€€ù^XY€õ‹›X‘ô\]Y\›Y⁄›[‹[ëÃë]öXŸP€€ù^XY€õ‹›X»Húõ€H	Àã€XãŸÃãY]öXŸKX€€ù^YXY€õ‹›XÀ\õ›]IŒ¬ö[\‹ù»ôXY[ò‹û\Yõ€››ò\Húõ€H	Àã‹YŸ\Àÿ][ô[òŸK\⁄[\Kÿ][ô[òŸK\⁄[\K\›‹òYŸIŒ¬ö[\‹ù\H»⁄[\Põ€››ò\Húõ€H	Àã‹YŸ\Àÿ][ô[òŸK\⁄[\Kÿ][ô[òŸK\⁄[\KX€Y[ù	Œ¬ö[\‹ù»ì”W—T‘VW”PëSõ€Q\‹^Sò[YHHúõ€H	Àã‹õ€KY\‹^IŒ¬ö[\‹ù»Ÿ]\õ›ò[Ÿ[ù\î›[[X\ûHHúõ€H	Àãÿ\õ›ò[XŸ[ù\ãX€Y[ù	Œ¬ö[\‹ù»⁄›[€\õ›ò[Ÿ[ù\àHúõ€H	Àãÿ\õ›ò[XŸ[ù\ã\€[ô…Œ¬ö[\‹ù»\õ›ò[òYŸU^\õ›ò[Y[ùP€›[ù\H\õ›ò[€›[ù›[[X\ûHHúõ€H	Àãÿ€€\€ô[ùÀÿ\õ›ò[X€›[ùXòYŸIŒ¬ö[\‹ù»\õ›ò[Ÿ[ù\ìõ›YöXÿ][€êù]€àHúõ€H	Àãÿ€€\€ô[ùÀ–\õ›ò[Ÿ[ù\ìõ›YöXÿ][€êù]€âŒ¬ö[\‹ù\H»[\ﬁYYP€€Xõÿõﬁ‹[€àHúõ€H	Àãÿ€€\€ô[ùÀ‘ŸX\ò⁄XõQ[\ﬁYYP€€Xõÿõﬁ	Œ¬ö[\‹ù»Ÿ]X]ôT€XﬁHHúõ€H	Àã€X]ôK\€XﬁKX€Y[ù	Œ¬ö[\‹ù»‹ôX]SX]ôU\KŸ]X]ôU\\À\]SX]ôU\K\HX]ôU\SX\›\àHúõ€H	Àã€X]ôK]\KX€Y[ù	Œ¬ö[\‹ù»Ÿ]⁄Yù\\»Húõ€H	Àã‹⁄Yù]\KX€Y[ù	Œ¬ö[\‹ù»\ÿ‹öXôT]\õãŸ]]]‘ÿ⁄Y[T]\õúÀ\H]]‘ÿ⁄Y[T]\õàHúõ€H	Àãÿ]]À\ÿ⁄Y[K\]\õãX€Y[ù	Œ¬ö[\‹ù»Ÿ]][ô[òŸU⁄Ÿ[îôYúô\⁄›X\ôŸ]][ô[òŸU⁄Ÿ[îôYúô\⁄[ô\àHúõ€H	Àãÿ][ô[òŸKX]]\ô\]Y\›	Œ¬ö[\‹ù»ô\]Y\›\úõ‹ê€€ù[ùõ‹õX]ô\]Y\›\úõ‹ìY\‹ÿYŸK‘ô\]Y\›\úõ‹î›]K\Hô\]Y\›\úõ‹í[ú]Húõ€H	Àã‹ô\]Y\›Y\úõ‹âŒ¬ö[\‹ù»X‹]Z\ôQÿ›[Y[ùÿ‹õ€ÿ⁄»Húõ€H	ÀãŸÿ›[Y[ù\ÿ‹õ€[ÿ⁄…Œ¬ö[\‹ù»ùZ[X]ôT][›Tõ›ö\⁄[€ö[ô‘^[ÿYÿ[îõ›ö\⁄[€ìX]ôT][›K›\úô[ùò[ô⁄€⁄‘][›VYX\ã\’[õX]⁄YYÿXﬁT][›KX]ôT][›QYò][—úõ€T€XﬁK][›Tõ›ö\⁄[€ö[ô—[\ﬁYYS‹[€úÀZT][›VYX\ìXô[Húõ€H	Àã€X]ôK\][›K\õ›ö\⁄[€ö[ô…Œ¬ö[\‹ù»ö[ùÿ›[Y[ùö[ùÿ⁄Y[Qÿ›[Y[ùö[ùXõTô\‹ùHúõ€H	Àã‹ÿ⁄Y[K\ö[ù	Œ¬ö[\‹ù»‹õ›\ÿ⁄Y[Q[\ﬁYY\–ûQ\\ùY[ù€‹ùÿ⁄Y[Q[\ﬁYY\–ûQ\\ùY[ùHúõ€H	Àã‹ÿ⁄Y[KY[\ﬁYYKX€ŸK[‹ô\âŒ¬ö[\‹ù»Y]]‘ÿ⁄Y[Tô]öY]—òYùÀ›[[X\ö^ôP]]‘ÿ⁄Y[Tô]öY]»Húõ€H	Àãÿ]]À\ÿ⁄Y[KYòYù…Œ¬ö[\‹ù»ô\‹€úŸQõ‹ê›\úô[ù]Y\ûK\HYŸTô\‹€úŸPö[ô[ô»Húõ€H	Àã€‹\ò][€ã\ô\‹€úŸIŒ¬ö[\‹ù»ò[ô⁄€⁄—]R[ú]\»õ‹õX]ò[ô⁄€⁄—]R[ú]›\úô[ùò[ô⁄€⁄”[€ùõ‹õX]ZQ]Kõ‹õX]ZQ]U[YKõ‹õX]ZS[€ùõ‹õX]ZS[€ùò[YHHúõ€H	Àã›ZKY]K][YIŒ¬Çö[\‹ù»[€ù‹öYX⁄Ÿ\ãõ‹õX[^ôS[€ùò[YK\úŸS[€ùò[YK⁄Yù[€ùò[YHHúõ€H	Àãÿ€€\€ô[ùÀ”[€ù‹öYX⁄Ÿ\âŒ¬ö[\‹ù»YŸRXY\ãŸX›[€êÿ\ô›\õ›ÀY]öX–ÿ\ôHúõ€H	Àãÿ€€\€ô[ùÀ€^[›]	Œ¬ö[\‹ù»úò[ôŸ€»Húõ€H	Àãÿ€€\€ô[ùÀ–úò[ôŸ€…Œ¬ö[\‹ù»\ÿY\ãÿY[ô”Y\‹ÿYŸ\»Húõ€H	Àãÿ€€\€ô[ùÀ–\ÿY\âŒ¬ö[\‹ù	Àã‹›[\Àò‹‹…Œ¬ö[\‹ù	ÀãŸ\⁄Y€ã\ﬁ\›[Kò‹‹…Œ¬ö[\‹ù	Àã‹›[\ÀŸ\⁄õÿ\ôò‹‹…Œ¬ö[\‹ù»\⁄õÿ\ôYŸHHúõ€H	Àã‹YŸ\ÀŸ\⁄õÿ\ô—\⁄õÿ\ôYŸIŒ¬ö[\‹ù»€‹öŸõ›–€€[X[ô[]HHúõ€H	Àãÿ€€\€ô[ùÀ’€‹öŸõ›–€€[X[ô[]IŒ¬ö[\‹ù»Yò][]Y]ö[\úÀ\H]Y]ö[\ú»Húõ€H	Àãÿ€€\€ô[ùÀÿ]Y]ÿ]Y]]\\…Œ¬ö[\‹ù\H»]T]X[]Qö[\úÀ]T]X[]R\‹›YHHúõ€H	Àã‹YŸ\ÀŸ]K\]X[]K—]T]X[]PŸ[ù\îYŸIŒ¬ö[\‹ù\H»ÃïX]õ›ö\⁄[€îô\›[Húõ€H	Àã‹YŸ\ÀÿXÿŸ\‹À[X[òYŸ[Y[ù—ÃïX]õ›ö\⁄[€ö[ô‘[ô[	Œ¬ö[\‹ù»[ö]X[€\‘ÿTYŸK\‘€\‘ÿTYŸK\‘€\‘ÿT⁄[[ŸK\H€\‘ÿTYŸHHúõ€H	Àã‹ÿK[[ŸIŒ¬ö[\‹ù»ôY⁄\›\î€\‘ÿHHúõ€H	Àã‹ÿIŒ¬ö[\‹ù»ÿ[ìÿYXÿŸ\‹”X[òYŸ[Y[ùHúõ€H	Àãÿ€€\€ô[ùÀÿXÿŸ\‹À[X[òYŸ[Y[ùÿXÿŸ\‹À[X[òYŸ[Y[ù]][…Œ¬ö[\‹ù\H»\⁄õÿ\ôö[\ú»Húõ€H	Àãÿ€€\€ô[ùÀŸ\⁄õÿ\ô›\\…Œ¬ö[\‹ù»XŸ[úŸQY][Ÿ[XŸ[úŸUXõQÿ›[Y[ù€€[[ú»Húõ€H	Àãÿ€€\€ô[ùÀ”XŸ[úŸQÿ›[Y[ù…Œ¬ö[\‹ù»]UXõTY⁄[ò][€ãô\‹€ú⁄]ôQ]UXõHHúõ€H	Àãÿ€€\€ô[ùÀ‘ô\‹€ú⁄]ôQ]UXõIŒ¬ö[\‹ù»]UXõT⁄Ÿ[]€êÿ\ôÀ]UXõT⁄Ÿ[]€îõ›‹À]UXõT›]HHúõ€H	Àãÿ€€\€ô[ùÀ‘ô\‹€ú⁄]ôQ]UXõIŒ¬ö[\‹ù\H»‹\ò][€ò[ò]Ÿ\êX›[€àHúõ€H	Àãÿ€€\€ô[ùÀ”‹\ò][€ò[ôX€‹ôò]Ÿ\âŒ¬ö[\‹ù»€\“X€€ã\H€\“X€€ìò[YHHúõ€H	Àãÿ€€\€ô[ùÀ‘€\“X€€âŒ¬ö[\‹ù»\ŸPX›[€ëX[Ÿ»Húõ€H	Àãÿ€€\€ô[ùÀ›\ŸPX›[€ëX[Ÿ…Œ¬ö[\‹ù»[YP€€ùõ€Húõ€H	Àãÿ€€\€ô[ùÀ’[YP€€ùõ€	Œ¬ö[\‹ù»][ô[òŸT€XﬁRŸ^\À\H][ô[òŸT€XﬁQõ‹õHHúõ€H	Àãÿ€€\€ô[ùÀÿ][ô[òŸK\€XﬁKX€€ùòX›	Œ¬ö[\‹ù»X]ôT€XﬁRŸ^\À\HX]ôT€XﬁQõ‹õHHúõ€H	Àãÿ€€\€ô[ùÀ€X]ôK\€XﬁKX€€ùòX›	Œ¬ö[\‹ù\H»X]ôQX⁄\⁄[€êX›[€ãX]ôQX⁄\⁄[€ï\ôŸ]Húõ€H	Àãÿ€€\€ô[ùÀ”X]ôQX⁄\⁄[€ê€€ôö\õX][€âŒ¬ö[\‹ù»ôY⁄\›ò][€îô\›[ô\Ÿ[ù][€àHúõ€H	Àãÿ€€\€ô[ùÀÿ]]Y^\öY[òŸIŒ¬ö[\‹ù»ÿ[ö]^ôSXŸ[úŸQÿ›[Y[ù\úõ‹ã\HXŸ[úŸQÿ›[Y[ùHúõ€H	Àãÿ€€\€ô[ùÀ€XŸ[úŸKYÿ›[Y[ù]][…Œ¬ö[\‹ù»ÿ[ïöY]‘õ›]TYŸKò]öYÿ]Kò]öYÿ]TŸ][ô‹‘ŸX›[€ãYŸQúõ€Sÿÿ][€ãõ›]T]Y\ûS[€ùõ›]T]Y\ûSù[Xô\ãì’UW–“Së—W—UëSïŸ][ô‹‘ŸX›[€ëúõ€T]›Xúÿ‹öXôU‘õ›]P⁄[ôŸ\À\]Qÿ›[Y[ù]K\]Tõ›]T]Y\ûK\Hõ›]TYŸK\Hõ›]Tô\€€][€ã\HŸ][ô‹‘ŸX›[€íYHúõ€H	Àã‹õ›][ô…Œ¬ö[\‹ù	Àã‹›[\À€XŸ[úŸK]XõKò‹‹…Œ¬ö[\‹ù	Àã‹›[\À‹ô\‹€ú⁄]ôK\⁄[ò‹‹…Œ¬ö[\‹ù	Àã‹›[\ÀÿX›[€ã\ﬁ\›[Kò‹‹…Œ¬ö[\‹ù	Àã‹›[\À›⁄Ÿ[úÀò‹‹…Œ¬ö[\‹ù	Àã‹›[\À›[YKYõ›[ô][€ãò‹‹…Œ¬ö[\‹ù	Àã‹›[\Àÿ\\⁄[ò‹‹…Œ¬ö[\‹ù	Àã‹›[\ÀŸ]K\›\ôòXŸ\Àò‹‹…Œ¬ö[\‹ù	Àã‹›[\Àÿ]]Y^\öY[òŸKò‹‹…Œ¬ö[\‹ù	Àã‹›[\À›ö\›X[YöY[]Kò‹‹…Œ¬ö[\‹ù	Àã‹›[\À‹⁄Y€ò]\ôKY^\öY[òŸKò‹‹…Œ¬ö[\‹ù	Àã‹›[\À‹⁄Y€ò]\ôKY^\öY[òŸK]åKLKò‹‹…Œ¬ö[\‹ù	Àã‹›[\À‹⁄Y€ò]\ôKY^\öY[òŸK]åKLãò‹‹…Œ¬ö[\‹ù	Àã‹›[\À‹õŸX›[€ã[[ÿö[K\ô\‹€ú⁄]ôK]åKò‹‹…Œ¬ö[\‹ù	Àã‹›[\Àÿ][ô[òŸKY]öXŸKò‹‹…Œ¬ö[\‹ù	Àã‹›[\À‹ÿK\⁄[ò‹‹…Œ¬ö[\‹ù	Àã‹›[\À‹ô\‹€ú⁄]ôKXŸ\ùYöXÿ][€ã]åKò‹‹…Œ¬ö[\‹ù	Àã‹›[\À‹ﬁ\›[KZX[ò‹‹…Œ¬ö[\‹ù	Àã‹›[\Àÿ€€ôöY›\ò][€ãXŸ[ù\ãò‹‹…Œ¬ö[\‹ù	Àã‹›[\À›^]ZK\ô[YYX][€ãò‹‹…Œ¬ö[\‹ù	Àã‹›[\À›^]ZK\]X[]KLLò‹‹…Œ¬ö[\‹ù	Àã‹›[\Àÿ]ÿ\ô[[ô[ôÀò‹‹…Œ¬ö[\‹ù	Àã‹›[\À›Z[⁄[ôò‹‹…Œ¬ö[\‹ù	Àã‹›[\Àÿ€€[X[ô[ô^\Àò‹‹…Œ¬ö[\‹ù	Àã‹›[\Àÿ]ÿ\ôZ[ù\ö[‹ãò‹‹…Œ¬ö[\‹ù	Àã‹›[\À€‹\ò][€ò[[^Y\ãò‹‹…Œ¬ö[\‹ù	Àã‹›[\ÀŸ[\ﬁYYK\ÿK][YKò‹‹…Œ¬ö[\‹ù	Àã‹›[\À›^]ã[Ÿ⁄[ã\XõXÀò‹‹…Œ¬ö[\‹ù	Àã‹›[\À‹ÿ⁄Y[K\õ‹›\ã]^ò‹‹…Œ¬ö[\‹ù	Àã‹›[\À€^[›]Yõ›[ô][€ãò‹‹…Œ¬ö[\‹ù	Àã‹›[\À‹\ú€€õô[[^[›]ò‹‹…Œ¬ö[\‹ù	Àã‹›[\À‹ﬁ\›[K[^[›]Y‹õ›\ò‹‹…Œ¬Çò€€ú›Tì’êS‘ëUíQU—Tó‘ì”T»H…–QRSâÀ	”PSêQ—TâÀ	‘’TTïíT”‘â◊H\»€€ú›¬ò€€ú›Tì’êS–”’Sï”QSïW‘ì”TŒàôXY€õOôX€‹ô›ö[ôÀôXY€õH›ö[ô÷◊OèàHÿöôX›ôúôY^ôJ¬à\õ›ò[Ÿ[ù\éàTì’êS‘ëUíQU—Tó‘ì”TÀà[\ﬁYY\Œà…–QRSâ◊KàXŸ[úŸ\Œà…–QRSâ◊Kà\õ›ò[Œà…–QRSâÀ	‘’TTïíT”‘â◊Kà][ô[òŸQ]öXŸNà…–QRSâ◊Kà][ô[òŸT›\\ùö\€‹éà…–QRSâ◊Kà\Ÿ\úŒàTì’êS‘ëUíQU—Tó‘ì”TÀàX]ôT[ô[ôŒàTì’êS‘ëUíQU—Tó‘ì”T¬üJN¬Çò€€ú›]ÿ\ôXõX—^\öY[òŸHHôXX›õ^ûJ
+
+HOà[\‹ù
+	Àãÿ€€\€ô[ùÀ–]ÿ\ôXõX—^\öY[òŸI Kù[ä
+[Ÿ[JHOà
+»Yò][à[Ÿ[Kê]ÿ\ôXõX—^\öY[òŸHJJJN¬ò€€ú›ô\‹ùŸ[ù\îYŸHHôXX›õ^ûJ
+
+HOà[\‹ù
+	Àã‹YŸ\À‹ô\‹ùÀ‘ô\‹ùŸ[ù\îYŸI Kù[ä
+[Ÿ[JHOà
+»Yò][à[Ÿ[Kîô\‹ùŸ[ù\îYŸHJJJN¬ò€€ú›Ÿ][ô‹‘YŸHHôXX›õ^ûJ
+
+HOà[\‹ù
+	Àã‹YŸ\À‹Ÿ][ô‹À‘Ÿ][ô‹‘YŸI Kù[ä
+[Ÿ[JHOà
+»Yò][à[Ÿ[KîŸ][ô‹‘YŸHJJJN¬ò€€ú›\ú€€õô[\ôX›‹ûTYŸHHôXX›õ^ûJ
+
+HOà[\‹ù
+	Àã‹YŸ\À‹\ú€€õô[‘\ú€€õô[\ôX›‹ûTYŸI Kù[ä
+[Ÿ[JHOà
+»Yò][à[Ÿ[Kî\ú€€õô[\ôX›‹ûTYŸHJJJN¬ò€€ú›[\ﬁYYQ€›ô\õôYY][Ÿ[HôXX›õ^ûJ
+
+HOà[\‹ù
+	Àãÿ€€\€ô[ùÀ‹\ú€€õô[—[\ﬁYYQ€›ô\õôYY][Ÿ[	 Kù[ä
+[Ÿ[JHOà
+»Yò][à[Ÿ[Kë[\ﬁYYQ€›ô\õôYY][Ÿ[JJJN¬ò€€ú›[\ﬁYYP⁄[ôŸTô]öY]”[Ÿ[HôXX›õ^ûJ
+
+HOà[\‹ù
+	Àãÿ€€\€ô[ùÀ‹\ú€€õô[—[\ﬁYYP⁄[ôŸTô]öY]”[Ÿ[	 Kù[ä
+[Ÿ[JHOà
+»Yò][à[Ÿ[Kë[\ﬁYYP⁄[ôŸTô]öY]”[Ÿ[JJJN¬ò€€ú›\õ›ò[Ÿ[ù\îYŸHHôXX›õ^ûJ
+
+HOà[\‹ù
+	Àã‹YŸ\Àÿ\õ›ò[À–\õ›ò[Ÿ[ù\îYŸI Kù[ä
+[Ÿ[JHOà
+»Yò][à[Ÿ[Kê\õ›ò[Ÿ[ù\îYŸHJJJN¬ò€€ú›]Y]€€\X[òŸTYŸHHôXX›õ^ûJ
+
+HOà[\‹ù
+	Àã‹YŸ\Àÿ]Y]–]Y]€€\X[òŸTYŸI Kù[ä
+[Ÿ[JHOà
+»Yò][à[Ÿ[Kê]Y]€€\X[òŸTYŸHJJJN¬ò€€ú›]T]X[]PŸ[ù\îYŸHHôXX›õ^ûJ
+
+HOà[\‹ù
+	Àã‹YŸ\ÀŸ]K\]X[]K—]T]X[]PŸ[ù\îYŸI Kù[ä
+[Ÿ[JHOà
+»Yò][à[Ÿ[Kë]T]X[]PŸ[ù\îYŸHJJJN¬ò€€ú›ﬁ\›[RX[YŸHHôXX›õ^ûJ
+
+HOà[\‹ù
+	Àã‹YŸ\À‹ﬁ\›[KZX[‘ﬁ\›[RX[YŸI Kù[ä
+[Ÿ[JHOà
+»Yò][à[Ÿ[Kîﬁ\›[RX[YŸHJJJN¬ò€€ú›XÿŸ\‹”X[òYŸ[Y[ùYŸHHôXX›õ^ûJ
+
+HOà[\‹ù
+	Àã‹YŸ\ÀÿXÿŸ\‹À[X[òYŸ[Y[ù–XÿŸ\‹”X[òYŸ[Y[ùYŸI Kù[ä
+[Ÿ[JHOà
+»Yò][à[Ÿ[KêXÿŸ\‹”X[òYŸ[Y[ùYŸHJJJN¬ò€€ú›][ô[òŸQ]öXŸTYŸHHôXX›õ^ûJ
+
+HOà[\‹ù
+	Àã‹YŸ\Àÿ][ô[òŸKY]öXŸK–][ô[òŸQ]öXŸTYŸI Kù[ä
+[Ÿ[JHOà
+»Yò][à[Ÿ[Kê][ô[òŸQ]öXŸTYŸHJJJN¬ò€€ú›ŸX›\ö]T⁄]SX[òYŸ[Y[ù[ô[HôXX›õ^ûJ
+
+HOà[\‹ù
+	Àãÿ€€\€ô[ùÀ‘ŸX›\ö]T⁄]SX[òYŸ[Y[ù[ô[	 Kù[ä
+[Ÿ[JHOà
+»Yò][à[Ÿ[KîŸX›\ö]T⁄]SX[òYŸ[Y[ù[ô[JJJN¬ò€€ú›ÿTõŸö[TYŸHHôXX›õ^ûJ
+
+HOà[\‹ù
+	Àã‹YŸ\À‹ÿK\õŸö[K‘ÿTõŸö[TYŸI Kù[ä
+[Ÿ[JHOà
+»Yò][à[Ÿ[KîÿTõŸö[TYŸHJJJN¬ò€€ú›][ô[òŸR\›‹ûTÿTYŸHHôXX›õ^ûJ
+
+HOà[\‹ù
+	Àã‹YŸ\À‹ÿKX][ô[òŸK–][ô[òŸR\›‹ûTÿTYŸI Kù[ä
+[Ÿ[JHOà
+»Yò][à[Ÿ[Kê][ô[òŸR\›‹ûTÿTYŸHJJJN¬ò€€ú›][ô[òŸTÿ⁄Y[TÿTYŸHHôXX›õ^ûJ
+
+HOà[\‹ù
+	Àã‹YŸ\À‹ÿKX][ô[òŸK–][ô[òŸTÿ⁄Y[TÿTYŸI Kù[ä
+[Ÿ[JHOà
+»Yò][à[Ÿ[Kê][ô[òŸTÿ⁄Y[TÿTYŸHJJJN¬ò€€ú›][ô[òŸT⁄[\TYŸHHôXX›õ^ûJ
+
+HOà[\‹ù
+	Àã‹YŸ\Àÿ][ô[òŸK\⁄[\K–][ô[òŸT⁄[\TYŸI Kù[ä
+[Ÿ[JHOà
+»Yò][à[Ÿ[Kê][ô[òŸT⁄[\TYŸHJJJN¬ò€€ú›][ô[òŸT›\\ùö\€‹îYŸHHôXX›õ^ûJ
+
+HOà[\‹ù
+	Àã‹YŸ\Àÿ][ô[òŸK\›\\ùö\€‹ã–][ô[òŸT›\\ùö\€‹îYŸI Kù[ä
+[Ÿ[JHOà
+»Yò][à[Ÿ[Kê][ô[òŸT›\\ùö\€‹îYŸHJJJN¬ò€€ú›ôY⁄\›ò][€îô]öY]‘[ô[HôXX›õ^ûJ
+
+HOà[\‹ù
+	Àã‹YŸ\ÀÿXÿŸ\‹À[X[òYŸ[Y[ù‘ôY⁄\›ò][€îô]öY]‘[ô[	 Kù[ä
+[Ÿ[JHOà
+»Yò][à[Ÿ[KîôY⁄\›ò][€îô]öY]‘[ô[JJJN¬ò€€ú›\‹⁄Ÿ^TŸX›\ö]T[ô[HôXX›õ^ûJ
+
+HOà[\‹ù
+	Àãÿ€€\€ô[ùÀ‘\‹⁄Ÿ^TŸX›\ö]T[ô[	 Kù[ä
+[Ÿ[JHOà
+»Yò][à[Ÿ[Kî\‹⁄Ÿ^TŸX›\ö]T[ô[JJJN¬ò€€ú›ù[P⁄X⁄⁄[ô—]T›\ôòXŸ\»HôXX›õ^ûJ
+
+HOà[\‹ù
+	Àãÿ€€\€ô[ùÀ‘ù[P⁄X⁄⁄[ô—]T›\ôòXŸ\… Kù[ä
+[Ÿ[JHOà
+»Yò][à[Ÿ[Kîù[P⁄X⁄⁄[ô—]T›\ôòXŸ\»JJJN¬ò€€ú›‹\ò][€ò[ôX€‹ôò]Ÿ\àHôXX›õ^ûJ
+
+HOà[\‹ù
+	Àãÿ€€\€ô[ùÀ”‹\ò][€ò[ôX€‹ôò]Ÿ\â Kù[ä
+[Ÿ[JHOà
+»Yò][à[Ÿ[Kì‹\ò][€ò[ôX€‹ôò]Ÿ\àJJJN¬ò€€ú›]Tõ›–X›[€ìY[ùHHôXX›õ^ûJ
+
+HOà[\‹ù
+	Àãÿ€€\€ô[ùÀ—]Tõ›–X›[€ìY[ùI Kù[ä
+[Ÿ[JHOà
+»Yò][à[Ÿ[Kë]Tõ›–X›[€ìY[ùHJJJN¬ò€€ú›XõPX›[€êŸ[HôXX›õ^ûJ
+
+HOà[\‹ù
+	Àãÿ€€\€ô[ùÀ’XõPX›[€ê€€[[â Kù[ä
+[Ÿ[JHOà
+»Yò][à[Ÿ[KïXõPX›[€êŸ[JJJN¬ò€€ú›XõPX›[€íXY\àHôXX›õ^ûJ
+
+HOà[\‹ù
+	Àãÿ€€\€ô[ùÀ’XõPX›[€ê€€[[â Kù[ä
+[Ÿ[JHOà
+»Yò][à[Ÿ[KïXõPX›[€íXY\àJJJN¬ò€€ú›X]ôQX⁄\⁄[€ê€€ôö\õX][€àHôXX›õ^ûJ
+
+HOà[\‹ù
+	Àãÿ€€\€ô[ùÀ”X]ôQX⁄\⁄[€ê€€ôö\õX][€â Kù[ä
+[Ÿ[JHOà
+»Yò][à[Ÿ[KìX]ôQX⁄\⁄[€ê€€ôö\õX][€àJJJN¬ò€€ú›ŸX\ò⁄XõQ[\ﬁYYP€€XõÿõﬁHôXX›õ^ûJ
+
+HOà[\‹ù
+	Àãÿ€€\€ô[ùÀ‘ŸX\ò⁄XõQ[\ﬁYYP€€Xõÿõﬁ	 Kù[ä
+[Ÿ[JHOà
+»Yò][à[Ÿ[KîŸX\ò⁄XõQ[\ﬁYYP€€XõÿõﬁJJJN¬Çù\H\Ÿ\àH»Yà›ö[ôŒ»[XZ[à›ö[ôŒ»\‹^Sò[YNà›ö[ôŒ»õ€Nà›ö[ôŒ»\\ùY[ùŒà›ö[ô»N¬ù\H[\ﬁYYHH»Yà›ö[ôŒ»[\ﬁYYP€ŸNà›ö[ôŒ»ö\ú›ò[YNà›ö[ôŒ»\›ò[YNà›ö[ôŒ»\‹^Sò[YOŒà›ö[ôŒ»[XZ[Œà›ö[ô»ù[»€ôOŒà›ö[ô»ù[»\\ùY[ùŒà›ö[ôŒ»õÿï]OŒà›ö[ôŒ»\ôY]Œà›ö[ô»ù[»⁄⁄[Œà›ö[ô»ù[»\–X›]ôNàõ€€X[é»\]Y]Œà›ö[ô»N¬ù\HYŸHHõ›]TYŸN¬ù\H]]H»⁄Ÿ[èŒà›ö[ôŒ»\Ÿ\èŒà\Ÿ\é»‹öY⁄[ò[\Ÿ\èŒà\Ÿ\é»ÿY[ôŒàõ€€X[é»\úõ‹èŒà›ö[ôŒ»\’öY]⁄[ô–\Œàõ€€X[é»Ÿ⁄[ä[XZ[à›ö[ôÀ\‹›€‹ôà›ö[ô Nàõ€Z\ŸOõ⁄Yé»\‹⁄Ÿ^SŸ⁄[ä
+Nàõ€Z\ŸOõ⁄Yé»Ÿ€›]
+
+Nàõ€Z\ŸOõ⁄Yé»ôY⁄[ïöY]–\ \Ÿ\íYà›ö[ô Nàõ€Z\ŸOõ⁄Yé»[ôöY]–\ 
+Nàõ⁄YN¬ù\H]Tõ›»HôX€‹ô›ö[ôÀ[ö€õ›€èé¬ù\H]Tô\‹€úŸHH»]OŒà]Tõ›÷◊H]Tõ›Œ»›[[X\ûOŒà»›[Œàù[Xô\é»‹ö]Xÿ[Œàù[Xô\é»ÿ\õö[ôœŒàù[Xô\é»[ôõœŒàù[Xô\àN»Y]OŒà»›[Œàù[Xô\é»YŸOŒàù[Xô\é»YŸT⁄^ôOŒàù[Xô\é»›[YŸ\œŒàù[Xô\é»›]\–€›[ùœŒàôX€‹ô›ö[ôÀù[Xô\èé»[õX]⁄YYÿXﬁP€›[ùŒàù[Xô\àHN¬ù\H‹\ò][€îô\]Y\››]HH»YŸNàYŸN»Ÿ^Nà›ö[ôŒ»ÿY[ôŒàõ€€X[é»\úõ‹èŒàô\]Y\›\úõ‹í[ú]N¬ù\HXŸ[úŸQ[\ﬁYYT›]\»H	–P’UëI»	“SêP’UëI»	–S	Œ¬ù\Hõ‹õQöY[H»ò[YNà›ö[ôŒ»Xô[à›ö[ôŒ»\OŒà	›^	»	Ÿ[XZ[	»	‹\‹›€‹ô	»	Ÿ]I»	€ù[Xô\â»	‹Ÿ[X›	»	›^\ôXI»	Ÿö[IŒ»ô\]Z\ôYŒàõ€€X[é»XÿŸ\Œà›ö[ôŒ»[ùŒà›ö[ôŒ»Z[èŒàù[Xô\é»X^Œàù[Xô\é»‹[€úœŒà\úò^O»ò[YNà›ö[ôŒ»Xô[à›ö[ô»OàN¬ù\HY]‹àH»]Nà›ö[ôŒ»›XõZ]Xô[à›ö[ôŒ»öY[Œàõ‹õQöY[◊N»ò[Y\ŒàôX€‹ô›ö[ôÀ›ö[ôœé»õ›XŸOŒà›ö[ôŒ»^\öY[òŸOŒà	‹\ú€€õô[	Œ»›XõZ]
+ò[Y\ŒàôX€‹ô›ö[ôÀ›ö[ôœãö[\ŒàôX€‹ô›ö[ôÀö[OäNàõ€Z\ŸOõ⁄YàN¬ù\HX]ôQX⁄\⁄[€îô\]Y\›H»õ›Œà]Tõ›Œ»X›[€éàX]ôQX⁄\⁄[€êX›[€é»\ôŸ]àX]ôQX⁄\⁄[€ï\ôŸ]N¬Çò€€ú›ò[ô⁄€⁄—]R[ú]H
+ò[YHHô]»]J
+JHOàõ‹õX]ò[ô⁄€⁄—]R[ú]
+ò[YJN¬Çò€€ú›]]€€ù^H‹ôX]P€€ù^]][ôYö[ôYä[ôYö[ôY
+N¬Çò€€ú›ò]öYÿ][€éà\úò^O»Xô[à›ö[ôŒ»][\Œà\úò^O»YàYŸN»X€€éà€\“X€€ìò[YN»Xô[à›ö[ô»OàOàH¬à»Xô[à	¯.(8.,∏.'∏.(¯.)¯.(IÀ][\Œàﬁ»Yà	Ÿ\⁄õÿ\ô	ÀX€€éà	Ÿ\⁄õÿ\ô	ÀXô[à	¯.(8.,∏.'∏.(¯.)¯.(I»WHKà»Xô[à	¯.'∏.&x.,x. x.!¯.,∏.&IÀ][\Œà¬à»Yà	Ÿ[\ﬁYY\…ÀX€€éà	Ÿ[\ﬁYY\…ÀXô[à	¯. ∏.bx.+x.(x..x.)x.'∏.&x.,x. x.!¯.,∏.&I»Kà»Yà	€XŸ[úŸ\…ÀX€€éà	€XŸ[úŸIÀXô[à	¯.`¯.&∏.+x.&x..8.#x.,∏.%H8.(¯.&¯.(â»Kà»Yà	ÿ][ô[òŸIÀX€€éà	ÿ][ô[òŸIÀXô[à	¯.)x.!¯.`8.)¯.)x.,â»Kà»Yà	ÿ][ô[òŸT›\\ùö\€‹âÀX€€éà	Ÿ\⁄õÿ\ô	ÀXô[à	¯.)x.!¯.`8.)¯.)x.,∏.`x.%¯.&x.'∏.&x.,x. x.!¯.,∏.&I»Kà»Yà	ÿ][ô[òŸQ]öXŸIÀX€€éà	⁄Ÿ^IÀXô[à	¯.+x..8.&¯. x.(¯.$¯.c8.)x.!¯.`8.)¯.)x.,â»BàHKà»Xô[à	¯.%x.,∏.(¯.,∏.!¯. x.,	À][\Œà¬à»Yà	‹ÿ⁄Y[IÀX€€éà	ÿÿ[[ô\âÀXô[à	¯.%x.,∏.(¯.,∏.!¯. x.,8.(¯.,∏.(∏.`8.%8.-¯.+x.&I»Kà»Yà	ÿ\õ›ò[…ÀX€€éà	ÿ\õ›ò[	ÀXô[à	¯.+x.&x..8.(x.,x.%x.-8.%x.,∏.(¯.,∏.!¯. x.,	»Kà»Yà	‹⁄YùŸ]\	ÀX€€éà	ÿ€ÿ⁄…ÀXô[à	¯.(¯.*¯.,x.*∏. x.,8.`x.)x.,8.`8.)¯.)x.,â»BàHKà»Xô[à	¯. x.,∏.(¯.)x.,âÀ][\Œà¬à»Yà	€X]ôIÀX€€éà	€X]ôIÀXô[à	¯.!8.,¯. ∏.+x.)x.,â»Kà»Yà	€X]ôT[ô[ô…ÀX€€éà	ÿ\õ›ò[	ÀXô[à	¯.+x.&x..8.(x.,x.%x.-8.!8.,¯. ∏.+x.)x.,â»Kà»Yà	€X]ôR\›‹ûIÀX€€éà	⁄\›‹ûIÀXô[à	¯.&¯.(¯.,8.)¯.,x.%x.-8. x.,∏.(¯.)x.,∏.%¯.,x.bx.!¯.*¯.(x.%	»Kà»Yà	‹][›IÀX€€éà	‹][›IÀXô[à	¯.`∏.!8.)¯.%x.bx.,∏.)¯.,x.&x.)x.,â»BàHKà»Xô[à	¯.%x.(¯.)¯."8.*∏.+x.&âÀ][\Œà¬à»Yà	ÿ\õ›ò[Ÿ[ù\âÀX€€éà	ÿô[	ÀXô[à	¯.*8..x.&x.(∏.c8.+x.&x..8.(x.,x.%x.-	»Kà»Yà	‹ù[\…ÀX€€éà	‹⁄Y[	ÀXô[à	¯. x.#∏. x.,∏.(¯.%¯.,¯.!¯.,∏.&I»Kà»Yà	ÿ]Y]	ÀX€€éà	ÿ]Y]	ÀXô[à	¯.&∏.,x.&x.%¯.-∏. x. x.,∏.(¯.`¯."∏.bx.!¯.,∏.&x.(¯.,8.&∏.&â»Kà»Yà	Ÿ]T]X[]IÀX€€éà	‹]X[]IÀXô[à	¯.!8..8.$¯.(8.,∏.'∏. ∏.bx.+x.(x..x.)I»Kà»Yà	‹ﬁ\›[RX[	ÀX€€éà	Ÿ\⁄õÿ\ô	ÀXô[à	¯.&¯.(¯.,8.*∏.-8.%¯.&8.-8.(8.,∏.'∏.`x.)x.,8.*∏.%∏.,∏.&x.,8.(¯.,8.&∏.&â»BàHKà»Xô[à	¯.'8..x.bx.`¯."∏.bx.`x.)x.,8.*∏.-8.%¯.&8.-8.c	À][\Œàﬁ»Yà	›\Ÿ\ú…ÀX€€éà	›\Ÿ\ú…ÀXô[à	¯.'8..x.bx.`¯."∏.bx.`x.)x.,8.*∏.-8.%¯.&8.-8.c	»WHKà»Xô[à	¯.(¯.,∏.(∏.!¯.,∏.&IÀ][\Œàﬁ»Yà	‹ô\‹ùŸ[ù\âÀX€€éà	‹ô\‹ù	ÀXô[à	¯.(¯.,∏.(∏.!¯.,∏.&x.`x.)x.,8.)¯.-8.`8.!8.(¯.,∏.,8.*¯.c	»WHKà»Xô[à	¯.%x.,x.bx.!¯.!8.b8.,âÀ][\Œà¬à»Yà	‹ŸX›\ö]T⁄]IÀX€€éà	€ÿÿ][€âÀXô[à	¯."8..8.%8.(¯.,x. x.*x.,∏.!8.)¯.,∏.(x.&¯.)x.+x.%8.(8.,x.(∏.`x.)x.,Tâ»Kà»Yà	‹Ÿ][ô‹…ÀX€€éà	‹Ÿ][ô‹…ÀXô[à	¯.%x.,x.bx.!¯.!8.b8.,∏.(¯.,8.&∏.&â»BàHBóN¬Çôù[ò›[€à]]õ›öY\ä»⁄[ô[àNà»⁄[ô[éàôXX›îôXX›õŸHJH¬à€€ú››⁄Ÿ[ãŸ]⁄Ÿ[óHH\ŸT›]O›ö[ôœä
+N¬à€€ú››\Ÿ\ãŸ]\Ÿ\óHH\ŸT›]O\Ÿ\èä
+N¬à€€ú››öY]–\ÀŸ]öY]–\◊HH\ŸT›]O»⁄Ÿ[éà›ö[ôŒ»\Ÿ\éà\Ÿ\àOä
+N¬à€€ú›ö[X\ûU⁄Ÿ[îôYàH\ŸTôYè›ö[ôœä
+N¬à€€ú›öY]–\’⁄Ÿ[îôYàH\ŸTôYè›ö[ôœä
+N¬àö[X\ûU⁄Ÿ[îôYãò›\úô[ùH⁄Ÿ[é¬àöY]–\’⁄Ÿ[îôYãò›\úô[ùHöY]–\œÀù⁄Ÿ[é¬à€€ú›€ÿY[ôÀŸ]ÿY[ô◊HH\ŸT›]JùYJN¬à€€ú›Ÿ\úõ‹ãŸ]\úõ‹óHH\ŸT›]O›ö[ôœä
+N¬Çà€€ú›ôYúô\⁄H\ﬁ[ò»
+
+HOà¬à€€ú›ô\›[H]ÿZ]ôYúô\⁄]]
+
+N¬àŸ]⁄Ÿ[äô\›[òXÿŸ\‹’⁄Ÿ[äN¬àŸ]\Ÿ\äô\›[ù\Ÿ\äN¬àŸ]öY]–\ [ôYö[ôY
+N¬àN¬Çà\ŸQYôôX›
+
+
+HOà¬à€€ú›\TôYúô\⁄Y⁄Ÿ[àH
+ô]’⁄Ÿ[éà›ö[ôÀô]’\Ÿ\éà[ûJHOà¬àŸ]⁄Ÿ[äô]’⁄Ÿ[äN¬àYà
+ô]’\Ÿ\äHŸ]\Ÿ\äô]’\Ÿ\äN¬àYà
+öY]–\’⁄Ÿ[îôYãò›\úô[ù
+Hõ›»ô]»\úõ‹ä	‘Ÿ\‹⁄[€à€€ù^⁄[ôŸYàô]ûHúõ€HHö[X\ûHXÿ€›[ùâ N¬àN¬àŸ]⁄Ÿ[îôYúô\⁄[ô\ä\TôYúô\⁄Y⁄Ÿ[äN¬àŸ]][ô[òŸU⁄Ÿ[îôYúô\⁄[ô\ä\TôYúô\⁄Y⁄Ÿ[äN¬àŸ]][ô[òŸU⁄Ÿ[îôYúô\⁄›X\ô
+
+ô\]Y\›⁄Ÿ[äHOà¬àYà
+öY]–\’⁄Ÿ[îôYãò›\úô[ù	âàô\]Y\›⁄Ÿ[àOOHöY]–\’⁄Ÿ[îôYãò›\úô[ù
+Hô]\õàò[ŸN¬àô]\õàõ€€X[äö[X\ûU⁄Ÿ[îôYãò›\úô[ù	âàô\]Y\›⁄Ÿ[àOOHö[X\ûU⁄Ÿ[îôYãò›\úô[ù
+N¬àJN¬àôYúô\⁄
+
+Kòÿ]⁄
+
+
+HOà[ôYö[ôY
+Kôö[ò[J
+
+HOàŸ]ÿY[ô ò[ŸJJN¬à€€ú›ôYúô\⁄⁄[ì€õ[ôHH
+
+HOà¬àYà
+\ö[X\ûU⁄Ÿ[îôYãò›\úô[ù
+Hõ⁄YôYúô\⁄
+
+Kòÿ]⁄
+
+
+HOà[ôYö[ôY
+N¬àN¬à⁄[ô›ÀòY]ô[ù\›[ô\ä	€€õ[ôIÀôYúô\⁄⁄[ì€õ[ôJN¬àô]\õà
+
+HOà¬à⁄[ô›Àúô[[›ôQ]ô[ù\›[ô\ä	€€õ[ôIÀôYúô\⁄⁄[ì€õ[ôJN¬àŸ]⁄Ÿ[îôYúô\⁄[ô\äù[
+N¬àŸ]][ô[òŸU⁄Ÿ[îôYúô\⁄[ô\äù[
+N¬àŸ]][ô[òŸU⁄Ÿ[îôYúô\⁄›X\ô
+ù[
+N¬àN¬àK◊JN¬Çà€€ú›Ÿ⁄[àH\ﬁ[ò»
+[XZ[à›ö[ôÀ\‹›€‹ôà›ö[ô HOà¬àŸ]\úõ‹ä[ôYö[ôY
+N¬àûH¬à€€ú›ô\›[H]ÿZ]\KõŸ⁄[ä[XZ[\‹›€‹ô
+N¬àŸ]⁄Ÿ[äô\›[òXÿŸ\‹’⁄Ÿ[äN¬àŸ]\Ÿ\äô\›[ù\Ÿ\äN¬àŸ]öY]–\ [ôYö[ôY
+N¬àHÿ]⁄
+ôX\€€äH¬àŸ]\úõ‹äõ‹õX]ô\]Y\›\úõ‹ìY\‹ÿYŸJôX\€€ã	¯.a8.(x.b8.*∏.,∏.(x.,∏.(¯.%∏.`8. ∏.bx.,∏.*∏..x.b8.(¯.,8.&∏.&∏.a8.%8.bI JN¬àõ›»ôX\€€é¬àBàN¬Çà€€ú›\‹⁄Ÿ^SŸ⁄[àH\ﬁ[ò»
+
+HOà¬àŸ]\úõ‹ä[ôYö[ôY
+N¬àûH¬àYà
+Xúõ›‹Ÿ\î›\‹ù’ŸXê]]ä
+JHõ›»ô]»\úõ‹ä	¯.`8.&∏.(¯.,∏.)¯.c8.`8."¯.+x.(¯.c8.*¯.(¯.-¯.+x.+x..8.&¯. x.(¯.$¯.c8.&x.-x.bx.(∏.,x.!¯.a8.(x.b8.(¯.+x.!¯.(¯.,x.&à\‹⁄Ÿ^I N¬à€€ú›⁄[[ôŸHH]ÿZ]\Kú\‹⁄Ÿ^SŸ⁄[ì‹[€ú 
+N¬à€€ú›ô\‹€úŸHH]ÿZ]›\ù]][ùXÿ][€ä»‹[€ú“î””éà⁄[[ôŸKõ‹[€ú»JN¬à€€ú›ô\›[H]ÿZ]\Kú\‹⁄Ÿ^SŸ⁄[ïô\öYûJ⁄[[ôŸKò⁄[[ôŸRYô\‹€úŸJN¬àŸ]⁄Ÿ[äô\›[òXÿŸ\‹’⁄Ÿ[äN¬àŸ]\Ÿ\äô\›[ù\Ÿ\äN¬àŸ]öY]–\ [ôYö[ôY
+N¬àHÿ]⁄
+ôX\€€äH¬àŸ]\úõ‹äõ‹õX]ô\]Y\›\úõ‹ìY\‹ÿYŸJôX\€€ã	¯.a8.(x.b8.*∏.,∏.(x.,∏.(¯.%∏.`8. ∏.bx.,∏.*∏..x.b8.(¯.,8.&∏.&∏.%8.bx.)¯.(à\‹⁄Ÿ^H8.a8.%8.bI JN¬àõ›»ôX\€€é¬àBàN¬Çà€€ú›Ÿ€›]H\ﬁ[ò»
+
+HOà¬à]ÿZ]\KõŸ€›]
+
+N¬àŸ]⁄Ÿ[ä[ôYö[ôY
+N¬àŸ]\Ÿ\ä[ôYö[ôY
+N¬àŸ]öY]–\ [ôYö[ôY
+N¬àN¬Çà€€ú›ôY⁄[ïöY]–\»H\ﬁ[ò»
+\Ÿ\íYà›ö[ô HOà¬àYà
+]⁄Ÿ[à\Ÿ\èÀúõ€HOOH	–QRSâ Hõ›»ô]»\úõ‹ä	’öY]»\»ô\]Z\ô\»[àYZ[àXÿ€›[ùâ N¬à€€ú›ô\›[H]ÿZ]\KùöY]–\’\Ÿ\ä⁄Ÿ[ã\Ÿ\íY
+N¬àŸ]öY]–\ »⁄Ÿ[éàô\›[ô]KòXÿŸ\‹’⁄Ÿ[ã\Ÿ\éàô\›[ô]Kù\Ÿ\àJN¬àN¬Çà€€ú›[ôöY]–\»H
+
+HOàŸ]öY]–\ [ôYö[ôY
+N¬Çàô]\õà]]€€ù^îõ›öY\àò[YO^ﬁ»⁄Ÿ[éàöY]–\œÀù⁄Ÿ[à⁄Ÿ[ã\Ÿ\éàöY]–\œÀù\Ÿ\à\Ÿ\ã‹öY⁄[ò[\Ÿ\éà\Ÿ\ãÿY[ôÀ\úõ‹ã\’öY]⁄[ô–\Œàõ€€X[äöY]–\ KŸ⁄[ã\‹⁄Ÿ^SŸ⁄[ãŸ€›]ôY⁄[ïöY]–\À[ôöY]–\»_Oûÿ⁄[ô[üO–]]€€ù^îõ›öY\èé¬üBÇÇôù[ò›[€àôXYX]ôS[€ùúõ€U\õ
+
+Nà›ö[ô»¬à€€ú›\ò[\»Hô]»TìŸX\ò⁄\ò[\ ⁄[ô›Àõÿÿ][€ãúŸX\ò⁄
+N¬à€€ú›õ›]S[€ùHõ›]T]Y\ûS[€ù
+⁄[ô›Àõÿÿ][€ãúŸX\ò⁄
+N¬àYà
+õ›]S[€ù
+Hô]\õàõ›]S[€ù¬à€€ú›YX\àH\ò[\ÀôŸ]
+	ﬁYX\â N¬à€€ú›[€ùH\ò[\ÀôŸ]
+	€[€ù	 N¬àô]\õàõ‹õX[^ôS[€ùò[YJYX\à	âà[€ù»	ﬁYX\üKI€[€ùXà[ôYö[ôY
+N¬üBÇôù[ò›[€à‹ö]SX]ôS[€ù’\õ
+ò[YNà›ö[ô Nàõ⁄Y¬à€€ú›\õHô]»Tì
+⁄[ô›Àõÿÿ][€ãöôYäN¬à€€ú›»YX\ã[€ùHH\úŸS[€ùò[YJò[YJN¬à\õúŸX\ò⁄\ò[\ÀúŸ]
+	ﬁYX\âÀ›ö[ô YX\äJN¬à\õúŸX\ò⁄\ò[\ÀúŸ]
+	€[€ù	À›ö[ô [€ù
+JN¬à⁄[ô›Àö\›‹ûKú\⁄›]J»X]ôS[€ùà	ﬁYX\üKI‘›ö[ô [€ù
+KúY›\ù
+ã	Ã	 _XK	…À	›\õú]ò[Y_I›\õúŸX\ò⁄I›\õö\⁄X
+N¬üBÇôù[ò›[€à]]õŸ‹ô\‹ »õ›À›\úô[ùNà»õ›Œà	‹ôY⁄\›ò][€â»	‹ô\Ÿ]	Œ»›\úô[ùàù[Xô\àJH¬à€€ú››\»Hõ›»OOH	‹ôY⁄\›ò][€â¬à»…¯. ∏.bx.+x.(x..x.)x.'8..x.bx.*∏.(x.,x.!8.(…À	¯.(∏.-¯.&x.(∏.,x.&x.+x.-x.`8.(x.)IÀ	¯.(¯.+x. x.,∏.(¯.%x.(¯.)¯."8.*∏.+x.&â◊Bàà…¯.+x.-x.`8.(x.)IÀ	¯.(∏.-¯.&x.(∏.,x.&H’	À	¯.%x.,x.bx.!¯.(¯.*¯.,x.*∏.'8.b8.,∏.&x.`¯.*¯.(x.b	◊N¬àô]\õà€€\‹”ò[YOHò]]\õŸ‹ô\‹»à\öXK[Xô[^Ÿõ›»OOH	‹ôY⁄\›ò][€â»»	¯. ∏.,x.bx.&x.%x.+x.&x. x.,∏.(¯.)x.!¯.%¯.,8.`8.&∏.-x.(∏.&I»à	¯. ∏.,x.bx.&x.%x.+x.&x. x.,∏.(¯.(¯.-x.`8."¯.a¯.%x.(¯.*¯.,x.*∏.'8.b8.,∏.&IﬂOÇà‹›\ÀõX\
+
+Xô[[ô^
+HOà¬à€€ú››\H[ô^
+»N¬à€€ú››]HH›\›\úô[ù»	ÿ€€\]I»à›\OOH›\úô[ù»	ÿX›]ôI»à	›\€€Z[ô…Œ¬àô]\õàH€\‹”ò[YO^ÿ]]\õŸ‹ô\‹◊◊‹›\\ÀI‹›]_XHŸ^O^€Xô[H\öXKX›\úô[ù^‹›]HOOH	ÿX›]ôI»»	‹›\	»à[ôYö[ôYOÇà‹[à€\‹”ò[YOHò]]\õŸ‹ô\‹◊◊€ù[Xô\àèû‹›\O‹‹[èè‹[èû€Xô[O‹‹[èÇà€Oé¬àJ_Bà€€é¬üBÇôù[ò›[€àŸ⁄[ä
+H¬à€€ú›]]H\ŸP€€ù^
+]]€€ù^
+HN¬à€€ú›€[ŸKŸ][ŸWHH\ŸT›]O	€Ÿ⁄[â»	‹ôY⁄\›\â»	‹ôY⁄\›\ïô\öYûI»	‹ô\Ÿ]	»	‹ô\Ÿ]ô\öYûIœä	€Ÿ⁄[â N¬à€€ú›Ÿ[XZ[Ÿ][XZ[HH\ŸT›]J	… N¬à€€ú›‹\‹›€‹ôŸ]\‹›€‹ôHH\ŸT›]J	… N¬à€€ú›‹›XõZ]Yò[YKŸ]›XõZ]Yò[YWHH\ŸT›]J	… N¬à€€ú›Ÿ\\ùY[ù[ùŸ]\\ùY[ù[ùHH\ŸT›]J	… N¬à€€ú›ÿ€ŸKŸ]€ŸWHH\ŸT›]J	… N¬à€€ú›‹⁄›‘\‹›€‹ôŸ]⁄›‘\‹›€‹ôHH\ŸT›]Jò[ŸJN¬à€€ú›ÿù\ﬁKŸ]ù\ﬁWHH\ŸT›]Jò[ŸJN¬à€€ú›Ÿõ‹õSY\‹ÿYŸKŸ]õ‹õSY\‹ÿYŸWHH\ŸT›]O›ö[ôœä
+N¬à€€ú›Ÿõ‹õQ\úõ‹ãŸ]õ‹õQ\úõ‹óHH\ŸT›]O›ö[ôœä
+N¬à€€ú›‹ôY⁄\›ò][€î›]KŸ]ôY⁄\›ò][€î›]WHH\ŸT›]O›ö[ôœä
+N¬à€€ú›‹ô\Ÿ[ôŸX€€ôÀŸ]ô\Ÿ[ôŸX€€ô◊HH\ŸT›]J
+N¬à€€ú›‹\‹⁄Ÿ^Q[òXõYŸ]\‹⁄Ÿ^Q[òXõYHH\ŸT›]Jò[ŸJN¬à€€ú›ÿ]]Y]ŸŸ]]]Y]ŸHH\ŸT›]O	‹\‹›€‹ô	»	‹\‹⁄Ÿ^I»	⁄\ôÿ\ôIœä	‹\‹›€‹ô	 N¬Çà\ŸQYôôX›
+
+
+HOà¬à\Kú\‹⁄Ÿ^P€€ôöY 
+Kù[ä
+ô\›[
+HOàŸ]\‹⁄Ÿ^Q[òXõY
+õ€€X[äô\›[Àô[òXõY
+H	âàúõ›‹Ÿ\î›\‹ù’ŸXê]]ä
+JJKòÿ]⁄
+
+
+HOàŸ]\‹⁄Ÿ^Q[òXõY
+ò[ŸJJN¬àK◊JN¬Çà\ŸQYôôX›
+
+
+HOà¬àYà
+[ŸHOOH	‹ôY⁄\›\ïô\öYûI»ô\Ÿ[ôŸX€€ô»H
+Hô]\õà[ôYö[ôY¬à€€ú›[Y\àH⁄[ô›ÀúŸ][ù\ùò[
+
+
+HOàŸ]ô\Ÿ[ôŸX€€ô 
+ò[YJHOàX]õX^
+ò[YHHJJKL
+N¬àô]\õà
+
+HOà⁄[ô›Àò€X\í[ù\ùò[
+[Y\äN¬àK€[ŸKô\Ÿ[ôŸX€€ô◊JN¬Çà€€ú›ô\Ÿ]öY]»H
+ô^à\[Ÿà[ŸJHOà»Ÿ][ŸJô^
+N»Ÿ]]]Y]Ÿ
+	‹\‹›€‹ô	 N»Ÿ]õ‹õQ\úõ‹ä[ôYö[ôY
+N»Ÿ]õ‹õSY\‹ÿYŸJ[ôYö[ôY
+N»Ÿ]€ŸJ	… N»Ÿ]ôY⁄\›ò][€î›]J[ôYö[ôY
+N»Yà
+ô^OOH	‹ôY⁄\›\ïô\öYûI HŸ]ô\Ÿ[ôŸX€€ô 
+N»N¬à€€ú›⁄Y€í[ï⁄]\‹⁄Ÿ^HH\ﬁ[ò»
+Y]Ÿà	‹\‹⁄Ÿ^I»	⁄\ôÿ\ôI»H	‹\‹⁄Ÿ^I HOà¬àŸ]õ‹õQ\úõ‹ä[ôYö[ôY
+N»Ÿ]õ‹õSY\‹ÿYŸJ[ôYö[ôY
+N»Ÿ]ù\ﬁJùYJN¬àûH»]ÿZ]]]ú\‹⁄Ÿ^SŸ⁄[ä
+N»Bàÿ]⁄
+ôX\€€äH»Ÿ]õ‹õQ\úõ‹äõ‹õX]ô\]Y\›\úõ‹ìY\‹ÿYŸJôX\€€ãY]ŸOOH	⁄\ôÿ\ôI»»	¯.a8.(x.b8.*∏.,∏.(x.,∏.(¯.%∏.`8. ∏.bx.,∏.*∏..x.b8.(¯.,8.&∏.&∏.%8.bx.)¯.(à\ôÿ\ôHŸ^H8.a8.%8.bI»à	¯.a8.(x.b8.*∏.,∏.(x.,∏.(¯.%∏.`8. ∏.bx.,∏.*∏..x.b8.(¯.,8.&∏.&∏.%8.bx.)¯.(à\‹⁄Ÿ^H8.a8.%8.bI JN»Bàö[ò[H»Ÿ]ù\ﬁJò[ŸJN»BàN¬Çà€€ú›ô\›[ô\Ÿ[ù][€àHôY⁄\›ò][€îô\›[ô\Ÿ[ù][€äôY⁄\›ò][€î›]JN¬à€€ú›]HH[ŸHOOH	€Ÿ⁄[â»»	¯.(∏.-8.&x.%8.-x.%x.bx.+x.&x.(¯.,x.&∏. x.)x.,x.&â»à[ŸHOOH	‹ôY⁄\›\â»»	¯.*∏.b8.!¯.!8.,¯. ∏.+x.)x.!¯.%¯.,8.`8.&∏.-x.(∏.&I»à[ŸHOOH	‹ôY⁄\›\ïô\öYûI»»	¯.(∏.-¯.&x.(∏.,x.&x.+x.-x.`8.(x.)I»à[ŸHOOH	‹ô\Ÿ]	»»	¯.)x.-¯.(x.(¯.*¯.,x.*∏.'8.b8.,∏.&I»à	¯.%x.,x.bx.!¯.(¯.*¯.,x.*∏.'8.b8.,∏.&x.`¯.*¯.(x.b	Œ¬à€€ú›XYH[ŸHOOH	€Ÿ⁄[â»»	¯.`8. ∏.bx.,∏.*∏..x.b8.(¯.,8.&∏.&∏.`8.'∏.-¯.b8.+x.`¯."∏.bx.!¯.,∏.&HŸX›\ö]HX[òYŸ[Y[ùﬁ\›[I»à[ŸHOOH	‹ôY⁄\›\â»»	¯. x.(¯.+x. x. ∏.bx.+x.(x..x.)x.*∏.,¯.*¯.(¯.,x.&∏.*∏.b8.!¯.!8.,¯. ∏.+x.`¯.*¯.bx.'8..x.bx.%8..x.`x.)x.%x.(¯.)¯."8.*∏.+x.&â»à[ŸHOOH	‹ôY⁄\›\ïô\öYûI»»	¯.(∏.-¯.&x.(∏.,x.&x.!8.)¯.,∏.(x.`8.&¯.a¯.&x.`8."8.bx.,∏. ∏.+x.!¯.+x.-x.`8.(x.)x.%8.bx.)¯.(∏.(¯.*¯.,x.*àà8.*¯.)x.,x. I»à[ŸHOOH	‹ô\Ÿ]	»»	¯.(¯.,8.&∏..8.+x.-x.`8.(x.)x.`8.'∏.-¯.b8.+x. ∏.+x.(¯.*¯.,x.*∏.(∏.-¯.&x.(∏.,x.&x.*∏.,¯.*¯.(¯.,x.&∏.%x.,x.bx.!¯.(¯.*¯.,x.*∏.'8.b8.,∏.&x.`¯.*¯.(x.b	»à	¯. x.(¯.+x. x.(¯.*¯.,x.*à’8.'∏.(¯.bx.+x.(x. x.,¯.*¯.&x.%8.(¯.*¯.,x.*∏.'8.b8.,∏.&x.`¯.*¯.(x.b	Œ¬à€€ú››XõZ]\ÿXõYHù\ﬁH
+[ŸHOOH	‹ôY⁄\›\â»	âà›XõZ]Yò[YKùö[J
+Kõ[ô›äN¬à€€ú›X\⁄ŸY[XZ[H
+
+
+HOà¬à€€ú›€ÿÿ[€XZ[óHH[XZ[ùö[J
+Kú‹]
+	–	 N¬àYà
+[ÿÿ[Y€XZ[äHô]\õà[XZ[¬àô]\õà	€ÿÿ[ú€XŸJJ_Jääê	Ÿ€XZ[üX¬àJJ
+N¬à€€ú›ôY⁄\›ò][€ë\úõ‹ìY\‹ÿYŸHH
+ôX\€€éà[ö€õ›€äHOà¬à€€ú››]\»H\[ŸàôX\€€àOOH	€ÿöôX›	»	âàôX\€€à	âà	‹›]\…»[àôX\€€à»ù[Xô\ä
+ôX\€€à\»»›]\œŒà[ö€õ›€àJKú›]\ Hà¬àYà
+›]\»OOHéJHô]\õà	¯.*∏.b8.!¯.(¯.*¯.,x.*∏.(∏.-¯.&x.(∏.,x.&x.&∏.b8.+x.(∏.`8. x.-8.&x.a8.&»8. x.(¯..8.$¯.,∏.(¯.+x.*∏.,x. x.!8.(¯..x.b8.`x.)x.bx.)¯.)x.+x.!¯.`¯.*¯.(x.b	Œ¬àYà
+›]\»OOHL Hô]\õà	¯.a8.(x.b8.*∏.,∏.(x.,∏.(¯.%∏.*∏.b8.!¯.(¯.*¯.,x.*∏.(∏.-¯.&x.(∏.,x.&x.a8.%8.bx.`¯.&x. ∏.$¯.,8.&x.-x.bH8. x.(¯..8.$¯.,∏.)x.+x.!¯.`¯.*¯.(x.b8.(8.,∏.(∏.*¯.)x.,x.!…Œ¬àô]\õàõ‹õX]ô\]Y\›\úõ‹ìY\‹ÿYŸJôX\€€ã	¯.a8.(x.b8.*∏.,∏.(x.,∏.(¯.%∏.%8.,¯.`8.&x.-8.&x. x.,∏.(¯.a8.%8.bI N¬àN¬Çà€€ú›ô\]Y\›ôY⁄\›ò][€ê€ŸHH\ﬁ[ò»
+\‘ô\Ÿ[ôHò[ŸJHOà¬à€€ú›ô\›[H]ÿZ]\Kúô\]Y\›ôY⁄\›ò][€ì›
+»›XõZ]Yò[YNà›XõZ]Yò[YKùö[J
+K[XZ[\‹›€‹ô\\ùY[ù[ùà\\ùY[ù[ùùö[J
+H[ôYö[ôYJN¬àŸ][ŸJ	‹ôY⁄\›\ïô\öYûI N¬àŸ]€ŸJ	… N¬àŸ]ô\Ÿ[ôŸX€€ô å
+N¬àŸ]õ‹õSY\‹ÿYŸJ\‘ô\Ÿ[ô»	¯.*∏.b8.!¯.(¯.*¯.,x.*∏.(∏.-¯.&x.(∏.,x.&x.`¯.*¯.(x.b8.`x.)x.bx.)»8. x.(¯..8.$¯.,∏.%x.(¯.)¯."8.*∏.+x.&∏.+x.-x.`8.(x.)H8.(¯.)¯.(x.%∏.-∏.!¯.`∏.'¯.)x.`8.%8.+x.(¯.c‹[K“ù[ö…»àô\›[õY\‹ÿYŸJN¬àN¬Çà€€ú›ô\Ÿ[ôôY⁄\›ò][€ê€ŸHH\ﬁ[ò»
+
+HOà¬àYà
+ù\ﬁHô\Ÿ[ôŸX€€ô»à
+Hô]\õé¬àŸ]õ‹õQ\úõ‹ä[ôYö[ôY
+N»Ÿ]õ‹õSY\‹ÿYŸJ[ôYö[ôY
+N»Ÿ]ù\ﬁJùYJN¬àûH»]ÿZ]ô\]Y\›ôY⁄\›ò][€ê€ŸJùYJN»Bàÿ]⁄
+ôX\€€äH»Ÿ]õ‹õQ\úõ‹äôY⁄\›ò][€ë\úõ‹ìY\‹ÿYŸJôX\€€äJN»Bàö[ò[H»Ÿ]ù\ﬁJò[ŸJN»BàN¬Çà€€ú››XõZ]H\ﬁ[ò»
+]ô[ùàôXX›ëõ‹õQ]ô[ù
+HOà¬à]ô[ùúô]ô[ùYò][
+
+N¬àŸ]õ‹õQ\úõ‹ä[ôYö[ôY
+N»Ÿ]õ‹õSY\‹ÿYŸJ[ôYö[ôY
+N¬àŸ]ù\ﬁJùYJN¬àûH¬àYà
+[ŸHOOH	€Ÿ⁄[â H]ÿZ]]]õŸ⁄[ä[XZ[\‹›€‹ô
+N¬à[ŸHYà
+[ŸHOOH	‹ôY⁄\›\â H¬à]ÿZ]ô\]Y\›ôY⁄\›ò][€ê€ŸJò[ŸJN¬àH[ŸHYà
+[ŸHOOH	‹ôY⁄\›\ïô\öYûI H¬à€€ú›ô\›[H]ÿZ]\Kùô\öYûTôY⁄\›ò][€ì›
+[XZ[€ŸJN¬àŸ]ôY⁄\›ò][€î›]Jô\›[úôY⁄\›ò][€î›]JN¬àŸ][ŸJ	€Ÿ⁄[â N»Ÿ]€ŸJ	… N»Ÿ]\‹›€‹ô
+	… N»Ÿ]ô\Ÿ[ôŸX€€ô 
+N»Ÿ]õ‹õSY\‹ÿYŸJô\›[õY\‹ÿYŸJN¬àH[ŸHYà
+[ŸHOOH	‹ô\Ÿ]	 H¬à]ÿZ]\Kúô\]Y\›\‹›€‹ôô\Ÿ]›
+[XZ[
+N»ô\Ÿ]öY] 	‹ô\Ÿ]ô\öYûI N»Ÿ]õ‹õSY\‹ÿYŸJ	¯.*¯.,∏. x.+x.-x.`8.(x.)x.&x.-x.bx.`¯."∏.bx.!¯.,∏.&x.a8.%8.bH8.(¯.,8.&∏.&∏.a8.%8.bx.*∏.b8.!¯.(¯.*¯.,x.*∏.(∏.-¯.&x.(∏.,x.&x.`x.)x.bx.)… N¬àH[ŸH¬à€€ú›ô\›[H]ÿZ]\Kò€€\]T\‹›€‹ôô\Ÿ]
+[XZ[€ŸK\‹›€‹ô
+N»ô\Ÿ]öY] 	€Ÿ⁄[â N»Ÿ]\‹›€‹ô
+	… N»Ÿ]õ‹õSY\‹ÿYŸJô\›[õY\‹ÿYŸJN¬àBàHÿ]⁄
+ôX\€€äH¬àŸ]õ‹õQ\úõ‹ä
+[ŸHOOH	‹ôY⁄\›\â»[ŸHOOH	‹ôY⁄\›\ïô\öYûI H»ôY⁄\›ò][€ë\úõ‹ìY\‹ÿYŸJôX\€€äHàõ‹õX]ô\]Y\›\úõ‹ìY\‹ÿYŸJôX\€€ã	¯.a8.(x.b8.*∏.,∏.(x.,∏.(¯.%∏.%8.,¯.`8.&x.-8.&x. x.,∏.(¯.a8.%8.bI JN¬àBàö[ò[H»Ÿ]ù\ﬁJò[ŸJN»BàN¬Çà€€ú›⁄›–Xÿ€›[ùôX€›ô\ûHHôY⁄\›ò][€î›]HOOH	—VT’Së◊–P–”’Sï	»ôY⁄\›ò][€î›]HOOH	—ST÷QQW–SëPQW“T◊–P–”’Sï	Œ¬à€€ú›ôY⁄\›ò][€î›\H[ŸHOOH	‹ôY⁄\›\ïô\öYûI»»ààN¬à€€ú›ô\Ÿ]›\H[ŸHOOH	‹ô\Ÿ]ô\öYûI»»ààN¬Çà€€ú›]]›YŸHH
+àŸX›[€à€\‹”ò[YOHõô^\ÀX]]\›YŸHàYHòXÿŸ\‹»èÇàH€\‹”ò[YOHò]]\⁄⁄\[[ö»àôYèHàÿ]][Ÿ⁄[ãYõ‹õHè∏. ∏.bx.,∏.(x.a8.&¯.`x.&∏.&∏.'¯.+x.(¯.c8.(x.`8. ∏.bx.,∏.*∏..x.b8.(¯.,8.&∏.&èÿOÇà€[ŸHOOH	€Ÿ⁄[â»	âà]à€\‹”ò[YOHõô^\ÀX]]ZXY[ô»èè‹[à\öXKZY[èHùùYHèñëTìÀUïT’SïTîíT—HQSïUHPè‹‹[èèè∏.*8..x.&x.(∏.c8.(∏.-¯.&x.(∏.,x.&x.%x.,x.)¯.%x.&H€€[X[ô€€ú€€H”Tœ⁄èè∏.`8. ∏.bx.,∏.%∏.-∏.!¯.'∏.-¯.bx.&x.%¯.-x.b8.&¯.#¯.-8.&∏.,x.%x.-8. x.,∏.(¯.(¯.,x. x.*x.,∏.!8.)¯.,∏.(x.&¯.)x.+x.%8.(8.,x.(∏.%8.bx.)¯.(∏. x.,∏.(¯.(¯.,x.&∏.(¯.+x.!¯.%x.,x.)¯.%x.&x.*¯.)x.,∏.(∏.&¯.,x."8."8.,x.(∏.`x.)x.,[ù\úö\ŸHY[ù]H€XﬁO‹èŸ]èüBàŸX›[€à€\‹”ò[YOHõŸ⁄[ã\⁄[]]Y^\öY[òŸK\⁄[ô^\ÀX]]\⁄[à\öXK[Xô[H∏.`8. ∏.bx.,∏.*∏..x.b8.(¯.,8.&∏.&àŸX›\ö]HX[òYŸ[Y[ùﬁ\›[HèÇà\⁄YH€\‹”ò[YOHõŸ⁄[ãZ[ùõ»]]Xúò[ô\[ô[ô^\ÀX]]Z[ùõ»èÇà]à€\‹”ò[YOHö[ùõÀXúò[ô]]Xúò[ôèèúò[ôŸ€»€ôOHô\öÀ\›\ôòXŸHàœèŸ]èÇà]à€\‹”ò[YOHö[ùõÀX€‹H]]Xúò[ôX€‹HèÇà€\‹”ò[YOHò]]Xúò[ôY^YXúõ›»à\öXKZY[èHùùYHèìUSKQêP’‘à—P’TíUHSê”UëO‹Çàèñô\õÀUù\›Y[ù]HXèúàœ∏.*∏.,¯.*¯.(¯.,x.&à€€[X[ô€€ú€€O⁄èÇàëíQÃà»ŸXê]]à0≠»ŸX›\ôHŸ\‹⁄[€à0≠»XÿŸ\‹»€›ô\õôYûHXÿ€›[ùõ€H[ô[ù\úö\ŸH€XﬁO‹Çà]à€\‹”ò[YOHò]]Xúò[ô\⁄[ù»à\öXK[Xô[H∏.!8.)¯.,∏.(x.*∏.,∏.(x.,∏.(¯.%∏.*¯.)x.,x. x. ∏.+x.!¯.(¯.,8.&∏.&àèÇà‹[èè€\“X€€àò[YOHô[\ﬁYY\»à⁄^ôO^ÃNHœ∏. ∏.bx.+x.(x..x.)x.&∏..8.!8.)x.,∏. x.(œ‹‹[èÇà‹[èè€\“X€€àò[YOHòÿ[[ô\àà⁄^ôO^ÃNHœ∏.%x.,∏.(¯.,∏.!¯. x.,8.`x.)x.,8. x.,∏.(¯.)x.,è‹‹[èÇà‹[èè€\“X€€àò[YOHú⁄Y[à⁄^ôO^ÃNHœ∏.*∏.-8.%¯.&8.-8.c8.`x.)x.,8. x.#∏. x.,∏.(¯.%¯.,¯.!¯.,∏.&O‹‹[èÇàŸ]èÇàŸ]èÇà]à€\‹”ò[YOHò]]\\›[Z[\›ò][€à]]\ŸX›\ö]K\⁄Y[\ÿŸ[ôHà\öXKZY[èHùùYHèÇà›ô»€\‹”ò[YOHò]]\ŸX›\ö]K\⁄Y[àöY]–õﬁHååéLàõ€OHúô\Ÿ[ù][€ààõÿ›\ÿXõOHôò[ŸHèÇàYúœÇà[ôX\ë‹òYY[ùYHúŸX›\ö]K\⁄Y[[›]\ààOHåàLOHåàèHåHàLèHåHèÇà›‹€\‹”ò[YOHò]]\ŸX›\ö]K\⁄Y[◊‹›‹]]\ŸX›\ö]K\⁄Y[◊‹›‹K]ö[€]àŸôúŸ]Hå	HàœÇà›‹€\‹”ò[YOHò]]\ŸX›\ö]K\⁄Y[◊‹›‹]]\ŸX›\ö]K\⁄Y[◊‹›‹KZ[ôY€»àŸôúŸ]HçLâHàœÇà›‹€\‹”ò[YOHò]]\ŸX›\ö]K\⁄Y[◊‹›‹]]\ŸX›\ö]K\⁄Y[◊‹›‹KXﬁX[ààŸôúŸ]HåL	HàœÇà€[ôX\ë‹òYY[ùÇà[ôX\ë‹òYY[ùYHúŸX›\ö]K\⁄Y[[ZYHàOHåàLOHåHàèHåHàLèHåèÇà›‹€\‹”ò[YOHò]]\ŸX›\ö]K\⁄Y[◊‹›‹]]\ŸX›\ö]K\⁄Y[◊‹›‹K[]ô[ô\ààŸôúŸ]Hå	HàœÇà›‹€\‹”ò[YOHò]]\ŸX›\ö]K\⁄Y[◊‹›‹]]\ŸX›\ö]K\⁄Y[◊‹›‹K]ö[€]àŸôúŸ]HçL	HàœÇà›‹€\‹”ò[YOHò]]\ŸX›\ö]K\⁄Y[◊‹›‹]]\ŸX›\ö]K\⁄Y[◊‹›‹K\⁄ﬁHàŸôúŸ]HåL	HàœÇà€[ôX\ë‹òYY[ùÇàòYX[‹òYY[ùYHúŸX›\ö]K\⁄Y[Z[õô\ààﬁHçL	HàﬁOHçâHàèHçç	HèÇà›‹€\‹”ò[YOHò]]\ŸX›\ö]K\⁄Y[◊‹›‹]]\ŸX›\ö]K\⁄Y[◊‹›‹K[Y⁄àŸôúŸ]Hå	HàœÇà›‹€\‹”ò[YOHò]]\ŸX›\ö]K\⁄Y[◊‹›‹]]\ŸX›\ö]K\⁄Y[◊‹›‹K[Z[ùàŸôúŸ]HçâHàœÇà›‹€\‹”ò[YOHò]]\ŸX›\ö]K\⁄Y[◊‹›‹]]\ŸX›\ö]K\⁄Y[◊‹›‹KZ[ôY€»àŸôúŸ]HåL	HàœÇà‹òYX[‹òYY[ùÇà[ôX\ë‹òYY[ùYHúŸX›\ö]K\⁄Y[[ÿ⁄»àOHåàLOHåàèHåàLèHåHèÇà›‹€\‹”ò[YOHò]]\ŸX›\ö]K\⁄Y[◊‹›‹]]\ŸX›\ö]K\⁄Y[◊‹›‹K[ÿ⁄À]‹àŸôúŸ]Hå	HàœÇà›‹€\‹”ò[YOHò]]\ŸX›\ö]K\⁄Y[◊‹›‹]]\ŸX›\ö]K\⁄Y[◊‹›‹K[ÿ⁄ÀXõ›€HàŸôúŸ]HåL	HàœÇà€[ôX\ë‹òYY[ùÇàö[\àYHúŸX›\ö]K\⁄Y[Xõ€€HàHãN	HàOHãN	Hà⁄YHåçå	HàZY⁄Håçå	HèÇàôQÿ]\‹⁄X[êõ\à›]öX][€èHåMàœÇàŸö[\èÇàŸYúœÇà[\ŸH€\‹”ò[YOHò]]\ŸX›\ö]K\⁄Y[◊Ÿõ€‹ààﬁHååLàﬁOHåçMàûHéLààûOHåL»àœÇà[\ŸH€\‹”ò[YOHò]]\ŸX›\ö]K\⁄Y[◊ÿõ€€HàﬁHååLàﬁOHåMMàûHåLàûOHéMààö[\èHù\õ
+‹ŸX›\ö]K\⁄Y[Xõ€€JHàœÇà»€\‹”ò[YOHò]]\ŸX›\ö]K\⁄Y[◊€‹òö]»àö[Hõõ€ôHèÇà[\ŸHﬁHååLàﬁOHåMM»àûHåMLHàûOHçÃ»àœÇà[\ŸHﬁHååLàﬁOHåMM»àûHåLçàûOHéM»àœÇàŸœÇà»€\‹”ò[YOHò]]\ŸX›\ö]K\⁄Y[◊€õŸ\»èÇà⁄\ò€HﬁHçéHàﬁOHåLÕHàèHçàœè⁄\ò€HﬁHåÕLHàﬁOHåLÕHàèHçàœÇà⁄\ò€HﬁHåLàﬁOHååLHàèHåÀçHàœè⁄\ò€HﬁHåÃMààﬁOHååLHàèHåÀçHàœÇàôX›HåLLHàOHéàà⁄YHéHàZY⁄HéHàûHåààò[úŸõ‹õOHúõ›]JHLMKçHãçJHàœÇàôX›HåÃàOHéàà⁄YHéHàZY⁄HéHàûHåààò[úŸõ‹õOHúõ›]JHÃçHãçJHàœÇàŸœÇà»€\‹”ò[YOHò]]\ŸX›\ö]K\⁄Y[◊ÿõŸHèÇà]€\‹”ò[YOHò]]\ŸX›\ö]K\⁄Y[◊€›]\ààHìLåLàÃàåMHÃÃå»ççàçàåLççàÃMMçàLMàå»LMàMHéàààö[Hù\õ
+‹ŸX›\ö]K\⁄Y[[›]\äHàœÇà]€\‹”ò[YOHò]]\ŸX›\ö]K\⁄Y[◊€ZYHàHìLåLçàéàLàåMHÃéàNL»çL»åçåLçàÃMç»åçLŒNL»LŒMHéLàààö[Hù\õ
+‹ŸX›\ö]K\⁄Y[[ZYJHàœÇà]€\‹”ò[YOHò]]\ŸX›\ö]K\⁄Y[◊⁄[õô\ààHìLåLàçåLåMÃçåMÕ»çHNNHåLåMÃMŒHNNHMåMÕ»MåMåLààö[Hù\õ
+‹ŸX›\ö]K\⁄Y[Z[õô\äHàœÇà]€\‹”ò[YOHò]]\ŸX›\ö]K\⁄Y[◊ÿ^\»àHìLåLM»åçàœÇàŸœÇà»€\‹”ò[YOHò]]\ŸX›\ö]K\⁄Y[◊€ÿ⁄»èÇà]€\‹”ò[YOHò]]\ŸX›\ö]K\⁄Y[◊€ÿ⁄À\⁄X⁄€HàHìLNLMHåLÃàÃNLLåéMHNNéMHLLàåLLLàÃååKåHLLàåÃLåéMHåÃLÃàåMHàö[Hõõ€ôHàœÇàôX›€\‹”ò[YOHò]]\ŸX›\ö]K\⁄Y[◊€ÿ⁄ÀXõŸHàHåNHàOHåMàà⁄YHçNàZY⁄Hç»àûHåL»àö[Hù\õ
+‹ŸX›\ö]K\⁄Y[[ÿ⁄ HàœÇà⁄\ò€H€\‹”ò[YOHò]]\ŸX›\ö]K\⁄Y[◊⁄Ÿ^Z€HàﬁHååLàﬁOHåMåààèHçHàœÇà]€\‹”ò[YOHò]]\ŸX›\ö]K\⁄Y[◊⁄Ÿ^Z€K\›[HàHìLåLMçàåMÕàœÇàŸœÇà‹›ôœÇàŸ]èà€\‹”ò[YOHò]]Xúò[ôYõ€›õ›Hèè€\“X€€àò[YOHú⁄Y[à⁄^ôO^ÃMüHœ∏. x.,∏.(¯.`8. ∏.bx.,∏.%∏.-∏.!¯. ∏.bx.+x.(x..x.)x.`8.&¯.a¯.&x.a8.&¯.%x.,∏.(x.*∏.-8.%¯.&8.-8.c8. ∏.+x.!¯.&∏.,x.#x."∏.-x.'8..x.bx.`¯."∏.bx.!¯.,∏.&O‹Çàÿ\⁄YOÇàŸX›[€à€\‹”ò[YOHõŸ⁄[ãYõ‹õK\[ô[]]Xÿ\ô\[ô[ô^\ÀX]]\[ô[èÇà]à€\‹”ò[YOHõŸ⁄[ã][YKX€€ùõ€]]][YKX€€ùõ€èè[YP€€ùõ€€€\X›œèŸ]èÇà]à€\‹”ò[YOHò]][[ÿö[KXúò[ôèèúò[ôŸ€»€ôOHô\öÀ\›\ôòXŸHàœèŸ]èÇàõ‹õHYHò]][Ÿ⁄[ãYõ‹õHà€\‹”ò[YOHõŸ⁄[ãYõ‹õH]]Yõ‹õHà€î›XõZ]^‹›XõZ]H\öXKXù\ﬁO^ÿù\ﬁ_OÇà‹ô\›[ô\Ÿ[ù][€à»ŸX›[€à€\‹”ò[YO^ÿ]]\ô\›[]]\ô\›[KI‹ô\›[ô\Ÿ[ù][€ãù€ô_XH\öXK[]ôOHú€]Hà\öXK[Xô[YûOHúôY⁄\›ò][€ã\ô\›[]]HèÇà]à€\‹”ò[YOHò]]\ô\›[◊›ô\öYöYYèè‹[à€\‹”ò[YOHò]]\ô\›[◊›ô\öYöYYZX€€àèè€\“X€€àò[YOHò\õ›ò[à⁄^ôO^ÃåHœè‹‹[èè‹[èèè∏.(∏.-¯.&x.(∏.,x.&x.+x.-x.`8.(x.)x.*∏.,¯.`8.(¯.a¯."ÿèè€X[∏. x.,∏.(¯.(∏.-¯.&x.(∏.,x.&x.+x.-x.`8.(x.)x.(∏.,x.!¯.a8.(x.b8.`¯."∏.b8. x.,∏.(¯.+x.&x..8.(x.,x.%x.-8.&∏.,x.#x."∏.-O‹€X[è‹‹[èèŸ]èÇà]à€\‹”ò[YOHò]]\ô\›[◊ÿõŸHèÇààYHúôY⁄\›ò][€ã\ô\›[]]Hèû‹ô\›[ô\Ÿ[ù][€ãöXY[ôﬂO⁄èÇàû‹ô\›[ô\Ÿ[ù][€ãòõŸ_O‹Çà‹ô\›[ô\Ÿ[ù][€ãú›]\”Xô[	âà]à€\‹”ò[YOHò]]\ô\›[◊‹›]\»èè‹[è∏.*∏.%∏.,∏.&x.,‹‹[èè›õ€ôœû‹ô\›[ô\Ÿ[ù][€ãú›]\”Xô[O‹›õ€ôœèŸ]èüBàŸ]èÇà]à€\‹”ò[YOHò]]\ô\›[◊ÿX›[€ú»èÇàù]€à€\‹”ò[YOHòùã\ö[X\ûH]]\ö[X\ûKXX›[€àà\OHòù]€àà€ê€X⁄œ^ 
+HOàô\Ÿ]öY] 	€Ÿ⁄[â _O∏. x.)x.,x.&∏.*¯.&x.bx.,∏.`8. ∏.bx.,∏.*∏..x.b8.(¯.,8.&∏.&èÿù]€èÇà‹ô\›[ô\Ÿ[ù][€ãúôX€›ô\ûH	âàù]€à€\‹”ò[YOHò]]\ŸX€€ô\ûKXX›[€àà\OHòù]€àà€ê€X⁄œ^ 
+HOàô\Ÿ]öY] 	‹ô\Ÿ]	 _O∏.)x.-¯.(x.(¯.*¯.,x.*∏.'8.b8.,∏.&Oÿù]€èüBàŸ]èÇà‹ŸX›[€èààÇàXY\à€\‹”ò[YOHò]]Yõ‹õKZXY[ô»ô^\ÀX]]Xÿ\ôZXY\àèÇà€[ŸHOOH	€Ÿ⁄[â»»è‹[à€\‹”ò[YOHõô^\ÀY[ò€]ôKXòYŸHà\öXKZY[èHùùYHèèHœñëTìÀUïT’SºÛﬁ˚∂âûÀk∫wµÁYXY€õO^ÿ]]ö\’öY]⁄[ô–\ﬂH€ì‹[î\‹⁄Ÿ^\œ^ 
+HOàŸ]\‹⁄Ÿ^T[ô[‹[äùYJ_H€ìŸ€›]^ 
+HOà]]õŸ€›]
+
+_Hœé¬àBàYà
+X›]ôTYŸHOOH	ÿ][ô[òŸQ]öXŸI»	âà]]ù⁄Ÿ[äH¬àô]\õà][ô[òŸQ]öXŸTYŸH⁄Ÿ[è^ÿ]]ù⁄Ÿ[üHõ€O^ÿ]]ù\Ÿ\èÀúõ€H	’íQU—TâﬂHôXY€õO^ÿ]]ö\’öY]⁄[ô–\ﬂH€ê\õ›ò[]Y]YP⁄[ôŸY^ 
+HOà»Ÿ]‹\ò][€îôYúô\⁄
+
+ò[YJHOàò[YH
+»JN»Ÿ]\õ›ò[Ÿ[ù\îôYúô\⁄
+
+ò[YJHOàò[YH
+»JN»_Hœé¬àBàYà
+X›]ôTYŸHOOH	›\Ÿ\ú… H¬à€€ú›\Ÿ\ú»H\úò^Kö\–\úò^J‹\ò][€îô\‹€úŸKô]JH»‹\ò][€îô\‹€úŸKô]Hà◊N¬àô]\õà]à€\‹”ò[YOHù\Ÿ\úÀXXÿŸ\‹À]€‹ö‹‹XŸH^[›]\\ú€€õô[\YŸH^[›]\YŸK\›\ôòXŸHèÇàXÿŸ\‹”X[òYŸ[Y[ùYŸBàõ›‹œ^›\Ÿ\ú»\»\úò^O»Yà›ö[ôŒ»\‹^Sò[YOŒà›ö[ôŒ»õ€OŒà›ö[ôŒ»\\ùY[ùŒà›ö[ô»ù[»Xÿ€›[ù›]\œŒà›ö[ôŒ»\–X›]ôOŒàõ€€X[é»\‹›€‹ôô\Ÿ]ô\]Z\ôYŒàõ€€X[é»‹ôX]Y]Œà›ö[ôŒ»\]Y]Œà›ö[ô»OüBàÿY[ôœ^€‹\ò][€ìÿY[ôﬂBà\úõ‹è^›\[Ÿà‹\ò][€ë\úõ‹àOOH	‹›ö[ô…»»‹\ò][€ë\úõ‹àà‹\ò][€ë\úõ‹èÀõY\‹ÿYŸ_Bàõ€O^ÿ]]ù\Ÿ\èÀúõ€H	’íQU—TâﬂBà‹öY⁄[ò[\Ÿ\íY^ÿ]]õ‹öY⁄[ò[\Ÿ\èÀöYBà€îôYúô\⁄^ 
+HOàŸ]‹\ò][€îôYúô\⁄
+
+ò[YJHOàò[YH
+»J_Bà€ï\]O^ÿ\ﬁ[ò»
+Y^[ÿY
+HOà»]ÿZ]\Kù\]U\Ÿ\ä]]ù⁄Ÿ[àKY^[ÿY
+N»Ÿ]‹\ò][€îôYúô\⁄
+
+ò[YJHOàò[YH
+»JN»_Bà€îô\Ÿ]\‹›€‹ô^ÿ\ﬁ[ò»
+Yô]‘\‹›€‹ô
+HOà»]ÿZ]\Kúô\Ÿ]\Ÿ\î\‹›€‹ô
+]]ù⁄Ÿ[àKYô]‘\‹›€‹ô
+N»Ÿ]‹\ò][€îôYúô\⁄
+
+ò[YJHOàò[YH
+»JN»_Bà€ïöY]–\œ^ÿ\ﬁ[ò»
+Y
+HOà»]ÿZ]]]òôY⁄[ïöY]–\ Y
+N»Ÿ]X›]ôTYŸJ	Ÿ\⁄õÿ\ô	 N»_Bà€ì‹[ê]Y]^ 
+HOàŸ]X›]ôTYŸJ	ÿ]Y]	 _Bà€îõ›ö\⁄[€ëÃïX]^ÿ\ﬁ[ò»
+
+HOà¬à€€ú›ô\‹€úŸHH]ÿZ]\Kúõ›ö\⁄[€ëÃïX]
+]]ù⁄Ÿ[àJN¬àŸ]‹\ò][€îôYúô\⁄
+
+ò[YJHOàò[YH
+»JN¬àô]\õà
+ô\‹€úŸH\»»]NàÃïX]õ›ö\⁄[€îô\›[JKô]N¬à_BàœÇàôY⁄\›ò][€îô]öY]‘[ô[⁄Ÿ[è^ÿ]]ù⁄Ÿ[à_Hõ€O^ÿ]]ù\Ÿ\èÀúõ€H	’íQU—TâﬂHôYúô\⁄⁄Y€ò[^€‹\ò][€îôYúô\⁄H[ö]X[ô\]Y\›Y^‹ôY⁄\›ò][€îô]öY]“[ö]X[ô\]Y\›YH€í[ö]X[ô\]Y\›[ôY^ 
+HOàŸ]ôY⁄\›ò][€îô]öY]“[ö]X[ô\]Y\›Y
+[ôYö[ôY
+_H€ê⁄[ôŸY^ 
+HOàŸ]‹\ò][€îôYúô\⁄
+
+ò[YJHOàò[YH
+»J_H€ì‹[ë[\ﬁYYSX\›\è^ 
+HOàŸ]X›]ôTYŸJ	Ÿ[\ﬁYY\… _HœÇàŸ]èé¬àBàYà
+X›]ôTYŸHOOH	‹ŸX›\ö]T⁄]I»	âà]]ù⁄Ÿ[äH¬àô]\õàŸX›\ö]T⁄]SX[òYŸ[Y[ù[ô[⁄Ÿ[è^ÿ]]ù⁄Ÿ[üHœé¬àBàYà
+X›]ôTYŸHOOH	‹Ÿ][ô‹… H¬à€€ú›Ÿ][ô‹»H\úò^Kö\–\úò^J‹\ò][€îô\‹€úŸKô]JH»‹\ò][€îô\‹€úŸKô]Hà◊N¬àô]\õàŸ][ô‹‘YŸH⁄Ÿ[è^ÿ]]ù⁄Ÿ[à_HŸ][ô‹œ^‹Ÿ][ô‹ﬂHX]ôU\\œ^€X]ôU\\ﬂHX]ôU\\”ÿY[ôœ^€X]ôU\\”ÿY[ôﬂHÿY[ôœ^€‹\ò][€ìÿY[ôﬂH\úõ‹è^€‹\ò][€ë\úõ‹üHŸX›[€è^ÿX›]ôTŸ][ô‹‘ŸX›[€üH€îŸX›[€ê⁄[ôŸO^‹Ÿ]Ÿ][ô‹‘ŸX›[€üH€îôYúô\⁄^ 
+HOàŸ]‹\ò][€îôYúô\⁄
+
+ò[YJHOàò[YH
+»J_H€ê]Y]^ 
+HOàŸ]X›]ôTYŸJ	ÿ]Y]	 _H€îÿ]ôU[\]\œ^ÿ\ﬁ[ò»
+ô]”X]ôKX]ôT›]\ HOà»Yà
+X]]ù⁄Ÿ[äHô]\õé»]ÿZ]õ€Z\ŸKò[
+ÿ\Kù\]Tﬁ\›[TŸ][ô ]]ù⁄Ÿ[ã	”SëW’STUW”ëU◊”PUëIÀ»ò[YNàô]”X]ôK\ÿ‹ö\[€éà	¯.`8.%¯.(x.`8.'∏.)x.%x. ∏.bx.+x.!8.)¯.,∏.(x.!8.,¯. ∏.+x.)x.,∏.`¯.*¯.(x.b
+8.(¯..x.&¯.`x.&∏.&∏.`8.%8.-8.(JI»JK\Kù\]Tﬁ\›[TŸ][ô ]]ù⁄Ÿ[ã	”SëW’STUW”PUëW‘’UT…À»ò[YNàX]ôT›]\À\ÿ‹ö\[€éà	¯.`8.%¯.(x.`8.'∏.)x.%x. ∏.bx.+x.!8.)¯.,∏.(x.+x.,x.&¯.`8.%8.%x.*∏.%∏.,∏.&x.,8. x.,∏.(¯.)x.,à
+8.(¯..x.&¯.`x.&∏.&∏.`8.%8.-8.(JI»JWJN»Ÿ]‹\ò][€îôYúô\⁄
+
+ò[YJHOàò[YH
+»JN»_H€îÿ]ôP][ô[òŸT€XﬁO^ÿ\ﬁ[ò»
+€XﬁJHOà»Yà
+X]]ù⁄Ÿ[äHô]\õé»]ÿZ]õ€Z\ŸKò[
+ÿ\Kù\]Tﬁ\›[TŸ][ô ]]ù⁄Ÿ[ã][ô[òŸT€XﬁRŸ^\Àú\î€XﬁK»ò[YNà€XﬁKú\î€XﬁK\ÿ‹ö\[€éà	–][ô[òŸHTà€XﬁNàQTUëH»ëTURTëQ»T–PìQ	»JK\Kù\]Tﬁ\›[TŸ][ô ]]ù⁄Ÿ[ã][ô[òŸT€XﬁRŸ^\ÀõX^Xÿ›\òXﬁSY]\úÀ»ò[YNà›ö[ô €XﬁKõX^Xÿ›\òXﬁSY]\ú K\ÿ‹ö\[€éà	—‘»Xÿ›\òXﬁH8.*∏..x.!¯.*∏..8.%8.%¯.-x.b][ô[òŸH8.(∏.+x.(x.(¯.,x.&à
+8.`8.(x.%x.( I»JK\Kù\]Tﬁ\›[TŸ][ô ]]ù⁄Ÿ[ã][ô[òŸT€XﬁRŸ^\ÀõX^YŸTŸX€€ôÀ»ò[YNà›ö[ô €XﬁKõX^YŸTŸX€€ô K\ÿ‹ö\[€éà	¯.+x.,∏.(∏..‘»ÿ[\H8.*∏..x.!¯.*∏..8.%
+8.)¯.-8.&x.,∏.%¯.-JI»JK\Kù\]Tﬁ\›[TŸ][ô ]]ù⁄Ÿ[ã][ô[òŸT€XﬁRŸ^\Àôù]\ôT⁄Ÿ]‘ŸX€€ôÀ»ò[YNà›ö[ô €XﬁKôù]\ôT⁄Ÿ]‘ŸX€€ô K\ÿ‹ö\[€éà	—‘»ù]\ôH€ÿ⁄»⁄Ÿ]»8.*∏..x.!¯.*∏..8.%
+8.)¯.-8.&x.,∏.%¯.-JI»JK\Kù\]Tﬁ\›[TŸ][ô ]]ù⁄Ÿ[ã][ô[òŸT€XﬁRŸ^\Àò]]‘\‹–Xÿ›\òXﬁSY]\úÀ»ò[YNà›ö[ô €XﬁKò]]‘\‹–Xÿ›\òXﬁSY]\ú K\ÿ‹ö\[€éà	—‘»Xÿ›\òXﬁH8.*∏.,¯.*¯.(¯.,x.&∏. ∏.bx.,∏.(HTà8.`¯.&HY\]ôH[ŸH
+8.`8.(x.%x.( I»JK\Kù\]Tﬁ\›[TŸ][ô ]]ù⁄Ÿ[ã][ô[òŸT€XﬁRŸ^\Àö[õô\ìX\ô⁄[ìY]\úÀ»ò[YNà›ö[ô €XﬁKö[õô\ìX\ô⁄[ìY]\ú K\ÿ‹ö\[€éà	¯.(¯.,8.(∏.,8."8.,∏. x. ∏.+x.&àŸ[Ÿô[òŸH8.%¯.-x.b8.`¯."∏.bx.%x.,x.%8.*∏.-8.&HTà›\]\
+8.`8.(x.%x.( I»JK\Kù\]Tﬁ\›[TŸ][ô ]]ù⁄Ÿ[ã][ô[òŸT€XﬁRŸ^\Àú›\\€î⁄]S›ô\õ\»ò[YNà›ö[ô €XﬁKú›\\€î⁄]S›ô\õ\
+K\ÿ‹ö\[€éà	¯. ∏.+HTà›\]\8.`8.(x.-¯.b8.+H‘»8.+x.(∏..x.b8.`¯.&x.*¯.)x.,∏.(à⁄]H8.'∏.(¯.bx.+x.(x. x.,x.&I»JWJN»Ÿ]‹\ò][€îôYúô\⁄
+
+ò[YJHOàò[YH
+»JN»_H€îÿ]ôSX]ôT€XﬁO^ÿ\ﬁ[ò»
+€XﬁJHOà»Yà
+X]]ù⁄Ÿ[äHô]\õé»]ÿZ]õ€Z\ŸKò[
+ÿ\Kù\]Tﬁ\›[TŸ][ô ]]ù⁄Ÿ[ãX]ôT€XﬁRŸ^\ÀôYò][⁄X⁄—^\À»ò[YNà›ö[ô €XﬁKôYò][⁄X⁄—^\ HJK\Kù\]Tﬁ\›[TŸ][ô ]]ù⁄Ÿ[ãX]ôT€XﬁRŸ^\ÀôYò][\ú€€ò[^\À»ò[YNà›ö[ô €XﬁKôYò][\ú€€ò[^\ HJK\Kù\]Tﬁ\›[TŸ][ô ]]ù⁄Ÿ[ãX]ôT€XﬁRŸ^\ÀôYò][òXÿ][€ë^\À»ò[YNà›ö[ô €XﬁKôYò][òXÿ][€ë^\ HJK\Kù\]Tﬁ\›[TŸ][ô ]]ù⁄Ÿ[ãX]ôT€XﬁRŸ^\Àú⁄X⁄–]X⁄Y[ùô\]Z\ôYYù\ë^\À»ò[YNà›ö[ô €XﬁKú⁄X⁄–]X⁄Y[ùô\]Z\ôYYù\ë^\ HJK\Kù\]Tﬁ\›[TŸ][ô ]]ù⁄Ÿ[ãX]ôT€XﬁRŸ^\ÀõX[òYŸ\îô]õÿX›]ôS€êôZ[ë[òXõY»ò[YNà›ö[ô €XﬁKõX[òYŸ\îô]õÿX›]ôS€êôZ[ë[òXõY
+HJK\Kù\]Tﬁ\›[TŸ][ô ]]ù⁄Ÿ[ãX]ôT€XﬁRŸ^\ÀõX[òYŸ\îô]õÿX›]ôSX^^\–òX⁄À»ò[YNà›ö[ô €XﬁKõX[òYŸ\îô]õÿX›]ôSX^^\–òX⁄ HJWJN»Ÿ]‹\ò][€îôYúô\⁄
+
+ò[YJHOàò[YH
+»JN»_H€ê‹ôX]SX]ôU\O^ÿ\ﬁ[ò»
+[ú]
+HOà»Yà
+X]]ù⁄Ÿ[äHô]\õé»]ÿZ]‹ôX]SX]ôU\J]]ù⁄Ÿ[ã[ú]
+N»Ÿ]‹\ò][€îôYúô\⁄
+
+ò[YJHOàò[YH
+»JN»_H€ï\]SX]ôU\O^ÿ\ﬁ[ò»
+Y[ú]
+HOà»Yà
+X]]ù⁄Ÿ[äHô]\õé»]ÿZ]\]SX]ôU\J]]ù⁄Ÿ[ãY[ú]
+N»Ÿ]‹\ò][€îôYúô\⁄
+
+ò[YJHOàò[YH
+»JN»_Hœé¬àBàYà
+
+X›]ôTYŸHOOH	‹ô\‹ùŸ[ù\â»X›]ôTYŸHOOH	Ÿ^X›]]ôTô\‹ù	»X›]ôTYŸHOOH	‹ô\‹ù…»X›]ôTYŸHOOH	ÿ][ô[òŸTô\‹ù	 H	âà]]ù⁄Ÿ[äH¬à€€ú›[ö]X[XàHX›]ôTYŸHOOH	ÿ][ô[òŸTô\‹ù	»»	Ÿ^‹ù	»àX›]ôTYŸHOOH	‹ô\‹ù…»»	Ÿ]Z[…»à	Ÿ^X›]]ôIŒ¬àô]\õàô\‹ùŸ[ù\îYŸHŸ^O^ÿX›]ôTYŸ_H⁄Ÿ[è^ÿ]]ù⁄Ÿ[üHõ€O^ÿ]]ù\Ÿ\èÀúõ€H	’íQU—TâﬂH[ö]X[Xè^⁄[ö]X[XüH€ìò]öYÿ]O^ YŸJHOàŸ]X›]ôTYŸJYŸH\»YŸJ_Hœé¬àBàYà
+X›]ôTYŸHOOH	‹][›I Hô]\õàŸX›[€à€\‹”ò[YOHùöY]À\[ôH^[›]\õ‹›\ã\YŸH^[›]\YŸK\›\ôòXŸHèèYŸRXY\à⁄X⁄Ÿ\èH∏.*∏.-8.%¯.&8.-8.c8. x.,∏.(¯.)x.,∏.(¯.,∏.(∏.&¯.-Hà]O^ÿ8.`∏.!8.)¯.%x.,∏.)¯.,x.&x.)x.,à	‹⁄›”YÿXﬁT][›\»»	¯. ∏.bx.+x.(x..x.)x.`8.%8.-8.(I»àZT][›VYX\ìXô[
+][›VYX\ä_XH\ÿ‹ö\[€è^‹⁄›”YÿXﬁT][›\»»	¯. ∏.bx.+x.(x..x.)x.`8.%8.-8.(x.%¯.-x.b8.(∏.,x.!¯.a8.(x.b8.(¯.,8.&∏..8.&¯.-H8.%x.bx.+x.!¯."8.,x.%8.&¯.(¯.,8.`8.(8.%¯. x.b8.+x.&x.`¯."∏.bx.!¯.,∏.&x.(¯.,∏.(∏.&¯.-I»à	¯.*∏.-8.%¯.&8.-8.c8.(¯.,∏.(∏.&¯.-x.`x.(∏. x.%x.,∏.(x.'∏.&x.,x. x.!¯.,∏.&x.`x.)x.,8.&¯.-H8.%x.(¯.)¯."8. ∏.bx.+x.(x..x.)x."8.(¯.-8.!¯. x.b8.+x.&x. x.,¯.*¯.&x.%8.`∏.!8.)¯.%x.,âﬂHX›[€úœ^œ]à€\‹”ò[YOHöXY[ôÀXX›[€ú»èèXô[€\‹”ò[YOHõ[€ùYö[\àèè‹[è∏.&¯.-x.*∏.-8.%¯.&8.-8.c‹‹[èèŸ[X›\öXK[Xô[H∏.&¯.-x.*∏.-8.%¯.&8.-8.c8.`∏.!8.)¯.%x.,∏.)¯.,x.&x.)x.,àà\ÿXõY^‹⁄›”YÿXﬁT][›\ﬂHò[YO^‹][›VYX\üH€ê⁄[ôŸO^ ]ô[ù
+HOàŸ]][›VYX\äù[Xô\ä]ô[ùù\ôŸ]ùò[YJJ_Oû‹][›VYX\ì‹[€úÀõX\
+
+‹[€äHOà‹[€àŸ^O^€‹[€ãùò[Y_Hò[YO^€‹[€ãùò[Y_Oû€‹[€ãõXô[O€‹[€èä_O‹Ÿ[X›è€Xô[èù]€à€\‹”ò[YOHòùã[ô]]ò[€X[XX›[€àà\OHòù]€àà€ê€X⁄œ^ 
+HOàŸ]⁄›”YÿXﬁT][›\ 
+ò[YJHOà]ò[YJ_Oû‹⁄›”YÿXﬁT][›\»»	¯. x.)x.,x.&∏.(¯.,∏.(∏. x.,∏.(¯.(¯.,∏.(∏.&¯.-I»à	¯.%8..x. ∏.bx.+x.(x..x.)x.`8.%8.-8.(x.%¯.-x.b8.(∏.,x.!¯.a8.(x.b8.(¯.,8.&∏..8.&¯.-IﬂOÿù]€èèŸ]èüHœè‹\ò][€ò[XõHYŸO^ÿX›]ôTYŸH\»‹\ò][€ò[YŸ_Hô\‹€úŸO^€‹\ò][€îô\‹€úŸ_HÿY[ôœ^€‹\ò][€ìÿY[ôﬂH\úõ‹è^€‹\ò][€ë\úõ‹üH€îYŸP⁄[ôŸO^‹Ÿ]‹\ò][€îYŸ_H€êX›[€è^⁄[ôS‹\ò][€êX›[€üH€ê‹ôX]O^€‹[ê‹ôX]S‹\ò][€üH€ìò]öYÿ]O^‹Ÿ]X›]ôTYŸ_Hõ€O^ÿ]]ù\Ÿ\èÀúõ€H	’íQU—TâﬂH⁄Ÿ[è^ÿ]]ù⁄Ÿ[üHôYúô\⁄⁄Y€ò[^€‹\ò][€îôYúô\⁄H€ìXŸ[úŸQÿ›[Y[ù⁄[ôŸY^ 
+HOàŸ]‹\ò][€îôYúô\⁄
+
+ò[YJHOàò[YH
+»J_Hö[ùYûO^ÿ	ÿ]]ù\Ÿ\èÀô\‹^Sò[YH]]ù\Ÿ\èÀô[XZ[	¯.'8..x.bx.`¯."∏.bx.!¯.,∏.&IﬂH0≠»	‹õ€Q\‹^Sò[YJ]]ù\Ÿ\èÀúõ€J_XHœè‹ŸX›[€èé¬àô]\õàè‹\ò][€ò[XõHYŸO^ÿX›]ôTYŸH\»‹\ò][€ò[YŸ_Hô\‹€úŸO^€‹\ò][€îô\‹€úŸ_HÿY[ôœ^€‹\ò][€ìÿY[ôﬂH\úõ‹è^€‹\ò][€ë\úõ‹üH€îYŸP⁄[ôŸO^‹Ÿ]‹\ò][€îYŸ_H€êX›[€è^⁄[ôS‹\ò][€êX›[€üH€ê‹ôX]O^€‹[ê‹ôX]S‹\ò][€üH€ìò]öYÿ]O^‹Ÿ]X›]ôTYŸ_Hõ€O^ÿ]]ù\Ÿ\èÀúõ€H	’íQU—TâﬂH⁄Ÿ[è^ÿ]]ù⁄Ÿ[üHôYúô\⁄⁄Y€ò[^€‹\ò][€îôYúô\⁄H€ìXŸ[úŸQÿ›[Y[ù⁄[ôŸY^ 
+HOàŸ]‹\ò][€îôYúô\⁄
+
+ò[YJHOàò[YH
+»J_H€ëY]XŸ[úŸO^ÿX›]ôTYŸHOOH	€XŸ[úŸ\…»»‹[ìXŸ[úŸQY]à[ôYö[ôYHXŸ[úŸQ[\ﬁYYT›]\œ^€XŸ[úŸQ[\ﬁYYT›]\ﬂH€ìXŸ[úŸQ[\ﬁYYT›]\–⁄[ôŸO^‹Ÿ]XŸ[úŸQ[\ﬁYYT›]\ﬂHö[ùYûO^ÿ	ÿ]]ù\Ÿ\èÀô\‹^Sò[YH]]ù\Ÿ\èÀô[XZ[	¯.'8..x.bx.`¯."∏.bx.!¯.,∏.&IﬂH0≠»	‹õ€Q\‹^Sò[YJ]]ù\Ÿ\èÀúõ€J_XHœû€XŸ[úŸQY]\ôŸ]	âà]]ù⁄Ÿ[à	âàXŸ[úŸQY][Ÿ[XŸ[úŸO^ﬁ»Yà›ö[ô XŸ[úŸQY]\ôŸ]öY
+KXŸ[úŸSù[Xô\éàXŸ[úŸQY]\ôŸ]õXŸ[úŸSù[Xô\à»›ö[ô XŸ[úŸQY]\ôŸ]õXŸ[úŸSù[Xô\äHàù[XŸ[úŸU\NàXŸ[úŸQY]\ôŸ]õXŸ[úŸU\H»›ö[ô XŸ[úŸQY]\ôŸ]õXŸ[úŸU\JHàù[\‹›YQ]NàXŸ[úŸQY]\ôŸ]ö\‹›YQ]H»›ö[ô XŸ[úŸQY]\ôŸ]ö\‹›YQ]JHàù[^\ûQ]NàXŸ[úŸQY]\ôŸ]ô^\ûQ]H»›ö[ô XŸ[úŸQY]\ôŸ]ô^\ûQ]JHàù[›]\ŒàXŸ[úŸQY]\ôŸ]ú›]\»»›ö[ô XŸ[úŸQY]\ôŸ]ú›]\ Hàù[[\ﬁYYNà»[\ﬁYYP€ŸNà›ö[ô ô\›Y
+XŸ[úŸQY]\ôŸ]ô[\ﬁYYJKô[\ﬁYYP€ŸH	… Kö\ú›ò[YNà›ö[ô ô\›Y
+XŸ[úŸQY]\ôŸ]ô[\ﬁYYJKôö\ú›ò[YH	… K\›ò[YNà›ö[ô ô\›Y
+XŸ[úŸQY]\ôŸ]ô[\ﬁYYJKõ\›ò[YH	… K\\ùY[ùàô\›Y
+XŸ[úŸQY]\ôŸ]ô[\ﬁYYJKô\\ùY[ù»›ö[ô ô\›Y
+XŸ[úŸQY]\ôŸ]ô[\ﬁYYJKô\\ùY[ù
+Hà[ôYö[ôYH_H\–YZ[è^ÿ]]ù\Ÿ\èÀúõ€HOOH	–QRSâﬂH›\úô[ù\Ÿ\íY^ÿ]]ù\Ÿ\èÀöY	…ﬂHŸ\ùöXŸ\œ^€XŸ[úŸQÿ›[Y[ùŸ\ùöXŸ\ﬂH€ï\ÿY^ÿ\ﬁ[ò»
+]Kö[JHOà»]ÿZ]\Kù\ÿYXŸ[úŸQÿ›[Y[ù
+]]ù⁄Ÿ[àK›ö[ô XŸ[úŸQY]\ôŸ]öY
+K]Kö[JN»_H€ê⁄[ôŸY^ 
+HOàŸ]‹\ò][€îôYúô\⁄
+
+ò[YJHOàò[YH
+»J_H€ê€‹ŸO^ 
+HOàŸ]XŸ[úŸQY]\ôŸ]
+[ôYö[ôY
+_HœüOœé¬àN¬Çà€€ú›ö[ù]HH\ŸSY[[ 
+
+HOà¬àYà
+X›]ôTYŸHOOH	‹ÿ⁄Y[I Hô]\õàù[¬à€€ú›ÿ[[ô\àHP\úò^Kö\–\úò^J‹\ò][€îô\‹€úŸKô]JH»‹\ò][€îô\‹€úŸKô]HﬂHàﬂN¬à€€ú›]\»H\úò^Kö\–\úò^Jÿ[[ô\ãô]\ H»ÿ[[ô\ãô]\ÀõX\
+›ö[ô Hà◊N¬à€€ú›ò]–ÿ[[ô\ë[\ﬁYY\»H\úò^Kö\–\úò^Jÿ[[ô\ãô[\ﬁYY\ H»ÿ[[ô\ãô[\ﬁYY\»\»]Tõ›÷◊Hà◊N¬à€€ú›[ÿ[[ô\ë[\ﬁYY\»H€‹ùÿ⁄Y[Q[\ﬁYY\–ûQ\\ùY[ù
+ò]–ÿ[[ô\ë[\ﬁYY\ N¬à€€ú›ÿ[[ô\ë[\ﬁYY\»HŸ[X›Y\\ùY[ùÀõ[ô›àà»[ÿ[[ô\ë[\ﬁYY\Àôö[\ä
+[\
+HOàŸ[X›Y\\ùY[ùÀö[ò€Y\ ^
+[\ô\\ùY[ù
+JJBàà[ÿ[[ô\ë[\ﬁYY\Œ¬à€€ú›\õ›ò[Hô\›Y
+ÿ[[ô\ãò\õ›ò[
+N¬à€€ú›ﬁT›ãT›óHHÿ⁄Y[S[€ùú‹]
+	ÀI N¬à€€ú›ZVYX\ìù[HHù[Xô\äT›äH
+»MŒ¬à€€ú›[€ùò[YS€õHHõ‹õX]ZS[€ùò[YJù[Xô\äT›äKù[Xô\äT›äJN¬à€€ú›ö[ù[€ùXô[H	€[€ùò[YS€õ_H	›ZVYX\ìù[_X¬à€€ú›ö[ù\\ùY[ù»H\úò^Kôúõ€Jô]»Ÿ]
+ÿ[[ô\ë[\ﬁYY\ÀõX\
+
+JHOà›ö[ô Kô\\ùY[ùœ»	… Kùö[J
+JJJN¬Çàô]\õà¬à]\Ààÿ[[ô\ë[\ﬁYY\Àà\õ›ò[àö[ù[€ùXô[àö[ù\\ùY[ù¬àN¬àKÿX›]ôTYŸK‹\ò][€îô\‹€úŸKŸ[X›Y\\ùY[ùÀÿ⁄Y[S[€ùJN¬Çàô]\õà
+àÇà»\ÿT⁄[	âà€‹öŸõ›–€€[X[ô[]H‹[è^ÿ€€[X[ô[]S‹[üH][\œ^›€‹öŸõ›–€€[X[ôﬂH€ê€‹ŸO^ 
+HOàŸ]€€[X[ô[]S‹[äò[ŸJ_H€ìò]öYÿ]O^ Y
+HOàŸ]X›]ôTYŸJY\»YŸJ_HœüBà€X]ôQX⁄\⁄[€à	âàôXX›î›\‹[úŸHò[òX⁄œ^œ]à€\‹”ò[YOHôù[[ÿY\ààõ€OHú›]\»è∏. x.,¯.)x.,x.!¯.`∏.*¯.)x.%8.*¯.&x.bx.,∏.%x.b8.,∏.!¯.(∏.-¯.&x.(∏.,x.&x†)èŸ]èüOèX]ôQX⁄\⁄[€ê€€ôö\õX][€Çà\ôŸ]^€X]ôQX⁄\⁄[€ãù\ôŸ]BàX›[€è^€X]ôQX⁄\⁄[€ãòX›[€üBàù\ﬁO^€‹\ò][€ìÿY[ôﬂBà\úõ‹è^€‹\ò][€ë\úõ‹üBà€ê€‹ŸO^ 
+HOà»Yà
+[‹\ò][€ìÿY[ô HŸ]X]ôQX⁄\⁄[€ä[ôYö[ôY
+N»_Bà€ê€€ôö\õO^ÿ€€ôö\õSX]ôQX⁄\⁄[€üBàœè‘ôXX›î›\‹[úŸOüBà]Çà€\‹”ò[YO^ÿ\\⁄[	Ÿ\⁄›‹öY]»»	Ÿ\⁄›‹]öY]…»à	…ﬂH	ÿ]]ö\’öY]⁄[ô–\»»	›öY]ÀX\ÀXX›]ôI»à	…ﬂH	‹ÿT⁄[»ÿK\⁄[ÿK\YŸKIÿX›]ôTYŸ_Xà	…ﬂXBà›[O^ﬁ»òX⁄Ÿ‹õ›[ô€€‹éà	›ò\äK\›\ôòXŸK\YŸKÃåL IÀ€€‹éà	›ò\äK]^[€ã\›\ôòXŸKŸåYçYéJI»_BàÇàŸY]‹à	âàY]X[Ÿ»Y]‹è^ŸY]‹üHù\ﬁO^ŸY]‹êù\ﬁ_H\úõ‹è^ŸY]‹ë\úõ‹üH€ê€‹ŸO^ 
+HOà»Ÿ]Y]‹ä[ôYö[ôY
+N»Ÿ]Y]‹ë\úõ‹ä[ôYö[ôY
+N»_HœüBàŸ[\ﬁYYQ€›ô\õôYY]\ôŸ]	âà]]ù⁄Ÿ[à	âàX]]ö\’öY]⁄[ô–\»	âàôXX›î›\‹[úŸHò[òX⁄œ^œ]à€\‹”ò[YOHôù[[ÿY\ààõ€OHú›]\»è∏. x.,¯.)x.,x.!¯.`∏.*¯.)x.%8.*¯.&x.bx.,∏.%x.b8.,∏.!¯†)èŸ]èüOè[\ﬁYYQ€›ô\õôYY][Ÿ[⁄Ÿ[è^ÿ]]ù⁄Ÿ[üH[\ﬁYYO^Ÿ[\ﬁYYQ€›ô\õôYY]\ôŸ]Hõ€O^ÿ]]ù\Ÿ\èÀúõ€H	’íQU—TâﬂH€ê€‹ŸO^ 
+HOàŸ][\ﬁYYQ€›ô\õôYY]\ôŸ]
+[ôYö[ôY
+_H€ê⁄[ôŸY^ 
+HOàŸ][\ﬁYYTôYúô\⁄
+
+ò[YJHOàò[YH
+»J_Hœè‘ôXX›î›\‹[úŸOüBàŸ[\ﬁYYP⁄[ôŸTô]öY]”‹[à	âà]]ù⁄Ÿ[à	âà]]ù\Ÿ\èÀúõ€HOOH	–QRSâ»	âàX]]ö\’öY]⁄[ô–\»	âàôXX›î›\‹[úŸHò[òX⁄œ^œ]à€\‹”ò[YOHôù[[ÿY\ààõ€OHú›]\»è∏. x.,¯.)x.,x.!¯.`∏.*¯.)x.%8.*¯.&x.bx.,∏.%x.b8.,∏.!¯†)èŸ]èüOè[\ﬁYYP⁄[ôŸTô]öY]”[Ÿ[⁄Ÿ[è^ÿ]]ù⁄Ÿ[üH[ö]X[ô\]Y\›Y^Ÿ[\ﬁYYP⁄[ôŸTô]öY]“[ö]X[YH€ê€‹ŸO^ 
+HOà»Ÿ][\ﬁYYP⁄[ôŸTô]öY]”‹[äò[ŸJN»Ÿ][\ﬁYYP⁄[ôŸTô]öY]“[ö]X[Y
+[ôYö[ôY
+N»_H€ê⁄[ôŸY^ 
+HOà»Ÿ][\ﬁYYTôYúô\⁄
+
+ò[YJHOàò[YH
+»JN»Ÿ]\õ›ò[Ÿ[ù\îôYúô\⁄
+
+ò[YJHOàò[YH
+»JN»_Hœè‘ôXX›î›\‹[úŸOüBàÿ]]ö\’öY]⁄[ô–\»	âà]à€\‹”ò[YOHùöY]ÀX\ÀXò[õô\ààõ€OHú›]\»èè‹[èè€\“X€€àò[YOHô^YHà⁄^ôO^ÃMüHœà8. x.,¯.)x.,x.!¯.%8..x.(¯.,8.&∏.&∏.`¯.&x.(x..8.(x.(x.+x.!»›õ€ôœûÿ]]ù\Ÿ\èÀô\‹^Sò[Y_O‹›õ€ôœà
+‹õ€Q\‹^Sò[YJ]]ù\Ÿ\èÀúõ€J_JH0≠»8.+x.b8.,∏.&x.+x.(∏.b8.,∏.!¯.`8.%8.-x.(∏.)œ‹‹[èèù]€à\OHòù]€àà€ê€X⁄œ^ 
+HOà»]]ô[ôöY]–\ 
+N»Ÿ]X›]ôTYŸJ	›\Ÿ\ú… N»_O∏. x.)x.,x.&∏.*∏..x.b8.&∏.,x.#x."∏.-HYZ[èÿù]€èèŸ]èüBà€[ÿö[SY[ùS‹[à	âàù]€à€\‹”ò[YOHú⁄YXò\ã[›ô\õ^Hà\öXK[Xô[H∏.&¯.-8.%8.`8.(x.&x..x.*¯.)x.,x. Hà\öXKX€€ùõ€œHò\[ò]öYÿ][€ãYò]Ÿ\àà€ê€X⁄œ^ 
+HOàŸ][ÿö[SY[ùS‹[äò[ŸJ_HœüBà\⁄YHYHò\[ò]öYÿ][€ãYò]Ÿ\àà€\‹”ò[YO^ÿ⁄YXò\à	€[ÿö[SY[ùS‹[à»	€‹[â»à	…ﬂXH\öXK[Xô[H∏.`8.(x.&x..x.*¯.)x.,x. HèÇà]à€\‹”ò[YOHú⁄YXò\ãXúò[ôèÇàúò[ôŸ€»œÇàù]€à\OHòù]€àà€\‹”ò[YOHú⁄YXò\ãX€‹ŸKXù]€àà\öXK[Xô[H∏.&¯.-8.%8.`8.(x.&x..x.*¯.)x.,x. Hà€ê€X⁄œ^ 
+HOàŸ][ÿö[SY[ùS‹[äò[ŸJ_Oè€\“X€€àò[YOHò€‹ŸHà⁄^ôO^ÃåHœèÿù]€èÇàŸ]èÇàò]à€\‹”ò[YOHõò]ã[Y[ùHà\öXK[Xô[H∏.`8.(x.&x..x.*¯.)x.,x. Hèû›ö\⁄XõSò]öYÿ][€ãõX\
+
+ŸX›[€äHOà
+à]à€\‹”ò[YOHõò]ã\ŸX›[€ààŸ^O^‹ŸX›[€ãõXô[Oèû‹ŸX›[€ãõXô[O‹û‹ŸX›[€ãö][\ÀõX\
+
+][JHOà¬à€€ú›õ€Pÿ[îŸYP€›[ùHõ€€X[ä]]ù\Ÿ\èÀúõ€H	âàTì’êS–”’Sï”QSïW‘ì”T÷⁄][KöYOÀö[ò€Y\ ]]ù\Ÿ\ãúõ€JJN¬à€€ú›€›[ù[òXõYHõ€Pÿ[îŸYP€›[ù	âà\ÿT⁄[	âàX]]ö\’öY]⁄[ô–\»	âàõ€€X[ä]]ù⁄Ÿ[äN¬à€€ú›Y[ùP€›[ùH€›[ù[òXõY»\õ›ò[Y[ùP€›[ù
+][KöY\õ›ò[›[[X\ûJHàù[¬à€€ú›òYŸHH\õ›ò[òYŸU^
+Y[ùP€›[ù
+N¬à€€ú›€›[ù›]U]HH€›[ù[òXõY	âà\õ›ò[€›[ù›]\»OOH	€ÿY[ô…»»	¯. x.,¯.)x.,x.!¯.`∏.*¯.)x.%8."8.,¯.&x.)¯.&x.(¯.,∏.(∏. x.,∏.(¯.(¯.+x.+x.&x..8.(x.,x.%x.-	»à€›[ù[òXõY	âà\õ›ò[€›[ù›]\»OOH	Ÿ\úõ‹â»»	¯.`∏.*¯.)x.%8."8.,¯.&x.)¯.&x.(¯.,∏.(∏. x.,∏.(¯.(¯.+x.+x.&x..8.(x.,x.%x.-8.a8.(x.b8.*∏.,¯.`8.(¯.a¯."	»à[ôYö[ôY¬à€€ú›€›[ù›]SXô[H€›[ù›]U]H»	⁄][KõXô[K	ÿ€›[ù›]U]_Xà[ôYö[ôY¬à€€ú›€›[ù]HHòYŸH	âàY[ùP€›[ùOOHù[»	€Y[ùP€›[ùH8.(¯.,∏.(∏. x.,∏.(¯.(¯.+x.+x.&x..8.(x.,x.%x.-à€›[ù›]U]N¬àô]\õàù]€à\OHòù]€ààŸ^O^⁄][KöYH]K[ò]öYÿ][€ãZY^⁄][KöYH\öXK[Xô[^ÿòYŸH»	⁄][KõXô[K	ÿ€›[ù]_Xà€›[ù›]SXô[H]O^ÿ€›[ù]_H€\‹”ò[YO^ÿò]ãZ][H	€ò]öYÿ][€îYŸHOOH][KöY»	ÿX›]ôI»à	…ﬂH	ÿòYŸH»	⁄\ÀX\õ›ò[X€›[ù	»à	…ﬂXH€ê€X⁄œ^ 
+HOà»Ÿ]X›]ôTYŸJ][KöY
+N»Ÿ][ÿö[SY[ùS‹[äò[ŸJN»_Oè‹[à€\‹”ò[YOHõò]ãZX€€àèè€\“X€€àò[YO^⁄][KöX€€üH⁄^ôO^ÃN_Hœè‹‹[èè‹[èû⁄][KõXô[^ÿòYŸH	âàà€\‹”ò[YOHõò]ãX€›[ùXòYŸHà\öXKZY[èHùùYHèûÿòYŸ_OÿèüO‹‹[èèÿù]€èé¬àJ_OŸ]èÇà
+J_O€ò]èÇà]à€\‹”ò[YOHú⁄YXò\ãYõ€›\àèÇà]à€\‹”ò[YOHú⁄YXò\ã]\Ÿ\à⁄YXò\ã\õŸö[Hèè‹[à€\‹”ò[YOHò]ò]\àèû⁄[ö]X[ﬂO‹‹[èè‹[èèèûÿ]]ù\Ÿ\èÀô\‹^Sò[YH	¯.'8..x.bx.`¯."∏.bx.!¯.,∏.&IﬂOÿèè€X[û‹õ€Q\‹^Sò[YJ]]ù\Ÿ\èÀúõ€H	’íQU—Tâ _O‹€X[è‹‹[èèŸ]èÇàù]€à\OHòù]€àà€\‹”ò[YOHú⁄YXò\ã[Ÿ€›]à€ê€X⁄œ^ 
+HOà]]õŸ€›]
+
+_Oè€\“X€€àò[YOHõŸ€›]à⁄^ôO^ÃNHœè‹[è∏.+x.+x. x."8.,∏. x.(¯.,8.&∏.&è‹‹[èèÿù]€èÇàŸ]èÇàÿ\⁄YOÇàXZ[à€\‹”ò[YOHõXZ[ãX\ôXHèÇà‹ÿT⁄[	âàX›]ôTYŸHOOH	ÿ][ô[òŸI»	âàXY\à€\‹”ò[YOHúÿK[[ÿö[KZXY\àèè‹[à€\‹”ò[YOHúÿK[[ÿö[KXúò[ôèèúò[ôŸ€»€ôOHô\öÀ\›\ôòXŸHàœè‹‹[èè‹[à€\‹”ò[YO^ÿÿK[€õ[ôK\›]H	‹ÿS€õ[ôH»	…»à	€Ÿôõ[ôIﬂXOû‹ÿS€õ[ôH»	¯.+x.+x.&x.a8.)x.&x.c	»à	¯.+x.+x.'¯.a8.)x.&x.c	ﬂO‹‹[èè⁄XY\èüBà‹ÿT⁄[	âà\ÿS€õ[ôH	âà]à€\‹”ò[YOHúÿK[Ÿôõ[ôKXò[õô\àè∏.+x.+x.'¯.a8.)x.&x.c8†%8.`8.&¯.-8.%8.%8..H⁄[8.a8.%8.bH8.`x.%x.b8. x.,∏.(¯.)x.!¯.`8.)¯.)x.,∏.`x.)x.,8. x.,∏.(¯.*∏.b8.!¯.!8.,¯. ∏.+x.)x.,∏.%x.bx.+x.!¯.(¯.+x. x.,∏.(¯.`8."∏.-¯.b8.+x.(x.%x.b8.+HŸ\ùô\èŸ]èüBàXY\à€\‹”ò[YOHù‹ò\àèÇà]à€\‹”ò[YOHù‹ò\ã[YùèÇàù]€àôYè^€[ÿö[SY[ùUöYŸŸ\îôYüH\OHòù]€àà€\‹”ò[YOHõ[ÿö[K[Y[ùKXù]€àà\öXK[Xô[H∏.`8.&¯.-8.%8.`8.(x.&x..x.*¯.)x.,x. Hà\öXKY^[ôY^€[ÿö[SY[ùS‹[üH\öXKX€€ùõ€œHò\[ò]öYÿ][€ãYò]Ÿ\àà€ê€X⁄œ^ 
+HOàŸ][ÿö[SY[ùS‹[äùYJ_Oè€\“X€€àò[YOHõY[ùHà⁄^ôO^ÃåHœèÿù]€èÇà‹[à€\‹”ò[YOHõ[ÿö[KXúò[ôèèúò[ôŸ€»œè‹‹[èÇà‹[à€\‹”ò[YOHù‹ò\ãX€‹Hèè›õ€ôœû‹YŸU]_O‹›õ€ôœè€X[û‹YŸT›Xù]V€ò]öYÿ][€îYŸW_O‹€X[è‹‹[èÇàŸ]èÇàXô[€\‹”ò[YOHù‹ò\ã\ŸX\ò⁄èè‹[à\öXKZY[èHùùYHèè€\“X€€àò[YOHúŸX\ò⁄à⁄^ôO^ÃMﬂHœè‹‹[èè[ú]\öXK[Xô[H∏.!8.bx.&x.*¯.,∏.'∏.&x.,x. x.!¯.,∏.&HàXŸZ€\èH∏.!8.bx.&x.*¯.,∏.'∏.&x.,x. x.!¯.,∏.&Kããààò[YO^‹ŸX\ò⁄H€ê⁄[ôŸO^ ]ô[ù
+HOà»Ÿ]ŸX\ò⁄
+]ô[ùù\ôŸ]ùò[YJN»Yà
+]ô[ùù\ôŸ]ùò[YH	âàX›]ôTYŸHOOH	Ÿ[\ﬁYY\… HŸ]X›]ôTYŸJ	Ÿ[\ﬁYY\… N»_Hœè€Xô[Çà]à€\‹”ò[YOHù‹ò\ãXX›[€ú»èÇà»\ÿT⁄[	âàù]€à\OHòù]€àà€\‹”ò[YOHù€‹öŸõ›ÀX€€[X[ô]öYŸŸ\àà]OH∏.a8.&¯.(∏.,x.!¯.!¯.,∏.&x.*¯.(¯.-¯.+x.*¯.&x.bx.,∏.%¯.-x.b8.%x.bx.+x.!¯. x.,∏.(»à€ê€X⁄œ^ 
+HOàŸ]€€[X[ô[]S‹[äùYJ_Oè€\“X€€àò[YOHúŸX\ò⁄à⁄^ôO^ÃMüHœè‹[è∏.`8.(x.&x..x.%8.b8.)¯.&O‹‹[èèÿôê›õœ⁄ÿôèÿù]€èüBà‹[à€\‹”ò[YOHô[ùö\õ€õY[ù\[èû⁄[\‹ùõY]Kô[ùãîì—»	—T÷QQ	»à	”––S	ﬂO‹‹[èÇà÷…–QRSâÀ	”PSêQ—TâÀ	‘’TTïíT”‘â◊Kö[ò€Y\ ]]ù\Ÿ\èÀúõ€H	… H	âàX]]ö\’öY]⁄[ô–\»	âà\õ›ò[Ÿ[ù\ìõ›YöXÿ][€êù]€à€›[ù^ÿ\õ›ò[Y[ùP€›[ù
+	ÿ\õ›ò[Ÿ[ù\âÀ\õ›ò[›[[X\ûJ_H€ê€X⁄œ^ 
+HOàŸ]X›]ôTYŸJ	ÿ\õ›ò[Ÿ[ù\â _HœüBà[YP€€ùõ€€€\X›œÇàù]€à\OHòù]€àà€\‹”ò[YOHô\‹^K[[ŸK]ŸŸ€Hà\öXK\ô\‹ŸY^Ÿ\⁄›‹öY]ﬂH]O^Ÿ\⁄›‹öY]»»	¯. x.)x.,x.&∏.(x..8.(x.(x.+x.!¯.(x.-¯.+x.%∏.-¯.+I»à	¯.`x.*∏.%8.!¯.`x.&∏.&∏.`8.%8.*∏. x.c8.%¯.a¯.+x.&…ﬂH€ê€X⁄œ^›ŸŸ€Q\⁄›‹öY]ﬂOè€\“X€€àò[YO^Ÿ\⁄›‹öY]»»	Ÿ]öXŸI»à	‹ﬁ\›[IﬂH⁄^ôO^ÃMüHœè‹[èûŸ\⁄›‹öY]»»	”[ÿö[I»à	—\⁄›‹	ﬂO‹‹[èèÿù]€èÇàù]€à\OHòù]€àà€\‹”ò[YOHù‹ò\ã\õŸö[H‹ò\ã\õŸö[KXù]€àà]OH∏. x.,∏.(¯.`8. ∏.bx.,∏.*∏..x.b8.(¯.,8.&∏.&∏.`x.)x.,\‹⁄Ÿ^Hà€ê€X⁄œ^ 
+HOàŸ]\‹⁄Ÿ^T[ô[‹[äùYJ_Oè‹[à€\‹”ò[YOHò]ò]\àèû⁄[ö]X[ﬂO‹‹[èè‹[èèèûÿ]]ù\Ÿ\èÀô\‹^Sò[YH	¯.'8..x.bx.`¯."∏.bx.!¯.,∏.&IﬂOÿèè€X[û‹õ€Q\‹^Sò[YJ]]ù\Ÿ\èÀúõ€H	’íQU—Tâ _O‹€X[è‹‹[èèÿù]€èÇàù]€àôYè^€[ÿö[U][]UöYŸŸ\îôYüH\OHòù]€àà€\‹”ò[YOHõ[ÿö[K]][]KXù]€àà\öXK[Xô[H∏.`8.&¯.-8.%8.`8.(x.&x..x.&∏.,x.#x."∏.-x.`x.)x.,8.&8.-x.(Hà\öXKY^[ôY^€[ÿö[U][]S‹[üH\öXKX€€ùõ€œHõ[ÿö[K]][]K\[ô[à€ê€X⁄œ^ 
+HOàŸ][ÿö[U][]S‹[ä
+ò[YJHOà]ò[YJ_Oè€\“X€€àò[YOHõ[‹ôHà⁄^ôO^ÃåHœèÿù]€èÇàŸ]èÇà€[ÿö[U][]S‹[à	âà‹ôX]T‹ù[
+Çàù]€à\OHòù]€àà€\‹”ò[YOHõ[ÿö[K]][]KXòX⁄Ÿõ‹à\öXK[Xô[H∏.&¯.-8.%8.`8.(x.&x..x.&∏.,x.#x."∏.-x.`x.)x.,8.&8.-x.(Hà€ê€X⁄œ^ 
+HOàŸ][ÿö[U][]S‹[äò[ŸJ_HœÇà]àYHõ[ÿö[K]][]K\[ô[à€\‹”ò[YOHõ[ÿö[K]][]K\[ô[àõ€OHôX[Ÿ»à\öXK[[Ÿ[HùùYHà\öXK[Xô[H∏.&∏.,x.#x."∏.-x.`x.)x.,8. x.,∏.(¯.%x.,x.bx.!¯.!8.b8.,∏.*¯.&x.bx.,∏."8.+HèÇà]à€\‹”ò[YOHõ[ÿö[K]][]K\õŸö[Hèè‹[à€\‹”ò[YOHò]ò]\àèû⁄[ö]X[ﬂO‹‹[èè‹[èèèûÿ]]ù\Ÿ\èÀô\‹^Sò[YH	¯.'8..x.bx.`¯."∏.bx.!¯.,∏.&IﬂOÿèè€X[û‹õ€Q\‹^Sò[YJ]]ù\Ÿ\èÀúõ€H	’íQU—Tâ _O‹€X[è‹‹[èèŸ]èÇàXô[€\‹”ò[YOHõ[ÿö[K]][]K\ŸX\ò⁄èè‹[à\öXKZY[èHùùYHèè€\“X€€àò[YOHúŸX\ò⁄à⁄^ôO^ÃMﬂHœè‹‹[èè[ú]\öXK[Xô[H∏.!8.bx.&x.*¯.,∏.'∏.&x.,x. x.!¯.,∏.&x.&∏.&x.(x.-¯.+x.%∏.-¯.+HàXŸZ€\èH∏.!8.bx.&x.*¯.,∏.'∏.&x.,x. x.!¯.,∏.&Kããààò[YO^‹ŸX\ò⁄H€ê⁄[ôŸO^ ]ô[ù
+HOà»Ÿ]ŸX\ò⁄
+]ô[ùù\ôŸ]ùò[YJN»Yà
+]ô[ùù\ôŸ]ùò[YH	âàX›]ôTYŸHOOH	Ÿ[\ﬁYY\… HŸ]X›]ôTYŸJ	Ÿ[\ﬁYY\… N»_Hœè€Xô[Çàù]€à\OHòù]€àà€\‹”ò[YOHõ[ÿö[K]][]K\ŸX›\ö]Hà€ê€X⁄œ^ 
+HOà»Ÿ][ÿö[U][]S‹[äò[ŸJN»Ÿ]€€[X[ô[]S‹[äùYJN»_Oè€\“X€€àò[YOHúŸX\ò⁄à⁄^ôO^ÃNHœ∏.a8.&¯.(∏.,x.!¯.!¯.,∏.&x.*¯.(¯.-¯.+x.*¯.&x.bx.,∏.+x.-¯.b8.&Oÿù]€èÇà]à€\‹”ò[YOHõ[ÿö[K]][]K][YHèè‹[èï[YO‹‹[èè[YP€€ùõ€œèŸ]èÇàù]€à\OHòù]€àà€\‹”ò[YOHõ[ÿö[K]][]KY\‹^K[[ŸHà\öXK\ô\‹ŸY^Ÿ\⁄›‹öY]ﬂH€ê€X⁄œ^›ŸŸ€Q\⁄›‹öY]ﬂOè€\“X€€àò[YO^Ÿ\⁄›‹öY]»»	Ÿ]öXŸI»à	‹ﬁ\›[IﬂH⁄^ôO^ÃMüHœûŸ\⁄›‹öY]»»	¯. x.)x.,x.&∏.(x..8.(x.(x.+x.!¯.(x.-¯.+x.%∏.-¯.+I»à	¯.`x.*∏.%8.!¯.`x.&∏.&∏.`8.%8.*∏. x.c8.%¯.a¯.+x.&…ﬂOÿù]€èÇàù]€à\OHòù]€àà€\‹”ò[YOHõ[ÿö[K]][]K\ŸX›\ö]Hà€ê€X⁄œ^ 
+HOà»Ÿ][ÿö[U][]S‹[äò[ŸJN»Ÿ]\‹⁄Ÿ^T[ô[‹[äùYJN»_Oè€\“X€€àò[YOHöŸ^Hà⁄^ôO^ÃNHœ∏. x.,∏.(¯.`8. ∏.bx.,∏.*∏..x.b8.(¯.,8.&∏.&∏.`x.)x.,\‹⁄Ÿ^Oÿù]€èÇàù]€à\OHòù]€àà€\‹”ò[YOHõ[ÿö[K]][]K[Ÿ€›]à€ê€X⁄œ^ 
+HOà]]õŸ€›]
+
+_Oè€\“X€€àò[YOHõŸ€›]à⁄^ôO^ÃNHœ∏.+x.+x. x."8.,∏. x.(¯.,8.&∏.&èÿù]€èÇàŸ]èÇàœãÿ›[Y[ùòõŸJ_Bà⁄XY\èÇà]à€\‹”ò[YOHò€€ù[ùX\ôXHèèôXX›î›\‹[úŸHò[òX⁄œ^œ\ÿY\àò\öX[ùHò€€ù[ùàY\‹ÿYŸO^€ÿY[ô”Y\‹ÿYŸ\ÀúYŸ_HœüOûÿ€€ù[ù
+
+_O‘ôXX›î›\‹[úŸOèŸ]èÇà‹ÿT⁄[	âàò]à€\‹”ò[YOHúÿKXõ›€K[ò]àà\öXK[Xô[H∏.`8.(x.&x..H–HèÇàù]€à\OHòù]€àà€\‹”ò[YO^ÿX›]ôTYŸHOOH	ÿ][ô[òŸI»»	ÿX›]ôI»à	…ﬂH€ê€X⁄œ^ 
+HOàŸ[X›ÿTYŸJ	ÿ][ô[òŸI _Oè€\“X€€àò[YOHò€ÿ⁄»à⁄^ôO^ÃåHœè‹[è∏.)x.!¯.`8.)¯.)x.,è‹‹[èèÿù]€èÇàù]€à\OHòù]€àà€\‹”ò[YO^ÿX›]ôTYŸHOOH	ÿ][ô[òŸR\›‹ûI»»	ÿX›]ôI»à	…ﬂH€ê€X⁄œ^ 
+HOàŸ[X›ÿTYŸJ	ÿ][ô[òŸR\›‹ûI _Oè€\“X€€àò[YOHö\›‹ûHà⁄^ôO^ÃåHœè‹[è∏.&¯.(¯.,8.)¯.,x.%x.-‹‹[èèÿù]€èÇàù]€à\OHòù]€àà€\‹”ò[YO^ÿX›]ôTYŸHOOH	Ÿ[\ﬁYYTÿ⁄Y[I»»	ÿX›]ôI»à	…ﬂH€ê€X⁄œ^ 
+HOàŸ[X›ÿTYŸJ	Ÿ[\ﬁYYTÿ⁄Y[I _Oè€\“X€€àò[YOHòÿ[[ô\àà⁄^ôO^ÃåHœè‹[è∏.%x.,∏.(¯.,∏.!¯.!¯.,∏.&O‹‹[èèÿù]€èÇàù]€à\OHòù]€àà€\‹”ò[YO^ÿX›]ôTYŸHOOH	€X]ôI»»	ÿX›]ôI»à	…ﬂH€ê€X⁄œ^ 
+HOàŸ[X›ÿTYŸJ	€X]ôI _Oè€\“X€€àò[YOHõX]ôHà⁄^ôO^ÃåHœè‹[è∏.)x.,è‹‹[èèÿù]€èÇàù]€à\OHòù]€àà€\‹”ò[YO^ÿX›]ôTYŸHOOH	‹õŸö[I»»	ÿX›]ôI»à	…ﬂH€ê€X⁄œ^ 
+HOàŸ[X›ÿTYŸJ	‹õŸö[I _Oè€\“X€€àò[YOHù\Ÿ\ú»à⁄^ôO^ÃåHœè‹[è∏.`∏.&¯.(¯.a8.'¯.)x.c‹‹[èèÿù]€èÇà€ò]èüBà€XZ[èÇàŸ]èÇà‹\‹⁄Ÿ^T[ô[‹[à	âà]]ù⁄Ÿ[à	âàôXX›î›\‹[úŸHò[òX⁄œ^œ]à€\‹”ò[YOHôù[[ÿY\ààõ€OHú›]\»è∏. x.,¯.)x.,x.!¯.`∏.*¯.)x.%8.*¯.&x.bx.,∏.%x.b8.,∏.!¯†)èŸ]èüOè\‹⁄Ÿ^TŸX›\ö]T[ô[⁄Ÿ[è^ÿ]]ù⁄Ÿ[üH€ê€‹ŸO^ 
+HOàŸ]\‹⁄Ÿ^T[ô[‹[äò[ŸJ_Hœè‘ôXX›î›\‹[úŸOüBà‹ö[ù]H	âà
+à]à€\‹”ò[YOHúö[ù[€õHèÇà‹ö[ù]Kúö[ù\\ùY[ùÀõ[ô›OOH	âà
+à]à€\‹”ò[YOHúö[ù\YŸHö[ùY[\K\YŸHèÇà]à€\‹”ò[YOHúö[ùZXY\àèÇàŸX›\ö]HX[òYŸ[Y[ùﬁ\›[HH8.%x.,∏.(¯.,∏.!¯. x.,8.%¯.-x.b8.+x.&x..8.(x.,x.%x.-8.`x.)x.bx.)»H‹ö[ù]Kúö[ù[€ùXô[BàŸ]èÇà]à€\‹”ò[YOHúö[ùY[\K\›]HèÇà›õ€ôœ∏.a8.(x.b8.'∏.&∏. ∏.bx.+x.(x..x.)x.%x.,∏.(¯.,∏.!¯. x.,8.*∏.,¯.*¯.(¯.,x.&∏.`8.%8.-¯.+x.&x.&x.-x.bO‹›õ€ôœÇà‹[è∏. x.(¯..8.$¯.,∏.%x.(¯.)¯."8.*∏.+x.&∏.`8.%8.-¯.+x.&x.*¯.(¯.-¯.+x.`x.'8.&x. x.%¯.-x.b8.`8.)x.-¯.+x. x. x.b8.+x.&x.*∏.b8.!¯.+x.+x. Hè‹‹[èÇàŸ]èÇàŸ]èÇà
+_Bà‹ö[ù]Kúö[ù\\ùY[ùÀõX\
+
+\
+HOà¬à€€ú›\[\ﬁYY\»Hö[ù]Kòÿ[[ô\ë[\ﬁYY\Àôö[\ä
+JHOà›ö[ô Kô\\ùY[ùœ»	… Kùö[J
+HOOH\
+N¬àô]\õà
+à]à€\‹”ò[YOHúö[ù\YŸHàŸ^O^Ÿ\OÇà]à€\‹”ò[YOHúö[ùZXY\àèÇàŸX›\ö]HX[òYŸ[Y[ùﬁ\›[HH8.%x.,∏.(¯.,∏.!¯. x.,8.%¯.-x.b8.+x.&x..8.(x.,x.%x.-8.`x.)x.bx.)»H‹ö[ù]Kúö[ù[€ùXô[BàŸ]èÇà]à€\‹”ò[YOHúö[ù[Y]Y]HèÇà]à€\‹”ò[YOHúö[ù[Y]Y]K[YùèÇà‹[è∏.`x.'8.&x. Nà›õ€ôœûŸ\	¯.%¯.,x.b8.)¯.a8.&…ﬂO‹›õ€ôœè‹‹[èÇà‹[à›[O^ﬁ»X\ô⁄[ìYùà	ÃLú	»_O∏."x.&∏.,x.&∏.`x. x.bx.a8. éà›õ€ôœû›^
+ö[ù]Kò\õ›ò[úô]ö\⁄[€àJ_O‹›õ€ôœè‹‹[èÇà‹[à›[O^ﬁ»X\ô⁄[ìYùà	ÃLú	»_O∏.+x.&x..8.(x.,x.%x.-8.`∏.%8.(éà›õ€ôœû›^
+ö[ù]Kò\õ›ò[ò\õ›ôYûHö[ù]Kò\õ›ò[ò\õ›ôYûQ\‹^Sò[YHõ€Q\‹^Sò[YJ	–QRSâ J_O‹›õ€ôœè‹‹[èÇà‹[à›[O^ﬁ»X\ô⁄[ìYùà	ÃLú	»_O∏.)¯.,x.&x.%¯.-x.b8.+x.&x..8.(x.,x.%x.-à›õ€ôœû‹ö[ù]Kò\õ›ò[ò\õ›ôY]»õ‹õX]\õ›ò[]U[YJö[ù]Kò\õ›ò[ò\õ›ôY]
+Hà	ÀIﬂO‹›õ€ôœè‹‹[èÇàŸ]èÇà]à€\‹”ò[YOHúö[ù[Y]Y]K\öY⁄èÇà‹[è∏.*∏.b8.!¯.+x.+x. x.`∏.%8.(éà›õ€ôœûÿ]]ù\Ÿ\èÀô[XZ[õ€Q\‹^Sò[YJ	–QRSâ _O‹›õ€ôœè‹‹[èÇà‹[à›[O^ﬁ»X\ô⁄[ìYùà	ÃLú	»_O∏.)¯.,x.&x.%¯.-x.b^‹ùà›õ€ôœûŸõ‹õX]\õ›ò[]U[YJô]»]J
+J_O‹›õ€ôœè‹‹[èÇàŸ]èÇàŸ]èÇàXõH€\‹”ò[YOHúö[ù]XõHèÇàXYÇàèÇà›[O^ﬁ»⁄Yà	Õ	»_O∏.)x.,¯.%8.,x.&è›Çà∏."∏.-¯.b8.+Kx.&x.,∏.(x.*∏. x..8.)O›Çà∏.%x.,¯.`x.*¯.&x.b8.!œ›Çà‹ö[ù]Kô]\ÀõX\
+
+^JHOà¬à€€ú›^Uò[YHHô]»]J	Ÿ^_Uååò
+N¬à€€ú›^SŸïŸYZ»H^Uò[YKôŸ]U—^J
+N¬à]€\‹»H	…Œ¬àYà
+^SŸïŸYZ»OOHäH€\‹»H	›ŸYZŸ[ôÿ]	Œ¬à[ŸHYà
+^SŸïŸYZ»OOH
+H€\‹»H	›ŸYZŸ[ô›[âŒ¬àô]\õà
+àŸ^O^Ÿ^_H€\‹”ò[YO^›€\‹ﬂOÇàèûŸ^Uò[YKôŸ]U—]J
+_OÿèÇà€X[û€ô]»[ùë]U[YQõ‹õX]
+	›U	À»ŸYZŸ^Nà	‹⁄‹ù	À[YVõ€ôNà	’U…»JKôõ‹õX]
+^Uò[YJKúô\XŸJ◊ãŸÀ	… _O‹€X[Çà›Çà
+N¬àJ_Bà∏."∏.(K∏.(¯.)¯.(x.`8.%8.-¯.+x.&O›Çà›èÇà›XYÇàõŸOÇàà€\‹”ò[YOHúÿ⁄Y[KY\\ùY[ùY‹õ›\\õ›»ö[ùY\\ùY[ùY‹õ›\\õ›»èÇà€\‹”ò[YOHúÿ⁄Y[KY\\ùY[ùY‹õ›\\›X⁄ﬁHàÿ€‹OHúõ›Ÿ‹õ›\à€€‹[è^‹ö[ù]Kô]\Àõ[ô›
+»OÇàŸ\	¯.a8.(x.b8.(¯.,8.&∏..8.`x.'8.&x. IﬂH0≠»Ÿ\[\ﬁYY\Àõ[ô›H8.!8.&Bà›Çà›èÇàŸ\[\ﬁYY\ÀõX\
+
+[\ﬁYYKY
+HOà¬à€€ú›[\ﬁYYT⁄Yù»H\úò^Kö\–\úò^J[\ﬁYYKú⁄Yù H»
+[\ﬁYYKú⁄Yù»\»]Tõ›÷◊JHà◊N¬à]›[›\ú»H¬àô]\õà
+ààŸ^O^‘›ö[ô [\ﬁYYKöY
+_OÇàû⁄Y
+»_O›Çà€\‹”ò[YOHô[\[ò[YKX€€èÇà›^
+[\ﬁYYKô\‹^Sò[YH	›^
+[\ﬁYYKôö\ú›ò[YJ_H	›^
+[\ﬁYYKõ\›ò[YJ_X
+_Bà›Çà€\‹”ò[YOHô[\\õ€KX€€èû›^
+[\ﬁYYKöõÿï]H	‘ŸX›\ö]H›X\ô	 _O›Çà‹ö[ù]Kô]\ÀõX\
+
+^JHOà¬à€€ú›⁄YùH[\ﬁYYT⁄YùÀôö[ô
+
+][JHOà[ú]]J][Kù€‹ö—]JHOOH^JN¬à€€ú›⁄Yù\HHô\›Y
+⁄YùÀú⁄Yù\JN¬à€€ú›⁄Yù\P€ŸHH⁄Yù»›ö[ô ⁄Yù\Kò€ŸH	… Kù’\\êÿ\ŸJ
+Hà	”—ëâŒ¬à€€ú›^Uò[YHHô]»]J	Ÿ^_Uååò
+N¬à€€ú›^SŸïŸYZ»H^Uò[YKôŸ]U—^J
+N¬à€€ú››\ú»H⁄Yù»ù[Xô\ä⁄Yùö›\ú»
+Hà¬à›[›\ú»
+œH›\úŒ¬Çà]Ÿ[€\‹»H⁄YùXŸ[I‹⁄Yù\P€ŸKù”›Ÿ\êÿ\ŸJ
+_X¬àYà
+^SŸïŸYZ»OOHäHŸ[€\‹»
+œH	»ÿ]	Œ¬àYà
+^SŸïŸYZ»OOH
+HŸ[€\‹»
+œH	»›[âŒ¬Çàô]\õà
+àŸ^O^Ÿ^_H€\‹”ò[YO^ÿŸ[€\‹ﬂOÇà‹⁄Yù\P€Ÿ_Bà›Çà
+N¬àJ_Bà›[O^ﬁ»õ€ùŸZY⁄à	ÿõ€	»_Oû››[›\úÀù—ö^Y
+J_O›Çà›èÇà
+N¬àJ_Bà›õŸOÇà›XõOÇà]à€\‹”ò[YOHúö[ù[YŸ[ôèÇà]à›[O^ﬁ»õ€ùŸZY⁄à	ÿõ€	ÀX\ô⁄[êõ›€Nà	Õú	Àõ€ù⁄^ôNà	ÃL	À€€‹éà	»ÃYLéLÿâ»_O∏.!8.,¯.+x.&8.-8.&∏.,∏.(∏.(¯.*¯.,x.*∏. x.,Ÿ]èÇàXõH€\‹”ò[YOHúö[ù[YŸ[ô]XõHèÇàõŸOÇà‹⁄Yù\\ÀõX\
+
+
+HOà¬à€€ú›€ŸT›àH^
+ò€ŸJKù’\\êÿ\ŸJ
+N¬à€€ú›òYŸP€\‹»Hö[ù[YŸ[ôXòYŸHòYŸKIÿ€ŸT›ãù”›Ÿ\êÿ\ŸJ
+_X¬àô]\õà
+ààŸ^O^‘›ö[ô öY
+_OÇà›[O^ﬁ»⁄Yà	Õ	À^[Y€éà	ÿŸ[ù\â»_OÇà‹[à€\‹”ò[YO^ÿòYŸP€\‹ﬂH›[O^÷…—	À	”âÀ	”—ëâÀ	–S	◊Kö[ò€Y\ €ŸT›äH»[ôYö[ôYà»òX⁄Ÿ‹õ›[ô€€‹éà›ö[ô ò€€‹à	»ÿÿôYLI K€€‹éà	»Ÿôôâ»_OÇàÿ€ŸT›üBà‹‹[èÇà›Çà›[O^ﬁ»õ€ùŸZY⁄à	ÿõ€	»_Oû›^
+õò[YJ_O›Çàûÿ€ŸT›àOOH	”—ëâ»»	ÀI»à	›^
+ú›\ù[YJ_HH	›^
+ô[ô[YJ_XO›Çàû”ù[Xô\äö›\ú»
+_H8."∏.(Kè›Çà›èÇà
+N¬àJ_Bà›õŸOÇà›XõOÇàŸ]èÇà]à€\‹”ò[YOHúö[ùYõ€›\ãX€€ùZ[ô\àèÇà]à€\‹”ò[YOHúö[ù\⁄Y€ò]\ô\»èÇà]à€\‹”ò[YOHú⁄Y€ò]\ôKXõﬁèÇà]è∏.)x.!¯."∏.-¯.b8.+KãããããããããããããããããããããããããããããããããããããããããããããããããããããããããããããããããããããããããããããããããããèŸ]èÇà]à›[O^ﬁ»X\ô⁄[ï‹à	Õ	»_OäãããããããããããããããããããããããããããããããããããããããããããããããããããããããããããããããããããããããããããããããããããäOŸ]èÇà]à€\‹”ò[YOHú⁄Y€ò]\ôK]]Hè∏.'∏.&x.,x. x.!¯.,∏.&x.'8..x.bx."8.,x.%8.'∏.-8.(x.'∏.c8.(¯.,∏.(∏.!¯.,∏.&H»8.*¯.,x.)¯.*¯.&x.bx.,∏.'∏.&x.,x. x.!¯.,∏.&x.(¯.,x. x.*x.,∏.!8.)¯.,∏.(x.&¯.)x.+x.%8.(8.,x.(èŸ]èÇàŸ]èÇà]à€\‹”ò[YOHú⁄Y€ò]\ôKXõﬁèÇà]è∏.%¯.(¯.,∏.&à»8.)x.!¯."∏.-¯.b8.+KãããããããããããããããããããããããããããããããããããããããããããããããããããããããããããããããããããããããããèŸ]èÇà]à›[O^ﬁ»X\ô⁄[ï‹à	Õ	»_OäãããããããããããããããããããããããããããããããããããããããããããããããããããããããããããããããããããããããããããããããããããäOŸ]èÇà]à€\‹”ò[YOHú⁄Y€ò]\ôK]]Hè∏.'8..x.bx."8.,x.%8. x.,∏.(¯.`8. ∏.%H
+8.'8..x.bx.+x.&x..8.(x.,x.%x.-
+OŸ]èÇàŸ]èÇàŸ]èÇàŸ]èÇàŸ]èÇà
+N¬àJ_BàŸ]èÇà
+_Bà€X]ôTö[ù\ôŸ]	âàX]ôTö[ùÿ›[Y[ùõ›œ^€X]ôTö[ù\ôŸ]HœüBàÿX›[€ëX[ŸÀôX[ŸﬂBàœÇà
+N¬üBÇò€€ú›Ãë]öXŸP€€ù^XY€õ‹›X»HôXX›õ^ûJ
+
+HOà[\‹ù
+	Àã‹YŸ\Àÿ][ô[òŸKY]öXŸK—Ãë]öXŸP€€ù^XY€õ‹›X‘YŸI Kù[ä
+»Ãë]öXŸP€€ù^XY€õ‹›X‘YŸHJHOà
+»Yò][àÃë]öXŸP€€ù^XY€õ‹›X‘YŸHJJJN¬Çôù[ò›[€àŸôõ[ôP][ô[òŸQÿ]J
+H¬à€€ú›‹›]KŸ]›]WHH\ŸT›]O	–“P““Së…»	–UêRSPìI»	’SêUêRSPìIœä	–“P““Së… N¬Çà\ŸQYôôX›
+
+
+HOà¬à]X›]ôHHùYN¬àYà
+ò]öYÿ]‹ãõ€ì[ôJH¬àŸ]›]J	’SêUêRSPìI N¬àô]\õà
+
+HOà»X›]ôHHò[ŸN»N¬àBàôXY[ò‹û\Yõ€››ò\⁄[\Põ€››ò\ä
+Bàù[ä
+ÿX⁄Y
+HOà¬àYà
+XX›]ôJHô]\õé¬à€€ú›^\ô\–]HÿX⁄YÀõŸôõ[ôOÀô^\ô\–]»ô]»]JÿX⁄YõŸôõ[ôKô^\ô\–]
+Hàù[¬àŸ]›]JÿX⁄Y	âà^\ô\–]	âàSù[Xô\ãö\”òSä^\ô\–]ôŸ][YJ
+JH	âà]Kõõ› 
+HH^\ô\–]ôŸ][YJ
+H»	–UêRSPìI»à	’SêUêRSPìI N¬àJBàòÿ]⁄
+
+
+HOà»Yà
+X›]ôJHŸ]›]J	’SêUêRSPìI N»JN¬àô]\õà
+
+HOà»X›]ôHHò[ŸN»N¬àK◊JN¬ÇàYà
+›]HOOH	–“P““Së… Hô]\õà\ÿY\àY\‹ÿYŸO^€ÿY[ô”Y\‹ÿYŸ\ÀõŸôõ[ôP⁄X⁄ﬂHœé¬àYà
+›]HOOH	–UêRSPìI Hô]\õàŸ⁄[àœé¬àô]\õàôXX›î›\‹[úŸHò[òX⁄œ^œ\ÿY\àY\‹ÿYŸO^€ÿY[ô”Y\‹ÿYŸ\ÀõŸôõ[ôS‹[üHœüOÇà][ô[òŸT⁄[\TYŸH€õ[ôO^Ÿò[Ÿ_HœÇà‘ôXX›î›\‹[úŸOé¬üBÇôù[ò›[€àõ›]Sõ›XŸJ»⁄[ôNà»⁄[ôà	€õ›Yõ›[ô	»	Ÿõ‹òöY[â»JH¬à€€ú›õ›õ›[ôH⁄[ôOOH	€õ›Yõ›[ô	Œ¬àô]\õàXZ[à€\‹”ò[YOHôù[[ÿY\ààõ€OHõXZ[àèÇàŸX›[€à\öXK[Xô[YûOHúõ›]K[õ›XŸK]]Hà›[O^ﬁ»X^⁄YàMå^[Y€éà	ÿŸ[ù\âÀY[ôŒàç_OÇàHYHúõ›]K[õ›XŸK]]Hèû€õ›õ›[ô»	¯.a8.(x.b8.'∏.&∏.*¯.&x.bx.,∏.%¯.-x.b8.%x.bx.+x.!¯. x.,∏.(…»à	¯.a8.(x.b8.(x.-x.*∏.-8.%¯.&8.-8.c8.`8. ∏.bx.,∏.%∏.-∏.!¯.*¯.&x.bx.,∏.&x.-x.bIﬂO⁄OÇàû€õ›õ›[ô»	¯.%x.(¯.)¯."8.*∏.+x.&∏.%¯.-x.b8.+x.(∏..x.b8.*¯.&x.bx.,∏.`8.)¯.a¯.&à8.*¯.(¯.-¯.+x. x.)x.,x.&∏.a8.&¯.(∏.,x.!¯.(8.,∏.'∏.(¯.)¯.(I»à	¯.&∏.,x.#x."∏.-x.&x.-x.bx.a8.(x.b8.(x.-x.*∏.-8.%¯.&8.-8.c8.`8.&¯.-8.%8.*¯.&x.bx.,∏.&x.-x.bIﬂO‹Çàù]€à\OHòù]€àà€\‹”ò[YOHòùã\ö[X\ûHà€ê€X⁄œ^ 
+HOàò]öYÿ]J	Ÿ\⁄õÿ\ô	 _O∏. x.)x.,x.&∏.a8.&¯.(8.,∏.'∏.(¯.)¯.(Oÿù]€èÇà‹ŸX›[€èÇà€XZ[èé¬üBÇôù[ò›[€à\
+
+H¬à€€ú›]]H\ŸP€€ù^
+]]€€ù^
+HN¬à€€ú›‹õ›]KŸ]õ›]WHH\ŸT›]Oõ›]Tô\€€][€èä
+
+HOàYŸQúõ€Sÿÿ][€ä
+JN¬Çà\ŸQYôôX›
+
+
+HOà›Xúÿ‹öXôU‘õ›]P⁄[ôŸ\ 
+
+HOàŸ]õ›]JYŸQúõ€Sÿÿ][€ä
+JJK◊JN¬à\ŸQYôôX›
+
+
+HOà¬àYà
+]]ù⁄Ÿ[à	âàÿ[ïöY]‘õ›]TYŸJ	‹Ÿ][ô‹…À]]
+H	âàõ›]Kö⁄[ôOOH	‹YŸI»	âàõ›]KúYŸHOOH	‹Ÿ][ô‹…»	âà⁄[ô›Àõÿÿ][€ãú]ò[YKúô\XŸJ◊ …À	… HOOH	Àÿ\‹Ÿ][ô‹… H¬àò]öYÿ]TŸ][ô‹‘ŸX›[€ä	€›ô\ùöY]…À»ô\XŸNàùYHJN¬àBàKÿ]]ö\’öY]⁄[ô–\À]]ù⁄Ÿ[ã]]ù\Ÿ\èÀúõ€Kõ›]WJN¬à\ŸQYôôX›
+
+
+HOà¬àYà
+]]õÿY[ô Hô]\õé¬à€€ú›õ‹òöY[àHõ›]Kö⁄[ôOOH	‹YŸI»	âàõ€€X[ä]]ù⁄Ÿ[äH	âàXÿ[ïöY]‘õ›]TYŸJõ›]KúYŸK]]
+N¬à\]Qÿ›[Y[ù]Jõ›]Kö⁄[ôOOH	‹YŸI»»õ›]KúYŸHàù[õ›]Kö⁄[ôOOH	€õ›Yõ›[ô	»»	€õ›Yõ›[ô	»àõ‹òöY[à»	Ÿõ‹òöY[â»à	‹YŸIÀŸ][ô‹‘ŸX›[€ëúõ€T]
+⁄[ô›Àõÿÿ][€ãú]ò[YJJN¬àKÿ]]ö\’öY]⁄[ô–\À]]õÿY[ôÀ]]ù⁄Ÿ[ã]]ù\Ÿ\èÀúõ€Kõ›]WJN¬ÇàYà
+]]õÿY[ô Hô]\õà\ÿY\àY\‹ÿYŸO^€ÿY[ô”Y\‹ÿYŸ\ÀúŸ\‹⁄[€üHœé¬àYà
+X]]ù⁄Ÿ[äHô]\õàŸôõ[ôP][ô[òŸQÿ]Hœé¬àYà
+⁄›[‹[ëÃë]öXŸP€€ù^XY€õ‹›X »]][ùXÿ]Yàõ€€X[ä]]ù⁄Ÿ[äKXY€õ‹›X–ùZ[à◊‘”T’å◊—Ãó—UíP—W–””ïV—PQ”ì‘’P◊◊ÀŸX\ò⁄à⁄[ô›Àõÿÿ][€ãúŸX\ò⁄JJH¬àô]\õàôXX›î›\‹[úŸHò[òX⁄œ^œ\ÿY\àY\‹ÿYŸO^€ÿY[ô”Y\‹ÿYŸ\ÀúôXY€õ_HœüOèÃë]öXŸP€€ù^XY€õ‹›X»œè‘ôXX›î›\‹[úŸOé¬àBàYà
+õ›]Kö⁄[ôOOH	€õ›Yõ›[ô	 Hô]\õàõ›]Sõ›XŸH⁄[ôHõõ›Yõ›[ôàœé¬àYà
+Xÿ[ïöY]‘õ›]TYŸJõ›]KúYŸK]]
+JHô]\õàõ›]Sõ›XŸH⁄[ôHôõ‹òöY[ààœé¬àô]\õà\⁄õÿ\ôœé¬üBÇò€€ú›\õ€›Hÿ›[Y[ùôŸ][[Y[ùûRY
+	‹õ€›	 HN¬ò€€ú›XY€õ‹›X‘]Y\ûTô\]Y\›YH\—Ãë]öXŸP€€ù^XY€õ‹›X‘ô\]Y\›Y
+¬àXY€õ‹›X–ùZ[à◊‘”T’å◊—Ãó—UíP—W–””ïV—PQ”ì‘’P◊◊ÀàŸX\ò⁄à⁄[ô›Àõÿÿ][€ãúŸX\ò⁄üJN¬öYà
+YXY€õ‹›X‘]Y\ûTô\]Y\›Y
+HôY⁄\›\î€\‘ÿJ
+N¬ò‹ôX]Tõ€›
+\õ€›
+Kúô[ô\äôXX›î›öX›[ŸOè]]õ›öY\èè\œè–]]õ›öY\èè‘ôXX›î›öX›[ŸOäN¬

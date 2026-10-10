@@ -2,6 +2,8 @@ import '../../styles/data-quality.css';
 import '../../styles/data-quality-responsive.css';
 import { DataTablePagination, DataTableSkeletonCards, DataTableSkeletonRows, DataTableState, ResponsiveDataTable } from '../../components/ResponsiveDataTable';
 import { formatThaiDate } from '../../thai-date-time';
+import { PageHeader, SectionCard } from '../../components/layout';
+import { SmsIcon } from '../../components/SmsIcon';
 
 export type DataQualityFilters = {
   severity: string;
@@ -112,12 +114,17 @@ export function DataQualityCenterPage({ rows, summary = {}, total, page, pageSiz
     ['info', 'ข้อมูล', summary.info ?? 0],
     ['total', 'ทั้งหมด', summary.total ?? total]
   ] as const;
-  return <section className="data-quality-page data-surface-page" aria-label="ศูนย์ตรวจสอบคุณภาพข้อมูล">
-    <header className="data-quality-header"><div><p className="data-quality-eyebrow">ADMIN · READ-ONLY</p><h1>ศูนย์ตรวจสอบคุณภาพข้อมูล</h1><p>ตรวจสอบความครบถ้วน ความสอดคล้อง และความผิดปกติของข้อมูลก่อนนำไปใช้งาน</p></div><div className="data-quality-header-actions"><span className="data-result-count">{loading ? '—' : total.toLocaleString('th-TH')} รายการ</span><button type="button" className="btn-neutral small-action" onClick={onRefresh} disabled={loading}>รีเฟรช</button></div></header>
+  return <section className="data-quality-page data-surface-page layout-page-surface" aria-label="ศูนย์ตรวจสอบคุณภาพข้อมูล">
+    <PageHeader kicker="ผู้ดูแลระบบ · อ่านอย่างเดียว" title="ศูนย์ตรวจสอบคุณภาพข้อมูล" description="ตรวจสอบความครบถ้วน ความสอดคล้อง และความผิดปกติของข้อมูลก่อนนำไปใช้งาน" actions={<div className="data-quality-header-actions"><span className="data-result-count">{loading ? '—' : total.toLocaleString('th-TH')} รายการ</span><button type="button" className="btn-neutral small-action" onClick={onRefresh} disabled={loading}><SmsIcon name="refresh" size={16} />รีเฟรช</button></div>} className="data-quality-header" />
     {permissionDenied ? <div className="data-quality-state data-state data-state--permission" role="alert"><strong>ไม่มีสิทธิ์เข้าถึงศูนย์คุณภาพข้อมูล</strong><p>เฉพาะผู้ดูแลระบบเท่านั้นที่สามารถดูรายการนี้ได้</p></div> : error ? <div className="data-quality-state data-state data-state--error" role="alert"><strong>ไม่สามารถโหลดข้อมูลคุณภาพข้อมูล</strong><p>ระบบไม่พร้อมใช้งานชั่วคราว กรุณาลองใหม่อีกครั้ง</p><button type="button" className="btn-neutral small-action" onClick={onRefresh}>ลองใหม่</button></div> : <>
-      <div className="data-quality-kpis">{cards.map(([tone, title, value]) => <article className={`data-quality-kpi ${tone}`} key={tone}><span aria-hidden="true">{tone === 'critical' ? '!' : tone === 'warning' ? '◒' : tone === 'info' ? 'i' : 'Σ'}</span><div><p>{title}</p><strong>{loading ? '—' : value.toLocaleString('th-TH')}</strong><small>{loading ? 'กำลังโหลด…' : 'รายการตามตัวกรอง'}</small></div></article>)}</div>
-      <FilterBar filters={filters} onFiltersChange={onFiltersChange} />
-      <div className="data-quality-page-size"><label htmlFor="data-quality-page-size">แสดงต่อหน้า</label><select id="data-quality-page-size" value={pageSize} onChange={(event) => onPageSize(Number(event.target.value))}><option value={25}>25</option><option value={50}>50</option><option value={100}>100</option></select></div>
+      <SectionCard kicker="ตัวชี้วัด" title="สถานะคุณภาพข้อมูล" description="จำนวนรายการจริงตามตัวกรองปัจจุบัน" className="data-quality-summary-card">
+        <div className="data-quality-kpis">{cards.map(([tone, title, value]) => <article className={`data-quality-kpi ${tone}`} key={tone}><span aria-hidden="true"><SmsIcon name={tone === 'critical' ? 'shield' : tone === 'warning' ? 'bell' : tone === 'info' ? 'quality' : 'report'} size={20} /></span><div><p>{title}</p><strong>{loading ? '—' : value.toLocaleString('th-TH')}</strong><small>{loading ? 'กำลังโหลด…' : 'รายการตามตัวกรอง'}</small></div></article>)}</div>
+      </SectionCard>
+      <SectionCard kicker="ค้นหารายการ" title="ตัวกรองคุณภาพข้อมูล" description="ปรับเงื่อนไขเพื่อจำกัดผลตรวจที่แสดง" className="data-quality-filter-card">
+        <FilterBar filters={filters} onFiltersChange={onFiltersChange} />
+        <div className="data-quality-page-size"><label htmlFor="data-quality-page-size">แสดงต่อหน้า</label><select id="data-quality-page-size" value={pageSize} onChange={(event) => onPageSize(Number(event.target.value))}><option value={25}>25</option><option value={50}>50</option><option value={100}>100</option></select></div>
+      </SectionCard>
+      <SectionCard kicker="ผลการตรวจ" title="รายการคุณภาพข้อมูล" description="ตรวจสอบรายละเอียดและไปยังหน้ารายการที่เกี่ยวข้องตามสิทธิ์" className="data-quality-results-card">
       <ResponsiveDataTable
         ariaLabel="รายการคุณภาพข้อมูล"
         loading={loading}
@@ -127,6 +134,7 @@ export function DataQualityCenterPage({ rows, summary = {}, total, page, pageSiz
         mobile={<div className="data-quality-mobile-cards" aria-label="รายการคุณภาพข้อมูลสำหรับมือถือ">{loading ? <DataTableSkeletonCards count={3} cardClassName="data-quality-mobile-card data-mobile-card" /> : rows.length ? rows.map((issue) => <article className="data-quality-mobile-card data-mobile-card" key={issue.id}><header><SeverityBadge value={issue.severity} /><span>{label(issue.module, moduleLabels)}</span></header><h2>{label(issue.rule, ruleLabels)}</h2><p>{issue.description}</p><dl><div><dt>พนักงาน</dt><dd>{issue.employeeName || 'ไม่พบชื่อพนักงาน'}<small>{issue.employeeCode || '—'}</small></dd></div><div><dt>แผนก</dt><dd>{issue.department || 'ไม่ระบุแผนก'}</dd></div><div><dt>ค่าที่ตรวจพบ</dt><dd>{formatDate(issue.detectedValue)}</dd></div></dl><footer><TargetAction issue={issue} onNavigate={onNavigate} /></footer></article>) : <DataTableState variant="empty" title={total ? 'ไม่พบรายการตามตัวกรองที่เลือก' : 'ไม่พบรายการคุณภาพข้อมูล'} description="ลองปรับตัวกรองเพื่อค้นหารายการเพิ่มเติม" />}</div>}
       />
       <DataTablePagination page={page} totalPages={totalPages} onChange={onPageChange} ariaLabel="การแบ่งหน้ารายการคุณภาพข้อมูล" loading={loading} className="data-quality-pagination" />
+      </SectionCard>
     </>}
   </section>;
 }

@@ -8,6 +8,7 @@ import { formatThaiDateTime } from '../../thai-date-time';
 import type { LeaveDecisionAction } from '../../components/LeaveDecisionConfirmation';
 import { approveAttendanceAdjustment, rejectAttendanceAdjustment } from '../attendance-supervisor/attendance-adjustment-client';
 import '../../styles/approval-center.css';
+import { MetricCard, PageHeader, SectionCard } from '../../components/layout';
 
 type ApprovalUrgency = 'NEW' | 'DUE_SOON' | 'OVERDUE';
 type ApprovalType =
@@ -152,9 +153,9 @@ function detailActionLabel(item: ApprovalCenterItem) {
 }
 
 function urgencyTone(item: ApprovalCenterItem) {
-  if (item.urgency === 'OVERDUE') return 'border-[#ef4444]/45 bg-[#ef4444]/10 text-[#ef4444]';
-  if (item.urgency === 'DUE_SOON') return 'border-[#f59e0b]/45 bg-[#f59e0b]/10 text-[#f59e0b]';
-  return 'border-[#25b8d3]/30 bg-[#25b8d3]/10 text-[#8be5f2]';
+  if (item.urgency === 'OVERDUE') return 'approval-urgency approval-urgency--overdue';
+  if (item.urgency === 'DUE_SOON') return 'approval-urgency approval-urgency--due-soon';
+  return 'approval-urgency approval-urgency--new';
 }
 
 function urgencyText(item: ApprovalCenterItem) {
@@ -339,17 +340,17 @@ export function ApprovalCenterPage({
     if (item.type === 'EMPLOYEE_MASTER_CHANGE' || item.type === 'SCHEDULE_APPROVAL') return null;
 
     if (selfLeave) {
-      return <span className="rounded-[7px] border border-[#f59e0b]/35 bg-[#f59e0b]/10 px-3 py-2 text-xs text-[#f59e0b]">
+    return <span className="approval-self-leave">
         ห้ามอนุมัติใบลาของตนเอง
       </span>;
     }
 
-    return <div className={mobile ? 'grid grid-cols-2 gap-2' : 'flex justify-end gap-2'}>
+    return <div className={`approval-action-buttons${mobile ? ' approval-action-buttons--mobile' : ''}`}>
       <button
         type="button"
         disabled={busy}
         onClick={() => requestReject(item)}
-        className="min-h-[44px] rounded-[7px] border border-[#ef4444]/55 bg-[#0f1d2a] px-3 text-sm font-semibold text-[#fca5a5] transition hover:bg-[#1a2836] disabled:cursor-wait disabled:opacity-50"
+        className="approval-action-button approval-action-button--reject"
       >
         {busy && busyAction?.action === 'reject' ? 'กำลังปฏิเสธ…' : 'ปฏิเสธ'}
       </button>
@@ -357,7 +358,7 @@ export function ApprovalCenterPage({
         type="button"
         disabled={busy}
         onClick={() => void executeDirectDecision(item, 'approve')}
-        className="min-h-[44px] rounded-[7px] border border-[#25b8d3]/65 bg-[#25b8d3] px-3 text-sm font-bold text-[#020813] shadow-[0_0_18px_rgba(37,184,211,0.18)] transition hover:bg-[#52c9de] disabled:cursor-wait disabled:opacity-50"
+        className="approval-action-button approval-action-button--approve"
       >
         {busy && busyAction?.action === 'approve' ? 'กำลังอนุมัติ…' : 'อนุมัติทันที'}
       </button>
@@ -375,7 +376,7 @@ export function ApprovalCenterPage({
   const renderDetailButton = (item: ApprovalCenterItem) => <button
     type="button"
     onClick={() => openDetails(item)}
-    className="min-h-[44px] rounded-[7px] border border-[#25b8d3]/40 bg-[#0f1d2a] px-3 text-sm font-semibold text-[#8be5f2] transition hover:bg-[#1a2836]"
+    className="approval-detail-button"
   >
     {detailActionLabel(item)}
   </button>;
@@ -385,67 +386,31 @@ export function ApprovalCenterPage({
       label: 'คำขอรออนุมัติ',
       value: summaryAvailable ? String(summary.total) : null,
       loading,
-      note: 'คำขอรอการอนุมัติตามสิทธิ์ ' + roleDisplayName(role),
-      tone: 'text-[#f59e0b]'
+      note: 'รายการที่รอการอนุมัติตามสิทธิ์ ' + roleDisplayName(role)
     }
   ];
 
   return <section
-    className="nexus-approval-center -m-4 min-h-[calc(100vh-80px)] overflow-x-hidden bg-[#020813] p-4 font-['Plus_Jakarta_Sans'] text-slate-200 sm:-m-5 sm:p-5 lg:-m-6 lg:p-6"
+    className="nexus-approval-center approval-center-page layout-page-surface"
     aria-label="ศูนย์อนุมัติคำขอ"
   >
-    <div className="mx-auto grid w-full max-w-[1540px] gap-4">
-      <header className="rounded-[8px] border border-[#25b8d3]/25 bg-[#061421] p-4 shadow-[0_0_28px_rgba(37,184,211,0.06)] sm:p-5">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div className="min-w-0">
-            <p className="mb-2 font-mono text-[11px] font-semibold tracking-[0.14em] text-[#25b8d3]">
-              ศูนย์อนุมัติ
-            </p>
-            <h1 className="font-['Kanit'] text-2xl font-semibold tracking-[-0.02em] text-white sm:text-[30px]">
-              ศูนย์อนุมัติคำขอ
-            </h1>
-            <p className="mt-1 max-w-3xl font-['Kanit'] text-sm text-slate-400">
-              ดูและดำเนินการกับคำขอที่รออนุมัติตามสิทธิ์ของคุณ
-            </p>
-          </div>
-          <button
-            type="button"
-            disabled={loading}
-            onClick={() => void loadQueue()}
-            className="inline-flex min-h-[42px] items-center justify-center gap-2 self-start rounded-[7px] border border-[#25b8d3]/30 bg-[#0f1d2a] px-3 text-sm font-semibold text-[#8be5f2] transition hover:bg-[#1a2836] disabled:opacity-50"
-          >
-            <SmsIcon name="refresh" size={16} />รีเฟรชข้อมูล
-          </button>
-        </div>
-      </header>
+    <div className="approval-center-content">
+      <PageHeader kicker="งานที่รอการพิจารณา" title="ศูนย์อนุมัติคำขอ" description="ดูและดำเนินการกับคำขอที่รออนุมัติตามสิทธิ์ของคุณ" className="approval-center-header" actions={<button type="button" disabled={loading} onClick={() => void loadQueue()} className="btn-neutral small-action"><SmsIcon name="refresh" size={16} />รีเฟรชข้อมูล</button>} />
 
-      {error && <div className="rounded-[8px] border border-[#ef4444]/45 bg-[#ef4444]/10 px-4 py-3 text-sm text-[#fecaca]">
+      {error && <div className="approval-center-alert approval-center-alert--error">
         <RequestErrorContent error={error} />
       </div>}
-      {notice && <div className="rounded-[8px] border border-[#10b981]/40 bg-[#10b981]/10 px-4 py-3 text-sm text-[#a7f3d0]">
+      {notice && <div className="approval-center-alert approval-center-alert--success">
         {notice}
       </div>}
 
-      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-        {telemetry.filter((metric) => metric.loading || metric.value !== null).map((metric) => <article
-          key={metric.label}
-          className="nexus-telemetry-card min-w-0 rounded-[8px] border border-[#25b8d3]/20 bg-[#061421] p-3 sm:p-4"
-        >
-          <span className="block font-mono text-[10px] font-semibold tracking-[0.08em] text-slate-500">
-            {metric.label}
-          </span>
-          <strong className={'mt-2 block break-words font-mono text-lg font-bold sm:text-2xl ' + metric.tone}>
-            {metric.loading ? <span className="block h-7 w-24 animate-pulse rounded bg-slate-700/70" aria-label="กำลังโหลด" /> : metric.value}
-          </strong>
-          <small className="mt-1 block font-['Kanit'] text-[11px] leading-4 text-slate-500">
-            {metric.note}
-          </small>
-        </article>)}
+      <div className="approval-center-metrics">
+        {telemetry.filter((metric) => metric.loading || metric.value !== null).map((metric) => <MetricCard key={metric.label} label={metric.label} value={metric.loading ? <span className="approval-metric-skeleton" aria-label="กำลังโหลด" /> : metric.value} description={metric.note} loading={metric.loading} className="nexus-telemetry-card" />)}
       </div>
 
-      <section className="rounded-[8px] border border-[#25b8d3]/20 bg-[#061421] p-3">
-        <div className="grid gap-3 xl:grid-cols-[1fr_auto] xl:items-center">
-          <div className="flex min-w-0 flex-wrap gap-2" role="group" aria-label="ตัวกรองประเภทคำขอ">
+      <SectionCard kicker="ตัวกรอง" title="ประเภทและความเร่งด่วน" description="เลือกประเภทคำขอหรือระดับความเร่งด่วนเพื่อจำกัดรายการที่แสดง" className="approval-filter-card">
+        <div className="approval-filter-layout">
+          <div className="approval-category-filters" role="group" aria-label="ตัวกรองประเภทคำขอ">
             {[
               { id: 'ALL' as const, label: 'ทั้งหมด', count: summary.total },
               ...approvalTypeOrder
@@ -456,17 +421,13 @@ export function ApprovalCenterPage({
               key={id}
               aria-pressed={filter === id}
               onClick={() => setFilter(id)}
-              className={'min-h-[38px] rounded-[7px] border px-3 font-["Kanit"] text-xs transition ' + (
-                filter === id
-                  ? 'border-[#25b8d3]/60 bg-[#253545] text-[#8be5f2]'
-                  : 'border-[#25b8d3]/15 bg-[#0f1d2a] text-slate-400 hover:bg-[#1a2836] hover:text-slate-200'
-              )}
+              className={`approval-filter-option${filter === id ? ' is-selected' : ''}`}
             >
-              {label} <b className="ml-1 font-mono">{count}</b>
+              {label} <b>{count}</b>
             </button>)}
           </div>
 
-          <div className="flex gap-2" role="group" aria-label="ตัวกรองระดับความเร่งด่วน">
+          <div className="approval-urgency-filters" role="group" aria-label="ตัวกรองระดับความเร่งด่วน">
             {([
               ['URGENT', 'ด่วนที่สุด (Urgent)'],
               ['STANDARD', 'ปกติ (Standard)']
@@ -475,47 +436,32 @@ export function ApprovalCenterPage({
               key={id}
               aria-pressed={urgencyFilter === id}
               onClick={() => setUrgencyFilter((current) => current === id ? 'ALL' : id)}
-              className={'min-h-[38px] rounded-[7px] border px-3 font-["Kanit"] text-xs transition ' + (
-                urgencyFilter === id
-                  ? (id === 'URGENT'
-                    ? 'border-[#f59e0b]/60 bg-[#f59e0b]/10 text-[#f59e0b]'
-                    : 'border-[#25b8d3]/50 bg-[#253545] text-[#8be5f2]')
-                  : 'border-[#25b8d3]/15 bg-[#0f1d2a] text-slate-400 hover:bg-[#1a2836]'
-              )}
+              className={`approval-filter-option${urgencyFilter === id ? ' is-selected' : ''}${id === 'URGENT' ? ' approval-filter-option--urgent' : ''}`}
             >
               {label}
             </button>)}
           </div>
         </div>
-      </section>
+      </SectionCard>
 
-      <div className="min-w-0">
-        <section className="min-w-0 rounded-[8px] border border-[#25b8d3]/25 bg-[#020f1c]">
-          <header className="flex items-center justify-between gap-3 border-b border-[#25b8d3]/15 bg-[#061421] px-4 py-3">
-            <div>
-              <p className="font-mono text-[10px] tracking-[0.12em] text-[#25b8d3]">APPROVAL ACTION QUEUE</p>
-              <h2 className="mt-1 font-['Kanit'] text-lg font-semibold text-white">งานที่รอฉันดำเนินการ</h2>
-            </div>
-            <span className="rounded-[6px] border border-[#f59e0b]/35 bg-[#f59e0b]/10 px-2 py-1 font-mono text-xs font-bold text-[#f59e0b]">
-              {summaryAvailable ? `${visible.length} จาก ${summary.total} รายการ` : 'กำลังโหลด'}
-            </span>
-          </header>
+      <div className="approval-queue-section">
+        <SectionCard kicker="คิวคำขอ" title="งานที่รอฉันดำเนินการ" description="แสดงคำขอจาก Approval API เดิม พร้อมทางลัดดูรายละเอียดและดำเนินการตามสิทธิ์" className="approval-queue-card" actions={<span className="approval-queue-count">{summaryAvailable ? `${visible.length} จาก ${summary.total} รายการ` : 'กำลังโหลด'}</span>}>
 
-          <div className="hidden md:block">
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[860px] border-collapse text-left">
-                <thead className="bg-[#0f1d2a] font-mono text-[10px] uppercase tracking-[0.08em] text-slate-500">
+          <div className="approval-queue-desktop">
+            <div className="approval-queue-table-scroll">
+              <table className="approval-queue-table">
+                <thead>
                   <tr>
-                    <th className="px-3 py-3 font-semibold">ผู้ส่งคำขอ / ผู้ปฏิบัติงาน</th>
-                    <th className="px-3 py-3 font-semibold">ประเภทและอายุคิว</th>
-                    <th className="px-3 py-3 font-semibold">ส่งเมื่อ</th>
-                    <th className="px-3 py-3 font-semibold">สรุปรายการ</th>
-                    <th className="px-3 py-3 text-right font-semibold">รายละเอียด / ดำเนินการ</th>
+                    <th>ผู้ส่งคำขอ / ผู้ปฏิบัติงาน</th>
+                    <th>ประเภทและอายุคิว</th>
+                    <th>ส่งเมื่อ</th>
+                    <th>สรุปรายการ</th>
+                    <th className="approval-queue-actions-heading">รายละเอียด / ดำเนินการ</th>
                   </tr>
                 </thead>
                 <tbody>
                   {loading ? <tr>
-                    <td colSpan={5} className="px-4 py-12 text-center font-['Kanit'] text-sm text-slate-500">
+                    <td colSpan={5} className="approval-queue-state">
                       กำลังโหลดคิวอนุมัติ…
                     </td>
                   </tr> : visible.length ? visible.map((item) => {
@@ -523,53 +469,51 @@ export function ApprovalCenterPage({
 
                     return <tr
                       key={item.id}
-                      className={'border-t border-[#25b8d3]/10 align-top transition ' + (
-                        active ? 'bg-[#253545]/55' : 'bg-[#020f1c] hover:bg-[#1a2836]/70'
-                      )}
+                      className={`approval-queue-row${active ? ' is-selected' : ''}`}
                     >
-                      <td className="px-3 py-3">
+                      <td>
                         <button
                           type="button"
                           aria-pressed={selected?.id === item.id}
                           onClick={() => setSelectedId(item.id)}
-                          className="nexus-approval-select flex min-w-0 items-start gap-3 text-left"
+                          className="nexus-approval-select approval-person-select"
                         >
-                          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-[7px] border border-[#25b8d3]/25 bg-[#0f1d2a] text-[#8be5f2]" aria-hidden="true">
+                          <span className="approval-person-avatar" aria-hidden="true">
                             <SmsIcon name="users" size={17} />
                           </span>
-                          <span className="min-w-0">
-                            <strong className="block font-['Kanit'] text-sm font-medium text-slate-100">
+                          <span className="approval-person-copy">
+                            <strong className="approval-person-name">
                               {employeeName(item)}
                             </strong>
-                            <small className="block font-['Kanit'] text-[11px] text-slate-500">
+                            <small>
                               ผู้ส่ง: {senderName(item)}
                             </small>
-                            <small className="block font-['Kanit'] text-[11px] text-slate-500">
+                            <small>
                               {item.requestedBy?.role ? senderRoleName(item.requestedBy.role) : item.employee?.jobTitle || item.employee?.department || 'คำขออนุมัติ'}
                             </small>
                           </span>
                         </button>
                       </td>
-                      <td className="px-3 py-3">
-                        <div className="font-['Kanit'] text-xs text-slate-300">{typeLabel[item.type]}</div>
-                        <span className={'mt-2 inline-flex rounded-[6px] border px-2 py-1 font-mono text-[9px] font-bold ' + urgencyTone(item)}>
+                      <td>
+                        <div className="approval-type-label">{typeLabel[item.type]}</div>
+                        <span className={urgencyTone(item)}>
                           {urgencyText(item)}
                         </span>
-                        <small className="mt-2 block font-['Kanit'] text-xs text-slate-400">รอมา {pendingAge(item.ageHours)}</small>
+                        <small className="approval-queue-age">รอมา {pendingAge(item.ageHours)}</small>
                       </td>
-                      <td className="max-w-[180px] px-3 py-3 font-mono text-[11px] leading-5 text-slate-400">
+                      <td className="approval-queue-submitted">
                         {fmt(item.submittedAt)}
                       </td>
-                      <td className="max-w-[220px] px-3 py-3 font-['Kanit'] text-xs leading-5 text-slate-400">
+                      <td className="approval-queue-summary">
                         {itemSummary(item)}
                       </td>
-                      <td className="px-3 py-3"><div className="grid justify-end gap-2">{renderDetailButton(item)}{renderActionButtons(item)}</div></td>
+                      <td><div className="approval-queue-row-actions">{renderDetailButton(item)}{renderActionButtons(item)}</div></td>
                     </tr>;
                   }) : <tr>
-                    <td colSpan={5} className="px-4 py-12 text-center">
-                      <SmsIcon name="check" size={28} className="mx-auto text-[#10b981]" />
-                      <strong className="mt-2 block font-['Kanit'] text-sm text-slate-200">ไม่มีคำขอในตัวกรองนี้</strong>
-                      <span className="mt-1 block font-['Kanit'] text-xs text-slate-500">
+                    <td colSpan={5} className="approval-queue-empty">
+                      <SmsIcon name="check" size={28} className="approval-queue-empty-icon" />
+                      <strong>ไม่มีคำขอในตัวกรองนี้</strong>
+                      <span>
                         ระบบจะแสดงเฉพาะข้อมูลจริงจาก Approval API เดิม
                       </span>
                     </td>
@@ -579,66 +523,62 @@ export function ApprovalCenterPage({
             </div>
           </div>
 
-          <div className="grid gap-3 p-3 md:hidden">
-            {loading ? <div className="py-10 text-center font-['Kanit'] text-sm text-slate-500">
+          <div className="approval-queue-mobile">
+            {loading ? <div className="approval-queue-state">
               กำลังโหลดคิวอนุมัติ…
             </div> : visible.length ? visible.map((item) => <article
               key={item.id}
-              className={'min-w-0 rounded-[8px] border p-3 ' + (
-                selected?.id === item.id
-                  ? 'border-[#25b8d3]/55 bg-[#253545]/55'
-                  : 'border-[#25b8d3]/18 bg-[#061421]'
-              )}
+              className={`approval-mobile-card${selected?.id === item.id ? ' is-selected' : ''}`}
             >
               <button
                 type="button"
                 aria-pressed={selected?.id === item.id}
                 onClick={() => setSelectedId(item.id)}
-                className="nexus-approval-select w-full text-left"
+                className="nexus-approval-select approval-mobile-card-select"
               >
-                <div className="flex min-w-0 items-start gap-3">
-                  <span className="grid h-10 w-10 shrink-0 place-items-center rounded-[7px] border border-[#25b8d3]/25 bg-[#0f1d2a] text-[#8be5f2]" aria-hidden="true">
+                <div className="approval-mobile-card-heading">
+                  <span className="approval-person-avatar" aria-hidden="true">
                     <SmsIcon name="users" size={18} />
                   </span>
-                  <span className="min-w-0 flex-1">
-                    <strong className="block font-['Kanit'] text-base font-medium text-white">{employeeName(item)}</strong>
-                    <small className="block font-['Kanit'] text-xs text-slate-400">ผู้ส่ง: {senderName(item)}</small>
-                    <small className="block font-['Kanit'] text-xs text-slate-500">{typeLabel[item.type]}</small>
+                  <span className="approval-person-copy">
+                    <strong className="approval-person-name">{employeeName(item)}</strong>
+                    <small>ผู้ส่ง: {senderName(item)}</small>
+                    <small>{typeLabel[item.type]}</small>
                   </span>
-                  <span className={'shrink-0 rounded-[6px] border px-2 py-1 font-mono text-[9px] font-bold ' + urgencyTone(item)}>
+                  <span className={urgencyTone(item)}>
                     {item.urgency === 'NEW' ? 'ปกติ' : 'เร่งด่วน'}
                   </span>
                 </div>
 
-                <dl className="mt-3 grid grid-cols-2 gap-2 text-xs">
-                  <div className="min-w-0 rounded-[6px] bg-[#0f1d2a] p-2">
-                    <dt className="font-mono text-[9px] text-slate-600">ส่งเมื่อ</dt>
-                    <dd className="mt-1 font-mono text-slate-400">{fmt(item.submittedAt)}</dd>
+                <dl className="approval-mobile-card-meta">
+                  <div>
+                    <dt>ส่งเมื่อ</dt>
+                    <dd>{fmt(item.submittedAt)}</dd>
                   </div>
-                  <div className="min-w-0 rounded-[6px] bg-[#0f1d2a] p-2">
-                    <dt className="font-mono text-[9px] text-slate-600">อายุคิว</dt>
-                    <dd className="mt-1 font-['Kanit'] text-slate-400">{pendingAge(item.ageHours)}</dd>
+                  <div>
+                    <dt>อายุคิว</dt>
+                    <dd>{pendingAge(item.ageHours)}</dd>
                   </div>
-                  <div className="col-span-2 min-w-0 rounded-[6px] bg-[#0f1d2a] p-2">
-                    <dt className="font-mono text-[9px] text-slate-600">สรุปรายการ</dt>
-                    <dd className="mt-1 break-words font-['Kanit'] text-slate-400">{itemSummary(item)}</dd>
+                  <div className="approval-mobile-card-meta__summary">
+                    <dt>สรุปรายการ</dt>
+                    <dd>{itemSummary(item)}</dd>
                   </div>
                 </dl>
               </button>
-              <div className="mt-3 grid gap-2">{renderDetailButton(item)}{renderActionButtons(item, true)}</div>
-            </article>) : <div className="py-10 text-center">
-              <SmsIcon name="check" size={30} className="mx-auto text-[#10b981]" />
-              <strong className="mt-2 block font-['Kanit'] text-sm text-slate-200">ไม่มีคำขอในตัวกรองนี้</strong>
+              <div className="approval-mobile-card-actions">{renderDetailButton(item)}{renderActionButtons(item, true)}</div>
+            </article>) : <div className="approval-queue-empty">
+              <SmsIcon name="check" size={30} className="approval-queue-empty-icon" />
+              <strong className="approval-queue-empty-title">ไม่มีคำขอในตัวกรองนี้</strong>
             </div>}
           </div>
-        </section>
+        </SectionCard>
       </div>
 
-      {summary.truncated && <p className="font-['Kanit'] text-xs text-[#f59e0b]">
+      {summary.truncated && <p className="approval-queue-warning">
         คิวมีรายการมากกว่าจำนวนที่โหลดจาก API (limit 100) — ระบบไม่ได้ซ่อนจำนวนรวมใน Telemetry
       </p>}
 
-      <div className="sr-only" aria-live="polite">
+      <div className="approval-center-live-region" aria-live="polite">
         {selectedLeaveIsSelf
           ? 'คำขอลาที่เลือกเป็นคำขอของผู้ใช้ปัจจุบัน'
           : ''}
@@ -646,32 +586,32 @@ export function ApprovalCenterPage({
     </div>
 
     {rejecting && <div
-      className="nexus-reject-modal fixed inset-0 z-[120] grid place-items-center bg-[#020813]/90 p-4"
+      className="nexus-reject-modal approval-reject-modal"
       role="dialog"
       aria-modal="true"
       aria-label="ยืนยันการปฏิเสธคำขอ"
     >
-      <section className="w-full max-w-[480px] rounded-[8px] border border-[#ef4444]/45 bg-[#061421] p-4 shadow-2xl">
-        <p className="font-mono text-[10px] tracking-[0.12em] text-[#ef4444]">REJECT REQUEST</p>
-        <h2 className="mt-2 font-['Kanit'] text-xl font-semibold text-white">{employeeName(rejecting)}</h2>
-        <label className="mt-4 grid gap-2 font-['Kanit'] text-sm text-slate-400">
+      <section className="approval-reject-dialog">
+        <p className="approval-reject-kicker">REJECT REQUEST</p>
+        <h2>{employeeName(rejecting)}</h2>
+        <label className="approval-reject-reason">
           เหตุผลการปฏิเสธ
           <textarea
             autoFocus
             rows={4}
             value={rejectReason}
             onChange={(event) => setRejectReason(event.target.value)}
-            className="w-full resize-none rounded-[7px] border border-[#25b8d3]/25 bg-[#0f1d2a] p-3 text-sm text-slate-100 outline-none placeholder:text-slate-600 focus:border-[#25b8d3]/60"
+            className="approval-reject-input"
             placeholder="ระบุเหตุผลอย่างน้อย 3 ตัวอักษร"
           />
         </label>
 
-        <div className="mt-4 grid grid-cols-2 gap-2">
+        <div className="approval-reject-actions">
           <button
             type="button"
             disabled={Boolean(busyAction)}
             onClick={() => { setRejecting(undefined); setRejectReason(''); }}
-            className="min-h-[44px] rounded-[7px] border border-[#25b8d3]/20 bg-[#0f1d2a] font-['Kanit'] text-sm text-slate-300 hover:bg-[#1a2836]"
+            className="approval-reject-button"
           >
             ยกเลิก
           </button>
@@ -679,7 +619,7 @@ export function ApprovalCenterPage({
             type="button"
             disabled={Boolean(busyAction)}
             onClick={() => void confirmReject()}
-            className="min-h-[44px] rounded-[7px] border border-[#ef4444]/60 bg-[#ef4444]/15 font-['Kanit'] text-sm font-semibold text-[#fecaca] hover:bg-[#ef4444]/25 disabled:opacity-50"
+            className="approval-reject-button approval-reject-button--confirm"
           >
             {busyAction ? 'กำลังดำเนินการ…' : 'ยืนยันปฏิเสธ'}
           </button>

@@ -36,8 +36,9 @@ describe('UXUI-REM-01 audited remediation contracts', () => {
     expect(approval).not.toContain('api.auditEvents');
     expect(approval).not.toContain('บันทึกเหตุการณ์สด');
     expect(approval).toContain('ศูนย์อนุมัติ');
-    expect(approval).toContain('overflow-x-hidden');
-    expect(approvalCss).toContain('.nexus-approval-center{background:#020813!important');
+    expect(approval).toContain('layout-page-surface');
+    expect(approvalCss).toContain('.nexus-approval-center{max-width:100vw;overflow-x:hidden}');
+    expect(approvalCss).not.toContain('.nexus-approval-center{background:#020813!important');
   });
 
   it('standardizes modal focus management without changing Attendance authority calls', () => {
