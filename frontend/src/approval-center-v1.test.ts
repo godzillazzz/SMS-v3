@@ -77,6 +77,16 @@ describe('Approval Center Command Nexus frontend contracts', () => {
     expect(css).toContain('var(--color-surface)');
   });
 
+  it('uses the shared theme with semantic Approval Center classes instead of page utility styling', () => {
+    expect(page).toContain('approval-filter-layout');
+    expect(page).toContain('approval-queue-table');
+    expect(page).toContain('approval-mobile-card-meta');
+    expect(page).not.toMatch(/rounded-\[|bg-\[|text-slate-|font-\[|grid-cols-|md:hidden|min-h-\[/);
+    expect(css).toContain('.approval-filter-option.is-selected');
+    expect(css).toContain('.approval-queue-row.is-selected');
+    expect(css).toContain('.approval-mobile-card.is-selected');
+  });
+
   it('keeps every supported approval type and routes direct decisions through existing APIs', () => {
     for (const type of [
       'EMPLOYEE_MASTER_CHANGE',
