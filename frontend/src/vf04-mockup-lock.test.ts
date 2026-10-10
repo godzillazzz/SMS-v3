@@ -104,6 +104,6 @@ describe('G04.2 VF-04 mockup lock visual contract', () => {
   });
 
   it('locks the authorized API source after T25 cross-tab refresh coordination', () => {
-    expect(apiSha256).toBe('ee259e1e4f8b95049f345ae885a94b354b87cd1c22050bceebb1064a8fa0629f');
+    expect(apiSha256).toBe('b0144981af17f3b286158a7a82277656bab79097242d1a563b1b157a96378b18');
   });
 });

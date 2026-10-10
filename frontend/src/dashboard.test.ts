@@ -39,6 +39,7 @@ describe('executive dashboard contract', () => {
   it('routes the authenticated Dashboard page to the executive component', () => {
     expect(app).toContain("import { DashboardPage } from './pages/dashboard/DashboardPage';");
     expect(app).toContain("if (activePage === 'dashboard') return <DashboardPage");
+    expect(app).toContain("if (activePage === 'dashboardDetails') return <DashboardDetailsPage");
     expect(app).toContain('summary={dashboardSummary}');
     expect(app).toContain('canManage={canManage}');
   });
@@ -70,7 +71,8 @@ describe('executive dashboard contract', () => {
     expect(actions).toContain('expiryDate');
     expect(actions).toContain('daysRemaining');
     expect(actions).toContain('urgency');
-    expect(actions).toContain("onNavigate('licenses')");
+    expect(actions).toContain("metric: 'licenseExpiry'");
+    expect(actions).toContain("expiryBucket: 'EXPIRING_0_30'");
     expect(actions).not.toContain('signedUrl');
   });
 

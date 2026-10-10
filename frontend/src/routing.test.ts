@@ -40,6 +40,7 @@ describe('application History API routes', () => {
       expect(pageFromPath(path)).toBe('settings');
       expect(settingsSectionFromPath(path)).toBe(section.id);
     }
+    expect(pageFromPath('/app/dashboard/details')).toBe('dashboardDetails');
     expect(pageFromPath('/app/settings/not-a-section')).toBeNull();
     expect(pageFromLocation({ pathname: '/app/settings/notifications', search: '?tab=templates' })).toEqual({ kind: 'page', page: 'settings' });
     expect(pageFromPath('/app/not-a-real-page')).toBeNull();
@@ -117,6 +118,8 @@ describe('application History API routes', () => {
     expect(canViewRoutePage('leavePending', { user: { role: 'SUPERVISOR' }, isViewingAs: false })).toBe(true);
     expect(canViewRoutePage('leavePending', { user: { role: 'SUPERVISOR' }, isViewingAs: true })).toBe(false);
     expect(pageTitle('schedule')).toBe('ตารางกะรายเดือน');
+    expect(pageTitle('dashboardDetails')).toBe('รายละเอียดตัวชี้วัด');
+    expect(canViewRoutePage('dashboardDetails', { user: { role: 'VIEWER' }, isViewingAs: false })).toBe(true);
 
     updateDocumentTitle('schedule');
     expect(document.title).toBe('ตารางกะรายเดือน | SMS-v3');

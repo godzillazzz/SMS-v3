@@ -40,6 +40,7 @@ const { normalizeLicenseNumber } = require('../services/license-document.service
 const { parseLeaveMonth, leaveMonthWhere } = require('../utils/leave-month-filter');
 const { normalizeScheduleTime } = require('../utils/schedule-time');
 const { getDashboardSummary } = require('../services/dashboard.service');
+const { getDashboardDetails } = require('../services/dashboard-detail.service');
 const { getAuditLogPage } = require('../services/audit-log-viewer.service');
 const systemSettingHistoryService = require('../services/system-setting-history.service');
 const { assertSystemSettingChangeSafe, guardrailMetadata } = require('../services/system-setting-guardrail.service');
@@ -183,6 +184,30 @@ const dashboardQuery = z.object({
   date: dashboardDate.optional(),
   month: dashboardMonth.optional(),
   department: z.string().trim().max(100).optional()
+});
+const dashboardDetailsQuery = z.object({
+  metric: z.enum(['activeEmployees', 'totalEmployees', 'schedule', 'leaveToday', 'pendingLeaves', 'leaveMonth', 'leaveMonthStatus', 'licenseStatus', 'licenseExpiry', 'pendingUsers', 'unmatchedQuota']),
+  date: dashboardDate.optional(),
+  month: dashboardMonth.optional(),
+  department: z.string().trim().max(100).optional(),
+  status: z.enum(['PENDING', 'APPROVED', 'REJECTED', 'CANCELLED', 'RETURNED_FOR_CORRECTION', 'EXPIRED', 'SUPERSEDED']).optional(),
+  expiryBucket: z.enum(['EXPIRED', 'EXPIRING_0_30', 'EXPIRING_31_90', 'VALID', 'PENDING_REVIEW']).optional(),
+  workforce: z.enum(['SCHEDULED', 'ON_DUTY', 'NO_SHIFT']).optional(),
+  shiftTypeCode: z.string().trim().min(1).max(40).optional(),
+  shiftTypeName: z.string().trim().min(1).max(100).optional(),
+  licenseId: z.string().uuid().optional(),
+  page: z.coerce.number().int().min(1).max(100000).default(1),
+  pageSize: z.coerce.number().int().min(1).max(100).default(20)
+}).superRefine((filters, context) => {
+  if (filters.metric === 'licenseStatus' && !filters.status) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ['status'], message: 'A license status is required.' });
+  }
+  if (filters.metric === 'leaveMonthStatus' && !['PENDING', 'APPROVED', 'REJECTED', 'CANCELLED'].includes(filters.status || '')) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ['status'], message: 'A leave status is required.' });
+  }
+  if (filters.metric === 'licenseExpiry' && !filters.expiryBucket) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ['expiryBucket'], message: 'A license expiry bucket is required.' });
+  }
 });
 const executiveReportQuery = z.object({
   year: z.coerce.number().int().min(2020).max(2100).optional(),
@@ -426,6 +451,18 @@ router.get('/dashboard', async (req, res, next) => {
     const parsedQuery = dashboardQuery.safeParse(req.query);
     if (!parsedQuery.success) throw new HttpError(400, 'Dashboard filter is invalid.');
     res.json({ data: await getDashboardSummary({ requestUser: currentUser, filters: parsedQuery.data, requestId: req.requestId }) });
+  } catch (error) { next(error); }
+});
+router.get('/dashboard/details', async (req, res, next) => {
+  try {
+    const parsedQuery = dashboardDetailsQuery.safeParse(req.query);
+    if (!parsedQuery.success) throw new HttpError(400, 'Dashboard detail filter is invalid.');
+    const currentUser = await prisma.user.findUniqueOrThrow({
+      where: { id: req.user.sub },
+      select: { role: true, employeeId: true, department: true }
+    });
+    res.set('Cache-Control', 'no-store');
+    res.json({ data: await getDashboardDetails({ prismaClient: prisma, requestUser: currentUser, filters: parsedQuery.data }) });
   } catch (error) { next(error); }
 });
 router.get('/executive-report', authorize('ADMIN', 'MANAGER', 'SUPERVISOR'), async (req, res, next) => {
