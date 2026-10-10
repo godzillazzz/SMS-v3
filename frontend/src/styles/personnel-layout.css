@@ -1,0 +1,17 @@
+/* T30b group 1: presentation only; API, role and attendance state remain authoritative. */
+html[data-theme] .app-shell .content-area .layout-personnel-page{background:transparent!important;min-width:0;color:var(--color-text);display:grid;gap:16px}
+html[data-theme] .app-shell .content-area .layout-personnel-page :is(h1,h2){font-family:Kanit,sans-serif!important;color:var(--color-text)!important}
+html[data-theme] .app-shell .content-area .layout-personnel-page .layout-page-header{background:transparent!important;border:0!important;padding:0!important}
+html[data-theme] .app-shell .content-area .layout-personnel-page :is(.layout-section-card,.layout-metric-card){background:var(--color-surface)!important;border:1px solid var(--color-border)!important;border-radius:16px!important;padding:24px!important;color:var(--color-text)!important}
+html[data-theme] .app-shell .content-area .layout-personnel-page :is(.attendance-device-card,.registration-review,.access-summary-card) :is(p,span,small){color:var(--color-text-secondary)}
+html[data-theme] .app-shell .content-area .layout-personnel-page .layout-section-card__content>.data-surface-card{background:transparent!important;border:0!important;padding:0!important;overflow:hidden}
+html[data-theme] .app-shell .content-area .layout-personnel-page :is(.table-scroll,.data-table-scroll,.registration-review__requests,.registration-review__detail,.attendance-device-review-card){min-width:0;max-width:100%}
+html[data-theme] .app-shell .content-area .layout-personnel-page .layout-section-card__heading{background:transparent!important;padding:0!important;border:0!important}
+@media(max-width:768px){html[data-theme] .app-shell .content-area .layout-personnel-page :is(.layout-section-card,.layout-metric-card){padding:16px!important}}
+
+html[data-theme] .app-shell .content-area .layout-personnel-page>.access-management-page{background:transparent!important}
+html[data-theme] .app-shell .content-area .layout-personnel-page :where(section,article,div,header):not(.layout-section-card):not(.layout-metric-card):not(.layout-step-flow){border-radius:10px!important}
+html[data-theme] .app-shell .content-area .layout-personnel-page :is(.layout-section-card,.layout-metric-card,.layout-step-flow){border-radius:16px!important}
+
+html[data-theme] .app-shell .content-area .layout-personnel-page :is(.signature-filter-bar,.data-table-state){padding:16px!important}
+html[data-theme] .app-shell .content-area .layout-personnel-page table th{padding:14px 16px!important}
