@@ -82,7 +82,7 @@ Live Vercel read-only checks after T31 reported Production deployment `dpl_Hjo1f
 
 ## 18. Changes Made
 
-Merged T30b Groups 3/4 and T31 in order. Updated PR descriptions to exact heads and current governance/deployment evidence. Added a current dated checkpoint to `docs/PROJECT_BACKLOG.md` and created this report on a docs-only branch. No application code was added after the T31 merge in this checkpoint.
+Merged T30b Groups 3/4 and T31 in order. Updated PR descriptions to exact heads and current governance/deployment evidence. Audited current Integration for Issues #551 and #552: native role-scoped approval menu counts map all nine backend categories and have focused presentation tests; Classic Roster renders MANUAL, OVERRIDE and License Block labels. Their wider browser/business acceptance remains open. Added a current dated checkpoint to `docs/PROJECT_BACKLOG.md` and created this report on a docs-only branch. No application code was added after the T31 merge in this checkpoint.
 
 ## 19. Actions Requiring External Human Review
 
