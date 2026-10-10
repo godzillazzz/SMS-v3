@@ -92,7 +92,7 @@ describe('Attendance UX V4 Employee Mobile/PWA shell', () => {
   });
 
   it('refreshes installed-PWA manifest metadata across V4 upgrades and keeps browser theme color aligned', () => {
-    expect(sw).toContain("const CACHE_NAME = 'sms-pwa-shell-v2'");
+    expect(sw).toContain("const CACHE_NAME = 'sms-pwa-shell-v3'");
     expect(sw).toContain("if (url.pathname === '/manifest.webmanifest')");
     expect(sw).toContain("fetch(request)");
     expect(manifest.theme_color).toBe('#020813');

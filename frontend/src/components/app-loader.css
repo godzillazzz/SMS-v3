@@ -1,0 +1,14 @@
+.sms-loader{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:24px;font-family:Kanit,sans-serif;color:var(--color-text-primary,#14243e)}
+.sms-loader--fullscreen{min-height:100dvh;background:var(--color-bg,#f5f7fb)}
+.sms-loader--content{min-height:240px}
+.sms-loader__brand img{height:240px;width:auto;max-width:100%;object-fit:contain}
+.sms-loader__dark{display:none}
+:root[data-theme=dark] .sms-loader__light,:root[data-sms-shell=employee] .sms-loader__light{display:none}
+:root[data-theme=dark] .sms-loader__dark,:root[data-sms-shell=employee] .sms-loader__dark{display:block}
+:root[data-sms-shell=employee] .sms-loader{background:#020813;color:#f1f5f9}
+.sms-loader--content .sms-loader__brand img{height:120px}
+.sms-loader p{margin:0;text-align:center}
+.sms-loader__progress{width:64px;height:3px;border-radius:10px;background:#0b58d8;animation:sms-loading 1.2s ease-in-out infinite alternate}
+@keyframes sms-loading{to{opacity:.35;transform:scaleX(.5)}}
+@media(max-width:600px){.sms-loader--fullscreen .sms-loader__brand img{height:180px}}
+@media(prefers-reduced-motion:reduce){.sms-loader__progress{animation:none}}

@@ -1,7 +1,7 @@
 'use strict';
 
-const CACHE_NAME = 'sms-pwa-shell-v2';
-const SHELL_URLS = ['/', '/manifest.webmanifest', '/pwa-icon-192.png', '/pwa-icon-512.png'];
+const CACHE_NAME = 'sms-pwa-shell-v3';
+const SHELL_URLS = ['/', '/manifest.webmanifest', '/pwa-icon-192.png', '/pwa-icon-512.png', '/brand/sms-logo.webp', '/brand/sms-logo-dark.webp', '/brand/sms-logo-splash.webp', '/brand/sms-logo-splash-dark.webp'];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(SHELL_URLS)));
@@ -53,6 +53,7 @@ self.addEventListener('fetch', (event) => {
   }
 
   const cacheableStatic = url.pathname.startsWith('/assets/')
+    || SHELL_URLS.includes(url.pathname)
     || url.pathname === '/pwa-icon-192.png'
     || url.pathname === '/pwa-icon-512.png'
     || url.pathname === '/apple-touch-icon.png';
