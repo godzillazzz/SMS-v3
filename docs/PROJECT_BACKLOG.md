@@ -24,6 +24,13 @@ Trusted Main remains `ca9b3d12d67be10297ac98f5668e2cfeab74b4b4`. No Trusted Main
 - Production remains R5-B deployment `dpl_Hjo1fTmgjEdmg5G7fZBX9gssenQP`, application SHA `77641a2657aa4fd05276afe645dd32648f5cc56b`, READY / target Production. Canonical aliases `sms-v3-staging-godzillazzz.vercel.app` and `sms-v3-staging-ten.vercel.app` remain attached to that deployment. No Production deploy, promotion, rollback, alias, database, schema, account, or business-data mutation occurred.
 - #595–#597 diffs contained no Actions workflows, Production release manifests, or CI guard paths. Existing Production deploy/promote workflows are manual dispatch; legacy push/path filters do not match these diffs.
 
+### Open Issue source audit — 2026-10-10
+
+| Category | Issue | Source status / remaining work |
+|---|---|---|
+| READY FOR FINAL UAT (development implementation present) | [#551 dual-entry approvals](https://github.com/godzillazzz/SMS-v3/issues/551) | Current Integration has native approval routes, role-gated menu counts mapped from all nine backend `summary.byType` categories, non-duplicating grouped totals, 99+ display and loading/error/accessibility state; `approval-count-badge.test.ts` covers menu mapping, zero, errors and cap. Keep the Issue open for the wider cross-entry, role, concurrency and desktop/mobile authenticated browser acceptance; do not mark business acceptance from CI. |
+| READY FOR FINAL UAT (development labels present) | [#552 Classic Roster](https://github.com/godzillazzz/SMS-v3/issues/552) | Current Integration renders `MANUAL`, `OVERRIDE` and `License Block` state labels from shift fields. The Issue remains open for its saved/draft state matrix, real browser computed-contrast checks across light/dark desktop/mobile and acceptance evidence; no Production data or policy change. |
+
 ### Remaining development order
 
 1. T08 when the Owner’s existing worktree is accessible; preserve its data and avoid speculative schedule revision or schema changes.
