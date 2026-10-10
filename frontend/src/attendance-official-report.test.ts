@@ -59,6 +59,70 @@ describe('Official Attendance report presentation', () => {
     expect(attendanceReportPresentation.durationText(null)).toBe('-');
   });
 
+  it('builds every calendar date from the certified period without inferring off days or holidays', () => {
+    const days = attendanceReportPresentation.monthDayRows([
+      row({ workDate: '2026-08-01', workedMinutes: 480, flags: ['LATE'] }),
+      row({ assignmentId: 'shift-2', workDate: '2026-08-01', workedMinutes: 300, flags: ['ON_TIME'] })
+    ], '2026-08');
+    expect(days).toHaveLength(31);
+    expect(days[0].dateLabel).toContain('01/08/2569');
+    expect(days[0].dateText).toBe('01/08/2569');
+    expect(days[0].weekday).toBe('เสาร์');
+    expect(days[0].rows).toHaveLength(2);
+    expect(attendanceReportPresentation.dayTimes(days[0].rows, 'checkIn')).toHaveLength(2);
+    expect(attendanceReportPresentation.dayTimes([], 'checkOut')).toEqual(['—']);
+    expect(days[0].workedMinutes).toBe(780);
+    expect(days[0].notes).toContain('มาสาย');
+    expect(days[1].rows).toEqual([]);
+    expect(days[1].notes).toContain('ไม่มีรายการที่รับรองใน Snapshot');
+    const summary = attendanceReportPresentation.monthSummary(days[0].rows, '2026-08');
+    expect(summary.workDays).toBe(1);
+    expect(summary.lateDays).toBe(1);
+    expect(summary.totalDays).toBe(31);
+    expect(summary.unclassifiedDays).toBe(30);
+  });
+
+  it.each([
+    { period: '2026-02', dayCount: 28, lastDate: '28/02/2569' },
+    { period: '2028-02', dayCount: 29, lastDate: '29/02/2571' },
+    { period: '2026-04', dayCount: 30, lastDate: '30/04/2569' },
+    { period: '2026-08', dayCount: 31, lastDate: '31/08/2569' }
+  ])('uses the actual calendar length for $period', ({ period, dayCount, lastDate }) => {
+    const days = attendanceReportPresentation.monthDayRows([], period);
+    expect(days).toHaveLength(dayCount);
+    expect(days[0].dateText).toBe(`01/${period.slice(5, 7)}/${Number(period.slice(0, 4)) + 543}`);
+    expect(days.at(-1)?.dateText).toBe(lastDate);
+    expect(days.map(({ day }) => day)).toEqual(Array.from({ length: dayCount }, (_, index) => index + 1));
+  });
+
+  it('keeps a cross-midnight shift paired on its Bangkok work date', () => {
+    const rows = [row({
+      workDate: '2026-08-07',
+      checkInAt: '2026-08-07T13:00:00.000Z',
+      checkOutAt: '2026-08-07T18:00:00.000Z'
+    })];
+    const day = attendanceReportPresentation.monthDayRows(rows, '2026-08').find((item) => item.day === 7);
+    expect(day?.rows).toHaveLength(1);
+    expect(attendanceReportPresentation.dayTimes(day!.rows, 'checkIn')).toEqual(['20:00']);
+    expect(attendanceReportPresentation.dayTimes(day!.rows, 'checkOut')).toEqual(['01:00']);
+  });
+
+  it('renders the approved portrait timesheet fields, logo and signatures without excluded compensation data', () => {
+    const source = readFileSync(new URL('./pages/reports/AttendanceOfficialReport.tsx', import.meta.url), 'utf8');
+    const styles = readFileSync(new URL('./styles/attendance-report.css', import.meta.url), 'utf8');
+    expect(source).toContain('/brand/sms-logo-horizontal.webp');
+    for (const label of ['ลำดับ', 'วันที่', 'วัน', 'เวลาเข้า', 'เวลาออก', 'ชั่วโมงทำงาน', 'หมายเหตุ']) expect(source).toContain(`<th>${label}</th>`);
+    expect(source).toContain('attendance-report-employee-column');
+    expect(source).toContain('ประจำเดือน {formatThaiMonth(report.period)}');
+    expect(source).toContain('ไม่มีข้อมูลใน Snapshot');
+    expect(source).toContain("['พนักงาน', 'หัวหน้าหน่วยงาน', 'ฝ่ายบุคคล']");
+    expect(source).toContain('ฝ่ายบุคคล');
+    expect(source).not.toMatch(/\bOT\b|ค่าล่วงเวลา|เบี้ยเลี้ยง|ค่าพาหนะ|ค่าเดินทาง|ค่าตำแหน่ง|employee\.phone/);
+    expect(source).toContain("{ orientation: 'portrait', margin: '0' }");
+    expect(styles).not.toMatch(/@page/i);
+    expect(styles).toContain('font-size: 7.5pt;');
+  });
+
   it('keeps lateness, Support Site and foreign-device review visible together', () => {
     const presentation = row({
       workSiteContext: 'SUPPORT_SITE',

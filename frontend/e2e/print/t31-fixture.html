@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="th">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>T31 attendance print fixture</title>
+    <style>
+      body { margin: 0; padding: 16px; }
+      .fixture-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+      .fixture-actions button { min-height: 44px; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>T31 attendance print controls</h1>
+      <div class="fixture-actions">
+        <button id="trigger-t31-one" type="button">พิมพ์ใบลงเวลารายบุคคล</button>
+        <button id="trigger-t31-all" type="button">พิมพ์ใบลงเวลาทั้งหน่วยงาน</button>
+      </div>
+      <div id="t31-one-root"></div>
+      <div id="t31-all-root"></div>
+    </main>
+    <script type="module" src="./t31-fixture.tsx"></script>
+  </body>
+</html>

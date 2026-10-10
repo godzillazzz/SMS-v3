@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { printDocument } from '../../schedule-print';
-import { formatThaiDate, formatThaiDateTime } from '../../thai-date-time';
+import { formatThaiDate, formatThaiDateTime, formatThaiMonth } from '../../thai-date-time';
 import { RequestErrorContent, toRequestErrorState, type RequestErrorInput } from '../../request-error';
 import {
   downloadAttendanceOfficialWorkbook,
@@ -41,13 +41,6 @@ function durationText(minutes?: number | null) {
   return `${hours}:${String(Math.max(0, minutes) % 60).padStart(2, '0')}`;
 }
 
-function actualSiteLabel(row: AttendanceReportRow) {
-  const sites = row.attendanceSites || [];
-  const fallback = row.actualSite?.name || row.actualSite?.code || (row.assignedSite || row.expectedSite)?.name || '-';
-  if (sites.length <= 1) return fallback;
-  return sites.map((site) => `${site.eventType === 'CHECK_OUT' ? 'ออก' : 'เข้า'}: ${site.actualSite?.name || site.actualSite?.code || fallback}`).join(' / ');
-}
-
 function abnormalReasonLabel(reason: string) {
   const labels: Record<string, string> = {
     MISSING_CHECK_OUT: 'ไม่ได้ลงเวลาออก',
@@ -81,17 +74,100 @@ function resultText(row: AttendanceReportRow) {
   return row.status || '-';
 }
 
-function employeeSummary(rows: AttendanceReportRow[]) {
+function monthDayRows(rows: AttendanceReportRow[], period: string) {
+  const match = /^(\d{4})-(\d{2})$/.exec(period);
+  if (!match) return [];
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const count = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  const byDate = new Map<string, AttendanceReportRow[]>();
+  rows.forEach((row) => {
+    const list = byDate.get(row.workDate) || [];
+    list.push(row);
+    byDate.set(row.workDate, list);
+  });
+  return Array.from({ length: count }, (_, index) => {
+    const day = index + 1;
+    const date = new Date(Date.UTC(year, month - 1, day));
+    const weekday = new Intl.DateTimeFormat('th-TH', { weekday: 'long', timeZone: 'UTC' }).format(date).replace(/^วัน/u, '');
+    const dateText = `${String(day).padStart(2, '0')}/${String(month).padStart(2, '0')}/${year + 543}`;
+    const dateLabel = `${weekday} ${dateText}`;
+    const dateKey = `${period}-${String(day).padStart(2, '0')}`;
+    const dayRows = [...(byDate.get(dateKey) || [])].sort((a, b) => String(a.scheduledStartAt || a.expectedStartAt || '').localeCompare(String(b.scheduledStartAt || b.expectedStartAt || '')));
+    const notes = new Set<string>();
+    if (!dayRows.length) notes.add('ไม่มีรายการที่รับรองใน Snapshot');
+    for (const row of dayRows) {
+      const flags = new Set(row.flags || []);
+      if (flags.has('LEAVE')) notes.add('ลา (ประเภทไม่อยู่ใน Snapshot)');
+      if (flags.has('ABSENT')) notes.add('ขาด');
+      if (flags.has('LATE')) notes.add('มาสาย');
+      if (row.checkoutCondition === 'EARLY_LEAVE' || flags.has('EARLY_OUT')) notes.add('ออกก่อนเวลา');
+      if (row.abnormalTime || flags.has('TIME_ABNORMAL') || flags.has('MISSING_CHECK_OUT')) notes.add(abnormalReasonText(row.abnormalReasons));
+    }
+    return {
+      day,
+      weekday,
+      dateText,
+      dateLabel,
+      rows: dayRows,
+      workedMinutes: dayRows.reduce((sum, row) => sum + (typeof row.workedMinutes === 'number' && Number.isFinite(row.workedMinutes) ? Math.max(0, row.workedMinutes) : 0), 0),
+      hasWorkedDuration: dayRows.some((row) => typeof row.workedMinutes === 'number' && Number.isFinite(row.workedMinutes)),
+      notes: [...notes]
+    };
+  });
+}
+
+function monthSummary(rows: AttendanceReportRow[], period: string) {
+  const dailyRows = monthDayRows(rows, period);
+  const workDays = new Set<string>();
+  const leaveDays = new Set<string>();
+  const absentDays = new Set<string>();
+  const lateDays = new Set<string>();
+  dailyRows.forEach((day) => {
+    const has = (row: AttendanceReportRow, flag: string) => (row.flags || []).includes(flag);
+    const hasWork = day.rows.some((row) => !has(row, 'LEAVE') && !has(row, 'ABSENT'));
+    const allLeave = day.rows.length > 0 && day.rows.every((row) => has(row, 'LEAVE'));
+    const allAbsent = day.rows.length > 0 && day.rows.every((row) => has(row, 'ABSENT'));
+    if (hasWork) workDays.add(String(day.day));
+    else if (allLeave) leaveDays.add(String(day.day));
+    else if (allAbsent) absentDays.add(String(day.day));
+    if (day.rows.some((row) => has(row, 'LATE'))) lateDays.add(String(day.day));
+  });
+  return {
+    workDays: workDays.size,
+    leaveDays: leaveDays.size,
+    absentDays: absentDays.size,
+    lateDays: lateDays.size,
+    totalDays: dailyRows.length,
+    unclassifiedDays: Math.max(0, dailyRows.length - workDays.size - leaveDays.size - absentDays.size),
+    complete: rows.filter((row) => row.status === 'COMPLETE').length,
+    abnormal: rows.filter((row) => (row.flags || []).some((flag) => ['TIME_ABNORMAL', 'MISSING_CHECK_OUT', 'MISSING_CHECK_IN'].includes(flag))).length
+  };
+}
+
+function employeeSummary(rows: AttendanceReportRow[], period = '2026-08') {
   const has = (row: AttendanceReportRow, flag: string) => row.flags.includes(flag);
   return {
     scheduled: rows.length,
-    complete: rows.filter((row) => row.status === 'COMPLETE').length,
     late: rows.filter((row) => has(row, 'LATE')).length,
     earlyOut: rows.filter((row) => has(row, 'EARLY_OUT')).length,
     absent: rows.filter((row) => has(row, 'ABSENT')).length,
     leave: rows.filter((row) => has(row, 'LEAVE')).length,
-    abnormal: rows.filter((row) => has(row, 'TIME_ABNORMAL') || has(row, 'MISSING_CHECK_OUT') || has(row, 'MISSING_CHECK_IN')).length
+    abnormal: rows.filter((row) => has(row, 'TIME_ABNORMAL') || has(row, 'MISSING_CHECK_OUT') || has(row, 'MISSING_CHECK_IN')).length,
+    days: monthSummary(rows, period)
   };
+}
+
+function totalWorkedMinutes(rows: AttendanceReportRow[]) {
+  if (!rows.some((row) => typeof row.workedMinutes === 'number' && Number.isFinite(row.workedMinutes))) return null;
+  return rows.reduce((sum, row) => sum + (typeof row.workedMinutes === 'number' && Number.isFinite(row.workedMinutes) ? Math.max(0, row.workedMinutes) : 0), 0);
+}
+
+function dayTimes(rows: AttendanceReportRow[], direction: 'checkIn' | 'checkOut') {
+  if (!rows.length) return ['—'];
+  return rows.map((row) => formatTime(direction === 'checkIn'
+    ? row.effectiveCheckInAt || row.checkInAt
+    : row.effectiveCheckOutAt || row.checkOutAt));
 }
 
 function groupByEmployee(rows: AttendanceReportRow[]) {
@@ -106,16 +182,30 @@ function groupByEmployee(rows: AttendanceReportRow[]) {
     .sort((a, b) => (a[0]?.employeeCode || '').localeCompare(b[0]?.employeeCode || '', 'th'));
 }
 
-export function AttendanceOfficialReportPanel({ token, month, enabled }: { token: string; month: string; enabled: boolean }) {
+export function AttendanceOfficialReportPanel({ token, month, role, enabled }: { token: string; month: string; role: string; enabled: boolean }) {
   const [report, setReport] = useState<AttendanceOfficialReport>();
   const [loading, setLoading] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const [error, setError] = useState<RequestErrorInput>();
+  const [printMode, setPrintMode] = useState<'employee' | 'department'>('employee');
+  const [selectedDepartment, setSelectedDepartment] = useState('');
+  const [selectedEmployeeId, setSelectedEmployeeId] = useState('');
+  const [printedAt, setPrintedAt] = useState('');
   const employeePages = useMemo(() => groupByEmployee(report?.rows || []), [report]);
+  const departments = useMemo(() => [...new Set((report?.rows || []).map((row) => row.department).filter((value): value is string => Boolean(value?.trim())))].sort((a, b) => a.localeCompare(b, 'th')), [report]);
+  const visibleEmployeePages = useMemo(() => selectedDepartment
+    ? employeePages.filter((rows) => rows[0]?.department === selectedDepartment)
+    : employeePages, [employeePages, selectedDepartment]);
+  const selectedPage = visibleEmployeePages.find((rows) => rows[0]?.employeeId === selectedEmployeeId) || visibleEmployeePages[0];
+  const pagesToPrint = printMode === 'department' ? visibleEmployeePages : selectedPage ? [selectedPage] : [];
 
   useEffect(() => {
     setReport(undefined);
     setError(undefined);
+    setSelectedDepartment('');
+    setSelectedEmployeeId('');
+    setPrintMode('employee');
+    setPrintedAt('');
   }, [token, month]);
 
   useEffect(() => {
@@ -143,8 +233,10 @@ export function AttendanceOfficialReportPanel({ token, month, enabled }: { token
   };
 
   const exportPdf = async () => {
-    if (!report) return;
-    await printDocument('.attendance-official-report-print', `SMS-Attendance-${report.period}-R${report.revision}.pdf`, { orientation: 'landscape', margin: '0' });
+    if (!report || !pagesToPrint.length) return;
+    setPrintedAt(new Date().toISOString());
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    await printDocument('.attendance-official-report-print', `SMS-Timesheet-${report.period}-R${report.revision}.pdf`, { orientation: 'portrait', margin: '0' });
   };
 
   return <>
@@ -152,68 +244,100 @@ export function AttendanceOfficialReportPanel({ token, month, enabled }: { token
       <div className="report-center-export-icon">ATT</div>
       <div>
         <h3>รายงานลงเวลาประจำเดือนที่รับรองแล้ว</h3>
-        <p>ใช้ Certified Snapshot เท่านั้น เพื่อคง Revision, Site, เวลา และผลการลงเวลาอย่างเป็นทางการ โดยไม่ส่งออกรูปหรือ Raw GPS evidence</p>
+        <p>ใช้ Certified Snapshot เท่านั้น รายงานพิมพ์ 1 คนต่อหน้า; วันหยุด ตำแหน่ง และประเภทลาที่ไม่มีใน Snapshot จะแสดงว่าไม่มีข้อมูล</p>
         <small>{report ? `Report ID: ${report.reportId} · Revision ${report.revision}` : `Period: ${month}`}</small>
       </div>
       <div className="attendance-report-export-actions">
-        <button type="button" className="btn-primary" disabled={!report || loading} onClick={() => void exportPdf()}>ส่งออก PDF</button>
-        <button type="button" className="btn-neutral" disabled={!report || loading || downloading} onClick={() => void exportExcel()}>{downloading ? 'กำลังสร้าง…' : 'ส่งออก Excel'}</button>
+        <button type="button" className="btn-primary" disabled={!report || loading || !pagesToPrint.length} onClick={() => void exportPdf()}>{printMode === 'employee' ? 'พิมพ์รายบุคคล' : 'พิมพ์ทั้งหน่วยงาน'}</button>
+        {role === 'ADMIN' && <button type="button" className="btn-neutral" disabled={!report || loading || downloading} onClick={() => void exportExcel()}>{downloading ? 'กำลังสร้าง…' : 'ส่งออก Excel'}</button>}
       </div>
     </article>
+    {report && <div className="attendance-report-controls" aria-label="ตัวเลือกการพิมพ์ใบลงเวลา">
+      <fieldset>
+        <legend>ขอบเขตการพิมพ์</legend>
+        <label><input type="radio" name="attendance-report-print-mode" value="employee" checked={printMode === 'employee'} onChange={() => setPrintMode('employee')} /> รายบุคคล</label>
+        <label><input type="radio" name="attendance-report-print-mode" value="department" checked={printMode === 'department'} onChange={() => setPrintMode('department')} /> ทั้งหน่วยงาน · 1 คนต่อหน้า</label>
+      </fieldset>
+      {role === 'ADMIN'
+        ? <label><span>แผนก</span><select aria-label="เลือกแผนกสำหรับพิมพ์" value={selectedDepartment} onChange={(event) => { setSelectedDepartment(event.target.value); setSelectedEmployeeId(''); }}><option value="">ทุกแผนก</option>{departments.map((department) => <option value={department} key={department}>{department}</option>)}</select></label>
+        : <p className="attendance-report-scope">แผนกที่ได้รับอนุญาต: <strong>{report.scope?.department || departments[0] || 'ไม่พบขอบเขตแผนก'}</strong></p>}
+      {printMode === 'employee' && <label><span>พนักงาน</span><select aria-label="เลือกพนักงานสำหรับพิมพ์" value={selectedPage?.[0]?.employeeId || ''} onChange={(event) => setSelectedEmployeeId(event.target.value)} disabled={!visibleEmployeePages.length}>{visibleEmployeePages.map((rows) => <option value={rows[0].employeeId} key={rows[0].employeeId}>{rows[0].employeeCode || '—'} · {rows[0].employeeName}</option>)}</select></label>}
+    </div>}
     {loading && <div className="report-center-state" role="status">กำลังโหลด Certified Attendance Snapshot…</div>}
     {error && <div className="report-center-state report-center-state--error" role="alert"><strong>รายงานลงเวลายังไม่พร้อม</strong><RequestErrorContent error={error} /></div>}
     {!loading && !error && !report && enabled && <div className="report-center-state"><strong>ยังไม่มีรายงานที่รับรองแล้ว</strong><span>ต้อง Certify เดือนนี้ก่อนจึงจะส่งออกรายงานทางการได้</span></div>}
-    {report && <AttendanceOfficialReportPrint report={report} employeePages={employeePages} />}
+    {report && <AttendanceOfficialReportPrint report={report} employeePages={pagesToPrint} printedAt={printedAt} />}
   </>;
 }
 
-export function AttendanceOfficialReportPrint({ report, employeePages = groupByEmployee(report.rows) }: { report: AttendanceOfficialReport; employeePages?: AttendanceReportRow[][] }) {
+export function AttendanceOfficialReportPrint({ report, employeePages = groupByEmployee(report.rows), printedAt }: { report: AttendanceOfficialReport; employeePages?: AttendanceReportRow[][]; printedAt?: string }) {
   return <section className="print-only attendance-official-report-print" aria-label="Official Attendance Report">
     {employeePages.map((rows, pageIndex) => {
       const first = rows[0];
-      const summary = employeeSummary(rows);
-      return <article className="attendance-report-page" key={first?.employeeId || pageIndex}>
+      const days = monthDayRows(rows, report.period);
+      const summary = employeeSummary(rows, report.period);
+      const sites = [...new Set(rows.map((row) => (row.assignedSite || row.expectedSite)?.name || (row.assignedSite || row.expectedSite)?.code).filter((value): value is string => Boolean(value)))];
+      const schedules = [...new Set(rows.map((row) => {
+        const start = row.scheduledStartAt || row.expectedStartAt;
+        const end = row.scheduledEndAt || row.expectedEndAt;
+        return start && end ? `${formatTime(start)}–${formatTime(end)}` : '';
+      }).filter(Boolean))];
+      const printDate = printedAt || report.generatedAt;
+      const totalMinutes = totalWorkedMinutes(rows);
+      const durationDays = days.filter((day) => day.hasWorkedDuration).length;
+      const averageMinutes = totalMinutes === null || durationDays === 0 ? null : Math.round(totalMinutes / durationDays);
+      return <article className="attendance-report-page attendance-timesheet-page" key={first?.employeeId || pageIndex}>
         <header className="attendance-report-print-header">
-          <div><p>SECURITY MANAGEMENT SYSTEM</p><h1>ใบสรุปการลงเวลาประจำเดือน</h1></div>
-          <div className="attendance-report-print-meta"><span>รหัสรายงาน <strong>{report.reportId}</strong></span><span>รอบรายงาน <strong>{report.period}</strong></span><span>ฉบับแก้ไข <strong>{report.revision}</strong></span></div>
+          <div className="attendance-report-brand"><img src="/brand/sms-logo-horizontal.webp" alt="SMS Security Management System" /></div>
+          <div className="attendance-report-title"><h1>ใบลงเวลา</h1><strong>ประจำเดือน {formatThaiMonth(report.period)}</strong><span>ตั้งแต่วันที่ 1 ถึงวันที่ {days.length} · พ.ศ. {Number(report.period.slice(0, 4)) + 543}</span><small>พิมพ์เมื่อ {formatDateTime(printDate)}</small></div>
         </header>
-        <section className="attendance-report-employee-meta">
-          <div><span>รหัสพนักงาน</span><strong>{first?.employeeCode || '-'}</strong></div>
-          <div><span>ชื่อ-นามสกุล</span><strong>{first?.employeeName || '-'}</strong></div>
-          <div><span>หน่วยงาน</span><strong>{first?.department || '-'}</strong></div>
-          <div><span>สถานะเอกสาร</span><strong>{report.certificationStatus}</strong></div>
+        <section className="attendance-report-employee-meta" aria-label="ข้อมูลพนักงานจาก Certified Snapshot">
+          <div className="attendance-report-employee-column">
+            <div><span>รหัสพนักงาน</span><strong>{first?.employeeCode || '—'}</strong></div>
+            <div><span>ชื่อ-สกุล</span><strong>{first?.employeeName || '—'}</strong></div>
+            <div><span>ตำแหน่ง / ระดับ</span><strong>ไม่มีข้อมูลใน Snapshot</strong></div>
+            <div><span>หน่วยงาน</span><strong>{first?.department || '—'}</strong></div>
+          </div>
+          <div className="attendance-report-employee-column">
+            <div><span>สถานที่ปฏิบัติงาน (Site)</span><strong>{sites.length ? sites.join(', ') : '—'}</strong></div>
+            <div><span>เวลาปฏิบัติงาน (จากกะ)</span><strong>{schedules.length ? schedules.join(', ') : 'ไม่มีข้อมูลใน Snapshot'}</strong></div>
+            <div><span>วันหยุดประจำสัปดาห์</span><strong>ไม่มีข้อมูลใน Snapshot</strong></div>
+            <div><span>หัวหน้า / ผู้ควบคุม</span><strong>ไม่มีข้อมูลใน Snapshot</strong></div>
+          </div>
         </section>
         <table className="attendance-report-table">
-          <thead><tr><th>วันที่</th><th>กะ</th><th>เริ่มกะ</th><th>เลิกกะ</th><th>สถานที่ตามตาราง</th><th>สถานที่ลงเวลาจริง</th><th>ประเภท</th><th>เข้า</th><th>ออก</th><th>ชม.</th><th>สถานะเข้า</th><th>สถานะออก</th><th>ผิดปกติ</th><th>ผล</th></tr></thead>
-          <tbody>{rows.map((row) => <tr key={row.assignmentId}>
-            <td>{formatDate(row.workDate)}</td>
-            <td>{row.shift?.code || row.shift?.name || '-'}</td>
-            <td>{formatTime(row.scheduledStartAt || row.expectedStartAt)}</td>
-            <td>{formatTime(row.scheduledEndAt || row.expectedEndAt)}</td>
-            <td>{(row.assignedSite || row.expectedSite)?.name || (row.assignedSite || row.expectedSite)?.code || '-'}</td>
-            <td>{actualSiteLabel(row)}</td>
-            <td>{row.workSiteContext === 'SUPPORT_SITE' ? 'ช่วยปฏิบัติงาน' : 'ปกติ'}</td>
-            <td>{formatTime(row.effectiveCheckInAt || row.checkInAt)}</td>
-            <td>{formatTime(row.effectiveCheckOutAt || row.checkOutAt)}</td>
-            <td>{durationText(row.workedMinutes)}</td>
-            <td>{row.punctuality === 'LATE' || row.flags.includes('LATE') ? 'สาย' : row.punctuality === 'ON_TIME' || row.flags.includes('ON_TIME') ? 'ตรงเวลา' : '-'}</td>
-            <td>{row.checkoutCondition === 'EARLY_LEAVE' || row.flags.includes('EARLY_OUT') ? 'ออกก่อนเวลา' : row.checkoutCondition === 'MISSING_CHECK_OUT' || row.flags.includes('MISSING_CHECK_OUT') ? 'ไม่ได้ลงเวลาออก' : row.checkoutCondition === 'NORMAL' ? 'ปกติ' : '-'}</td>
-            <td>{row.abnormalTime || row.flags.includes('TIME_ABNORMAL') ? abnormalReasonText(row.abnormalReasons) : '-'}</td>
-            <td>{resultText(row)}</td>
+          <thead><tr><th>ลำดับ</th><th>วันที่</th><th>วัน</th><th>เวลาเข้า</th><th>เวลาออก</th><th>ชั่วโมงทำงาน</th><th>หมายเหตุ</th></tr></thead>
+          <tbody>{days.map((day) => <tr className={day.rows.length ? undefined : 'attendance-report-day--no-source'} key={day.day}>
+            <td className="attendance-report-sequence">{String(day.day).padStart(2, '0')}</td>
+            <td>{day.dateText}</td>
+            <td>{day.weekday}</td>
+            <td><div className="attendance-report-time-stack">{dayTimes(day.rows, 'checkIn').map((time, index) => <span key={`${day.day}-in-${index}`}>{time}</span>)}</div></td>
+            <td><div className="attendance-report-time-stack">{dayTimes(day.rows, 'checkOut').map((time, index) => <span key={`${day.day}-out-${index}`}>{time}</span>)}</div></td>
+            <td className="attendance-report-hours">{day.hasWorkedDuration ? durationText(day.workedMinutes) : '—'}</td>
+            <td>{day.notes.join(' · ')}</td>
           </tr>)}</tbody>
         </table>
-        <section className="attendance-report-summary">
-          <span>รายการ <strong>{summary.scheduled}</strong></span><span>ครบ <strong>{summary.complete}</strong></span><span>สาย <strong>{summary.late}</strong></span><span>ออกก่อน <strong>{summary.earlyOut}</strong></span><span>ขาด <strong>{summary.absent}</strong></span><span>ลา <strong>{summary.leave}</strong></span><span>ผิดปกติ <strong>{summary.abnormal}</strong></span>
+        <section className="attendance-report-summary" aria-label="สรุปรายเดือน">
+          <h2>สรุปการทำงานประจำเดือน</h2>
+          <div className="attendance-report-summary-grid">
+            <div><span>วันทำงาน</span><strong>{summary.days.workDays} วัน</strong></div>
+            <div><span>ขาดงาน</span><strong>{summary.days.absentDays} วัน</strong></div>
+            <div><span>วันลา</span><strong>{summary.days.leaveDays} วัน</strong></div>
+            <div><span>วันหยุด</span><strong>ไม่มีข้อมูลใน Snapshot</strong></div>
+            <div><span>ชั่วโมงรวม</span><strong>{durationText(totalMinutes)}</strong></div>
+            <div><span>เฉลี่ยต่อวันที่มีชั่วโมง</span><strong>{durationText(averageMinutes)}</strong></div>
+          </div>
+          <p className="attendance-report-summary-note">มาสาย {summary.days.lateDays} วัน · วันที่จำแนกไม่ได้ {summary.days.unclassifiedDays} วัน · ไม่มีข้อมูลวันหยุดประจำสัปดาห์และวันหยุดนักขัตฤกษ์ใน Snapshot</p>
         </section>
-        <footer className="attendance-report-footer">
-          <div><span>รับรองเมื่อ</span><strong>{formatDateTime(report.certifiedAt)}</strong></div>
-          <div><span>สร้างเมื่อ / โดย</span><strong>{formatDateTime(report.generatedAt)} · {report.generatedBy}</strong></div>
-          <div><span>Digest</span><strong>{report.summaryDigest.slice(0, 16)}…</strong></div>
-          <div className="attendance-report-page-number">หน้า {pageIndex + 1} / {employeePages.length}</div>
+        <section className="attendance-report-notes" aria-label="หมายเหตุเพิ่มเติม"><strong>หมายเหตุ</strong><div><i /><i /><i /></div></section>
+        <footer className="attendance-report-signatures" aria-label="ช่องลงนาม">
+          {['พนักงาน', 'หัวหน้าหน่วยงาน', 'ฝ่ายบุคคล'].map((label) => <div key={label}><div><span>ลงชื่อ</span><i /></div><strong>{label}</strong><span>วันที่ …… / …… / ………</span></div>)}
         </footer>
+        <div className="attendance-report-auditline">{report.reportId} · Revision {report.revision} · Certified {formatDateTime(report.certifiedAt)} · SHA-256 {report.summaryDigest}</div>
+        <div className="attendance-report-page-number">หน้า {pageIndex + 1} / {employeePages.length}</div>
       </article>;
     })}
   </section>;
 }
 
-export const attendanceReportPresentation = { formatDate, formatDateTime, formatTime, durationText, resultText, employeeSummary, groupByEmployee };
+export const attendanceReportPresentation = { formatDate, formatDateTime, formatTime, durationText, resultText, employeeSummary, groupByEmployee, monthDayRows, monthSummary, dayTimes, totalWorkedMinutes };

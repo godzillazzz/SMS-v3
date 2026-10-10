@@ -1,3 +1,6 @@
+Warning: truncated output (original token count: 34225)
+Total output lines: 962
+
 # SMSv3 — แผนแก้ UX/UI สำหรับ Codex (ผูกกับโค้ดจริง)
 
 > **หมายเหตุสถานะ (8 ต.ค. 2569):** เอกสารฉบับนี้เป็นแผน/เกณฑ์ตรวจรับ ณ 7 ต.ค. 2569 ตารางด้านล่างที่ระบุ “Production ปัจจุบัน = R3” เป็นข้อมูลเก่า **R4 ได้ Deploy และตรวจยืนยันแล้ว** (อ้างอิง `MASTER_HANDOFF.md` ส่วนล่าสุด และตรวจ GitHub/Vercel สถานะจริงก่อนลงมือ). ห้ามสรุปว่างานทุกข้อในแผนเสร็จแล้วเพียงเพราะ R4 LIVE; ต้องตรวจ scope ที่ Merge กับ Acceptance แยกเป็นราย Task. เก็บข้อความสถานะเดิมด้านล่างไว้เป็นบันทึกประวัติ ไม่ใช่ Current State.
@@ -497,124 +500,7 @@
 
 ## T18 — ความเร็ว API (backend)
 
-**ข้อมูล:** หน้าประสิทธิภาพ: p50 2,914 ms, p95 9,372 ms, DB 740 ms — branch ปัจจุบันชื่อ `fix/serverless-database-reliability` แสดงว่าทีมกำลังทำเรื่องนี้อยู่ → **ประสานกับงานนั้นก่อน**
-1. ใช้ตาราง "API latency by route template" (`pages/system-health/SystemHealthPage.tsx`) หา 10 route ช้าสุด
-2. ต่อ route ตรวจ: N+1, index ที่ขาด (`prisma/schema.prisma`), list ที่ไม่ paginate, cold start, region DB vs function
-3. รายงานก่อน/หลัง; เป้าหมาย p95 < 1,500 ms
-4. index / migration ต้องขออนุมัติตาม AGENTS.md ก่อน
-
-## T19 — Dashboard
-
-**ไฟล์:** `pages/dashboard/DashboardPage.tsx`, `components/dashboard/*`
-1. ลบ panel Operational Coverage (T03) แล้วย้าย "Attention Required" ขึ้นบน
-2. ตัวเลขซ้ำ (กำลังพล/ลา/ใบอนุญาต แสดง 2–3 ที่) → ที่เดียว
-3. การ์ดทุกใบคลิกไปหน้าที่กรองตรงตัวเลข (ใช้ `navigate` จาก T09)
-4. ตัวเลขอนุมัติใช้ค่าจาก T05
-
-## T20 — E2E
-
-repo ยังไม่มี Playwright — **เสนอก่อนติดตั้ง** ถ้าอนุมัติ ให้เขียนอย่างน้อย:
-1. พนักงานยื่นลา → หัวหน้าเห็นใน Inbox → ไม่อนุมัติโดยไม่ใส่เหตุผลไม่ได้ → อนุมัติ → พนักงานเห็นสถานะ
-2. แก้ตารางกะ → ตัวนับ +1 → อนุมัติ → revision เก่าเป็น "ถูกแทนที่" → reject แถวที่อนุมัติแล้วไม่ได้
-3. พนักงานไม่มีอุปกรณ์ → หน้าลงเวลาบอกเหตุผล + พาไปลงทะเบียน
-4. deep link `/app/roster?month=2026-10` ตอนยังไม่ login → login → กลับหน้าเดิม
-(รันกับ local/preview ที่ใช้ฐานข้อมูลทดสอบเท่านั้น)
-
----
-
-# ชุดเพิ่มเติม — ตารางกะ (เพิ่ม 6 ต.ค. 2569)
-
-> ทำเป็น **PR แยกกันทีละ Task** ตามลำดับ: T04b → T21 → T23 → T22
-> ทุก Task แตะ `frontend/src/main.tsx` ส่วนตารางกะ → ทำ **ทีละ Task** และ rebase บน base ล่าสุดก่อนเริ่ม Task ถัดไป เพื่อลด conflict
-
-## T04b — ปิดงานค้างของ PR #470 (แก้ใน PR #470 เดิม)
-
-1. `src/routes/operations.routes.js` `PUT /schedule-approvals/:id`: ถ้า `before.status` เป็น `APPROVED` หรือ `REJECTED` และ `input.status !== before.status` → 409 `SCHEDULE_APPROVAL_INVALID_STATE` (ปิดทาง APPROVED → PENDING/DRAFT ที่ล้าง `approvedAt`) + test: ส่ง PENDING และ DRAFT ไปที่แถว APPROVED → 409 และ `approvedAt` ไม่เปลี่ยน
-2. `frontend/src/main.tsx` `handleOperationAction`: `approvals` + `reject` → ใช้ dialog กรอกเหตุผลเป็นการยืนยันครั้งเดียว (ข้าม `actionDialog.confirm`); approve คง confirm เดิม
-3. ข้อความ `SCHEDULE_APPROVAL_SUPERSEDED` (backend + `frontend/src/approval-display.ts`) → "รายการนี้มีฉบับที่ใหม่กว่าแล้ว จึงดำเนินการต่อไม่ได้"
-
----
-
-## T21 — เรียงพนักงานในตารางกะตามแผนก แล้วตามรหัสพนักงาน
-
-**ปัจจุบัน:** `frontend/src/schedule-employee-code-order.ts` — `sortScheduleEmployeesByCode()` เรียงตาม `employeeCode` อย่างเดียว ใช้ที่ `main.tsx:2672` (ตารางบนจอ) และ `main.tsx:3061` (`printData` สำหรับพิมพ์) ส่วน Excel เรียงแยกที่ `src/services/schedule-export.service.js:76`
-
-**ลำดับใหม่ (ตกลงแล้ว):**
-1. รหัส/ชื่อแผนก (`employee.department` เช่น AN0, AN1, PO11, WCS) — เรียงแบบ natural (`Intl.Collator('en', { numeric: true, sensitivity: 'base' })`) ให้ AN2 มาก่อน AN10
-2. ภายในแผนกเดียวกัน → `employeeCode` (natural)
-3. เสมอกัน → `id`
-4. พนักงานที่ไม่มีแผนก → ไว้ท้ายสุด
-
-**สิ่งที่ต้องทำ**
-1. เพิ่มฟังก์ชัน `sortScheduleEmployeesByDepartment()` ในไฟล์เดิม (คงฟังก์ชันเดิมไว้ถ้ายังมีที่อื่นเรียกใช้) แล้วเปลี่ยน `main.tsx:2672` และ `:3061` มาใช้ฟังก์ชันใหม่
-2. ตารางบนจอ: แทรกแถวหัวกลุ่มแผนก (เช่น "PO11 · 12 คน") คั่นระหว่างแผนก — แถวหัวกลุ่มต้อง sticky คอลัมน์ซ้ายเหมือนชื่อพนักงาน และไม่นับเป็นแถวพนักงาน
-3. ฉบับพิมพ์ (`schedule-print.ts`) และ Excel (`schedule-export.service.js:76`) เรียงแบบเดียวกัน — แยก comparator ฝั่ง backend เป็นฟังก์ชันเล็กที่มี unit test
-4. ตัวกรองแผนก (`selectedDepartments`) ทำงานเหมือนเดิม
-5. อัปเดต test เดิมที่ล็อกการเรียงตามรหัส (`owner-roster-code-brand.test.ts`, `schedule-print.test.ts` และที่อ้าง `sortScheduleEmployeesByCode`) ให้ตรง requirement ใหม่ + เพิ่ม test: AN2 < AN10, แผนกว่างอยู่ท้าย, ในแผนกเรียงตามรหัส
-
-**Acceptance criteria**
-- [ ] จอ, พิมพ์, Excel เรียงลำดับเดียวกัน: แผนก → รหัสพนักงาน
-- [ ] มีหัวกลุ่มแผนกคั่นในตารางบนจอ
-
----
-
-## T22 — บันทึกตารางกะได้ถึง 1,000 รายการในครั้งเดียว
-
-**อาการ:** บันทึกเกิน ~150 กะแล้วล้มเหลว (PR #466 "Fix large schedule batch timeout" merge ไปแล้วแต่ยังไม่พอ)
-
-**สาเหตุที่พบในโค้ด**
-- `src/services/schedule.service.js:77` `saveBatchAssignments()`: ตรวจสอบข้อมูลใน memory ได้ดีแล้ว (โหลด employee / shiftType / license / projected state ล่วงหน้า — `ensureEmployeeOperationalForShift` ไม่ยิง query เพิ่มเมื่อมี resolver) **แต่เขียนลง DB ทีละแถว** ด้วย `tx.shiftAssignment.upsert()` ในลูป (~บรรทัด 194) ภายใน interactive transaction เดียว (`timeout: 60000` บรรทัด 257) และ Vercel function `maxDuration: 60` (`vercel.json`)
-- หน้าสถานะระบบวัด DB latency ได้ ≈ 740 ms → แต่ละ round-trip ช้า, 150 upsert ≈ หมด 60 วินาที
-- แถวที่ใช้ license override เขียน `audit.log` ทีละแถวในลูปด้วย
-- response ส่ง record ทุกแถวกลับ (`data: results`) — payload ใหญ่โดยไม่จำเป็น
-- ฝั่ง client `frontend/src/api.ts:314` `batchSaveShifts()`: การลบยิง `DELETE /shifts/:id` **ทีละรายการแบบขนาน** แยกจาก batch → ไม่ atomic, อาจสร้าง revision หลายครั้ง และชน connection pool
-
-**สิ่งที่ต้องทำ — Backend** (ห้ามเปลี่ยน business rule / การตรวจ license / RBAC / revision logic)
-1. คง validation ทั้งหมดในลูปเดิม แต่ **เก็บผลเป็น array ของแถวที่จะเขียน** แทนการ upsert ทันที
-2. เขียนลง DB แบบ set-based ใน transaction เดียว:
-   - ใช้ `tx.$executeRaw` กับ `INSERT … SELECT FROM unnest(...) ON CONFLICT ("workDate","employeeId") DO UPDATE SET …` (unique key `workDate_employeeId` มีอยู่แล้ว) แบ่ง chunk ละ ≤ 500 แถว — ตรวจชื่อตาราง/คอลัมน์จริงจาก `prisma/schema.prisma` (`@@map` / `@map`)
-   - ถ้าจะไม่ใช้ raw SQL: `createMany({ skipDuplicates: false })` สำหรับแถวใหม่ + จัดกลุ่มแถว update ที่ค่าเหมือนกันเป็น `updateMany` — ต้องได้ผลเท่ากับ upsert เดิมทุก field (`locked: true`, snapshot, license fields, `source` เฉพาะตอน create)
-3. `audit.log` ของ license override → รวมเป็น `createMany` ครั้งเดียว (หรือ audit เดียวที่มีรายการใน metadata) ตาม pattern ของ audit service
-4. รองรับการลบในคำขอเดียวกัน: ขยาย schema `POST /schedules/batch` เป็น `{ assignments, deletes?: uuid[] }` ลบด้วย `deleteMany` ใน transaction เดียวกัน และนับเข้า `monthChangeStats` → `updateScheduleApprovalState` เรียก **ครั้งเดียวต่อเดือน** เหมือนเดิม (ห้ามเกิด revision ต่อแถว) — ตรวจ logic ของ `DELETE /shifts/:id` เดิมว่ามีเงื่อนไขอะไร (เช่น ห้ามลบกะที่ลงเวลาแล้ว) แล้วใช้เงื่อนไขเดียวกัน
-5. response คืน `{ count, months, revision }` ไม่คืน record ทั้งหมด (ตรวจว่า frontend ไม่ได้ใช้ `data` ที่คืนมา)
-6. เพิ่ม `assignments: z.array(...).max(1000)` + `deletes .max(1000)` → เกิน = 400 พร้อมข้อความไทย
-7. ไม่ต้องเพิ่ม index (unique `workDate_employeeId` ใช้กับ ON CONFLICT ได้แล้ว) — ถ้าพบว่าต้องเพิ่ม index/migration ให้หยุดและขออนุมัติ
-
-**สิ่งที่ต้องทำ — Frontend**
-8. `api.ts` `batchSaveShifts()`: ส่ง upserts + deletes ใน request เดียว; ลบลูป `deleteShift` แบบขนาน
-9. ระหว่างบันทึก: ปุ่ม disabled + "กำลังบันทึก N รายการ…"; ถ้า > 1,000 ให้แบ่งส่งทีละ 1,000 ตามลำดับ (ไม่ขนาน) แสดงความคืบหน้า และแจ้งว่า "บันทึกสำเร็จ X / ล้มเหลว Y" — ส่วนที่ล้มเหลวคงอยู่ใน draft ให้กดบันทึกซ้ำได้
-10. timeout / 5xx → ข้อความไทย "บันทึกไม่สำเร็จ ข้อมูลยังอยู่ในฉบับร่าง" (ไม่ล้าง `scheduleDrafts`)
-
-**การทดสอบ**
-11. test backend: 1,000 assignments + 50 deletes → transaction เดียว, revision เพิ่ม 1 ต่อเดือน, ผลใน DB เท่ากับวิธีเดิม (เทียบ field ทีละตัวกับ upsert เดิมในชุดเล็ก)
-12. วัดเวลา: รันบน Preview กับฐานข้อมูลทดสอบ (**ห้ามใช้ Production**) บันทึก 1,000 รายการ — เป้าหมาย < 15 วินาที และรายงานเวลาจริง
-13. license block / inactive employee / inactive shift type ยัง reject ทั้ง batch เหมือนเดิม
-
-**Acceptance criteria**
-- [ ] บันทึก 1,000 กะในครั้งเดียวสำเร็จ < 15 วินาทีบน Preview
-- [ ] เกิด revision เดียวต่อเดือนต่อการกดบันทึก (รวมการลบ)
-- [ ] กฎ license / พนักงานพ้นสภาพ / กะปิดใช้งาน ยังทำงานเหมือนเดิม
-- [ ] บันทึกล้มเหลว draft ไม่หาย
-
----
-
-## T23 — "ดูตัวอย่างจัดกะอัตโนมัติ" ต้องไม่แตะกะที่จัดไว้แล้ว
-
-**ความหมายของ "จัดไว้แล้ว" (ตกลงแล้ว):** ช่องที่ (ก) มีกะบันทึกอยู่ใน DB แล้ว ไม่ว่าจะมาจากคนจัดหรือระบบ หรือ (ข) มีฉบับร่างที่ยังไม่บันทึกอยู่บนจอ → ระบบอัตโนมัติ**เติมเฉพาะช่องว่าง**
-
-**สาเหตุที่พบในโค้ด**
-- Backend `src/services/auto-schedule.service.js:258–262` `buildAutoSchedulePlan()`: map `existing` เก็บไว้เฉพาะกะ `AL` และกะที่มี `licenseOverride` เท่านั้น → กะอื่นที่มีอยู่แล้ว (รวมกะที่คนจัดเองและ `locked: true`) ถูกคำนวณใหม่ทับ
-- Frontend `main.tsx:2687–2730` `applyPreviewToDrafts()`: ทุกแถวที่มี `existingShiftId` จะกลายเป็น draft `action: 'update'` → เขียนทับกะเดิมเมื่อกดบันทึก และยังเขียนทับ draft ที่ผู้ใช้แก้ค้างอยู่ด้วย (`newDrafts[key] = …`)
-- `commitAutoSchedule()` (`auto-schedule.service.js` ~413) ใช้ `plan.rows.filter((row) => !row.locked)` → ต้องได้ผลถูกต้องหลังแก้ข้อ 1 ด้วย
-
-**สิ่งที่ต้องทำ — Backend**
-1. `buildAutoSchedulePlan()`: ให้ `existing` เก็บ**ทุก** assignment ในเดือนของพนักงานในขอบเขต แถวเหล่านี้เป็น `locked: true` + `preserved: true` และ `applyEmployeePattern` ต้อง**ข้ามช่องที่ locked** โดยนับ pattern ต่อเนื่องรอบ ๆ ช่องนั้น — ตรวจใน `applyEmployeePattern` ว่าเคารพ `row.locked` อยู่แล้วหรือไม่ ถ้าไม่ ให้แก้
-2. ใส่ใน response: `summary.preservedExisting` (จำนวนช่องที่คงไว้), `summary.generated` (จำนวนช่องว่างที่เติม)
-3. `commitAutoSchedule()` เขียนเฉพาะแถว `!locked` (ยืนยันด้วย test ว่าไม่ update แถวที่มีอยู่)
-4. ห้ามเปลี่ยน rule ขั้นต่ำกำลังคน (RULE003/004) — ถ้าเติมแค่ช่องว่างแล้วไม่ถึงขั้นต่ำ ให้คืน `warnings` แทนการไปแก้กะที่มีอยู่
-
-**สิ่งที่ต้องทำ — Frontend**
-5. `applyPreviewToDrafts()` (ไม่ระบุ `replaceEmployeeId` = โหมดทั้งเดือน): ข้ามแถวที่ `row.locked` / `row.preserved` / มี `existingShiftId` / มี draft อยู่แล้วที่ key เดียวกัน → สร้างเฉพาะ draft `action: 'create'`
+**ข้อมูล:** หน้าประสิทธิภาพ: p50 2,914 ms, p…4225 tokens truncated…oDrafts()` (ไม่ระบุ `replaceEmployeeId` = โหมดทั้งเดือน): ข้ามแถวที่ `row.locked` / `row.preserved` / มี `existingShiftId` / มี draft อยู่แล้วที่ key เดียวกัน → สร้างเฉพาะ draft `action: 'create'`
 6. **ห้ามเปลี่ยน** โหมดรายบุคคล (`replaceEmployeeId` / ไม้กายสิทธิ์รายคน) ใน Task นี้
 7. หน้าต่างพรีวิวแสดงสรุป: "จะเติม X ช่องว่าง · คงกะเดิมไว้ Y ช่อง" และไฮไลต์ช่องที่ระบบเติมให้ต่างจากช่องที่คงไว้
 8. ถ้าไม่มีช่องว่างเลย → แจ้ง "ทุกช่องจัดไว้แล้ว ไม่มีอะไรให้เติม" และไม่สร้าง draft
@@ -843,7 +729,7 @@ repo ยังไม่มี Playwright — **เสนอก่อนติด
 
 ## T31 — ใบลงเวลาประจำเดือน (พิมพ์ A4 แนวตั้ง 1 คน/หน้า)
 
-**ต้นแบบ:** `docs/ux-remediation/sms-v3-timesheet-reference.png` (ใบลงเวลาของบริษัทที่ใช้อยู่)
+**ต้นแบบ:** `docs/ux-remediation/sms-v3-timesheet-reference.png` (ใบลงเวลาของบริษัทที่ใช้อยู่) และภาพตัวอย่างใบลงเวลาที่ Owner ส่งล่าสุดเมื่อ 10 ต.ค. 2569 (ใช้เป็นทิศทางการจัดวาง; ไม่คัดลอกข้อมูลส่วนบุคคลจากภาพลงระบบหรือ repository)
 **ฐานที่มีอยู่แล้ว:** `frontend/src/pages/reports/AttendanceOfficialReport.tsx` ("ใบสรุปการลงเวลาประจำเดือน", อยู่ใน `ReportCenterPage.tsx` ~135, เฉพาะ ADMIN, ปิดด้วย `ATTENDANCE_OFFICIAL_REPORT_ENABLED`, A4 แนวนอน) และ `styles/attendance-report.css` — ใช้ข้อมูล/endpoint เดิม ห้ามสร้าง API ซ้ำ
 
 **การตัดสินใจของเจ้าของระบบ (ห้ามเปลี่ยน):**
@@ -852,17 +738,15 @@ repo ยังไม่มี Playwright — **เสนอก่อนติด
 3. **สิทธิ์พิมพ์: "Manager ขึ้นไป"** — ⚠️ ชื่อบทบาทในโค้ดสลับกับที่แสดง (`role-display.ts`: รหัส `SUPERVISOR` แสดงเป็น "Manager", รหัส `MANAGER` แสดงเป็น "Supervisor") → อนุญาตเฉพาะรหัส **`ADMIN` และ `SUPERVISOR`** ทั้งฝั่ง UI และ API (ห้ามอนุญาตรหัส `MANAGER` / `VIEWER`) + test ครอบทั้ง 4 บทบาท
 4. **หัวกระดาษ:** ใช้โลโก้เดียวกับระบบ (asset โลโก้ที่ใช้ใน sidebar/หน้า login) + ชื่อระบบ — ไม่ต้องมีหน้าตั้งค่าชื่อบริษัท
 
-**โครงหน้าพิมพ์ (ตามต้นแบบ ตัดส่วนที่ข้อ 1–2):**
-1. หัว: โลโก้ระบบ + ชื่อ, หัวเรื่อง "ใบลงเวลา" ชิดขวา, วันเวลาที่พิมพ์ (พ.ศ.)
-2. กล่องข้อมูลพนักงาน: รหัสพนักงาน, ชื่อ-สกุล, ตำแหน่ง/ระดับ, แผนก, ฝ่าย, สถานที่ปฏิบัติงาน (Site), วันหยุดประจำสัปดาห์, เวลาปฏิบัติงาน (จากกะ) — ฝั่งขวา: ข้อมูลหัวหน้า/ผู้ควบคุม ถ้าระบบมี (ถ้าไม่มีให้เว้นว่าง ห้ามแต่งข้อมูล); **ไม่แสดงเบอร์โทรศัพท์** ถ้าไม่ได้อยู่ในข้อมูลพนักงานอยู่แล้ว
-3. แถบ "ประจำเดือน …" + "ตั้งแต่วันที่ 1 … ถึงวันที่ …" (พ.ศ.)
-4. ตารางรายวันทั้งเดือน: วันที่ (ย่อวัน + dd/mm/พ.ศ.), กะงาน (1) เวลาเข้า/ออก, กะงาน (2) เวลาเข้า/ออก (กรณีมี 2 ช่วง), ชั่วโมงปฏิบัติงาน, หมายเหตุ (วันหยุด / วันหยุดนักขัตฤกษ์ / ลา + ประเภทลาภาษาไทย / ขาด / มาสาย)
-   - แถววันหยุดพื้นเทาอ่อนแบบต้นแบบ
-   - ข้อมูลเวลาใช้เฉพาะรายการที่ระบบรับรองแล้ว (ตาม logic ของรายงานเดิม)
-5. แถวรวม: ชั่วโมงรวมทั้งเดือน
-6. ตารางสรุป (ไม่มีส่วนเงิน/OT): วันทำงาน, วันหยุด, วันหยุดนักขัตฤกษ์, ลา (แยกประเภท), ขาด, มาสาย, รวมวันในเดือน
-7. ช่องลงชื่อ 4 ช่องท้ายหน้า: พนักงาน / หัวหน้าหน่วยงาน (ผู้ตรวจสอบ) / ผู้จัดการแผนก / ฝ่ายบุคคล
-8. ต้องพอดี **1 หน้า A4 แนวตั้ง** สำหรับเดือน 31 วัน (ฟอนต์ตารางไม่ต่ำกว่า 7.5pt)
+**โครงหน้าพิมพ์ (อิงภาพ Owner ล่าสุด โดยคงข้อจำกัดข้อมูลใน Snapshot):**
+1. หัว: โลโก้ SMS ทางซ้าย; กรอบหัวเรื่อง "ใบลงเวลา" ทางขวาพร้อมเดือนและช่วงวันที่ (พ.ศ.) รวมวันเวลาพิมพ์ (พ.ศ.)
+2. กล่องข้อมูลพนักงานสองฝั่ง: รหัส, ชื่อ-สกุล, ตำแหน่ง/ระดับ, หน่วยงาน/แผนก, Site, เวลาตามกะ, วันหยุดประจำสัปดาห์, หัวหน้า/ผู้ควบคุม — field ที่ไม่มีใน Certified Snapshot ให้เขียนว่าไม่มีข้อมูล ห้ามแต่ง; ห้ามแสดงเลขบัตรประชาชนหรือเบอร์โทรที่ไม่ได้มาจากข้อมูลที่อนุมัติ
+3. ตารางรายวัน 7 ช่องและ 1 แถวต่อวัน: ลำดับ, วันที่ (dd/mm/พ.ศ.), วัน, เวลาเข้า, เวลาออก, ชั่วโมงทำงาน, หมายเหตุ. หากวันเดียวมีหลายกะให้เรียงเวลาเข้า/ออกเป็นหลายบรรทัดตามลำดับเดียวกันในช่องของวันนั้น; ข้อมูลมาจาก Certified Snapshot เท่านั้น
+   - แสดงวันหยุด/วันหยุดนักขัตฤกษ์ได้เมื่อมีประเภทวันจากแหล่งข้อมูลที่รับรองแล้ว; วันที่ไม่มีแถวใน Snapshot เป็น "ไม่มีรายการที่รับรอง" และห้ามตีความว่าเป็นวันหยุด
+4. สรุปรายเดือน 6 ช่อง: วันทำงาน, ขาดงาน, วันลา, วันหยุด (ถ้าแหล่งข้อมูลไม่มีให้แสดงว่าไม่มีข้อมูล), ชั่วโมงรวม, เวลาเฉลี่ยต่อวันที่มีชั่วโมงบันทึก; แสดงจำนวนวันมาสายและวันที่จำแนกไม่ได้เป็นข้อความประกอบ
+5. หมายเหตุเพิ่มเติมเป็นเส้นประ 3 บรรทัด
+6. ช่องลงชื่อ 3 ช่องตามภาพล่าสุด: พนักงาน / หัวหน้าหน่วยงาน / ฝ่ายบุคคล
+7. ต้องพอดี **1 หน้า A4 แนวตั้ง** สำหรับเดือน 31 วัน (ฟอนต์ตารางไม่ต่ำกว่า 7.5pt)
 
 **การใช้งาน:**
 - ในหน้า "รายงานและวิเคราะห์": เลือกเดือน → พิมพ์ "รายบุคคล" (เลือกพนักงาน) หรือ "ทั้งแผนก" (1 คน = 1 หน้า, ขึ้นหน้าใหม่ทุกคน)
@@ -874,7 +758,7 @@ repo ยังไม่มี Playwright — **เสนอก่อนติด
 - [ ] ไม่มีคอลัมน์ OT / เบี้ยเลี้ยง / ค่าพาหนะ / ค่าเดินทาง / ค่าตำแหน่ง
 - [ ] โลโก้ระบบแสดงที่หัวกระดาษ
 - [ ] บทบาทรหัส `ADMIN`, `SUPERVISOR` พิมพ์ได้; `MANAGER`, `VIEWER` ไม่เห็นปุ่มและ API ตอบ 403
-- [ ] extract text จาก PDF แล้วไม่มีเมนู/แถบนำทางของแอป
+- [ ] extract text จาก PDF แล้วไม่มีเมนู/แถบนำทางของแอป; เดือน 31 วันมี 31 แถวในตาราง 7 ช่อง และวันที่มีกะซ้อนแสดงเวลาเป็นคู่
 - [ ] พิมพ์ทั้งแผนกแล้วจำนวนหน้า = จำนวนพนักงานในแผนก
 
 ---

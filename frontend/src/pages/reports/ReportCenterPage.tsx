@@ -103,7 +103,7 @@ export function ReportCenterPage({ token, role, onNavigate, initialTab = 'execut
         {role === 'ADMIN' && <label><span>หน่วยงาน</span><select value={filters.department} onChange={(event) => setFilters((value) => ({ ...value, department: event.target.value }))}><option value="">ทุกหน่วยงาน</option>{departmentOptions.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>}
       </div>
       {activeTab === 'details' && <p className="report-center-filter-note">รายงานรายละเอียดใช้ช่วงเดือน/ปีและขอบเขตหน่วยงานเดียวกับตัวกรองด้านบน โดยคำนวณจากข้อมูลฝั่งเซิร์ฟเวอร์</p>}
-      {activeTab === 'export' && role === 'ADMIN' && ATTENDANCE_OFFICIAL_REPORT_ENABLED && <p className="report-center-filter-note">Official Attendance Report ใช้เดือน/ปีที่เลือกและ Certified Snapshot ทั้งองค์กร ไม่ใช้ตัวกรองหน่วยงานของ Executive Report</p>}
+      {activeTab === 'export' && ['ADMIN', 'SUPERVISOR'].includes(role) && ATTENDANCE_OFFICIAL_REPORT_ENABLED && <p className="report-center-filter-note">ใบลงเวลาใช้ Certified Snapshot ตามสิทธิ์ผู้ใช้; SUPERVISOR เห็นข้อมูลเฉพาะแผนกที่ผูกกับบัญชี</p>}
     </SectionCard>
 
     <div className="report-center-tabs" role="tablist" aria-label="ประเภทรายงาน" onKeyDown={activateTabFromKeyboard}>
@@ -129,7 +129,7 @@ export function ReportCenterPage({ token, role, onNavigate, initialTab = 'execut
       <SectionCard kicker="ส่งออกรายงาน" title="รูปแบบที่รองรับ" description="เลือกส่งออกจากข้อมูลและรูปแบบที่ระบบรองรับในปัจจุบัน" className="report-center-export-section">
       <div className="report-center-export-grid">
         <article className="report-center-export-card"><div className="report-center-export-icon">PDF</div><div><h3>รายงานผู้บริหาร PDF</h3><p>ใช้ข้อมูลและตัวกรองเดียวกับแท็บภาพรวมผู้บริหาร พร้อมรูปแบบเอกสาร A4 ที่มีอยู่เดิม</p><small>รูปแบบที่รองรับ: PDF</small></div><button type="button" className="btn-primary" disabled={!executiveReport} onClick={exportPdf}>ส่งออก PDF</button></article>
-        {role === 'ADMIN' && ATTENDANCE_OFFICIAL_REPORT_ENABLED && <AttendanceOfficialReportPanel token={token} month={attendanceMonth} enabled={activeTab === 'export'} />}
+        {['ADMIN', 'SUPERVISOR'].includes(role) && ATTENDANCE_OFFICIAL_REPORT_ENABLED && <AttendanceOfficialReportPanel token={token} month={attendanceMonth} role={role} enabled={activeTab === 'export'} />}
       </div>
       {!executiveReport && <div className="report-center-state" role="status"><strong>กำลังเตรียมข้อมูลสำหรับส่งออก</strong><span>รอข้อมูล Executive Report จาก API เดิม</span></div>}
       </SectionCard>
