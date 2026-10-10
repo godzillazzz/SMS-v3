@@ -110,6 +110,7 @@ import './styles/ux-t06-login-public.css';
 import './styles/schedule-roster-ux.css';
 import './styles/layout-foundation.css';
 import './styles/personnel-layout.css';
+import './styles/system-layout-group4.css';
 
 const APPROVAL_REVIEWER_ROLES = ['ADMIN', 'MANAGER', 'SUPERVISOR'] as const;
 const APPROVAL_COUNT_MENU_ROLES: Readonly<Record<string, readonly string[]>> = Object.freeze({

@@ -11,6 +11,7 @@ import { LeaveSummaryCard } from '../../components/dashboard/LeaveSummaryCard';
 import { LicenseSummaryCard } from '../../components/dashboard/LicenseSummaryCard';
 import { RequestErrorReference, type RequestErrorInput } from '../../request-error';
 import { asNumber, type DashboardAction, type DashboardActivity, type DashboardExpiringLicense, type DashboardFilters, type DashboardNavigate, type DashboardSummary, type DashboardUser } from '../../components/dashboard/types';
+import { PageHeader, SectionCard } from '../../components/layout';
 
 type DashboardPageProps = { summary: DashboardSummary; loading: boolean; error?: RequestErrorInput; user?: DashboardUser; canManage: boolean; filters: DashboardFilters; pendingApprovalCount?: number | null; onOpenApprovalCenter?(): void; onFiltersChange: (filters: Partial<DashboardFilters>) => void; onNavigate: DashboardNavigate };
 
@@ -42,11 +43,8 @@ export function DashboardPage({ summary, loading, error, user, canManage, filter
   const firstName = user?.displayName?.trim().split(/\s+/)[0] || 'ผู้ใช้งาน';
   const partialErrors = Array.isArray(summary.partialErrors) ? summary.partialErrors : [];
 
-  return <section className="nexus-command" aria-label="ภาพรวม">
-    <header className="nexus-command__hero">
-      <div><p className="nexus-kicker">ภาพรวม</p><h1>ภาพรวมระบบ</h1><p>กำลังพล งานค้าง และข้อมูลตามสิทธิ์</p></div>
-      <div className="nexus-hero-status"><span><i /> เข้าสู่ระบบ</span><strong>{firstName}</strong><small>อัปเดตล่าสุด {syncTime}</small></div>
-    </header>
+  return <section className="nexus-command layout-page-surface" aria-label="ภาพรวม">
+    <PageHeader kicker="ภาพรวม" title="ภาพรวมระบบ" description="กำลังพล งานค้าง และข้อมูลตามสิทธิ์" actions={<div className="nexus-hero-status"><span><i /> เข้าสู่ระบบ</span><strong>{firstName}</strong><small>อัปเดตล่าสุด {syncTime}</small></div>} className="nexus-command__hero" />
 
     <DashboardFilterBar filters={filters} departments={departments} role={user?.role} loading={loading} onChange={onFiltersChange} />
 
@@ -62,12 +60,14 @@ export function DashboardPage({ summary, loading, error, user, canManage, filter
       </article>
     </section>
 
-    <section className="nexus-kpis" aria-label="ตัวชี้วัด">
+    <SectionCard kicker="ตัวชี้วัด" title="ภาพรวมการปฏิบัติงาน" description="สรุปกำลังพลและรายการตามวันที่กับสิทธิ์ที่เลือก" className="nexus-kpis-card" aria-label="ตัวชี้วัด">
+    <div className="nexus-kpis">
       <button type="button" onClick={() => onNavigate('employees')}><span>พนักงานปฏิบัติงาน</span><strong>{numberText(active)}<small> / {numberText(total)}</small></strong><em>{total ? Math.round(active/total*100) : 0}% พร้อมทำงาน</em></button>
       <button type="button" onClick={() => onNavigate('schedule')}><span>ทำงานวันนี้</span><strong>{numberText(onDuty)}</strong><em>ตามตารางกะ</em></button>
       <button type="button" onClick={() => onNavigate('leave')}><span>ลาวันนี้</span><strong>{numberText(leave)}</strong><em>บุคลากรที่ลาในวันที่เลือก</em></button>
       <button type="button" onClick={() => onNavigate('licenses')}><span>ใบอนุญาตใกล้หมดอายุ</span><strong>{numberText(expiring)}</strong><em>{expiring ? 'ควรตรวจสอบ' : 'ไม่มีรายการใกล้หมดอายุ'}</em></button>
-    </section>
+    </div>
+    </SectionCard>
 
     <section className="nexus-legacy-data" aria-label="รายละเอียด">
       <div className="nexus-section-heading"><div><p className="nexus-kicker">ข้อมูลที่ตรวจสอบแล้ว</p><h2>ข้อมูลปฏิบัติการ</h2></div><span>ข้อมูลจากระบบ</span></div>

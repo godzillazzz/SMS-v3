@@ -4,6 +4,7 @@ import { getSystemHealth } from '../../system-health-client';
 import { DataTableSkeletonCards, DataTableSkeletonRows, DataTableState, ResponsiveDataTable } from '../../components/ResponsiveDataTable';
 import { SmsIcon } from '../../components/SmsIcon';
 import { formatThaiDateTime } from '../../thai-date-time';
+import { MetricCard, PageHeader, SectionCard } from '../../components/layout';
 
 type SlowRoute = {
   method: string;
@@ -82,15 +83,15 @@ function SystemHealthRouteCards({ routes, loading, error, onRetry }: { routes: S
     const hasServerErrors = route.serverErrorCount > 0;
     return <article className="data-mobile-card system-health-route-card" key={`${route.method}:${route.route}`}>
       <header>
-        <div><small>Method</small><code>{route.method}</code></div>
+        <div><small>วิธีการ</small><code>{route.method}</code></div>
         <span className={`status-badge ${hasServerErrors ? 'status-badge--danger' : 'status-badge--success'}`}>{hasServerErrors ? `${route.serverErrorCount} 5xx` : '0 5xx'}</span>
       </header>
       <h3><code>{route.route}</code></h3>
       <dl>
-        <div><dt>Samples</dt><dd>{route.requestCount}</dd></div>
+        <div><dt>ตัวอย่าง</dt><dd>{route.requestCount}</dd></div>
         <div><dt>p50</dt><dd>{formatMs(route.p50Ms)}</dd></div>
         <div><dt>p95</dt><dd>{formatMs(route.p95Ms)}</dd></div>
-        <div><dt>Max</dt><dd>{formatMs(route.maxMs)}</dd></div>
+        <div><dt>สูงสุด</dt><dd>{formatMs(route.maxMs)}</dd></div>
       </dl>
     </article>;
   })}</div>;
@@ -123,7 +124,7 @@ export function SystemHealthPage({ token }: { token: string }) {
   const serverErrorRate = requests ? `${requests.serverErrorRatePct.toFixed(2)}%` : '—';
   const routeRows = requests?.slowRoutes ?? [];
   const retry = () => setRefreshKey((value) => value + 1);
-  const routeDesktop = <div className="data-table-scroll"><table className="data-surface-table system-health-route-table" aria-label="API latency by route template"><thead><tr><th scope="col" className="ds-table-header">Method</th><th scope="col" className="ds-table-header">Route template</th><th scope="col" className="ds-table-header">Samples</th><th scope="col" className="ds-table-header">p50</th><th scope="col" className="ds-table-header">p95</th><th scope="col" className="ds-table-header">Max</th><th scope="col" className="ds-table-header">5xx</th></tr></thead><tbody>
+  const routeDesktop = <div className="data-table-scroll"><table className="data-surface-table system-health-route-table" aria-label="เวลา API แยกตาม Route"><thead><tr><th scope="col" className="ds-table-header">วิธีการ</th><th scope="col" className="ds-table-header">แม่แบบเส้นทาง</th><th scope="col" className="ds-table-header">ตัวอย่าง</th><th scope="col" className="ds-table-header">p50</th><th scope="col" className="ds-table-header">p95</th><th scope="col" className="ds-table-header">สูงสุด</th><th scope="col" className="ds-table-header">5xx</th></tr></thead><tbody>
     {loading ? <DataTableSkeletonRows columnCount={7} rowCount={5} /> : error ? <tr><td colSpan={7} className="data-table-empty-cell"><DataTableState variant="error" title="ไม่สามารถอ่าน route samples ได้" description="ลองอ่าน snapshot ใหม่ได้โดยไม่เปลี่ยนข้อมูลระบบ" action={{ label: 'ลองใหม่', onClick: retry }} announce={false} /></td></tr> : routeRows.length ? routeRows.map((route) => <tr key={`${route.method}:${route.route}`}>
       <td><code>{route.method}</code></td>
       <td className="system-health-route-template"><code>{route.route}</code></td>
@@ -136,26 +137,19 @@ export function SystemHealthPage({ token }: { token: string }) {
   </tbody></table></div>;
   const routeMobile = <SystemHealthRouteCards routes={routeRows} loading={loading} error={Boolean(error)} onRetry={retry} />;
 
-  return <section className="system-health-page data-surface-page" aria-label="Performance and System Health">
-    <div className="page-heading system-health-heading">
-      <div>
-        <p className="eyebrow ds-metadata">ADMIN · READ ONLY</p>
-        <h1 className="ds-page-title">ประสิทธิภาพและสถานะระบบ</h1>
-        <p className="ds-body-secondary">ตรวจสถานะ runtime, API latency, HTTP errors และ Database readiness โดยไม่เปิดเผย secret หรือสร้างช่องทาง deploy.</p>
-      </div>
-      <div className="heading-actions">
+  return <section className="system-health-page data-surface-page layout-page-surface" aria-label="ประสิทธิภาพและสถานะระบบ">
+    <PageHeader kicker="ผู้ดูแลระบบ · อ่านอย่างเดียว" title="ประสิทธิภาพและสถานะระบบ" description="ตรวจ runtime, เวลา API, ข้อผิดพลาด HTTP และความพร้อมของฐานข้อมูล โดยไม่เปิดเผย secret หรือเปลี่ยนค่าระบบ" actions={<div className="heading-actions">
         <span className={`status-badge ds-status ${data?.overallStatus === 'ready' ? 'active' : 'inactive'}`}>
           {data?.overallStatus === 'ready' ? 'READY' : data ? 'DEGRADED' : 'UNKNOWN'}
         </span>
         <button className="btn-neutral small-action" type="button" disabled={loading} onClick={() => setRefreshKey((value) => value + 1)}>
           <SmsIcon name="refresh" size={16} />{loading ? 'กำลังตรวจ…' : 'รีเฟรช'}
         </button>
-      </div>
-    </div>
+      </div>} className="system-health-heading" />
 
-    <div className="system-health-scope ds-body-secondary" role="note">
-      <strong>ขอบเขตข้อมูล:</strong> {data?.scope.note || 'Latency และ request counts จะแสดงเฉพาะ runtime instance ปัจจุบัน ไม่ใช่ global SLA.'}
-    </div>
+    <SectionCard kicker="ขอบเขตการวัด" title="ตัวอย่างจาก runtime ปัจจุบัน" description="ข้อมูลนี้เป็น rolling sample ของ runtime instance นี้ ไม่ใช่ SLA รวมทั้งระบบ" className="system-health-scope-card" role="note">
+      <p className="system-health-scope ds-body-secondary">{data?.scope.note || 'Latency และจำนวนคำขอแสดงเฉพาะ runtime instance ปัจจุบัน ไม่ใช่ค่า SLA รวม'}</p>
+    </SectionCard>
 
     {error && <div className="data-state data-state--error" role="alert">
       <strong>ไม่สามารถอ่านสถานะระบบได้</strong>
@@ -163,33 +157,26 @@ export function SystemHealthPage({ token }: { token: string }) {
     </div>}
 
     <div className="system-health-kpis" aria-busy={loading}>
-      <article className="system-health-kpi"><span>API p50</span><strong>{formatMs(requests?.p50Ms)}</strong><small>rolling runtime samples</small></article>
-      <article className="system-health-kpi"><span>API p95</span><strong>{formatMs(requests?.p95Ms)}</strong><small>rolling runtime samples</small></article>
-      <article className="system-health-kpi"><span>Requests</span><strong>{requests?.requestCount ?? '—'}</strong><small>retained ≤ {requests?.maxRetainedSamples ?? 500}</small></article>
-      <article className="system-health-kpi"><span>HTTP 5xx</span><strong>{serverErrorRate}</strong><small>{requests?.serverErrorCount ?? '—'} server errors</small></article>
-      <article className="system-health-kpi"><span>Database</span><strong>{data?.database.status === 'ok' ? 'READY' : data ? 'UNAVAILABLE' : '—'}</strong><small>{formatMs(data?.database.latencyMs)}</small></article>
+      <MetricCard label="ค่ากลาง API p50" value={formatMs(requests?.p50Ms)} description="ตัวอย่างคำขอใน runtime ปัจจุบัน" loading={loading} />
+      <MetricCard label="เวลา API p95" value={formatMs(requests?.p95Ms)} description="ตัวอย่างคำขอใน runtime ปัจจุบัน" loading={loading} />
+      <MetricCard label="จำนวนคำขอ" value={requests?.requestCount ?? '—'} description={`เก็บไว้ไม่เกิน ${requests?.maxRetainedSamples ?? 500} รายการ`} loading={loading} />
+      <MetricCard label="อัตราข้อผิดพลาด HTTP 5xx" value={serverErrorRate} description={`${requests?.serverErrorCount ?? '—'} ข้อผิดพลาดฝั่งเซิร์ฟเวอร์`} loading={loading} />
+      <MetricCard label="ฐานข้อมูล" value={data?.database.status === 'ok' ? 'พร้อมใช้งาน' : data ? 'ไม่พร้อมใช้งาน' : '—'} description={`เวลาตอบสนอง ${formatMs(data?.database.latencyMs)}`} loading={loading} />
     </div>
 
     <div className="system-health-grid">
-      <article className="table-card system-health-card">
-        <div className="system-health-card-title">
-          <div><p className="eyebrow ds-metadata">CURRENT APPLICATION</p><h2 className="ds-section-title">Application identity</h2></div>
-        </div>
+      <SectionCard kicker="แอปพลิเคชันปัจจุบัน" title="ข้อมูล Deployment" description="ข้อมูลระบุตัวแอปและช่วงเวลาของ runtime ที่กำลังอ่าน" className="table-card system-health-card">
         <dl className="system-health-details">
-          <div><dt>Environment</dt><dd>{data?.application.environment || '—'}</dd></div>
+          <div><dt>สภาพแวดล้อม</dt><dd>{data?.application.environment || '—'}</dd></div>
           <div><dt>Commit SHA</dt><dd><code title={data?.application.commitSha || undefined}>{shortSha(data?.application.commitSha)}</code></dd></div>
           <div><dt>Deployment host</dt><dd>{data?.application.deploymentHost || 'ไม่พร้อมใช้งาน'}</dd></div>
-          <div><dt>Runtime started</dt><dd>{formatDate(requests?.instanceStartedAt)}</dd></div>
-          <div><dt>Sample window</dt><dd>{formatDate(requests?.windowStartedAt)} → {formatDate(requests?.windowEndedAt)}</dd></div>
-          <div><dt>Dropped samples</dt><dd>{requests?.droppedSamples ?? '—'}</dd></div>
+          <div><dt>เริ่ม Runtime</dt><dd>{formatDate(requests?.instanceStartedAt)}</dd></div>
+          <div><dt>ช่วงตัวอย่าง</dt><dd>{formatDate(requests?.windowStartedAt)} → {formatDate(requests?.windowEndedAt)}</dd></div>
+          <div><dt>ตัวอย่างที่ตกหล่น</dt><dd>{requests?.droppedSamples ?? '—'}</dd></div>
         </dl>
-      </article>
+      </SectionCard>
 
-      <article className="table-card system-health-card">
-        <div className="system-health-card-title">
-          <div><p className="eyebrow ds-metadata">ACTIONABLE WARNINGS</p><h2 className="ds-section-title">Current warnings</h2></div>
-          <span className="record-chip">{data?.warnings.length ?? 0}</span>
-        </div>
+      <SectionCard kicker="สิ่งที่ควรติดตาม" title="คำเตือนปัจจุบัน" description="สถานะที่ API รายงานจาก runtime snapshot นี้" className="table-card system-health-card">
         <div className="system-health-warning-list">
           {data?.warnings.length ? data.warnings.map((warning) =>
             <div className={`system-health-warning system-health-warning--${warning.severity.toLowerCase()}`} key={warning.code}>
@@ -198,15 +185,12 @@ export function SystemHealthPage({ token }: { token: string }) {
             </div>
           ) : <div className="system-health-empty">ไม่พบ operational warning ใน snapshot ปัจจุบัน</div>}
         </div>
-      </article>
+      </SectionCard>
     </div>
 
-    <article className="table-card system-health-routes">
-      <div className="system-health-card-title">
-        <div><p className="eyebrow ds-metadata">SLOW ROUTES</p><h2 className="ds-section-title">API latency by route template</h2><p className="ds-helper">ไม่มี query string, payload, request ID หรือข้อมูลผู้ใช้ในตารางนี้</p></div>
-      </div>
-      <ResponsiveDataTable ariaLabel="API latency by route template" loading={loading} error={Boolean(error)} loadingLabel="กำลังอ่าน runtime samples…" errorLabel="ไม่สามารถอ่าน route samples ได้" hasRows={routeRows.length > 0} className="system-health-route-surface" desktop={routeDesktop} mobile={routeMobile} />
-    </article>
+    <SectionCard kicker="เส้นทาง API" title="เวลาให้บริการตาม Route" description="แสดงเฉพาะ route template ไม่มี query string, payload, request ID หรือข้อมูลผู้ใช้" className="table-card system-health-routes">
+      <ResponsiveDataTable ariaLabel="เวลา API แยกตาม Route" loading={loading} error={Boolean(error)} loadingLabel="กำลังอ่านตัวอย่าง Runtime…" errorLabel="ไม่สามารถอ่านตัวอย่าง Route ได้" hasRows={routeRows.length > 0} className="system-health-route-surface" desktop={routeDesktop} mobile={routeMobile} />
+    </SectionCard>
 
     <p className="system-health-generated">Snapshot: {formatDate(data?.generatedAt)} · Endpoint นี้เป็น read-only และไม่มีปุ่ม deploy, migration หรือ environment mutation.</p>
   </section>;

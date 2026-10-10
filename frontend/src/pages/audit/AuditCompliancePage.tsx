@@ -7,6 +7,8 @@ import { AuditToolbar } from '../../components/audit/AuditToolbar';
 import { DataTablePagination } from '../../components/ResponsiveDataTable';
 import type { AuditEvent, AuditFilters } from '../../components/audit/audit-types';
 import { summarizeAuditEvents } from '../../components/audit/audit-utils';
+import { SectionCard } from '../../components/layout';
+import { SmsIcon } from '../../components/SmsIcon';
 import '../../styles/audit-compliance.css';
 import '../../styles/audit-mobile.css';
 
@@ -16,5 +18,16 @@ export function AuditCompliancePage({ rows, total, page = 1, totalPages = 1, pag
   const [selected, setSelected] = useState<AuditEvent>();
   const { categories, actors } = summarizeAuditEvents(rows);
   const hasActiveFilters = Object.entries(filters).some(([key, value]) => key === 'category' ? value !== 'default' : Boolean(value));
-  return <section className="audit-compliance-page audit-nexus-v48 data-surface-page" aria-label="บันทึกการใช้งานระบบ"><AuditPageHeader total={total} page={page} pageCount={rows.length} onRefresh={onRefresh} onExport={() => onExport(rows)} onPrint={onPrint} authorized={!permissionDenied} loading={loading} hasError={Boolean(error)} hasRows={rows.length > 0} />{!permissionDenied && !error && <AuditSummaryGrid total={total} pageCount={rows.length} categories={categories} actors={actors} loading={loading} />}{permissionDenied ? <div className="audit-state audit-state--permission data-state data-state--permission"><span aria-hidden="true">⛨</span><h2>ไม่มีสิทธิ์เข้าถึงบันทึกการใช้งานระบบ</h2><p>เฉพาะผู้ดูแลระบบเท่านั้นที่สามารถดูบันทึกการใช้งานได้</p></div> : <>{!error && <AuditToolbar pageSize={pageSize} onPageSize={onPageSize} filters={filters} onFiltersChange={onFiltersChange} onClear={() => onFiltersChange({ dateFrom: '', dateTo: '', actor: '', entityType: '', action: '', search: '', category: 'default' })} />}<AuditTable rows={rows} selected={selected} onSelect={setSelected} loading={loading} hasActiveFilters={hasActiveFilters} error={Boolean(error)} onRetry={onRefresh} />{!error && <DataTablePagination page={page} totalPages={totalPages} onChange={onPageChange} ariaLabel="แบ่งหน้าบันทึกการใช้งาน" className="audit-pagination" loading={loading} />}</>}<AuditEventPreview event={selected} onClose={() => setSelected(undefined)} /></section>;
+  return <section className="audit-compliance-page data-surface-page layout-page-surface" aria-label="บันทึกการใช้งานระบบ">
+    <AuditPageHeader total={total} page={page} pageCount={rows.length} onRefresh={onRefresh} onExport={() => onExport(rows)} onPrint={onPrint} authorized={!permissionDenied} loading={loading} hasError={Boolean(error)} hasRows={rows.length > 0} />
+    {!permissionDenied && !error && <SectionCard kicker="ภาพรวม" title="สรุปบันทึกการใช้งาน" description="จำนวนเหตุการณ์จากตัวกรองที่ใช้อยู่" className="audit-summary-card">
+      <AuditSummaryGrid total={total} pageCount={rows.length} categories={categories} actors={actors} loading={loading} />
+    </SectionCard>}
+    {permissionDenied ? <div className="audit-state audit-state--permission data-state data-state--permission"><span aria-hidden="true"><SmsIcon name="shield" size={24} /></span><h2>ไม่มีสิทธิ์เข้าถึงบันทึกการใช้งานระบบ</h2><p>เฉพาะผู้ดูแลระบบเท่านั้นที่สามารถดูรายการนี้ได้</p></div> : <SectionCard kicker="รายการเหตุการณ์" title="บันทึกที่ตรวจสอบได้" description="ค้นหา กรอง ส่งออก หรือพิมพ์ข้อมูลตามสิทธิ์ที่ได้รับ" className="audit-records-card">
+      {!error && <AuditToolbar pageSize={pageSize} onPageSize={onPageSize} filters={filters} onFiltersChange={onFiltersChange} onClear={() => onFiltersChange({ dateFrom: '', dateTo: '', actor: '', entityType: '', action: '', search: '', category: 'default' })} />}
+      <AuditTable rows={rows} selected={selected} onSelect={setSelected} loading={loading} hasActiveFilters={hasActiveFilters} error={Boolean(error)} onRetry={onRefresh} />
+      {!error && <DataTablePagination page={page} totalPages={totalPages} onChange={onPageChange} ariaLabel="แบ่งหน้าบันทึกการใช้งาน" className="audit-pagination" loading={loading} />}
+    </SectionCard>}
+    <AuditEventPreview event={selected} onClose={() => setSelected(undefined)} />
+  </section>;
 }

@@ -29,7 +29,7 @@ describe('enterprise interaction contract',()=>{
   expect(app).toContain('<SmsIcon name="eye" size={16} />');
   expect(app).not.toContain("desktopView ? '📱' : '🖥️'");
   expect(settingsPage).toContain('line-settings-title"><span aria-hidden="true"><SmsIcon name="bell"');
-  expect(settingsPage).toContain('<SmsIcon name="report" size={15} /> Export governed values');
+  expect(settingsPage).toContain('<SmsIcon name="report" size={15} /> ส่งออกค่าที่กำหนด');
  });
  it('closes residual Audit and GIS Light Mode surfaces while preserving semantic warning hierarchy',()=>{
   expect(operational).toContain('Enterprise Evolution Phase A.3');
