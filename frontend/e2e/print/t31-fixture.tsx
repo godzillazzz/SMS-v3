@@ -1,4 +1,7 @@
 import { createRoot } from 'react-dom/client';
+import { flushSync } from 'react-dom';
+import '../../src/styles.css';
+import '../../src/styles/attendance-report.css';
 import { AttendanceOfficialReportPrint } from '../../src/pages/reports/AttendanceOfficialReport';
 import type { AttendanceOfficialReport, AttendanceReportRow } from '../../src/pages/reports/attendance-report-client';
 import { printDocument } from '../../src/schedule-print';
@@ -49,12 +52,14 @@ const report: AttendanceOfficialReport = {
   rows: [...employeeA, ...employeeB]
 };
 
-createRoot(document.querySelector('#t31-one-root')!).render(
-  <div id="t31-one"><AttendanceOfficialReportPrint report={report} employeePages={[employeeA]} printedAt="2026-09-01T03:00:00.000Z" /></div>
-);
-createRoot(document.querySelector('#t31-all-root')!).render(
-  <div id="t31-all"><AttendanceOfficialReportPrint report={report} employeePages={[employeeA, employeeB]} printedAt="2026-09-01T03:00:00.000Z" /></div>
-);
+flushSync(() => {
+  createRoot(document.querySelector('#t31-one-root')!).render(
+    <div id="t31-one"><AttendanceOfficialReportPrint report={report} employeePages={[employeeA]} printedAt="2026-09-01T03:00:00.000Z" /></div>
+  );
+  createRoot(document.querySelector('#t31-all-root')!).render(
+    <div id="t31-all"><AttendanceOfficialReportPrint report={report} employeePages={[employeeA, employeeB]} printedAt="2026-09-01T03:00:00.000Z" /></div>
+  );
+});
 
 document.querySelector('#trigger-t31-one')!.addEventListener('click', () => {
   void printDocument('#t31-one', 'SMS T31 monthly timesheet.pdf', { orientation: 'portrait', margin: '0' });

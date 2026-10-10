@@ -3,7 +3,9 @@ import { PDFDocument } from 'pdf-lib';
 import fs from 'node:fs/promises';
 
 async function printFromFixture(page: Page, selector: string) {
-  await page.goto('/e2e/print/fixture.html');
+  await page.goto('/e2e/print/t31-fixture.html');
+  const printRoot = selector === '#trigger-t31-one' ? '#t31-one' : '#t31-all';
+  await expect(page.locator(printRoot)).toBeAttached();
   await page.locator(selector).click();
   const frame = page.locator('iframe.schedule-print-frame');
   await expect(frame).toBeAttached();
