@@ -62,8 +62,8 @@ flushSync(() => {
 });
 
 document.querySelector('#trigger-t31-one')!.addEventListener('click', () => {
-  void printDocument('#t31-one', 'SMS T31 monthly timesheet.pdf', { orientation: 'portrait', margin: '0' });
+  void printDocument('#t31-one', 'SMS T31 monthly timesheet.pdf', { orientation: 'portrait', margin: '0' }, () => undefined);
 });
 document.querySelector('#trigger-t31-all')!.addEventListener('click', () => {
-  void printDocument('#t31-all', 'SMS T31 department timesheets.pdf', { orientation: 'portrait', margin: '0' });
+  void printDocument('#t31-all', 'SMS T31 department timesheets.pdf', { orientation: 'portrait', margin: '0' }, () => undefined);
 });
