@@ -251,11 +251,6 @@ export const api = {
   systemSettings: (token: string) => call('/system-settings', { headers: { Authorization: `Bearer ${token}` } }),
   updateSystemSetting: (token: string, key: string, data: unknown) => call(`/system-settings/${encodeURIComponent(key)}`, { method: 'PUT', body: JSON.stringify(data), headers: { Authorization: `Bearer ${token}` } }),
   leaveRequests: (token: string, page = 1, filters: { year?: number; month?: number; status?: string; employeeId?: string; department?: string; search?: string } = {}) => { const params = new URLSearchParams({ page: String(page), pageSize: '100' }); Object.entries(filters).forEach(([key, value]) => { if (value !== undefined && value !== '') params.set(key, String(value)); }); return call(`/leave-requests?${params.toString()}`, { headers: { Authorization: `Bearer ${token}` } }); },
-  leaveOverlapCheck: (token: string, filters: { startDate: string; endDate: string; employeeId?: string }) => {
-    const params = new URLSearchParams({ startDate: filters.startDate, endDate: filters.endDate });
-    if (filters.employeeId) params.set('employeeId', filters.employeeId);
-    return call(`/leave-requests/check-overlap?${params.toString()}`, { headers: { Authorization: `Bearer ${token}` } }) as Promise<{ data: { hasConflict: boolean; conflict: { id: string; status: string; startDate: string; endDate: string; leaveType: string } | null } }>;
-  },
   leavePendingCount: (token: string) => call('/leave-requests/pending-count', { headers: { Authorization: `Bearer ${token}` } }),
   leaveSummary: (token: string, year?: number) => call(`/leave-summary${year ? `?year=${year}` : ''}`, { headers: { Authorization: `Bearer ${token}` } }),
   leaveQuotas: (token: string, page = 1, filters: { year?: number; legacy?: boolean } = {}) => { const params = new URLSearchParams({ page: String(page), pageSize: '100' }); if (filters.year) params.set('year', String(filters.year)); if (filters.legacy) params.set('legacy', 'true'); return call(`/leave-quotas?${params.toString()}`, { headers: { Authorization: `Bearer ${token}` } }); },
