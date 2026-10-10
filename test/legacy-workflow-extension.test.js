@@ -24,9 +24,10 @@ test('View As is short-lived, memory-only, audited, and server-enforced read-onl
   assert.match(middleware, /View As mode is read-only/);
   assert.match(middleware, /impersonator\.role !== 'ADMIN'/);
   const authProviderStart = frontend.indexOf('function AuthProvider');
-  const authProviderEnd = frontend.indexOf('\nfunction Logo()', authProviderStart);
+  const authProviderEnd = frontend.indexOf('\nfunction ', authProviderStart + 1);
   assert.ok(authProviderStart >= 0 && authProviderEnd > authProviderStart);
   const authProvider = frontend.slice(authProviderStart, authProviderEnd);
+  assert.match(authProvider, /return <AuthContext\.Provider/);
   assert.match(authProvider, /const \[viewAs, setViewAs\] = useState/);
   assert.match(authProvider, /const viewAsTokenRef = useRef<string>/);
   assert.doesNotMatch(authProvider, /localStorage|sessionStorage/);
