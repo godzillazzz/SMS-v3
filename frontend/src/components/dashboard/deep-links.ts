@@ -20,7 +20,6 @@ export function dashboardDetailQuery(
     ...(role === 'ADMIN' && filters.department.trim() ? { department: filters.department.trim() } : {}),
     page: '1',
     pageSize: '20',
-    ...selector,
-    metric
+    ...selector
   };
 }
