@@ -1148,7 +1148,12 @@ export function AttendancePage({ token, displayName, department, readOnly = fals
     const deviceV4Ready = (deviceEnrolled && deviceKeyCapability.supported && deviceKeyInspection?.status === 'PRESENT') || Boolean(attendanceAccepted) || Boolean(verificationSession);
     const serverDeviceBlocked = readiness?.state === 'DEVICE_SETUP_REQUIRED' || readiness?.state === 'DEVICE_REVIEW_REQUIRED';
     const devicePrerequisiteBlocked = deviceStateKnown && !deviceEnrolled && !attendanceAccepted && !verificationSession;
-    const deviceBlocked = serverDeviceBlocked || devicePrerequisiteBlocked;
+    const activeLocalKeyMissing = deviceStateKnown
+      && deviceEnrolled
+      && deviceKeyInspection?.status === 'MISSING'
+      && !attendanceAccepted
+      && !verificationSession;
+    const deviceBlocked = serverDeviceBlocked || devicePrerequisiteBlocked || activeLocalKeyMissing;
     const deviceKeyLabel = attendanceAccepted || verificationSession
       ? 'พร้อม'
       : deviceEnrolled
@@ -1164,8 +1169,10 @@ export function AttendancePage({ token, displayName, department, readOnly = fals
       }
       if (deviceBlocked) {
         const deviceCopy = readiness && serverDeviceBlocked ? fallbackCopy(readiness) : null;
-        setVerificationStage(deviceCopy?.title || 'ต้องตั้งค่าอุปกรณ์ลงเวลาก่อน');
-        setError(deviceCopy?.detail || 'อุปกรณ์นี้ยังไม่มีสถานะ ACTIVE สำหรับ Attendance กรุณาลงทะเบียนหรือเปิดดูสถานะคำขออุปกรณ์ก่อนลงเวลา');
+        setVerificationStage(deviceCopy?.title || (activeLocalKeyMissing ? 'ต้องซ่อมอุปกรณ์ลงเวลาก่อน' : 'ต้องตั้งค่าอุปกรณ์ลงเวลาก่อน'));
+        setError(deviceCopy?.detail || (activeLocalKeyMissing
+          ? 'Server ยังมีอุปกรณ์ ACTIVE แต่ PWA นี้ไม่มี local private key สำหรับ enrollment ปัจจุบัน กรุณาเปิดหน้าอุปกรณ์ลงเวลาเพื่อใช้ขั้นตอนเปลี่ยนอุปกรณ์ที่มีการพิสูจน์คีย์และ Admin อนุมัติ'
+          : 'อุปกรณ์นี้ยังไม่มีสถานะ ACTIVE สำหรับ Attendance กรุณาลงทะเบียนหรือเปิดดูสถานะคำขออุปกรณ์ก่อนลงเวลา'));
         onOpenAttendanceDevice?.();
         return;
       }
@@ -1344,8 +1351,10 @@ export function AttendancePage({ token, displayName, department, readOnly = fals
       {!online && <div className="attendance-v4__notice is-warning"><strong>ออฟไลน์</strong><span>Attendance ต้องเชื่อมต่อ Server จึงจะลงเวลาได้</span></div>}
       {routeUnavailable && <div className="attendance-v4__notice is-warning"><strong>Attendance runtime ยังไม่เปิด</strong><span>Server gate ปิดอยู่ จึงไม่มี AttendanceEvent ถูกสร้าง</span></div>}
       {deviceBlocked && <div className="attendance-v4__notice is-warning" role="alert">
-        <strong>ต้องตั้งค่าอุปกรณ์ลงเวลาก่อน</strong>
-        <span>Attendance ต้องมีอุปกรณ์สถานะ ACTIVE ที่ผูกกับพนักงาน คีย์ต้องสร้างบนอุปกรณ์จริงและผ่านขั้นตอนอนุมัติก่อนใช้งาน</span>
+        <strong>{activeLocalKeyMissing ? 'ต้องซ่อมอุปกรณ์ลงเวลาก่อน' : 'ต้องตั้งค่าอุปกรณ์ลงเวลาก่อน'}</strong>
+        <span>{activeLocalKeyMissing
+          ? 'Server ยังมีอุปกรณ์ ACTIVE แต่ PWA นี้ไม่มี local private key สำหรับ enrollment ปัจจุบัน ให้เปิดหน้าอุปกรณ์ลงเวลาและใช้ขั้นตอนเปลี่ยนอุปกรณ์ตามปกติ โดยไม่ยกเลิกอุปกรณ์เดิมก่อน'
+          : 'Attendance ต้องมีอุปกรณ์สถานะ ACTIVE ที่ผูกกับพนักงาน คีย์ต้องสร้างบนอุปกรณ์จริงและผ่านขั้นตอนอนุมัติก่อนใช้งาน'}</span>
         {onOpenAttendanceDevice && <button type="button" className="attendance-v4__today-link" onClick={onOpenAttendanceDevice}>เปิดหน้าอุปกรณ์ลงเวลา</button>}
       </div>}
       {locationIssue?.code === 'LOCATION_PERMISSION_DENIED' && <div className="attendance-v4__notice is-danger" role="alert">
