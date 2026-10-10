@@ -30,6 +30,19 @@ const employeeA = Array.from({ length: 31 }, (_, index): AttendanceReportRow => 
   };
 });
 
+employeeA.push({
+  ...employeeA[6],
+  assignmentId: 'fixture-assignment-07-second-shift',
+  shift: { code: 'EVE', name: 'กะเย็น' },
+  expectedStartAt: '2026-08-07T13:00:00.000Z',
+  expectedEndAt: '2026-08-07T18:00:00.000Z',
+  checkInAt: '2026-08-07T13:00:00.000Z',
+  checkOutAt: '2026-08-07T18:00:00.000Z',
+  effectiveCheckInAt: '2026-08-07T13:00:00.000Z',
+  effectiveCheckOutAt: '2026-08-07T18:00:00.000Z',
+  workedMinutes: 300
+});
+
 const employeeB: AttendanceReportRow[] = [{
   ...employeeA[0],
   assignmentId: 'fixture-assignment-b',

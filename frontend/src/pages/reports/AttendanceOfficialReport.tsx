@@ -89,8 +89,9 @@ function monthDayRows(rows: AttendanceReportRow[], period: string) {
   return Array.from({ length: count }, (_, index) => {
     const day = index + 1;
     const date = new Date(Date.UTC(year, month - 1, day));
-    const weekday = new Intl.DateTimeFormat('th-TH', { weekday: 'short', timeZone: 'UTC' }).format(date);
-    const dateLabel = `${weekday} ${String(day).padStart(2, '0')}/${String(month).padStart(2, '0')}/${year + 543}`;
+    const weekday = new Intl.DateTimeFormat('th-TH', { weekday: 'long', timeZone: 'UTC' }).format(date).replace(/^วัน/u, '');
+    const dateText = `${String(day).padStart(2, '0')}/${String(month).padStart(2, '0')}/${year + 543}`;
+    const dateLabel = `${weekday} ${dateText}`;
     const dateKey = `${period}-${String(day).padStart(2, '0')}`;
     const dayRows = [...(byDate.get(dateKey) || [])].sort((a, b) => String(a.scheduledStartAt || a.expectedStartAt || '').localeCompare(String(b.scheduledStartAt || b.expectedStartAt || '')));
     const notes = new Set<string>();
@@ -105,6 +106,8 @@ function monthDayRows(rows: AttendanceReportRow[], period: string) {
     }
     return {
       day,
+      weekday,
+      dateText,
       dateLabel,
       rows: dayRows,
       workedMinutes: dayRows.reduce((sum, row) => sum + (typeof row.workedMinutes === 'number' && Number.isFinite(row.workedMinutes) ? Math.max(0, row.workedMinutes) : 0), 0),
@@ -160,12 +163,11 @@ function totalWorkedMinutes(rows: AttendanceReportRow[]) {
   return rows.reduce((sum, row) => sum + (typeof row.workedMinutes === 'number' && Number.isFinite(row.workedMinutes) ? Math.max(0, row.workedMinutes) : 0), 0);
 }
 
-function shiftCell(row?: AttendanceReportRow) {
-  if (!row) return '—';
-  const shiftName = row.shift?.code || row.shift?.name || 'กะ';
-  const checkIn = formatTime(row.effectiveCheckInAt || row.checkInAt);
-  const checkOut = formatTime(row.effectiveCheckOutAt || row.checkOutAt);
-  return `${shiftName} ${checkIn}–${checkOut}`;
+function dayTimes(rows: AttendanceReportRow[], direction: 'checkIn' | 'checkOut') {
+  if (!rows.length) return ['—'];
+  return rows.map((row) => formatTime(direction === 'checkIn'
+    ? row.effectiveCheckInAt || row.checkInAt
+    : row.effectiveCheckOutAt || row.checkOutAt));
 }
 
 function groupByEmployee(rows: AttendanceReportRow[]) {
@@ -282,44 +284,54 @@ export function AttendanceOfficialReportPrint({ report, employeePages = groupByE
       }).filter(Boolean))];
       const printDate = printedAt || report.generatedAt;
       const totalMinutes = totalWorkedMinutes(rows);
+      const durationDays = days.filter((day) => day.hasWorkedDuration).length;
+      const averageMinutes = totalMinutes === null || durationDays === 0 ? null : Math.round(totalMinutes / durationDays);
       return <article className="attendance-report-page attendance-timesheet-page" key={first?.employeeId || pageIndex}>
         <header className="attendance-report-print-header">
-          <div className="attendance-report-brand"><img src="/brand/sms-logo-horizontal.webp" alt="SMS Security Management System" /><span>Security Management System</span></div>
-          <div className="attendance-report-title"><h1>ใบลงเวลา</h1><span>พิมพ์เมื่อ {formatDateTime(printDate)}</span></div>
+          <div className="attendance-report-brand"><img src="/brand/sms-logo-horizontal.webp" alt="SMS Security Management System" /></div>
+          <div className="attendance-report-title"><h1>ใบลงเวลา</h1><strong>ประจำเดือน {formatThaiMonth(report.period)}</strong><span>ตั้งแต่วันที่ 1 ถึงวันที่ {days.length} · พ.ศ. {Number(report.period.slice(0, 4)) + 543}</span><small>พิมพ์เมื่อ {formatDateTime(printDate)}</small></div>
         </header>
-        <div className="attendance-report-month-band"><strong>ประจำเดือน {formatThaiMonth(report.period)}</strong><span>ตั้งแต่วันที่ 1 ถึงวันที่ {days.length} · พ.ศ. {Number(report.period.slice(0, 4)) + 543}</span></div>
         <section className="attendance-report-employee-meta" aria-label="ข้อมูลพนักงานจาก Certified Snapshot">
-          <div><span>รหัสพนักงาน</span><strong>{first?.employeeCode || '—'}</strong></div>
-          <div><span>ชื่อ-นามสกุล</span><strong>{first?.employeeName || '—'}</strong></div>
-          <div><span>แผนก</span><strong>{first?.department || '—'}</strong></div>
-          <div><span>สถานที่ปฏิบัติงาน (Site)</span><strong>{sites.length ? sites.join(', ') : '—'}</strong></div>
-          <div><span>ตำแหน่ง / ฝ่าย</span><strong>ไม่มีข้อมูลใน Snapshot</strong></div>
-          <div><span>วันหยุดประจำสัปดาห์</span><strong>ไม่มีข้อมูลใน Snapshot</strong></div>
-          <div><span>เวลาตามกะ</span><strong>{schedules.length ? schedules.join(', ') : 'ไม่มีข้อมูลใน Snapshot'}</strong></div>
-          <div><span>หัวหน้า / ผู้ควบคุม</span><strong>ไม่มีข้อมูลใน Snapshot</strong></div>
+          <div className="attendance-report-employee-column">
+            <div><span>รหัสพนักงาน</span><strong>{first?.employeeCode || '—'}</strong></div>
+            <div><span>ชื่อ-สกุล</span><strong>{first?.employeeName || '—'}</strong></div>
+            <div><span>ตำแหน่ง / ระดับ</span><strong>ไม่มีข้อมูลใน Snapshot</strong></div>
+            <div><span>หน่วยงาน</span><strong>{first?.department || '—'}</strong></div>
+          </div>
+          <div className="attendance-report-employee-column">
+            <div><span>สถานที่ปฏิบัติงาน (Site)</span><strong>{sites.length ? sites.join(', ') : '—'}</strong></div>
+            <div><span>เวลาปฏิบัติงาน (จากกะ)</span><strong>{schedules.length ? schedules.join(', ') : 'ไม่มีข้อมูลใน Snapshot'}</strong></div>
+            <div><span>วันหยุดประจำสัปดาห์</span><strong>ไม่มีข้อมูลใน Snapshot</strong></div>
+            <div><span>หัวหน้า / ผู้ควบคุม</span><strong>ไม่มีข้อมูลใน Snapshot</strong></div>
+          </div>
         </section>
         <table className="attendance-report-table">
-          <thead><tr><th>วันที่</th><th>กะงาน (1) · เวลาเข้า/ออก</th><th>กะงาน (2) · เวลาเข้า/ออก</th><th>ชั่วโมง</th><th>หมายเหตุ</th></tr></thead>
+          <thead><tr><th>ลำดับ</th><th>วันที่</th><th>วัน</th><th>เวลาเข้า</th><th>เวลาออก</th><th>ชั่วโมงทำงาน</th><th>หมายเหตุ</th></tr></thead>
           <tbody>{days.map((day) => <tr className={day.rows.length ? undefined : 'attendance-report-day--no-source'} key={day.day}>
-            <td>{day.dateLabel}</td>
-            <td>{shiftCell(day.rows[0])}</td>
-            <td>{shiftCell(day.rows[1])}{day.rows.length > 2 ? <small className="attendance-report-extra-shifts">+ อีก {day.rows.length - 2} กะ</small> : null}</td>
-            <td>{day.hasWorkedDuration ? durationText(day.workedMinutes) : '—'}</td>
+            <td className="attendance-report-sequence">{String(day.day).padStart(2, '0')}</td>
+            <td>{day.dateText}</td>
+            <td>{day.weekday}</td>
+            <td><div className="attendance-report-time-stack">{dayTimes(day.rows, 'checkIn').map((time, index) => <span key={`${day.day}-in-${index}`}>{time}</span>)}</div></td>
+            <td><div className="attendance-report-time-stack">{dayTimes(day.rows, 'checkOut').map((time, index) => <span key={`${day.day}-out-${index}`}>{time}</span>)}</div></td>
+            <td className="attendance-report-hours">{day.hasWorkedDuration ? durationText(day.workedMinutes) : '—'}</td>
             <td>{day.notes.join(' · ')}</td>
           </tr>)}</tbody>
         </table>
-        <div className="attendance-report-total-hours">ชั่วโมงปฏิบัติงานรวมทั้งเดือน <strong>{durationText(totalMinutes)}</strong></div>
         <section className="attendance-report-summary" aria-label="สรุปรายเดือน">
-          <div><span>วันทำงานตามรายการ</span><strong>{summary.days.workDays}</strong></div>
-          <div><span>วันหยุด / นักขัตฤกษ์</span><strong>ไม่อยู่ใน Snapshot</strong></div>
-          <div><span>ลา</span><strong>{summary.days.leaveDays} วัน · ไม่แยกประเภท</strong></div>
-          <div><span>ขาด</span><strong>{summary.days.absentDays} วัน</strong></div>
-          <div><span>มาสาย</span><strong>{summary.days.lateDays} วัน</strong></div>
-          <div><span>ไม่ระบุจาก Snapshot</span><strong>{summary.days.unclassifiedDays} วัน</strong></div>
-          <div><span>รวมวันในเดือน</span><strong>{summary.days.totalDays} วัน</strong></div>
+          <h2>สรุปการทำงานประจำเดือน</h2>
+          <div className="attendance-report-summary-grid">
+            <div><span>วันทำงาน</span><strong>{summary.days.workDays} วัน</strong></div>
+            <div><span>ขาดงาน</span><strong>{summary.days.absentDays} วัน</strong></div>
+            <div><span>วันลา</span><strong>{summary.days.leaveDays} วัน</strong></div>
+            <div><span>วันหยุด</span><strong>ไม่มีข้อมูลใน Snapshot</strong></div>
+            <div><span>ชั่วโมงรวม</span><strong>{durationText(totalMinutes)}</strong></div>
+            <div><span>เฉลี่ยต่อวันที่มีชั่วโมง</span><strong>{durationText(averageMinutes)}</strong></div>
+          </div>
+          <p className="attendance-report-summary-note">มาสาย {summary.days.lateDays} วัน · วันที่จำแนกไม่ได้ {summary.days.unclassifiedDays} วัน · ไม่มีข้อมูลวันหยุดประจำสัปดาห์และวันหยุดนักขัตฤกษ์ใน Snapshot</p>
         </section>
+        <section className="attendance-report-notes" aria-label="หมายเหตุเพิ่มเติม"><strong>หมายเหตุ</strong><div><i /><i /><i /></div></section>
         <footer className="attendance-report-signatures" aria-label="ช่องลงนาม">
-          {['พนักงาน', 'หัวหน้าหน่วยงาน (ผู้ตรวจสอบ)', 'ผู้จัดการแผนก', 'ฝ่ายบุคคล'].map((label) => <div key={label}><span>ลงชื่อ</span><i /><strong>{label}</strong></div>)}
+          {['พนักงาน', 'หัวหน้าหน่วยงาน', 'ฝ่ายบุคคล'].map((label) => <div key={label}><div><span>ลงชื่อ</span><i /></div><strong>{label}</strong><span>วันที่ …… / …… / ………</span></div>)}
         </footer>
         <div className="attendance-report-auditline">{report.reportId} · Revision {report.revision} · Certified {formatDateTime(report.certifiedAt)} · SHA-256 {report.summaryDigest}</div>
         <div className="attendance-report-page-number">หน้า {pageIndex + 1} / {employeePages.length}</div>
@@ -328,4 +340,4 @@ export function AttendanceOfficialReportPrint({ report, employeePages = groupByE
   </section>;
 }
 
-export const attendanceReportPresentation = { formatDate, formatDateTime, formatTime, durationText, resultText, employeeSummary, groupByEmployee, monthDayRows, monthSummary, shiftCell, totalWorkedMinutes };
+export const attendanceReportPresentation = { formatDate, formatDateTime, formatTime, durationText, resultText, employeeSummary, groupByEmployee, monthDayRows, monthSummary, dayTimes, totalWorkedMinutes };

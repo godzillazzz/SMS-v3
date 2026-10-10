@@ -66,7 +66,11 @@ describe('Official Attendance report presentation', () => {
     ], '2026-08');
     expect(days).toHaveLength(31);
     expect(days[0].dateLabel).toContain('01/08/2569');
+    expect(days[0].dateText).toBe('01/08/2569');
+    expect(days[0].weekday).toBe('เสาร์');
     expect(days[0].rows).toHaveLength(2);
+    expect(attendanceReportPresentation.dayTimes(days[0].rows, 'checkIn')).toHaveLength(2);
+    expect(attendanceReportPresentation.dayTimes([], 'checkOut')).toEqual(['—']);
     expect(days[0].workedMinutes).toBe(780);
     expect(days[0].notes).toContain('มาสาย');
     expect(days[1].rows).toEqual([]);
@@ -82,9 +86,11 @@ describe('Official Attendance report presentation', () => {
     const source = readFileSync(new URL('./pages/reports/AttendanceOfficialReport.tsx', import.meta.url), 'utf8');
     const styles = readFileSync(new URL('./styles/attendance-report.css', import.meta.url), 'utf8');
     expect(source).toContain('/brand/sms-logo-horizontal.webp');
-    expect(source).toContain('กะงาน (1) · เวลาเข้า/ออก');
-    expect(source).toContain('หัวหน้าหน่วยงาน (ผู้ตรวจสอบ)');
-    expect(source).toContain('ผู้จัดการแผนก');
+    for (const label of ['ลำดับ', 'วันที่', 'วัน', 'เวลาเข้า', 'เวลาออก', 'ชั่วโมงทำงาน', 'หมายเหตุ']) expect(source).toContain(`<th>${label}</th>`);
+    expect(source).toContain('attendance-report-employee-column');
+    expect(source).toContain('ประจำเดือน {formatThaiMonth(report.period)}');
+    expect(source).toContain('ไม่มีข้อมูลใน Snapshot');
+    expect(source).toContain("['พนักงาน', 'หัวหน้าหน่วยงาน', 'ฝ่ายบุคคล']");
     expect(source).toContain('ฝ่ายบุคคล');
     expect(source).not.toMatch(/\bOT\b|ค่าล่วงเวลา|เบี้ยเลี้ยง|ค่าพาหนะ|ค่าเดินทาง|ค่าตำแหน่ง|employee\.phone/);
     expect(source).toContain("{ orientation: 'portrait', margin: '0' }");
