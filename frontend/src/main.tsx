@@ -60,7 +60,7 @@ import './styles.css';
 import './design-system.css';
 import './styles/dashboard.css';
 import { DashboardPage } from './pages/dashboard/DashboardPage';
-import { DashboardDetailsPage } from './pages/dashboard/DashboardDetailsPage';
+
 import { WorkflowCommandPalette } from './components/WorkflowCommandPalette';
 import { defaultAuditFilters, type AuditFilters } from './components/audit/audit-types';
 import type { DataQualityFilters, DataQualityIssue } from './pages/data-quality/DataQualityCenterPage';
@@ -113,6 +113,8 @@ import './styles/schedule-roster-ux.css';
 import './styles/layout-foundation.css';
 import './styles/personnel-layout.css';
 import './styles/system-layout-group4.css';
+
+const DashboardDetailsPage = React.lazy(() => import('./pages/dashboard/DashboardDetailsPage').then((module) => ({ default: module.DashboardDetailsPage })));
 
 const APPROVAL_REVIEWER_ROLES = ['ADMIN', 'MANAGER', 'SUPERVISOR'] as const;
 const APPROVAL_COUNT_MENU_ROLES: Readonly<Record<string, readonly string[]>> = Object.freeze({
