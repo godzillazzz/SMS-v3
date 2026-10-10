@@ -17,7 +17,7 @@ describe('CFG-08 Attendance Device Administration', () => {
   it('keeps Admin revoke reason-required and renders history and audit context', () => {
     const page = read('./pages/attendance-device/AttendanceDevicePage.tsx');
     expect(page).not.toContain('CFG-08 · ADMIN');
-    expect(page).toContain('อุปกรณ์ลงเวลา</p><h1>อุปกรณ์ลงเวลา');
+    expect(page).toContain('<PageHeader kicker="บุคลากรและสิทธิ์" title="อุปกรณ์ลงเวลา"');
     expect(page).toContain('ประวัติอุปกรณ์');
     expect(page).toContain('ประวัติเหตุการณ์');
     expect(page).toContain('การยืนยันอุปกรณ์');

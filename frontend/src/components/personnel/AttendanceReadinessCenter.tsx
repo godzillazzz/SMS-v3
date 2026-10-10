@@ -1,3 +1,4 @@
+import { SectionCard } from '../layout';
 import { useEffect, useMemo, useState } from 'react';
 import { api } from '../../api';
 
@@ -83,11 +84,9 @@ export function AttendanceReadinessCenter({ token, enabled, onReadinessChange }:
 
   if (!enabled) return null;
 
-  return <section className="attendance-readiness-center" aria-labelledby="attendance-readiness-center-title">
+  return <SectionCard className="attendance-readiness-center" kicker="ข้อมูลจากระบบ" title="ความพร้อมก่อนเริ่มลงเวลา" description="ตรวจข้อมูลตามข้อกำหนดก่อนใช้งาน ไม่แทนผลตรวจบนอุปกรณ์จริง">
     <div className="attendance-readiness-center__heading">
       <div>
-        <p className="eyebrow">Attendance Readiness</p>
-        <h2 id="attendance-readiness-center-title">ความพร้อมก่อนเริ่มลงเวลา</h2>
         {loading ? <p className="attendance-readiness-center__summary" role="status">กำลังตรวจความพร้อม…</p>
           : error ? <p className="attendance-readiness-center__summary" role="status">ตรวจสอบความพร้อมไม่ได้</p>
             : data ? <><p className="attendance-readiness-center__summary" data-testid="readiness-summary">พร้อม {data.summary.ready} · ไม่พร้อม {data.summary.notReady}</p><small className="attendance-readiness-center__coverage">ผลตรวจที่ระบบส่ง {data.summary.total} รายการ{data.summary.total === data.limitedTo ? ` · สูงสุด ${data.limitedTo} รายการต่อครั้ง` : ''}</small></>
@@ -121,5 +120,5 @@ export function AttendanceReadinessCenter({ token, enabled, onReadinessChange }:
             {data.summary.total === data.limitedTo && <small className="attendance-readiness-center__limit">ระบบส่งผลตรวจสูงสุด {data.limitedTo} รายการต่อครั้ง</small>}
           </> : null}
     </div>
-  </section>;
+  </SectionCard>;
 }
