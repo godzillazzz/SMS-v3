@@ -1,3 +1,43 @@
+# CURRENT CHECKPOINT — 2026-10-10 2026-10-10 14:44:46 ICT
+
+This checkpoint supersedes older status snapshots below. Historical entries remain for audit history; consult this section for current status.
+
+Integration application SHA: `451e667bf52541f9eba74383facbc5043c3936d2` (after T31 / PR #597).
+Trusted Main remains `ca9b3d12d67be10297ac98f5668e2cfeab74b4b4`. No Trusted Main integration or release was attempted.
+
+| Category | Work | Current status and evidence |
+|---|---|---|
+| COMPLETED DEVELOPMENT | T30b Groups 1–4 | PRs #593–#596 are merged to Integration. Group 3 #595 merge `d04dd19cb69a4a3b3c66a7cbaf2f26f11bdd1882`, exact PR CI [#38018555424](https://github.com/godzillazzz/SMS-v3/actions/runs/38018555424), post-merge CI [#38033790099](https://github.com/godzillazzz/SMS-v3/actions/runs/38033790099), Preview `dpl_4bnuX3BPJf9xB5jyGNruqXQkebFR` READY / target null. Group 4 #596 merge `321647e381e76819d78966ad9aa555cc12f80a66`, exact PR CI [#38021214253](https://github.com/godzillazzz/SMS-v3/actions/runs/38021214253), post-merge CI [#38034121955](https://github.com/godzillazzz/SMS-v3/actions/runs/38034121955), Preview `dpl_8M6DaPuzrLnYxqcRSRxaAo9QpXWc` READY / target null. |
+| COMPLETED DEVELOPMENT / READY FOR FINAL UAT | T31 monthly timesheet | PR #597 merged as `451e667bf52541f9eba74383facbc5043c3936d2`; exact PR CI [#38034542272](https://github.com/godzillazzz/SMS-v3/actions/runs/38034542272), post-merge Integration CI [#38035040809](https://github.com/godzillazzz/SMS-v3/actions/runs/38035040809). Exact Preview `dpl_6EQLGfQgveFok371MXTkTogYS547`, target null. Evidence: frontend 949/949; Playwright 120/120; PDF 2/2; root unit 190 pass / 0 fail / 7 existing skips; integration 3/3. A4 portrait; one employee per page; 28/29/30/31-day cases; Bangkok overnight 20:00→01:00 pairing; blue/mint form with horizontal SMS logo and signature blocks; Certified Snapshot fail-closed; ADMIN/SUPERVISOR report access, MANAGER/VIEWER 403, supervisor scope rechecked server-side; workbook Admin-only. No schema/migration. These are development and automated regression results, not Hosted/Business/Physical acceptance. |
+| BLOCKED | T08 approval details | Owner Windows worktree `fix/t08-approval-details-1008` is inaccessible from this managed runtime, which also has no Git checkout. No WIP was overwritten, recreated, or checkpointed. Owner must make that existing worktree/repository available for a safe checkpoint and continuation. |
+| READY FOR FINAL UAT | G06 Attendance core; Employee License; Q13B/Q13C; G07 Shift Master | Current source/contract evidence is recorded in historical audit below. No new verified Development defect was found. Hosted mutation, physical iPhone/PWA, geofence/offline and business acceptance remain deferred until Feature Freeze and verified disposable isolation. |
+| BLOCKED / PARTIAL | T18 / T24 | Observability Plus / sanitized latency-region telemetry is unavailable; no measured tuning change is justified. |
+| BLOCKED | T19 | PR #530 needs Owner-approved metric/action → destination/query/filter mapping; do not invent a mapping or use incomplete client-side pagination filtering. |
+| DEFERRED UNTIL FEATURE FREEZE | T20 / final Hosted UAT harness | PR #546 remains proposal-only. Continue feature-specific regression with existing test infrastructure; do not create a new UAT harness or run Hosted UAT before Feature Freeze. |
+| UNCHANGED | PR #589 / #590 | Both remain open/draft. No UAT harness merge or execution occurred. |
+
+### Governance and deployment checkpoint
+
+- Effective Ruleset [20230372](https://github.com/godzillazzz/SMS-v3/rules/20230372) is active for `main` only. It requires `validate`, zero approvals under Solo-Owner Policy, and prevents deletion/non-fast-forward updates; there are no bypass actors. GitHub reports `main protected=true`; Integration reports `protected=false`. No Independent Review is claimed.
+- Owner-confirmed Vercel settings: Production Branch `vercel-production-manual`; Integration `fix/serverless-database-reliability`; Custom Production domain auto-assignment disabled; `sms-v3-staging-ten.vercel.app` uses `gitBranch=null`.
+- After T31, Integration Preview deployment `dpl_3dbfrgSAwuiHZKupC9RNoDnogmak` is READY, target null, exact ref/SHA `fix/serverless-database-reliability` / `451e667bf52541f9eba74383facbc5043c3936d2`.
+- Production remains R5-B deployment `dpl_Hjo1fTmgjEdmg5G7fZBX9gssenQP`, application SHA `77641a2657aa4fd05276afe645dd32648f5cc56b`, READY / target Production. Canonical aliases `sms-v3-staging-godzillazzz.vercel.app` and `sms-v3-staging-ten.vercel.app` remain attached to that deployment. No Production deploy, promotion, rollback, alias, database, schema, account, or business-data mutation occurred.
+- #595–#597 diffs contained no Actions workflows, Production release manifests, or CI guard paths. Existing Production deploy/promote workflows are manual dispatch; legacy push/path filters do not match these diffs.
+
+### Open Issue source audit — 2026-10-10
+
+| Category | Issue | Source status / remaining work |
+|---|---|---|
+| READY FOR FINAL UAT (development implementation present) | [#551 dual-entry approvals](https://github.com/godzillazzz/SMS-v3/issues/551) | Current Integration has native approval routes, role-gated menu counts mapped from all nine backend `summary.byType` categories, non-duplicating grouped totals, 99+ display and loading/error/accessibility state; `approval-count-badge.test.ts` covers menu mapping, zero, errors and cap. Keep the Issue open for the wider cross-entry, role, concurrency and desktop/mobile authenticated browser acceptance; do not mark business acceptance from CI. |
+| READY FOR FINAL UAT (development labels present) | [#552 Classic Roster](https://github.com/godzillazzz/SMS-v3/issues/552) | Current Integration renders `MANUAL`, `OVERRIDE` and `License Block` state labels from shift fields. The Issue remains open for its saved/draft state matrix, real browser computed-contrast checks across light/dark desktop/mobile and acceptance evidence; no Production data or policy change. |
+
+### Remaining development order
+
+1. T08 when the Owner’s existing worktree is accessible; preserve its data and avoid speculative schedule revision or schema changes.
+2. Resolve T19 only with the approved KPI mapping; obtain telemetry before T18/T24 tuning.
+3. Continue only proven defects in G06, Employee License, Q13B/Q13C, G07 and open issues. Current source audit found no safe code defect to patch blindly. Keep Hosted/Physical/Business acceptance after Feature Freeze.
+4. Keep #589/#590 unchanged under the present development priority. Do not merge to Trusted Main as part of this feature batch.
+
 # SMS-v3 — CURRENT PROJECT BACKLOG / ทะเบียนงานค้าง
 
 **Snapshot:** 2026-10-10 (Asia/Bangkok), after R5-B protected Production SUCCESS.
