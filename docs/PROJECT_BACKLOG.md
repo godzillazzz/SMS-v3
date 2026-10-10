@@ -1,3 +1,26 @@
+# CURRENT CHECKPOINT — T08 recovery / T18-T24 measurement — 2026-10-11 06:29 ICT
+
+This checkpoint supersedes the prior T19 execution checkpoint below. Live repository and runtime state was rechecked on 2026-10-10 UTC at approximately 23:26. This records development readiness only; Final Hosted, Business, and Physical UAT remain deferred until Feature Freeze.
+
+**Integration:** `fix/serverless-database-reliability` HEAD `2370e6000b5e6671d5935c897def92215f2214bb`. PR [#602](https://github.com/godzillazzz/SMS-v3/pull/602) is merged. Exact post-merge Integration `validate` run [#38093932090](https://github.com/godzillazzz/SMS-v3/actions/runs/38093932090) completed SUCCESS on this SHA. Vercel Preview [`dpl_GHQhW7XH4Jy4sGWSdAgjXkD9hfCq`](https://vercel.com/godzillazz/sms-v3-staging/GHQhW7XH4Jy4sGWSdAgjXkD9hfCq) is READY, target `null`, for project `prj_XwhNUOB2zLSPZ6UgQcfyOKBYJ75s`, Integration ref and the exact SHA above. This is not Hosted UAT.
+
+**T08 access:** The available mounted checkout is local `main` at `ca9b3d12d67be10297ac98f5668e2cfeab74b4b4`, with 559 staged deletions and an untracked `.worktrees/` entry. Read-only `git worktree list --porcelain`, `git branch -a --list '*t08*'`, and a path search under `.worktrees` found no T08 worktree, branch, or folder. The separate Owner Windows checkout referenced in older handoff records is not mounted here, so its current WIP cannot be inspected. No checkpoint, branch, reset, stash, cleanup, or file write was made in that checkout. T08 remains blocked pending access to the original WIP; do not recreate or overwrite it.
+
+**T18/T24 runtime evidence:** Read-only Vercel Runtime Logs queries on the Production environment at approximately 2026-10-10 23:26 UTC, grouped by source and request path over the latest 50 minutes, returned no records. The 24-hour runtime-error query returned no runtime errors. The Observability Plus configuration endpoint returned 404 (not enabled); the percentile-metric query attempt returned no result. No new sample supports p50/p95, request error rate, or slow-route ranking. Do not interpret the empty/error-log result as zero request errors. No synthetic Production traffic was generated. The latest documented historical sample remains the earlier 23 naturally occurring requests (p50 5,389.08 ms / p95 8,688.78 ms / max 10,411.21 ms; 0/23 5xx across about 2m07s); it is too small and narrow to establish an SLO. Deployment metadata reports region `iad1`; database provider region/pooling, cold-start contribution, API latency distribution, and frontend Web Vitals are UNKNOWN. No evidenced source defect was found, so no T18/T24 code change or feature PR was created.
+
+**Production preservation:** Read-only Vercel inspection still shows Production R5-B deployment `dpl_Hjo1fTmgjEdmg5G7fZBX9gssenQP`, READY / target `production`, application SHA `77641a2657aa4fd05276afe645dd32648f5cc56b`. Aliases `sms-v3-staging-godzillazzz.vercel.app` and `sms-v3-staging-ten.vercel.app` remain on that deployment. No Production deployment, promotion, rollback, alias, data, or schema change was made. PRs [#589](https://github.com/godzillazzz/SMS-v3/pull/589) and [#590](https://github.com/godzillazzz/SMS-v3/pull/590) remain OPEN/DRAFT; Final Hosted UAT remains deferred.
+
+| Status | Work | Current verified state |
+|---|---|---|
+| COMPLETED DEVELOPMENT / READY FOR FINAL UAT | T19 Dashboard Deep Link | PR #602 merged at the Integration SHA above; exact post-merge CI and Preview passed. No Hosted or Business UAT is claimed. |
+| BLOCKED | T08 Approval Details | Original Owner WIP/worktree is inaccessible from this mounted environment. Resume only after safely inspecting and checkpointing the original files. No Schedule Revision Diff or schema/migration was added. |
+| PARTIAL — MEASUREMENT BLOCKED | T18 / T24 Performance | No current runtime records or percentile results were available; prior 23-request sample remains insufficient for SLO claims. Cold Start, DB, API, and frontend attribution are UNKNOWN. No optimization is justified yet. |
+| DEFERRED UNTIL FEATURE FREEZE | Final Hosted / Business / Physical UAT | No such acceptance was run during this checkpoint. |
+
+**Next safe actions:** make the original T08 worktree available and quiesce any writer before creating a checkpoint; for T18/T24, collect additional naturally occurring sanitized samples or use the existing per-instance Admin system-health readout when an authorized session is available. Keep these observations read-only and do not purchase or enable paid telemetry as part of this checkpoint.
+
+---
+
 # CURRENT CHECKPOINT — T19 execution, 2026-10-10 21:05 ICT
 
 This checkpoint supersedes the prior snapshots below. Integration `fix/serverless-database-reliability` remains at `f6ecd99d2037725acf383791d8a7c3f225880a3d`. Owner-approved T19 implementation is in open PR [#602](https://github.com/godzillazzz/SMS-v3/pull/602), exact head `64cd7fac16b7d05d517f666a8e101fdae6f46ca7`, based on that Integration SHA.
