@@ -40,6 +40,7 @@ html[data-theme] .app-shell .content-area .layout-page-surface.nexus-command .ne
 }
 html[data-theme] .app-shell .content-area .layout-page-surface.nexus-command .nexus-hero-status strong { color: var(--color-text) !important; }
 html[data-theme] .app-shell .content-area .layout-page-surface.nexus-command .nexus-kicker { color: var(--color-primary, #5145cd) !important; font-family: var(--layout-body-font); letter-spacing: .04em; }
+html[data-theme="light"] .app-shell .content-area .layout-page-surface.nexus-command .nexus-kicker { color: #006b82 !important; }
 html[data-theme] .app-shell .content-area .layout-page-surface.nexus-command :is(.nexus-panel,.nexus-stream,.nexus-readiness,.nexus-activity) {
   color: var(--color-text) !important;
   background: var(--color-surface) !important;

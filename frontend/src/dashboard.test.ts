@@ -56,6 +56,11 @@ describe('executive dashboard contract', () => {
     expect(styles).toContain('dashboard-secondary-metrics');
   });
 
+  it('keeps the light-theme dashboard kicker above WCAG AA text contrast', () => {
+    const layout = read('styles/system-layout-group4.css');
+    expect(layout).toContain('html[data-theme="light"] .app-shell .content-area .layout-page-surface.nexus-command .nexus-kicker { color: #006b82 !important; }');
+  });
+
   it('formats dashboard counts with Thai number formatting', () => {
     expect(formatMetric(1234)).toMatch(/[0-9๑-๙],[0-9๑-๙]{3}/);
   });
