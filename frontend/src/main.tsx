@@ -60,6 +60,8 @@ import './styles.css';
 import './design-system.css';
 import './styles/dashboard.css';
 import { DashboardPage } from './pages/dashboard/DashboardPage';
+
+
 import { WorkflowCommandPalette } from './components/WorkflowCommandPalette';
 import { defaultAuditFilters, type AuditFilters } from './components/audit/audit-types';
 import type { DataQualityFilters, DataQualityIssue } from './pages/data-quality/DataQualityCenterPage';
@@ -68,7 +70,7 @@ import { initialSmsPwaPage, isSmsPwaPage, isSmsPwaShellMode, type SmsPwaPage } f
 import { registerSmsPwa } from './pwa';
 import { canLoadAccessManagement } from './components/access-management/access-management-utils';
 import type { DashboardFilters } from './components/dashboard/types';
-import { LicenseEditModal, LicenseTableDocumentColumns } from './components/LicenseDocuments';
+
 import { DataTablePagination, ResponsiveDataTable } from './components/ResponsiveDataTable';
 import { DataTableSkeletonCards, DataTableSkeletonRows, DataTableState } from './components/ResponsiveDataTable';
 import type { OperationalDrawerAction } from './components/OperationalRecordDrawer';
@@ -112,6 +114,11 @@ import './styles/schedule-roster-ux.css';
 import './styles/layout-foundation.css';
 import './styles/personnel-layout.css';
 import './styles/system-layout-group4.css';
+
+const DashboardDetailsPage = React.lazy(() => import('./pages/dashboard/DashboardDetailsPage').then((module) => ({ default: module.DashboardDetailsPage })));
+const LicenseTableDocumentColumns = React.lazy(() => import('./components/LicenseDocuments').then((module) => ({ default: module.LicenseTableDocumentColumns })));
+const LicenseEditModal = React.lazy(() => import('./components/LicenseDocuments').then((module) => ({ default: module.LicenseEditModal })));
+
 
 const APPROVAL_REVIEWER_ROLES = ['ADMIN', 'MANAGER', 'SUPERVISOR'] as const;
 const APPROVAL_COUNT_MENU_ROLES: Readonly<Record<string, readonly string[]>> = Object.freeze({
@@ -905,7 +912,7 @@ function EmployeeMagicWandModal({
   );
 }
 
-type OperationalPage = Exclude<Page, 'dashboard' | 'employees' | 'approvalCenter' | 'attendance' | 'attendanceSupervisor' | 'attendanceHistory' | 'employeeSchedule' | 'attendanceDevice' | 'profile' | 'reportCenter' | 'reports' | 'executiveReport' | 'attendanceReport' | 'shiftSetup' | 'securitySite' | 'settings' | 'leavePending' | 'leaveHistory' | 'dataQuality' | 'systemHealth'>;
+type OperationalPage = Exclude<Page, 'dashboard' | 'dashboardDetails' | 'employees' | 'approvalCenter' | 'attendance' | 'attendanceSupervisor' | 'attendanceHistory' | 'employeeSchedule' | 'attendanceDevice' | 'profile' | 'reportCenter' | 'reports' | 'executiveReport' | 'attendanceReport' | 'shiftSetup' | 'securitySite' | 'settings' | 'leavePending' | 'leaveHistory' | 'dataQuality' | 'systemHealth'>;
 
 const tablePages: Record<OperationalPage, { title: string; eyebrow: string; description: string; columns: Array<{ label: string; value: (row: DataRow) => React.ReactNode }> }> = {
   licenses: { title: 'ใบอนุญาตพนักงาน', eyebrow: 'จัดการบุคลากร', description: 'ตรวจสอบประเภท เลขที่ สถานะ และวันหมดอายุใบอนุญาต', columns: [
@@ -1640,9 +1647,9 @@ function Dashboard() {
     return route.kind === 'page' ? route.page : 'dashboard';
   });
   const [activeSettingsSection, setActiveSettingsSection] = useState<SettingsSectionId>(() => settingsSectionFromPath(window.location.pathname));
-  const setActivePage = (page: Page) => {
+  const setActivePage = (page: Page, query?: Record<string, string | undefined>, preserveQuery = query === undefined) => {
     applyRoutePage(page, false);
-    if (!pwaShell) navigate(page);
+    if (!pwaShell) navigate(page, { query, preserveQuery });
   };
   const setSettingsSection = (section: SettingsSectionId) => {
     setActivePageState('settings');
@@ -1778,7 +1785,14 @@ function Dashboard() {
   const [dashboardSummary, setDashboardSummary] = useState<DataRow>({});
   const [dashboardLoading, setDashboardLoading] = useState(false);
   const [dashboardError, setDashboardError] = useState<RequestErrorInput>();
-  const [dashboardFilters, setDashboardFilters] = useState<DashboardFilters>(() => { const date = bangkokDateInput(); return { date, month: date.slice(0, 7), department: '' }; });
+  const [dashboardFilters, setDashboardFilters] = useState<DashboardFilters>(() => {
+    const params = new URLSearchParams(window.location.search);
+    const requestedDate = params.get('date');
+    const date = requestedDate && /^\d{4}-\d{2}-\d{2}$/.test(requestedDate) ? requestedDate : bangkokDateInput();
+    const requestedMonth = params.get('month');
+    const month = requestedMonth && /^\d{4}-(0[1-9]|1[0-2])$/.test(requestedMonth) ? requestedMonth : date.slice(0, 7);
+    return { date, month, department: params.get('department') || '' };
+  });
   const [scheduleMonth, setScheduleMonth] = useState(() => routeQueryMonth() || currentBangkokMonth());
   const [leaveMonth, setLeaveMonth] = useState(readLeaveMonthFromUrl);
   const [quotaYear, setQuotaYear] = useState(currentBangkokQuotaYear);
@@ -1796,6 +1810,13 @@ function Dashboard() {
     setActiveSettingsSection(settingsSectionFromPath(window.location.pathname));
     const params = new URLSearchParams(window.location.search);
     if (!pwaShell) setOperationPage(params.has('page') ? routeQueryNumber('page') : 1);
+    if (page === 'dashboard') {
+      const requestedDate = params.get('date');
+      const date = requestedDate && /^\d{4}-\d{2}-\d{2}$/.test(requestedDate) ? requestedDate : bangkokDateInput();
+      const requestedMonth = params.get('month');
+      const month = requestedMonth && /^\d{4}-(0[1-9]|1[0-2])$/.test(requestedMonth) ? requestedMonth : date.slice(0, 7);
+      setDashboardFilters({ date, month, department: params.get('department') || '' });
+    }
     if (page === 'schedule') {
       const month = routeQueryMonth();
       if (month) setScheduleMonth(month);
@@ -2110,14 +2131,14 @@ function Dashboard() {
   }, [activePage, auth.token, auth.user?.id, auth.user?.role, operationPage, dataQualityPageSize, dataQualityFilters, operationRefresh]);
 
   useEffect(() => {
-    if (!auth.token || activePage === 'dashboard' || activePage === 'employees' || activePage === 'approvalCenter' || activePage === 'attendance' || activePage === 'attendanceSupervisor' || activePage === 'attendanceHistory' || activePage === 'employeeSchedule' || activePage === 'attendanceDevice' || activePage === 'profile' || activePage === 'shiftSetup' || activePage === 'schedule' || activePage === 'audit' || activePage === 'dataQuality' || activePage === 'systemHealth' || activePage === 'reportCenter' || activePage === 'reports' || activePage === 'executiveReport' || activePage === 'attendanceReport' || activePage === 'securitySite') return;
+    if (!auth.token || activePage === 'dashboard' || activePage === 'dashboardDetails' || activePage === 'employees' || activePage === 'approvalCenter' || activePage === 'attendance' || activePage === 'attendanceSupervisor' || activePage === 'attendanceHistory' || activePage === 'employeeSchedule' || activePage === 'attendanceDevice' || activePage === 'profile' || activePage === 'shiftSetup' || activePage === 'schedule' || activePage === 'audit' || activePage === 'dataQuality' || activePage === 'systemHealth' || activePage === 'reportCenter' || activePage === 'reports' || activePage === 'executiveReport' || activePage === 'attendanceReport' || activePage === 'securitySite') return;
     if (activePage === 'users' && !canLoadAccessManagement(auth.user?.role || 'VIEWER')) {
       setOperationLoading(false);
       setOperationError(undefined);
       setOperationResponse({ data: [] });
       return;
     }
-    const loaders: Record<Exclude<Page, 'dashboard' | 'employees' | 'approvalCenter' | 'attendance' | 'attendanceSupervisor' | 'attendanceHistory' | 'employeeSchedule' | 'attendanceDevice' | 'profile' | 'shiftSetup' | 'schedule' | 'dataQuality' | 'systemHealth' | 'reportCenter' | 'reports' | 'executiveReport' | 'attendanceReport' | 'securitySite'>, (token: string, page: number) => Promise<DataResponse>> = {
+    const loaders: Record<Exclude<Page, 'dashboard' | 'dashboardDetails' | 'employees' | 'approvalCenter' | 'attendance' | 'attendanceSupervisor' | 'attendanceHistory' | 'employeeSchedule' | 'attendanceDevice' | 'profile' | 'shiftSetup' | 'schedule' | 'dataQuality' | 'systemHealth' | 'reportCenter' | 'reports' | 'executiveReport' | 'attendanceReport' | 'securitySite'>, (token: string, page: number) => Promise<DataResponse>> = {
       licenses: api.licenses, approvals: api.scheduleApprovals,
       rules: api.schedulingRules, leave: api.leaveRequests, leavePending: api.leaveRequests, leaveHistory: api.leaveRequests, quota: api.leaveQuotas,
       users: api.users, audit: api.auditEvents, settings: api.systemSettings
@@ -2177,9 +2198,10 @@ function Dashboard() {
 
   const parentPage: Partial<Record<Page, Page>> = { executiveReport: 'reportCenter', reports: 'reportCenter', attendanceReport: 'reportCenter' };
   const navigationPage = parentPage[activePage] || activePage;
-  const pageTitle = activePage === 'profile' ? 'โปรไฟล์' : activePage === 'attendanceHistory' ? 'ประวัติการลงเวลา' : activePage === 'employeeSchedule' ? 'ตารางงาน' : navigation.flatMap((section) => section.items).find((item) => item.id === navigationPage)?.label || tablePages[activePage as keyof typeof tablePages]?.title || 'ภาพรวม';
+  const pageTitle = activePage === 'dashboardDetails' ? 'รายละเอียดตัวชี้วัด' : activePage === 'profile' ? 'โปรไฟล์' : activePage === 'attendanceHistory' ? 'ประวัติการลงเวลา' : activePage === 'employeeSchedule' ? 'ตารางงาน' : navigation.flatMap((section) => section.items).find((item) => item.id === navigationPage)?.label || tablePages[activePage as keyof typeof tablePages]?.title || 'ภาพรวม';
   const pageSubtitle: Record<Page, string> = {
     dashboard: 'ภาพรวมตัวชี้วัดและสถานะการปฏิบัติงาน',
+    dashboardDetails: 'รายการจากตัวชี้วัดที่กรองและนับบนเซิร์ฟเวอร์',
     employees: 'ข้อมูลพนักงานและใบอนุญาตปฏิบัติงาน',
     approvalCenter: 'รวมงานอนุมัติและตรวจสอบที่คุณต้องดำเนินการจากทุกโมดูล',
     licenses: 'ทะเบียนใบอนุญาตของพนักงาน',
@@ -2611,8 +2633,14 @@ function Dashboard() {
     }
     finally { setOperationLoading(false); }  };
 
+  const updateDashboardFilters = (next: Partial<DashboardFilters>) => {
+    const updated = { ...dashboardFilters, ...next };
+    setDashboardFilters(updated);
+    updateRouteQuery({ date: updated.date, month: updated.month, department: updated.department });
+  };
   const content = () => {
-    if (activePage === 'dashboard') return <DashboardPage summary={dashboardSummary} loading={dashboardLoading} error={dashboardError} user={auth.user} canManage={canManage} filters={dashboardFilters} pendingApprovalCount={approvalMenuCount('approvalCenter', approvalSummary)} onOpenApprovalCenter={() => setActivePage('approvalCenter')} onFiltersChange={(next) => setDashboardFilters((current) => ({ ...current, ...next }))} onNavigate={setActivePage} />;
+    if (activePage === 'dashboardDetails') return <DashboardDetailsPage token={auth.token} onBack={() => setActivePage('dashboard', { date: dashboardFilters.date, month: dashboardFilters.month, department: dashboardFilters.department }, false)} />;
+    if (activePage === 'dashboard') return <DashboardPage summary={dashboardSummary} loading={dashboardLoading} error={dashboardError} user={auth.user} canManage={canManage} filters={dashboardFilters} pendingApprovalCount={approvalMenuCount('approvalCenter', approvalSummary)} onOpenApprovalCenter={() => setActivePage('approvalCenter', undefined, false)} onFiltersChange={updateDashboardFilters} onNavigate={(page, query) => setActivePage(page, query, false)} />;
     // The former inline dashboard is intentionally disabled. DashboardPage above
     // is the only runtime dashboard presentation.
     if (false) {

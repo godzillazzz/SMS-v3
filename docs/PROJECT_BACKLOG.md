@@ -1,3 +1,21 @@
+# CURRENT CHECKPOINT — T19 execution, 2026-10-10 21:05 ICT
+
+This checkpoint supersedes the prior snapshots below. Integration `fix/serverless-database-reliability` remains at `f6ecd99d2037725acf383791d8a7c3f225880a3d`. Owner-approved T19 implementation is in open PR [#602](https://github.com/godzillazzz/SMS-v3/pull/602), exact head `64cd7fac16b7d05d517f666a8e101fdae6f46ca7`, based on that Integration SHA.
+
+Exact `validate` run [#38057729660](https://github.com/godzillazzz/SMS-v3/actions/runs/38057729660) completed with failure only at `Verify integration PR Preview health, readiness, and CORS` (`PREVIEW_RUNTIME_FAILED=EXACT_HEAD_VERCEL_PREVIEW_NOT_READY`). Browser, dependency/security audits, Prisma, backend and frontend suites, typecheck, production build, unchanged frontend bundle budget and repository-hygiene checks passed. Vercel reports `build-rate-limit` for the current head and no Preview deployment exists for this SHA; prior-SHA Previews are not exact-head evidence. PR #602 is not merged. Stale PR #530 remains untouched.
+
+The active Main ruleset is [20230372](https://github.com/godzillazzz/SMS-v3/rules/20230372): it targets `main`, requires `validate`, requires 0 approvals under the Owner-approved Solo-Owner policy, and blocks deletion/non-fast-forward. This does not claim an Independent Review. Integration remains subject to the manually enforced exact CI and Preview release gates for this PR.
+
+Production R5-B remains `dpl_Hjo1fTmgjEdmg5G7fZBX9gssenQP`, application SHA `77641a2657aa4fd05276afe645dd32648f5cc56b`; read-only alias inspection still shows `sms-v3-staging-godzillazzz.vercel.app` and canonical `sms-v3-staging-ten.vercel.app` on that deployment. No Production deployment, promotion, rollback, alias/settings change, database/schema/data mutation occurred. Hosted, Business and Physical UAT remain deferred until Feature Freeze.
+
+**Next T19 gate:** restore Vercel Preview build availability (or wait for its rate limit to reset), then require a Preview identifying the latest PR #602 SHA and a green full `validate` run before merging to Integration.
+
+| Category | Work | Current verified status |
+|---|---|---|
+| IN PROGRESS / EXACT PREVIEW GATE BLOCKED | T19 Dashboard Deep Link | Owner-approved KPI predicates, authenticated server-side filtering/count parity, role scope, URL synchronization and regressions are implemented in PR #602 at `64cd7fac16b7d05d517f666a8e101fdae6f46ca7`. Exact validate #38057729660 passed all code/build/bundle/hygiene steps and failed only because the exact-head Vercel Preview is not ready; Vercel status is `build-rate-limit`, with no deployment for this SHA. Do not merge until exact-SHA Preview and full validate pass. #530 remains stale/open/draft and untouched. |
+| BLOCKED | T08 | The mounted local checkout still contains Owner work (559 staged deletions plus untracked `.worktrees/`). No cleanup, reset, stash or write was performed. The separate T08 worktree is not accessible in this environment. |
+| READY FOR FINAL UAT AFTER FEATURE FREEZE | Final Hosted / Business / Physical UAT | Deferred per Owner direction; no Hosted UAT was run. |
+
 # CURRENT CHECKPOINT — 2026-10-10 15:54 ICT
 
 This checkpoint supersedes prior status snapshots below. GitHub/Vercel state was rechecked through 2026-10-10 08:54 UTC; the Production telemetry query covered the exact deployment and a 30-minute lookback. Older entries remain historical evidence only.

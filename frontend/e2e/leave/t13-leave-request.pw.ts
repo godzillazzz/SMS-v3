@@ -53,6 +53,12 @@ async function openLeaveForm(page: Page, role: 'MANAGER' | 'VIEWER', testInfo: T
   return { requests, submitted, errors };
 }
 
+// Leave requests by employees cannot be retroactive. Fixed fixture dates will
+// eventually age into the past and disable the submit button in CI.
+function futureLeaveDate(daysAhead: number) {
+  return new Date(Date.now() + daysAhead * 86400000).toISOString().slice(0, 10);
+}
+
 async function fillRequiredLeaveFields(page: Page, startDate: string, endDate = startDate) {
   await page.getByLabel(/ประเภทการลา/).selectOption('VACATION');
   await page.getByLabel(/วันที่เริ่มต้น/).fill(startDate);
@@ -67,7 +73,9 @@ test('manager searches an employee and sees server-authoritative quota with an a
   await employeeSearch.fill('Alpha');
   await expect(page.getByRole('option', { name: 'E-100 · อัลฟา ตัวอย่าง' })).toBeVisible();
   await page.getByRole('option', { name: 'E-100 · อัลฟา ตัวอย่าง' }).click();
-  await fillRequiredLeaveFields(page, '2026-12-01', '2026-12-03');
+  const firstDay = futureLeaveDate(40);
+  const lastDay = futureLeaveDate(42);
+  await fillRequiredLeaveFields(page, firstDay, lastDay);
   const quota = page.locator('.leave-request-quota');
   await expect(quota).toContainText('สิทธิ์ทั้งหมด');
   await expect(quota).toContainText('6 วัน');
@@ -79,7 +87,7 @@ test('manager searches an employee and sees server-authoritative quota with an a
   await submit.click();
   await expect(page.getByText('ส่งคำขอลาสำเร็จแล้ว')).toBeVisible();
   expect(submitted).toHaveLength(1);
-  expect(submitted[0]).toMatchObject({ employeeId: employee.id, leaveType: 'VACATION', startDate: '2026-12-01', endDate: '2026-12-03' });
+  expect(submitted[0]).toMatchObject({ employeeId: employee.id, leaveType: 'VACATION', startDate: firstDay, endDate: lastDay });
   expect(requests.some((entry) => entry.method === 'GET' && entry.url.includes('/leave-quotas?') && entry.url.includes(`employeeId=${employee.id}`))).toBe(true);
   expect(requests.filter((entry) => entry.method === 'POST' && entry.pathname !== '/api/v1/auth/login')).toEqual(expect.arrayContaining([expect.objectContaining({ pathname: '/api/v1/leave-requests' })]));
   await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(1366);
@@ -91,7 +99,8 @@ test('employee form locks identity and omits employeeId from the request at mobi
   const { requests, submitted, errors } = await openLeaveForm(page, 'VIEWER', testInfo);
   await expect(page.getByRole('combobox', { name: /พนักงาน/ })).toHaveCount(0);
   await expect(page.locator('.leave-self-employee')).toContainText('อัลฟา ตัวอย่าง');
-  await fillRequiredLeaveFields(page, '2026-10-10');
+  const leaveDay = futureLeaveDate(30);
+  await fillRequiredLeaveFields(page, leaveDay);
   const quota = page.locator('.leave-request-quota');
   await expect(quota).toContainText('6 วัน');
   await expect(quota).toContainText('4 วัน');
@@ -100,7 +109,7 @@ test('employee form locks identity and omits employeeId from the request at mobi
   await expect(page.getByText('ส่งคำขอลาสำเร็จแล้ว')).toBeVisible();
   expect(submitted).toHaveLength(1);
   expect(submitted[0]).not.toHaveProperty('employeeId');
-  expect(submitted[0]).toMatchObject({ leaveType: 'VACATION', startDate: '2026-10-10', endDate: '2026-10-10' });
+  expect(submitted[0]).toMatchObject({ leaveType: 'VACATION', startDate: leaveDay, endDate: leaveDay });
   expect(requests.filter((entry) => entry.method === 'POST' && entry.pathname !== '/api/v1/auth/login')).toEqual(expect.arrayContaining([expect.objectContaining({ pathname: '/api/v1/leave-requests' })]));
   await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(375);
   expect(errors).toEqual([]);
