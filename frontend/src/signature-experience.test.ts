@@ -175,7 +175,7 @@ describe('SMS Signature Experience V1.1 final polish contracts', () => {
   });
 
   it('normalizes key user-facing language without weakening the accepted interaction architecture', () => {
-    expect(main).toContain('<h1>ตารางกะรายเดือน</h1>');
+    expect(main).toContain('title="ตารางกะรายเดือน"');
     expect(main).not.toContain('<h1>Schedule Calendar</h1>');
     expect(main).toContain('อนุมัติแล้ว');
     expect(main).toContain('รออนุมัติ');

@@ -14,6 +14,14 @@ describe('T30a shared layout foundation', () => {
     expect(screen.getByRole('button', { name:'เปิดรายการ' })).toBeTruthy();
     expect(screen.getByRole('region', { name:'รายการรออนุมัติ' }).textContent).toContain('12');
   });
+  it('preserves native section busy and label semantics when adopting existing workspaces', () => {
+    const {container}=render(<SectionCard kicker="การลา" title="คิวคำขอ" description="ข้อมูลตามสิทธิ์" aria-busy={true} aria-label="รายการรออนุมัติ" className="existing-workspace"><button>ตรวจคำขอ</button></SectionCard>);
+    const region=screen.getByRole('region', {name:'รายการรออนุมัติ'});
+    expect(region.getAttribute('aria-busy')).toBe('true');
+    expect(region.classList.contains('existing-workspace')).toBe(true);
+    expect(container.querySelectorAll('h2')).toHaveLength(1);
+    expect(screen.getByRole('button', {name:'ตรวจคำขอ'})).toBeTruthy();
+  });
   it('uses accessible existing SVG icons and callbacks without inventing navigation or data actions', () => {
     const click=vi.fn();
     const {container}=render(<StepFlow description="เลือกงานที่พร้อม" steps={[{id:'one',icon:'calendar',label:'ขั้นที่หนึ่ง',title:'เลือกเดือน',desc:'เดือนที่ต้องการ',onClick:click,current:true},{id:'two',icon:'check',label:'ขั้นที่สอง',title:'ตรวจรายการ',desc:'รายการครบแล้ว',completed:true}]} />);

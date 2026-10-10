@@ -47,7 +47,7 @@ describe('WAVE 4B Rule Checking responsive data surfaces', () => {
   });
 
   it('uses concise Thai copy for the Rule Checking page', () => {
-    expect(main).toContain('<p>ตรวจตารางกะกับกฎการทำงาน</p>');
+    expect(main).toContain('description="ตรวจตารางกะในเดือนที่เลือกกับกฎการทำงานจากระบบ"');
     expect(main).not.toContain('PostgreSQL แบบ read-only');
   });
 });

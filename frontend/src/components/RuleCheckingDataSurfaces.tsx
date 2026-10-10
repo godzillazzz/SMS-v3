@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { SectionCard } from './layout';
 import {
   DataTableSkeletonCards,
   DataTableSkeletonRows,
@@ -111,10 +111,9 @@ export function RuleCheckingDataSurfaces({ rules, results, violations, loading, 
     if (resultId) resultById.set(resultId, result);
     if (ruleId) resultById.set(ruleId, result);
   });
-  const violationsHeading: ReactNode = <div className="section-title"><div><h2>รายการที่ต้องแก้ไข</h2><p>{violations.length ? `พบ ${violations.length} รายการ` : 'ผ่านทุกกฎที่เปิดใช้งาน'}</p></div></div>;
   return <>
-    <RuleTable rules={rules} resultById={resultById} canManage={canManage} loading={loading} onAction={onAction} />
-    {violationsHeading}
-    <ViolationTable violations={violations} loading={loading} />
+    <SectionCard kicker="กฎการทำงาน" title="ผลตรวจสอบกฎ" description="ผลจากระบบสำหรับเดือนที่เลือก กฎที่ปิดใช้ยังแสดงสถานะตามจริง"><RuleTable rules={rules} resultById={resultById} canManage={canManage} loading={loading} onAction={onAction} /></SectionCard>
+    <SectionCard kicker="รายการขัดกฎ" title="รายการที่ต้องแก้ไข" description={violations.length ? `พบ ${violations.length} รายการ` : 'ไม่พบรายการขัดกฎในผลที่โหลด'}>
+    <ViolationTable violations={violations} loading={loading} /></SectionCard>
   </>;
 }

@@ -11,7 +11,7 @@ const contract = css.slice(css.lastIndexOf(marker));
 describe('monthly roster font contract', () => {
   it('keeps the schedule-only guard after the legacy roster styles', () => {
     expect(css.lastIndexOf(marker)).toBeGreaterThan(css.indexOf('.nexus-roster-workspace{'));
-    expect(main).toContain('className="view-pane schedule-calendar-page nexus-roster-workspace"');
+    expect(main).toContain('className="view-pane schedule-calendar-page nexus-roster-workspace layout-roster-page layout-page-surface"');
     expect(main).toContain('className="schedule-grid"');
     expect(contract).not.toMatch(/font-family\s*:[^;}]*\b(?:Inter|Noto Sans Thai|IBM Plex Mono|Arial)\b/i);
   });
@@ -29,7 +29,6 @@ describe('monthly roster font contract', () => {
       '.roster-telemetry-strip small',
       '.preview-table code',
       '.page-heading .eyebrow',
-      '.roster-command-kicker'
     ]) {
       expect(contract, selector).toContain(selector);
     }

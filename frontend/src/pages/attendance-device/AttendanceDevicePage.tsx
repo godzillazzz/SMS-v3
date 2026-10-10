@@ -413,7 +413,7 @@ export function AttendanceDevicePage({ token, role, readOnly = false, onApproval
     ? `พบข้อมูลคีย์ในอุปกรณ์นี้ แต่เบราว์เซอร์ยังยืนยันอุปกรณ์ไม่ได้: ${capabilityMessage(capability.reason)}`
     : localKeyStatusCopy(candidateKeyInspection);
 
-  return <><section className="view-pane attendance-device-page nexus-device-registry layout-personnel-page" aria-label="จัดการอุปกรณ์ลงเวลา">
+  return <><section className="view-pane attendance-device-page nexus-device-registry layout-personnel-page layout-page-surface" aria-label="จัดการอุปกรณ์ลงเวลา">
     <PageHeader kicker="บุคลากรและสิทธิ์" title="อุปกรณ์ลงเวลา" description="พนักงานหนึ่งคนใช้อุปกรณ์หลักได้หนึ่งเครื่อง การลงทะเบียนครั้งแรกและการเปลี่ยนเครื่องต้องได้รับอนุมัติจากผู้ดูแลระบบ" actions={<button type="button" className="btn-neutral small-action" disabled={busy} onClick={() => void refresh()}><SmsIcon name="refresh" size={17} />รีเฟรช</button>} />
     {!selfLoading && !selfError && <StepFlow title="สถานะอุปกรณ์ของฉัน" description="สถานะจากเซิร์ฟเวอร์และคีย์ในอุปกรณ์นี้ ไม่ใช่ผลตรวจการลงเวลา" steps={[
       {id:'register',icon:'key',label:'ขั้นที่หนึ่ง',title:'ลงทะเบียน',desc:'สร้างคำขอในอุปกรณ์ที่ต้องการใช้งาน',completed:Boolean(request || activeDevice),current:!request && !activeDevice},
