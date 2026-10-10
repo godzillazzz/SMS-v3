@@ -161,8 +161,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   margin-bottom: 18px;
   align-items: flex-start;
 }
-.page-heading h1, .signature-page-header h1, .access-page-header h1, .personnel-directory-header h1, .audit-page-header h1,
-.dashboard-hero-header h1, .leave-hero h1 {
+.page-heading h1,.signature-page-header h1,.access-page-header h1,.personnel-directory-header h1,.audit-page-header h1,.dashboard-hero-header h1 {
   margin: 0;
   color: var(--signature-text);
   font-size: clamp(25px, 2.1vw, 32px);
@@ -170,8 +169,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   letter-spacing: -.035em;
   font-weight: 650;
 }
-.page-heading p, .signature-page-header p, .access-page-header p, .personnel-directory-header p, .audit-page-header p,
-.dashboard-hero-header p, .leave-hero p {
+.page-heading p,.signature-page-header p,.access-page-header p,.personnel-directory-header p,.audit-page-header p,.dashboard-hero-header p {
   max-width: 720px;
   margin: 6px 0 0;
   color: var(--signature-text-secondary);
@@ -471,29 +469,7 @@ input::placeholder, textarea::placeholder { color: var(--signature-text-muted); 
 
 /* ---- Leave: operational, not decorative ----------------------------- */
 .leave-page { display: grid; gap: 16px; }
-.leave-hero {
-  padding: 0 0 16px !important;
-  border: 0 !important;
-  border-bottom: 1px solid var(--signature-border) !important;
-  border-radius: 0 !important;
-  background: transparent !important;
-  box-shadow: none !important;
-}
-.leave-hero > div > span { display: none; }
-.leave-hero button { min-height: 40px; border: 1px solid var(--signature-border); background: transparent; color: var(--signature-text-secondary); border-radius: 9px; }
 .leave-quota-grid { gap: 8px !important; }
-.leave-quota-card {
-  min-height: 82px !important;
-  padding: 13px 15px !important;
-  border: 1px solid var(--signature-border) !important;
-  border-left-width: 1px !important;
-  border-radius: 11px !important;
-  background: var(--signature-surface) !important;
-  box-shadow: none !important;
-}
-.leave-quota-card > span { display: none !important; }
-.leave-quota-card p { color: var(--signature-text-secondary) !important; }
-.leave-quota-card strong { color: var(--signature-text) !important; }
 .leave-main-grid { gap: 14px !important; align-items: start; }
 .leave-submit-card, .leave-history-card, .leave-pending-card {
   border: 1px solid var(--signature-border) !important;

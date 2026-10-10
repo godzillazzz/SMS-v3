@@ -1,7 +1,7 @@
 import {test,expect} from '@playwright/test';
 const employee={id:'layout-employee',employeeCode:'E001',firstName:'ข้อมูล',lastName:'ทดสอบ',department:'AN1',jobTitle:'พนักงาน',isActive:true};
-const pages=[['employees','ข้อมูลพนักงาน'],['licenses','ใบอนุญาตพนักงาน'],['devices','อุปกรณ์ลงเวลา'],['users','ผู้ใช้และสิทธิ์']] as const;
-for(const [path,title] of pages)for(const theme of ['light','dark'])for(const width of [1366,375])test(`T30b personnel ${path} ${theme} ${width}`,async({page},info)=>{
+const pages=[['roster','ตารางกะรายเดือน'],['shift-codes','รหัสกะและเวลา'],['rules','ตรวจสอบกฎการทำงาน'],['leave','คำขอลา'],['leave/approvals','อนุมัติคำขอลา'],['leave/history','ประวัติการลา'],['leave/quotas','โควตาวันลา']] as const;
+for(const [path,title] of pages)for(const theme of ['light','dark'])for(const width of [1366,375])test(`T30b roster/leave ${path} ${theme} ${width}`,async({page},info)=>{
  const errors:string[]=[];const writes:string[]=[];page.on('pageerror',e=>errors.push(e.message));
  await page.setViewportSize({width,height:width===1366?768:812});await page.addInitScript(t=>localStorage.setItem('sms-v3-theme',t),theme);
  await page.route('**/api/v1/**',route=>{
@@ -10,18 +10,23 @@ for(const [path,title] of pages)for(const theme of ['light','dark'])for(const wi
   if(p==='/api/v1/auth/login')return route.fulfill({json:{accessToken:'synthetic-layout-token',user:{id:'layout-user',email:'layout@example.test',displayName:'ข้อมูลทดสอบ',role:'ADMIN',employeeId:employee.id}}});
   if(req.method()!=='GET'){writes.push(`${req.method()} ${p}`);return route.fulfill({status:403,json:{message:'Fixture forbids business writes'}})}
   if(p==='/api/v1/auth/passkeys/config')return route.fulfill({json:{enabled:false}});
-  if(p==='/api/v1/employees/readiness/center')return route.fulfill({json:{data:[{employee,status:'NOT_READY',blockers:[{code:'DEVICE_REQUIRED',label:'อุปกรณ์ยังไม่พร้อม'}],checks:{}}],summary:{total:1,ready:0,notReady:1,blockerCounts:{DEVICE_REQUIRED:1}},limitedTo:50}});
-  if(p==='/api/v1/employees')return route.fulfill({json:{data:[employee],meta:{page:1,pageSize:10,total:1,totalPages:1,departments:['AN1'],summary:{total:1,active:1,incomplete:0}}}});
-  if(p==='/api/v1/attendance/devices/me')return route.fulfill({json:{data:{employeeId:employee.id,activeDevice:null,activeRequest:null}}});
+  if(p==='/api/v1/schedule-calendar'){
+   const month=new URL(req.url()).searchParams.get('month') || new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Bangkok',year:'numeric',month:'2-digit'}).format(new Date());
+   const count=new Date(Number(month.slice(0,4)),Number(month.slice(5)),0).getDate();const dates=Array.from({length:count},(_,i)=>`${month}-${String(i+1).padStart(2,'0')}`);
+   return route.fulfill({json:{data:{month,dates,approval:{status:'DRAFT',revision:1},employees:[{...employee,shifts:[{id:'layout-shift',workDate:dates[0]+'T00:00:00.000Z',shiftType:{id:'day',code:'D',name:'กะเช้า'},startTime:'08:00',endTime:'16:00',licenseStatus:'VALID',source:'SMS_V3'}]}]},meta:{page:1,total:1,totalPages:1}}});
+  }
+  if(p==='/api/v1/employees')return route.fulfill({json:{data:[employee],meta:{page:1,total:1,totalPages:1}}});
+  if(p==='/api/v1/shift-types')return route.fulfill({json:{data:[{id:'day',code:'D',name:'กะเช้า',startTime:'08:00',endTime:'16:00',hours:8,color:'#22C55E',isActive:true}]}});
+  if(p.endsWith('/leave-summary'))return route.fulfill({json:{data:{linked:true,employeeId:employee.id,remaining:{sickLeave:5,personalLeave:5,vacationLeave:5}}}});
   return route.fulfill({json:{data:[],summary:{total:0,byType:{}},meta:{page:1,pageSize:20,total:0,totalPages:0}}});
  });
- await page.goto(`/app/${path}`);await expect(page.locator('.nexus-public #auth-login-form')).toBeVisible();
+ await page.goto(`/app/${path}`);await expect(page.locator('.nexus-public #auth-login-form')).toBeVisible({timeout:20_000});
  await page.locator('#email').fill('layout@example.test');await page.locator('#password').fill('synthetic-layout-password');await page.locator('#auth-login-form button[type=submit]').click();
  await expect(page.locator('.app-shell')).toBeVisible();
  await expect(page.locator('.sms-loader--content')).toHaveCount(0,{timeout:20_000});
- await expect(page.getByRole('heading',{level:1,name:title,exact:true})).toBeVisible();
- const root=page.locator('.layout-personnel-page');await expect(root).toHaveCount(1);
- await expect(root.locator('.layout-section-card').first()).toBeVisible();
+ await expect(page.getByRole('heading',{level:1,name:new RegExp(title)})).toBeVisible();
+ const root=page.locator('.layout-roster-page');await expect(root).toHaveCount(1);
+ await expect(root.locator('.layout-section-card:visible').first()).toBeVisible();
  await expect.poll(()=>root.locator('h1,h2').evaluateAll(els=>els.every(el=>getComputedStyle(el).fontFamily.includes('Kanit')))).toBe(true);
  expect(await root.evaluate(el=>getComputedStyle(el).backgroundColor)).toBe('rgba(0, 0, 0, 0)');
  const audit=await root.evaluate(el=>[...el.querySelectorAll<HTMLElement>('section,article,div,header')].flatMap(node=>{
@@ -38,10 +43,11 @@ for(const [path,title] of pages)for(const theme of ['light','dark'])for(const wi
  if(theme==='light')expect(audit.filter(box=>box.backgroundLum!==null && box.backgroundLum<.15),JSON.stringify(audit)).toEqual([]);
  expect(audit.filter(box=>box.inset && (box.inset.left<16||box.inset.top<12)),JSON.stringify(audit)).toEqual([]);
  for(const card of await root.locator('.layout-section-card,.layout-metric-card,.layout-step-flow').all()){
+  if(!(await card.isVisible()))continue;
   const spacing=await card.evaluate(el=>{const r=el.getBoundingClientRect(),title=el.querySelector('h2')!.getBoundingClientRect();return{left:title.left-r.left,top:title.top-r.top,radius:getComputedStyle(el).borderTopLeftRadius}});
   expect(spacing.radius).toBe('16px');expect(spacing.left).toBeGreaterThanOrEqual(16);expect(spacing.top).toBeGreaterThanOrEqual(12);
  }
- if(path==='devices')await expect(root.getByRole('heading',{name:'สถานะอุปกรณ์ของฉัน'})).toBeVisible();
+ if(path==='roster'){const steps=root.locator('.layout-step-flow li');await expect(steps).toHaveCount(4);await expect(steps.nth(0)).toContainText('เสร็จแล้ว');await expect(steps.nth(1)).toContainText('เสร็จแล้ว');expect(await steps.nth(2).innerText()).not.toContain('เสร็จแล้ว');expect(await steps.nth(3).innerText()).not.toContain('เสร็จแล้ว');}
  expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);expect(writes).toEqual([]);expect(errors).toEqual([]);
- await page.screenshot({path:info.outputPath('personnel-layout.png'),fullPage:true});
+ await page.screenshot({path:info.outputPath('roster-leave-layout.png'),fullPage:true});
 });

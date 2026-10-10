@@ -162,7 +162,7 @@ export function PersonnelDirectoryPage({ token, refreshKey, canManage, role, sea
     });
   };
 
-  return <section className="personnel-directory-page data-surface-page layout-personnel-page" aria-label="Personnel Directory">
+  return <section className="personnel-directory-page data-surface-page layout-personnel-page layout-page-surface" aria-label="Personnel Directory">
     <PersonnelDirectoryHeader canManage={canManage} canReviewChanges={role === 'ADMIN'} totalCount={loading ? undefined : totalCount} onAdd={onAdd} onReviewChanges={onReviewChanges} onRefresh={() => setLocalRefreshKey((value) => value + 1)} />
     <AttendanceReadinessCenter token={token} enabled={canViewReadiness} onReadinessChange={handleReadinessChange} />
     <PersonnelSearchToolbar search={search} department={department} status={status} departments={visibleMeta.departments || []} onSearch={changeFilter(setSearch)} onDepartment={changeFilter(setDepartment)} onStatus={changeFilter(setStatus)} onClear={clear} />
