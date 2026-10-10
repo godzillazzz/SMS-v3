@@ -1,0 +1,7 @@
+.sms-brand-logo{display:inline-flex;align-items:center;height:40px;max-width:100%;flex-shrink:0;line-height:0}
+.sms-brand-logo img{display:block;height:100%;width:auto;max-width:100%;object-fit:contain}
+.sms-brand-logo .sms-brand-logo__dark{display:none}
+:root[data-theme=dark] .sms-brand-logo[data-tone=auto] .sms-brand-logo__light,.sms-brand-logo[data-tone=dark-surface] .sms-brand-logo__light{display:none}
+:root[data-theme=dark] .sms-brand-logo[data-tone=auto] .sms-brand-logo__dark,.sms-brand-logo[data-tone=dark-surface] .sms-brand-logo__dark{display:block}
+.mobile-brand .sms-brand-logo,.pwa-mobile-brand .sms-brand-logo,.auth-mobile-brand .sms-brand-logo{height:32px}
+@media(max-width:760px){.nexus-brand .sms-brand-logo{height:32px}}

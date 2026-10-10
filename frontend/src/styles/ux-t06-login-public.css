@@ -29,10 +29,6 @@
   font-size: 12px !important;
 }
 
-.nexus-auth-stage .sms-brand-copy strong {
-  font-size: 12px !important;
-}
-
 .award-auth-page .nexus-auth-shell .auth-brand-copy h2 {
   font-size: 32px !important;
   line-height: 1.18 !important;
@@ -41,17 +37,12 @@
 }
 
 /* User-facing public copy stays readable; the tiny telemetry labels are hidden from AT. */
-.nexus-brand__copy small,
 .nexus-simulated-pill,
 .nexus-simulated-pill :is(b, span),
 .nexus-section-heading p,
 .nexus-kpi__value span,
 .cyber-globe__caption {
   font-size: 12px !important;
-}
-
-.nexus-brand__copy small {
-  color: #a8bac9 !important;
 }
 
 .nexus-simulated-pill {

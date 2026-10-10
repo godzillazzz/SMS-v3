@@ -52,6 +52,7 @@ import { responseForCurrentQuery, type PageResponseBinding } from './operation-r
 import { bangkokDateInput as formatBangkokDateInput, currentBangkokMonth, formatThaiDate, formatThaiDateTime, formatThaiMonth, formatThaiMonthName } from './thai-date-time';
 
 import { MonthGridPicker, normalizeMonthValue, parseMonthValue, shiftMonthValue } from './components/MonthGridPicker';
+import { BrandLogo } from './components/BrandLogo';
 import { AppLoader, loadingMessages } from './components/AppLoader';
 import './styles.css';
 import './design-system.css';
@@ -289,15 +290,6 @@ function AuthProvider({ children }: { children: React.ReactNode }) {
   return <AuthContext.Provider value={{ token: viewAs?.token || token, user: viewAs?.user || user, originalUser: user, loading, error, isViewingAs: Boolean(viewAs), login, passkeyLogin, logout, beginViewAs, endViewAs }}>{children}</AuthContext.Provider>;
 }
 
-function Logo() {
-  return (
-    <img
-      className="brand-logo"
-      src="/attendance-sms-logo.svg"
-      alt="SMS"
-    />
-  );
-}
 
 function readLeaveMonthFromUrl(): string {
   const params = new URLSearchParams(window.location.search);
@@ -431,7 +423,7 @@ function Login() {
       {mode === 'login' && <div className="nexus-auth-heading"><span aria-hidden="true">ZERO-TRUST ENTERPRISE IDENTITY HUB</span><h2>ศูนย์ยืนยันตัวตน Command Console SMS</h2><p>เข้าถึงพื้นที่ปฏิบัติการรักษาความปลอดภัยด้วยการรับรองตัวตนหลายปัจจัยและ Enterprise Identity Policy</p></div>}
       <section className="login-shell auth-experience-shell nexus-auth-shell" aria-label="เข้าสู่ระบบ Security Management System">
         <aside className="login-intro auth-brand-panel nexus-auth-intro">
-          <div className="intro-brand auth-brand"><Logo /><span className="sms-brand-copy"><b>SMS</b><strong>Security Management System</strong></span></div>
+          <div className="intro-brand auth-brand"><BrandLogo tone="dark-surface" /></div>
           <div className="intro-copy auth-brand-copy">
             <p className="auth-brand-eyebrow" aria-hidden="true">MULTI-FACTOR SECURITY ENCLAVE</p>
             <h2>Zero-Trust Identity Hub<br />สำหรับ Command Console</h2>
@@ -497,7 +489,7 @@ function Login() {
         </aside>
         <section className="login-form-panel auth-card-panel nexus-auth-panel">
           <div className="login-theme-control auth-theme-control"><ThemeControl compact /></div>
-          <div className="auth-mobile-brand"><Logo /><span className="sms-brand-copy"><b>SMS</b><strong>Security Management System</strong></span></div>
+          <div className="auth-mobile-brand"><BrandLogo tone="dark-surface" /></div>
           <form id="auth-login-form" className="login-form auth-form" onSubmit={submit} aria-busy={busy}>
             {resultPresentation ? <section className={`auth-result auth-result--${resultPresentation.tone}`} aria-live="polite" aria-labelledby="registration-result-title">
               <div className="auth-result__verified"><span className="auth-result__verified-icon"><SmsIcon name="approval" size={20} /></span><span><b>ยืนยันอีเมลสำเร็จ</b><small>การยืนยันอีเมลยังไม่ใช่การอนุมัติบัญชี</small></span></div>
@@ -563,7 +555,7 @@ function Login() {
       <React.Suspense fallback={mode === 'login' ? authStage : null}>
         <AwardPublicExperience
           showLanding={mode === 'login'}
-          renderLogo={() => <Logo />}
+          renderLogo={() => <BrandLogo tone="dark-surface" />}
           accessContent={mode === 'login' ? authStage : undefined}
           onRequestAccess={focusLoginEmail}
         />
@@ -3249,8 +3241,7 @@ function Dashboard() {
       {mobileMenuOpen && <button className="sidebar-overlay" aria-label="ปิดเมนูหลัก" aria-controls="app-navigation-drawer" onClick={() => setMobileMenuOpen(false)} />}
       <aside id="app-navigation-drawer" className={`sidebar ${mobileMenuOpen ? 'open' : ''}`} aria-label="เมนูหลัก">
         <div className="sidebar-brand">
-          <Logo />
-          <div className="sms-brand-copy"><strong>SMS</strong><span>Security Management System</span></div>
+          <BrandLogo />
           <button type="button" className="sidebar-close-button" aria-label="ปิดเมนูหลัก" onClick={() => setMobileMenuOpen(false)}><SmsIcon name="close" size={20} /></button>
         </div>
         <nav className="nav-menu" aria-label="เมนูหลัก">{visibleNavigation.map((section) => (
@@ -3271,12 +3262,12 @@ function Dashboard() {
         </div>
       </aside>
       <main className="main-area">
-        {pwaShell && activePage !== 'attendance' && <header className="pwa-mobile-header"><span className="pwa-mobile-brand"><Logo /><span className="sms-brand-copy"><strong>SMS</strong><small>Security Management System</small></span></span><span className={`pwa-online-state ${pwaOnline ? '' : 'offline'}`}>{pwaOnline ? 'ออนไลน์' : 'ออฟไลน์'}</span></header>}
+        {pwaShell && activePage !== 'attendance' && <header className="pwa-mobile-header"><span className="pwa-mobile-brand"><BrandLogo tone="dark-surface" /></span><span className={`pwa-online-state ${pwaOnline ? '' : 'offline'}`}>{pwaOnline ? 'ออนไลน์' : 'ออฟไลน์'}</span></header>}
         {pwaShell && !pwaOnline && <div className="pwa-offline-banner">ออฟไลน์ — เปิดดู shell ได้ แต่การลงเวลาและการส่งคำขอลาต้องรอการเชื่อมต่อ Server</div>}
         <header className="topbar">
           <div className="topbar-left">
             <button ref={mobileMenuTriggerRef} type="button" className="mobile-menu-button" aria-label="เปิดเมนูหลัก" aria-expanded={mobileMenuOpen} aria-controls="app-navigation-drawer" onClick={() => setMobileMenuOpen(true)}><SmsIcon name="menu" size={20} /></button>
-            <span className="mobile-brand"><Logo /><span className="sms-brand-copy"><b>SMS</b><small>Security Management System</small></span></span>
+            <span className="mobile-brand"><BrandLogo /></span>
             <span className="topbar-copy"><strong>{pageTitle}</strong><small>{pageSubtitle[navigationPage]}</small></span>
           </div>
           <label className="topbar-search"><span aria-hidden="true"><SmsIcon name="search" size={17} /></span><input aria-label="ค้นหาพนักงาน" placeholder="ค้นหาพนักงาน..." value={search} onChange={(event) => { setSearch(event.target.value); if (event.target.value && activePage !== 'employees') setActivePage('employees'); }} /></label>
