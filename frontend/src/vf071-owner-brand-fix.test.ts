@@ -15,14 +15,14 @@ const apiBytes = fs.readFileSync(path.join(root, 'api.ts'), 'utf8').replace(/\r\
 
 describe('G04.2 VF-07.1 Owner brand + login hero correction', () => {
   it('renders the approved SMS logo asset across desktop, login and mobile brand surfaces', () => {
-    expect(main).toContain('function Logo()');
-    expect(main).toMatch(/<img\s+className="brand-logo"\s+src="\/attendance-sms-logo\.svg"\s+alt="SMS"\s*\/>/);
-    expect(main).toContain('renderLogo={() => <Logo />}');
-    expect(main).toContain('<div className="intro-brand auth-brand"><Logo />');
-    expect(main).toContain('<div className="auth-mobile-brand"><Logo />');
+    expect(main).not.toContain('function Logo()');
+    expect(main).toContain("import { BrandLogo } from './components/BrandLogo';");
+    expect(main).toContain('renderLogo={() => <BrandLogo tone="dark-surface" />}');
+    expect(main).toContain('<div className="intro-brand auth-brand"><BrandLogo tone="dark-surface" />');
+    expect(main).toContain('<div className="auth-mobile-brand"><BrandLogo tone="dark-surface" />');
     expect(main).toContain('<div className="sidebar-brand">');
-    expect(main).toContain('<span className="pwa-mobile-brand"><Logo />');
-    expect(main).toContain('<span className="mobile-brand"><Logo />');
+    expect(main).toContain('<span className="pwa-mobile-brand"><BrandLogo tone="dark-surface" />');
+    expect(main).toContain('<span className="mobile-brand"><BrandLogo />');
     expect(main).toContain('className="intro-brand auth-brand"');
     expect(main).toContain('className="auth-mobile-brand"');
     expect(main).toContain('className="sidebar-brand"');

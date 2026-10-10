@@ -15,7 +15,7 @@ describe('SMS Signature Experience V1 regression contract', () => {
   it('owns the final visual layer without replacing the accepted brand foundation', () => {
     expect(main).toContain("import './styles/signature-experience.css';");
     expect(main.indexOf("import './styles/signature-experience.css';")).toBeGreaterThan(main.indexOf("import './styles/visual-fidelity.css';"));
-    expect(main).toMatch(/<img\s+className="brand-logo"\s+src="\/attendance-sms-logo\.svg"\s+alt="SMS"\s*\/>/);
+    expect(main).toContain("import { BrandLogo } from './components/BrandLogo';");
     expect(main).not.toMatch(/<[^>]*>\s*SMS V3\s*</i);
     expect(css).not.toMatch(/neon/i);
   });
@@ -188,7 +188,7 @@ describe('SMS Signature Experience V1.1 final polish contracts', () => {
   it('does not reintroduce lower Sidebar Theme or visible V3 branding', () => {
     expect(main).not.toContain('<div className="sidebar-theme-block">');
     expect(main).toContain('<ThemeControl compact />');
-    expect(main).toMatch(/<img\s+className="brand-logo"\s+src="\/attendance-sms-logo\.svg"\s+alt="SMS"\s*\/>/);
+    expect(main).toContain("import { BrandLogo } from './components/BrandLogo';");
     expect(main).not.toMatch(/<[^>]*>\s*SMS V3\s*</i);
   });
 });
