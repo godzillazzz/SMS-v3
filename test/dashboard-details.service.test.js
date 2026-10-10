@@ -154,3 +154,17 @@ test('admin selected department narrows pending-account count and rows together'
   assert.equal(capture.count.where.department, 'AN1');
   assert.deepEqual(capture.list.where, capture.count.where);
 });
+
+
+test('manager and supervisor cannot list pending accounts without an authenticated department scope', async () => {
+  for (const role of ['MANAGER', 'SUPERVISOR']) {
+    await assert.rejects(
+      getDashboardDetails({
+        prismaClient: {},
+        requestUser: { role, employeeId: role.toLowerCase() + '-1', department: '' },
+        filters: { metric: 'pendingUsers' }
+      }),
+      /department scope is required/
+    );
+  }
+});
