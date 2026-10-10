@@ -22,7 +22,8 @@ describe('Attendance P0 clarity contract', () => {
   });
 
   it('uses human-first device and offline copy while preserving the security controls', () => {
-    expect(page).toContain('อุปกรณ์นี้ยืนยันแล้ว ✓');
+    expect(page).toContain('อุปกรณ์นี้ยืนยันแล้ว');
+    expect(page).toContain('<SmsIcon name="check" size={15} />');
     expect(page).toContain('เครื่องหลักของคุณ');
     expect(page).toContain('ออฟไลน์พร้อมใช้งาน');
     expect(page).toContain('ระบบเก็บรายการในเครื่องและส่งให้อัตโนมัติเมื่อออนไลน์');
@@ -31,7 +32,7 @@ describe('Attendance P0 clarity contract', () => {
 
   it('renders a server-backed post-action receipt without changing the API contract', () => {
     expect(page).toContain('attendance-simple__receipt');
-    expect(page).toContain('หลักฐานการลงเวลา');
+    expect(page).toContain('aria-label="หลักฐานการลงเวลา"');
     expect(page).toContain('บันทึกกับ Server แล้ว');
     expect(page).toContain('Site จริง');
     expect(page).toContain('GPS / GEOFENCE');
