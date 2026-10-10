@@ -82,6 +82,31 @@ describe('Official Attendance report presentation', () => {
     expect(summary.unclassifiedDays).toBe(30);
   });
 
+  it.each([
+    { period: '2026-02', dayCount: 28, lastDate: '28/02/2569' },
+    { period: '2028-02', dayCount: 29, lastDate: '29/02/2571' },
+    { period: '2026-04', dayCount: 30, lastDate: '30/04/2569' },
+    { period: '2026-08', dayCount: 31, lastDate: '31/08/2569' }
+  ])('uses the actual calendar length for $period', ({ period, dayCount, lastDate }) => {
+    const days = attendanceReportPresentation.monthDayRows([], period);
+    expect(days).toHaveLength(dayCount);
+    expect(days[0].dateText).toBe(`01/${period.slice(5, 7)}/${Number(period.slice(0, 4)) + 543}`);
+    expect(days.at(-1)?.dateText).toBe(lastDate);
+    expect(days.map(({ day }) => day)).toEqual(Array.from({ length: dayCount }, (_, index) => index + 1));
+  });
+
+  it('keeps a cross-midnight shift paired on its Bangkok work date', () => {
+    const rows = [row({
+      workDate: '2026-08-07',
+      checkInAt: '2026-08-07T13:00:00.000Z',
+      checkOutAt: '2026-08-07T18:00:00.000Z'
+    })];
+    const day = attendanceReportPresentation.monthDayRows(rows, '2026-08').find((item) => item.day === 7);
+    expect(day?.rows).toHaveLength(1);
+    expect(attendanceReportPresentation.dayTimes(day!.rows, 'checkIn')).toEqual(['20:00']);
+    expect(attendanceReportPresentation.dayTimes(day!.rows, 'checkOut')).toEqual(['01:00']);
+  });
+
   it('renders the approved portrait timesheet fields, logo and signatures without excluded compensation data', () => {
     const source = readFileSync(new URL('./pages/reports/AttendanceOfficialReport.tsx', import.meta.url), 'utf8');
     const styles = readFileSync(new URL('./styles/attendance-report.css', import.meta.url), 'utf8');
