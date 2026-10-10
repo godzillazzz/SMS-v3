@@ -52,6 +52,7 @@ import { responseForCurrentQuery, type PageResponseBinding } from './operation-r
 import { bangkokDateInput as formatBangkokDateInput, currentBangkokMonth, formatThaiDate, formatThaiDateTime, formatThaiMonth, formatThaiMonthName } from './thai-date-time';
 
 import { MonthGridPicker, normalizeMonthValue, parseMonthValue, shiftMonthValue } from './components/MonthGridPicker';
+import { AppLoader, loadingMessages } from './components/AppLoader';
 import './styles.css';
 import './design-system.css';
 import './styles/dashboard.css';
@@ -3301,7 +3302,7 @@ function Dashboard() {
             </div>
           </>, document.body)}
         </header>
-        <div className="content-area"><React.Suspense fallback={<div className="full-loader" role="status">กำลังโหลดหน้า…</div>}>{content()}</React.Suspense></div>
+        <div className="content-area"><React.Suspense fallback={<AppLoader variant="content" message={loadingMessages.page} />}>{content()}</React.Suspense></div>
         {pwaShell && <nav className="pwa-bottom-nav" aria-label="เมนู PWA">
           <button type="button" className={activePage === 'attendance' ? 'active' : ''} onClick={() => selectPwaPage('attendance')}><SmsIcon name="clock" size={20} /><span>ลงเวลา</span></button>
           <button type="button" className={activePage === 'attendanceHistory' ? 'active' : ''} onClick={() => selectPwaPage('attendanceHistory')}><SmsIcon name="history" size={20} /><span>ประวัติ</span></button>
@@ -3476,9 +3477,9 @@ function OfflineAttendanceGate() {
     return () => { active = false; };
   }, []);
 
-  if (state === 'CHECKING') return <div className="full-loader">กำลังตรวจสิทธิ์ Offline…</div>;
+  if (state === 'CHECKING') return <AppLoader message={loadingMessages.offlineCheck} />;
   if (state !== 'AVAILABLE') return <Login />;
-  return <React.Suspense fallback={<div className="full-loader">กำลังเปิดระบบลงเวลา Offline…</div>}>
+  return <React.Suspense fallback={<AppLoader message={loadingMessages.offlineOpen} />}>
     <AttendanceSimplePage online={false} />
   </React.Suspense>;
 }
@@ -3510,10 +3511,10 @@ function App() {
     updateDocumentTitle(route.kind === 'page' ? route.page : null, route.kind === 'not-found' ? 'not-found' : forbidden ? 'forbidden' : 'page', settingsSectionFromPath(window.location.pathname));
   }, [auth.isViewingAs, auth.loading, auth.token, auth.user?.role, route]);
 
-  if (auth.loading) return <div className="full-loader">กำลังเตรียมระบบ…</div>;
+  if (auth.loading) return <AppLoader message={loadingMessages.session} />;
   if (!auth.token) return <OfflineAttendanceGate />;
   if (shouldOpenG06DeviceContextDiagnostic({ authenticated: Boolean(auth.token), diagnosticBuild: __SMSV3_G06_DEVICE_CONTEXT_DIAGNOSTIC__, search: window.location.search })) {
-    return <React.Suspense fallback={<div className="full-loader">กำลังเตรียมการตรวจแบบ read-only…</div>}><G06DeviceContextDiagnostic /></React.Suspense>;
+    return <React.Suspense fallback={<AppLoader message={loadingMessages.readOnly} />}><G06DeviceContextDiagnostic /></React.Suspense>;
   }
   if (route.kind === 'not-found') return <RouteNotice kind="not-found" />;
   if (!canViewRoutePage(route.page, auth)) return <RouteNotice kind="forbidden" />;
