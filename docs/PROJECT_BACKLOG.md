@@ -4,6 +4,21 @@
 **Source:** Latest GitHub PR/Issue status, `docs/ux-remediation/PLAN.md`, `MASTER_HANDOFF.md`, and GitHub/Vercel release evidence. This snapshot is not an automated continuously updating view.
 **Update rule:** Always recheck GitHub status and Production alias before claims. Update this file in each batch PR after a meaningful task decision/merge, and add a short latest-status pointer at the **top** of `MASTER_HANDOFF.md`. Preserve historical detail; do not silently treat old checkpoints as current.
 
+## Development-first checkpoint — 2026-10-10 (Asia/Bangkok)
+
+Owner has deferred Final Hosted UAT, physical acceptance and complete business acceptance until feature freeze. Development proceeds from Integration `9abc97998f98265605f534de7874607a5f3b5a13`. PR #589/#590 stay unchanged and unmerged. Historical snapshots below remain evidence of their dates, not current priorities. Restricted `MASTER_HANDOFF.md` remains byte-identical to Integration in this reconciliation.
+
+| Status | Work | Verified evidence / remaining action |
+|---|---|---|
+| BLOCKED | T08 | Owner Windows worktree `fix/t08-approval-details-1008` is unavailable in this managed runtime. No access to unpublished WIP, so no checkpoint or replacement claimed. Preserve work; no Schedule Revision Diff/schema/migration. Continue independent tasks. |
+| IN PROGRESS | T30a / PR #556 | Reconciled latest Integration into existing feature history without force push, retaining R5-B release/application controls. Frontend 932/932 PASS; production build/bundle PASS (main 399943B, CSS 698900B). Synthetic browser initial full run 47 PASS / 3 FAIL; focused serial rerun of affected suites 7/7 PASS with unchanged assertions/code. Exact new-head CI and native Preview must be verified after publication. |
+| IN PROGRESS | T32 → T33 → T30b → T31 | Ordered development queue. T30b requires four distinct page-group PRs. No feature-complete or hosted/physical PASS claimed. |
+| READY FOR FINAL UAT (acceptance only; audit pending) | Released License / Q13 / approval / roster contracts | Existing local/API/fixture results do not certify hosted business acceptance. Audit current source before classifying any remaining development defects. |
+| BLOCKED | T18 | Sanitized current production latency/route telemetry unavailable; no speculative optimization. |
+| IN PROGRESS | G06 / G07 / T19 / T20 / T24 | Inspect current source and old PRs to distinguish confirmed gaps from superseded code and final acceptance. |
+
+No Production deployment, aliases, schema, accounts or business data were mutated. Production R5-B application remains `77641a2657aa4fd05276afe645dd32648f5cc56b`, deployment `dpl_Hjo1fTmgjEdmg5G7fZBX9gssenQP`; both canonical aliases were independently read this session. Final Hosted UAT is deferred, never replaced by CI. CI/Preview links and exact new PR head will be added as new evidence becomes available.
+
 ## 1. Current production and release boundary
 
 - **Production:** R5-B LIVE. Official protected GitHub Production workflow [#37940068503](https://github.com/godzillazzz/SMS-v3/actions/runs/37940068503) completed SUCCESS on Integration Control SHA `0eb2b1cfc5b2bb47ff9a8cfcc67bced6b6290881`.
