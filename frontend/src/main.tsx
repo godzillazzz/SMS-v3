@@ -43,6 +43,7 @@ import { getShiftTypes } from './shift-type-client';
 import { describePattern, getAutoSchedulePatterns, type AutoSchedulePattern } from './auto-schedule-pattern-client';
 import { setAttendanceTokenRefreshGuard, setAttendanceTokenRefreshHandler } from './attendance-auth-request';
 import { RequestErrorContent, formatRequestErrorMessage, toRequestErrorState, type RequestErrorInput } from './request-error';
+import { checkExistingLeaveDates } from './leave-date-overlap-client';
 import { acquireDocumentScrollLock } from './document-scroll-lock';
 import { buildLeaveQuotaProvisioningPayload, canProvisionLeaveQuota, currentBangkokQuotaYear, hasUnmatchedLegacyQuota, leaveQuotaDefaultsFromPolicy, quotaProvisioningEmployeeOptions, thaiQuotaYearLabel } from './leave-quota-provisioning';
 import { printDocument, printScheduleDocument, printTableReport } from './schedule-print';
@@ -1447,7 +1448,7 @@ function LeaveManagementPage({ rows, loading, error, linked, remaining, quotaSum
     setLeaveOverlapState('checking');
     const timer = window.setTimeout(async () => {
       try {
-        const result = await api.leaveOverlapCheck(auth.token!, {
+        const result = await checkExistingLeaveDates(auth.token!, {
           startDate: form.startDate,
           endDate: form.endDate,
           ...(canManage ? { employeeId: form.employeeId } : {})
