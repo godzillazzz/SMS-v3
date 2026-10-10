@@ -106,14 +106,22 @@ function createFakePrisma(config = {}) {
   if (!config.autoQuota) state.quotas.push({ id: 'quota-existing', employeeId: '10000000-0000-4000-8000-000000000100', quotaYear: 2026, sickLeave: config.sickLeave ?? 30, personalLeave: 3, vacationLeave: 6, matchStatus: 'MATCHED' });
   let transactionCalls = 0;
   let transactionOptions;
+  let employeeLockCalls = 0;
+  const previewConflict = config.overlap ? {
+    id: 'overlap-1', status: 'PENDING', leaveType: 'SICK',
+    leaveTypeNameSnapshot: 'ลาป่วย', startDate: new Date('2026-09-10T00:00:00Z'), endDate: new Date('2026-09-11T00:00:00Z')
+  } : null;
 
   const prisma = {
+    user: { findUniqueOrThrow: async () => ({ role: config.actorRole || 'VIEWER', employeeId: '10000000-0000-4000-8000-000000000100' }) },
+    leaveRequest: { findFirst: async () => previewConflict },
     async $transaction(callback, options) {
       transactionCalls += 1;
       transactionOptions = options;
       const draft = structuredClone(state);
       const employee = { id: '10000000-0000-4000-8000-000000000100', firstName: 'Test', lastName: 'Employee', displayName: 'Test Employee', department: 'OPS', deletedAt: null, isActive: true };
       const tx = {
+        $queryRaw: async () => { employeeLockCalls += 1; return [{ id: employee.id }]; },
         systemSetting: { findMany: async () => [] },
         user: { findUniqueOrThrow: async () => ({ role: 'ADMIN', employeeId: employee.id }) },
         employee: {
@@ -129,7 +137,7 @@ function createFakePrisma(config = {}) {
           }
         },
         leaveRequest: {
-          findFirst: async () => config.overlap ? { id: 'overlap' } : null,
+          findFirst: async () => previewConflict,
           findMany: async () => config.approvedRows || [],
           create: async ({ data }) => {
             const row = { id: 'leave-' + (draft.leaves.length + 1), ...data };
@@ -155,7 +163,7 @@ function createFakePrisma(config = {}) {
       return result;
     }
   };
-  return { prisma, state, get transactionCalls() { return transactionCalls; }, get transactionOptions() { return transactionOptions; } };
+  return { prisma, state, get employeeLockCalls() { return employeeLockCalls; }, get transactionCalls() { return transactionCalls; }, get transactionOptions() { return transactionOptions; } };
 }
 
 function clearRouteCache() {
@@ -164,7 +172,7 @@ function clearRouteCache() {
   }
 }
 
-function loadHandler(routePath, fakePrisma, notifications = {}) {
+function loadHandler(routePath, fakePrisma, notifications = {}, method = 'post') {
   require.cache[require.resolve('../src/config/prisma')] = { exports: fakePrisma };
   const authPath = require.resolve('../src/middlewares/authenticate');
   require.cache[authPath] = { exports: {
@@ -179,7 +187,7 @@ function loadHandler(routePath, fakePrisma, notifications = {}) {
   } };
   clearRouteCache();
   const routes = require('../src/routes/operations.routes');
-  const layer = routes.stack.find((entry) => entry.route && entry.route.path === routePath && entry.route.methods.post);
+  const layer = routes.stack.find((entry) => entry.route && entry.route.path === routePath && entry.route.methods[method]);
   assert.ok(layer, 'leave route exists');
   return layer.route.stack[layer.route.stack.length - 1].handle;
 }
@@ -206,6 +214,7 @@ test('D. normal leave submission creates exactly one LeaveRequest', async () => 
   assert.equal(f.state.attachments.length, 0);
   assert.deepEqual(f.transactionOptions, LEAVE_TRANSACTION_OPTIONS);
   assert.equal(f.transactionCalls, 1);
+  assert.equal(f.employeeLockCalls, 1, 'employee row is locked before checking conflicting requests');
 });
 
 test('E. multipart leave submission creates one LeaveRequest and one attachment', async () => {
@@ -240,6 +249,37 @@ test('H. existing overlap guard remains unchanged', async () => {
   assert.equal(result.nextError?.statusCode, 409);
   assert.equal(result.nextError?.message, 'An overlapping leave request already exists.');
   assert.equal(f.state.leaves.length, 0);
+  assert.equal(f.employeeLockCalls, 1);
+  assert.equal(result.nextError?.details?.code, 'LEAVE_DATE_OVERLAP');
+  assert.equal(result.nextError?.details?.conflict?.status, 'PENDING');
+});
+
+test('Read-only preflight reports an overlapping request without creating leave', async () => {
+  const f = createFakePrisma({ overlap: true });
+  const handler = loadHandler('/leave-requests/check-overlap', f.prisma, {}, 'get');
+  let body;
+  let failure;
+  await handler({
+    query: { employeeId: 'ffffffff-ffff-4fff-8fff-ffffffffffff', startDate: '2026-09-10', endDate: '2026-09-11' },
+    user: { sub: 'creator-1', role: 'VIEWER' }
+  }, { json(value) { body = value; } }, error => { failure = error; });
+  assert.equal(failure, undefined);
+  assert.equal(body.data.hasConflict, true);
+  assert.equal(body.data.conflict.status, 'PENDING');
+  assert.equal(body.data.conflict.leaveType, 'ลาป่วย');
+  assert.equal(f.state.leaves.length, 0);
+  assert.equal(f.transactionCalls, 0);
+});
+
+test('Read-only preflight reports clear days and rejects invalid ranges', async () => {
+  const f = createFakePrisma();
+  const handler = loadHandler('/leave-requests/check-overlap', f.prisma, {}, 'get');
+  let body;
+  await handler({ query: { startDate: '2026-09-12', endDate: '2026-09-12' }, user: { sub: 'creator-1', role: 'VIEWER' } }, { json(value) { body = value; } }, () => {});
+  assert.deepEqual(body.data, { hasConflict: false, conflict: null });
+  let failure;
+  await handler({ query: { startDate: '2026-09-12', endDate: '2026-09-10' }, user: { sub: 'creator-1', role: 'VIEWER' } }, { json() {} }, error => { failure = error; });
+  assert.ok(failure, 'invalid date range must fail closed');
 });
 
 test('I. existing annual quota validation remains unchanged', async () => {
