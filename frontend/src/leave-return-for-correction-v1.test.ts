@@ -55,4 +55,15 @@ describe('Leave Return for Correction V1 frontend', () => {
     expect(main).toContain('row.returnedByDisplayName');
     expect(main).toContain('เหตุผลที่ส่งกลับ');
   });
+  it('warns before duplicate leave submission using a server-backed unpaginated check', () => {
+    expect(api).toContain('leaveOverlapCheck:');
+    expect(api).toContain('/leave-requests/check-overlap');
+    expect(main).toContain('api.leaveOverlapCheck(auth.token!');
+    expect(main).toContain("leaveOverlapState !== 'checking'");
+    expect(main).toContain("leaveOverlapState !== 'conflict'");
+    expect(main).toContain('มีคำขอลาในวันที่เลือกอยู่แล้ว');
+    expect(main).toContain('ดูประวัติการลาเดิม');
+    expect(main).toContain("details?.code === 'LEAVE_DATE_OVERLAP'");
+  });
+
 });
