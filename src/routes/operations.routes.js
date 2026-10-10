@@ -328,8 +328,19 @@ const createLeaveRequest = async (tx, input, requestUser, file, substitute, opti
     await stageTimer('approval_policy_lookup', () => ensureLeaveApprovalAllowed(tx, employeeId, requestUser, { isRetroactive }));
   }
 
-  const overlap = await stageTimer('overlap_lookup', () => tx.leaveRequest.findFirst({ where: { employeeId, status: { in: LEAVE_OVERLAP_ACTIVE_STATUSES }, startDate: { lte: input.endDate }, endDate: { gte: input.startDate } } }));
-  if (overlap) throw new HttpError(409, 'An overlapping leave request already exists.');
+  // Serialize submissions for the same employee before the overlap read. A plain
+  // read-committed findFirst is insufficient when two devices submit together.
+  const overlap = await stageTimer('overlap_lookup', async () => {
+    await tx.$queryRaw`SELECT id FROM employees WHERE id = ${employeeId}::uuid FOR UPDATE`;
+    return tx.leaveRequest.findFirst({
+      where: { employeeId, status: { in: LEAVE_OVERLAP_ACTIVE_STATUSES }, startDate: { lte: input.endDate }, endDate: { gte: input.startDate } },
+      select: { id: true, status: true, startDate: true, endDate: true, leaveType: true, leaveTypeNameSnapshot: true }
+    });
+  });
+  if (overlap) throw new HttpError(409, 'An overlapping leave request already exists.', {
+    code: 'LEAVE_DATE_OVERLAP',
+    conflict: { id: overlap.id, status: overlap.status, startDate: overlap.startDate, endDate: overlap.endDate, leaveType: overlap.leaveTypeNameSnapshot || overlap.leaveType }
+  });
   await ensureLeaveAvailable(tx, employeeId, leaveType, requestedUsageByYear, undefined, { stageTimer, leavePolicySnapshot, leaveQuotaBucketSnapshot: leaveTypeState.leaveQuotaBucketSnapshot });
   if (file && !allowedAttachmentTypes.has(file.mimetype)) throw new HttpError(415, 'Attachment must be PDF, JPEG, or PNG.');
   const attachmentThresholdDays = Number(leavePolicySnapshot.sickAttachmentRequiredAfterDays);
@@ -1135,6 +1146,37 @@ router.get('/leave-requests/pending-count', authorize('ADMIN', 'MANAGER', 'SUPER
     res.set('Cache-Control', 'no-store');
     const count = await prisma.leaveRequest.count({ where: { status: 'PENDING' } });
     res.json({ data: { count } });
+  } catch (error) { next(error); }
+});
+
+// Read-only, authoritative preflight: checks all active requests, never a
+// paginated browser subset. Creation repeats the check under an employee lock.
+const leaveOverlapCheckQuery = z.object({
+  employeeId: uuid.optional(),
+  startDate: dashboardDate,
+  endDate: dashboardDate
+}).refine((value) => value.startDate <= value.endDate, { message: 'Start date must not be after end date.', path: ['endDate'] });
+
+router.get('/leave-requests/check-overlap', async (req, res, next) => {
+  try {
+    const filters = leaveOverlapCheckQuery.parse(req.query);
+    const actor = await prisma.user.findUniqueOrThrow({ where: { id: req.user.sub }, select: { role: true, employeeId: true } });
+    const employeeId = actor.role === 'VIEWER' ? actor.employeeId : filters.employeeId;
+    if (!employeeId) throw new HttpError(actor.role === 'VIEWER' ? 403 : 400, 'Employee is required.');
+    const startDate = new Date(`${filters.startDate}T00:00:00.000Z`);
+    const endDate = new Date(`${filters.endDate}T00:00:00.000Z`);
+    if (['MANAGER', 'SUPERVISOR'].includes(actor.role) && actor.employeeId !== employeeId) {
+      await ensureLeaveApprovalAllowed(prisma, employeeId, req.user, { isRetroactive: checkIsRetroactive(startDate) });
+    }
+    const conflict = await prisma.leaveRequest.findFirst({
+      where: { employeeId, status: { in: LEAVE_OVERLAP_ACTIVE_STATUSES }, startDate: { lte: endDate }, endDate: { gte: startDate } },
+      select: { id: true, status: true, startDate: true, endDate: true, leaveType: true, leaveTypeNameSnapshot: true },
+      orderBy: { requestedAt: 'desc' }
+    });
+    res.json({ data: { hasConflict: Boolean(conflict), conflict: conflict ? {
+      id: conflict.id, status: conflict.status, startDate: conflict.startDate, endDate: conflict.endDate,
+      leaveType: conflict.leaveTypeNameSnapshot || conflict.leaveType
+    } : null } });
   } catch (error) { next(error); }
 });
 

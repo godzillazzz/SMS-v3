@@ -5,6 +5,7 @@ import path from 'node:path';
 const root = path.resolve(__dirname);
 const main = fs.readFileSync(path.join(root, 'main.tsx'), 'utf8');
 const api = fs.readFileSync(path.join(root, 'api.ts'), 'utf8');
+const leaveOverlapClient = fs.readFileSync(path.join(root, 'leave-date-overlap-client.ts'), 'utf8');
 const decisionModal = fs.readFileSync(path.join(root, 'components', 'LeaveDecisionConfirmation.tsx'), 'utf8');
 
 describe('Leave Return for Correction V1 frontend', () => {
@@ -55,4 +56,15 @@ describe('Leave Return for Correction V1 frontend', () => {
     expect(main).toContain('row.returnedByDisplayName');
     expect(main).toContain('เหตุผลที่ส่งกลับ');
   });
+  it('warns before duplicate leave submission using a server-backed unpaginated check', () => {
+    expect(leaveOverlapClient).toContain('export async function checkExistingLeaveDates(');
+    expect(leaveOverlapClient).toContain('/leave-requests/check-overlap');
+    expect(main).toContain('checkExistingLeaveDates(auth.token!');
+    expect(main).toContain("leaveOverlapState !== 'checking'");
+    expect(main).toContain("leaveOverlapState !== 'conflict'");
+    expect(main).toContain('มีคำขอลาในวันที่เลือกอยู่แล้ว');
+    expect(main).toContain('ดูประวัติการลาเดิม');
+    expect(main).toContain("details?.code === 'LEAVE_DATE_OVERLAP'");
+  });
+
 });
