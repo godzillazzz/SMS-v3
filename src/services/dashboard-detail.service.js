@@ -79,6 +79,7 @@ function assertDashboardMetricAccess(requestUser, metric) {
   if (!['ADMIN', 'MANAGER', 'SUPERVISOR', 'VIEWER'].includes(role)) throw new HttpError(403, 'Dashboard metric access is not available.');
   if (metric === 'pendingLeaves' && !['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(role)) throw new HttpError(403, 'Leave approval access is required.');
   if (metric === 'pendingUsers' && !['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(role)) throw new HttpError(403, 'Pending account access is required.');
+  if (metric === 'pendingUsers' && ['MANAGER', 'SUPERVISOR'].includes(role) && !requestUser?.department) throw new HttpError(403, 'A department scope is required for pending account access.');
   if (metric === 'unmatchedQuota' && role !== 'ADMIN') throw new HttpError(403, 'Administrator access is required.');
 }
 
