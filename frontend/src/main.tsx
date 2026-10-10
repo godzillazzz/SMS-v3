@@ -59,7 +59,7 @@ import { AppLoader, loadingMessages } from './components/AppLoader';
 import './styles.css';
 import './design-system.css';
 import './styles/dashboard.css';
-import { DashboardPage } from './pages/dashboard/DashboardPage';
+
 
 import { WorkflowCommandPalette } from './components/WorkflowCommandPalette';
 import { defaultAuditFilters, type AuditFilters } from './components/audit/audit-types';
@@ -115,6 +115,7 @@ import './styles/personnel-layout.css';
 import './styles/system-layout-group4.css';
 
 const DashboardDetailsPage = React.lazy(() => import('./pages/dashboard/DashboardDetailsPage').then((module) => ({ default: module.DashboardDetailsPage })));
+const DashboardPage = React.lazy(() => import('./pages/dashboard/DashboardPage').then((module) => ({ default: module.DashboardPage })));
 
 const APPROVAL_REVIEWER_ROLES = ['ADMIN', 'MANAGER', 'SUPERVISOR'] as const;
 const APPROVAL_COUNT_MENU_ROLES: Readonly<Record<string, readonly string[]>> = Object.freeze({
