@@ -145,7 +145,7 @@ function verifyReadiness(health, healthBody, ready, readyBody) {
 function assertSanitized(value, secrets) {
   const output = JSON.stringify(value);
   guard(!(secrets || []).filter(Boolean).some((secret) => output.includes(secret)), 'SECRET_LEAK_REJECTED');
-  guard(!/Bearer\\s|postgres(?:ql)?:\\/\\/|x-vercel-protection-bypass|-----BEGIN .*PRIVATE KEY/i.test(output),
+  guard(!/Bearer\s|postgres(?:ql)?:\/\/|x-vercel-protection-bypass|-----BEGIN .*PRIVATE KEY/i.test(output),
     'UNSAFE_EVIDENCE_REJECTED');
   return value;
 }
@@ -245,7 +245,7 @@ function verifyPlan(plan, event, env) {
     && plan.candidateSha === EXPECTED.candidateSha
     && plan.applicationCi === EXPECTED.candidateCiRun
     && plan.deploymentId === EXPECTED.deploymentId
-    && origin(plan.previewUrl) === plan.previewUrl
+    && plan.previewUrl === EXPECTED.previewUrl
     && origin(plan.trustedOrigin) === EXPECTED.trustedOrigin,
   'PLAN_IDENTITY_INVALID');
   return plan;
@@ -264,7 +264,7 @@ function verifyDeploymentRecord(record, expectedId) {
 function verifyProduction(record) {
   guard(record && record.id === EXPECTED.productionDeploymentId
     && record.target === 'production' && (record.readyState || record.state) === 'READY'
-    && record.projectId === EXPECTED.projectId && record.meta
+    && (record.projectId === EXPECTED.projectId || record.project && record.project.id === EXPECTED.projectId) && record.meta
     && record.meta.githubCommitSha === EXPECTED.frozenProductionSha,
   'FROZEN_PRODUCTION_IDENTITY_MISMATCH');
 }
@@ -352,8 +352,8 @@ async function verify(plan, event, env, fetchImpl = globalThis.fetch) {
   assertSanitized(evidence, [env.GH_TOKEN, env.VERCEL_TOKEN, env.VERCEL_AUTOMATION_BYPASS_SECRET]);
   if (env.GITHUB_STEP_SUMMARY) {
     fs.appendFileSync(env.GITHUB_STEP_SUMMARY,
-      '### R6-B Candidate Preview CORS — read-only\\n\\n'
-      + '\`\`\`json\\n' + JSON.stringify(evidence, null, 2) + '\\n\`\`\`\\n');
+      '### R6-B Candidate Preview CORS — read-only\n\n'
+      + '\`\`\`json\n' + JSON.stringify(evidence, null, 2) + '\n\`\`\`\n');
   }
   return evidence;
 }
@@ -363,14 +363,14 @@ async function main(args, env = process.env) {
     if (args[0] === 'prepare') {
       const plan = await prepare(event, env);
       guard(env.GITHUB_OUTPUT && env.GITHUB_STEP_SUMMARY, 'GITHUB_OUTPUT_REQUIRED');
-      fs.appendFileSync(env.GITHUB_OUTPUT, 'plan=' + JSON.stringify(plan) + '\\n');
+      fs.appendFileSync(env.GITHUB_OUTPUT, 'plan=' + JSON.stringify(plan) + '\n');
       fs.appendFileSync(env.GITHUB_STEP_SUMMARY,
-        '### R6-B Candidate Preview plan\\n\\n'
-        + 'Candidate SHA: ' + plan.candidateSha + '\\n\\n'
-        + 'Candidate Preview: ' + plan.deploymentId + '\\n\\n'
-        + 'Trusted main SHA: ' + plan.controlSha + '\\n\\n'
-        + 'Exact CI: ' + plan.applicationCi + '\\n\\n'
-        + 'The next job uses the Hosted UAT Environment; Owner approval is required before Vercel credentials are exposed. No database credentials or business writes are used.\\n');
+        '### R6-B Candidate Preview plan\n\n'
+        + 'Candidate SHA: ' + plan.candidateSha + '\n\n'
+        + 'Candidate Preview: ' + plan.deploymentId + '\n\n'
+        + 'Trusted main SHA: ' + plan.controlSha + '\n\n'
+        + 'Exact CI: ' + plan.applicationCi + '\n\n'
+        + 'The next job uses the Hosted UAT Environment; Owner approval is required before Vercel credentials are exposed. No database credentials or business writes are used.\n');
     } else if (args[0] === 'verify') {
       const plan = JSON.parse(env.R6B_CORS_PLAN || '');
       await verify(plan, event, env);

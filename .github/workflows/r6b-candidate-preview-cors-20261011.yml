@@ -30,11 +30,11 @@ jobs:
       issues: read
       pull-requests: read
     outputs:
-      plan: \${{ steps.plan.outputs.plan }}
+      plan: ${{ steps.plan.outputs.plan }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
-          ref: \${{ github.sha }}
+          ref: ${{ github.sha }}
           persist-credentials: false
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
@@ -42,7 +42,7 @@ jobs:
       - name: Validate trusted main, draft candidate, exact CI and Hosted UAT policy
         id: plan
         env:
-          GH_TOKEN: \${{ github.token }}
+          GH_TOKEN: ${{ github.token }}
         run: node scripts/ci/r6b-candidate-preview-cors.cjs prepare
 
   protected-preview:
@@ -58,15 +58,15 @@ jobs:
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
-          ref: \${{ github.sha }}
+          ref: ${{ github.sha }}
           persist-credentials: false
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: '22'
       - name: Verify exact Candidate Preview, health, readiness, CORS and unchanged canonicals
         env:
-          GH_TOKEN: \${{ github.token }}
-          R6B_CORS_PLAN: \${{ needs.prepare.outputs.plan }}
-          VERCEL_TOKEN: \${{ secrets.VERCEL_TOKEN }}
-          VERCEL_AUTOMATION_BYPASS_SECRET: \${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+          GH_TOKEN: ${{ github.token }}
+          R6B_CORS_PLAN: ${{ needs.prepare.outputs.plan }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
         run: node scripts/ci/r6b-candidate-preview-cors.cjs verify
