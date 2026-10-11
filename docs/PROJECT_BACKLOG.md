@@ -1,3 +1,35 @@
+# CURRENT CHECKPOINT — License Cron contract recovery — 2026-10-11 07:26 ICT
+
+This pre-merge record supersedes earlier License Cron readiness assumptions. Fresh GitHub Integration baseline is `eafa57a7e19ee695695a35c93a5152ab4202ad6e`. Development is **IN PROGRESS** until exact-head Full CI, native Vercel Preview and post-merge Integration CI pass. Operational Cron execution and Final Hosted UAT are not certified by local tests.
+
+Vercel [documents scheduled HTTP GET requests to Production and UTC Cron expressions](https://vercel.com/docs/cron-jobs). The unchanged `vercel.json` contains four jobs:
+
+| Job | UTC expression | Bangkok time | Verified source contract before recovery |
+|---|---|---|---|
+| License reconciliation | `5 17 * * *` | Daily 00:05 | POST after JWT authentication: scheduled GET with a distinct Cron secret returns 401; a valid user JWT reaches 404, not the handler. |
+| Annual leave quota provisioning | `0 17 31 12 *` | January 1, 00:00 | GET before JWT; CRON_SECRET required; existing multi-year activation guard retained. |
+| Attendance evidence retention | `35 18 * * *` | Daily 01:35 | GET before JWT; CRON_SECRET required. |
+| Data retention cleanup | `50 18 * * *` | Daily 01:50 | GET before JWT; CRON_SECRET required. |
+
+**Proven defects and fixes:** move License to GET before user JWT middleware; reject Express HEAD fall-through for all four scheduled mutation handlers; send `Cache-Control: no-store`; use Bangkok's inclusive expiry date for document expiration. Bulk reconciliation previously changed a non-guard employee's working shift to OFF in the disposable database. Reuse the existing T19 guard job-title predicate for bulk schedule reconciliation, expiration and expired-file cleanup. Dashboard scope and user API RBAC remain unchanged. Annual quota activation, manual overrides, AL shifts, past-date protection, schedule approval/revision authority and document row locking remain intact. No schema/migration or Cron schedule was changed.
+
+**Validation:** before fixes, the real-router/disposable-PostgreSQL regressions reproduced routing, non-guard mutation and Bangkok-midnight failures; a mock-service HEAD request returned 200 and invoked a mutation handler. After fixes, backend Unit/Security regression is **1395 PASS / 0 FAIL / 0 SKIP**; the new real-router/Prisma Cron suite is **4 PASS / 0 FAIL / 0 SKIP**, with fake storage and verified scoped fixture cleanup. It covers distinct Cron credentials, all four user-role tokens rejected, guard-only scope across departments, inactive/deleted/unknown employees preserved, override/leave/approval preservation, idempotency, storage retry and inclusive Bangkok expiry. The first full local unit attempt had two unrelated missing-PowerShell failures; adding the already-installed PowerShell runtime to PATH resolved them without modifying tests.
+
+**Read-only provider evidence:** Production Cron-path log query for the accessible last 50 minutes returned no records. A 24-hour Cron query was rejected because this Hobby account retains one hour. The scheduled executions are outside that available interval. Deployment metadata does not expose live Cron enablement/last-run status; real CRON_SECRET configuration and unattended outcomes remain **UNVERIFIED**. No scheduled endpoint was requested on Preview or Production.
+
+**Release safety:** Main ruleset [20230372](https://github.com/godzillazzz/SMS-v3/rules/20230372) is active with `validate`, zero required approvals, deletion/non-fast-forward blocked, no bypass actors. It targets main; Integration CI/Preview gates are enforced for this task without claiming independent approval. Source/test/backlog paths do not match any legacy Production workflow push/path trigger. Owner-confirmed Production branch `vercel-production-manual` and disabled custom-domain auto-assignment remain the accepted policy; no settings were changed. Read-only Production inspection still identifies `dpl_Hjo1fTmgjEdmg5G7fZBX9gssenQP`, READY / production, SHA `77641a2657aa4fd05276afe645dd32648f5cc56b`, with both canonical aliases unchanged. Existing Production still runs frozen R5-B; the development fix is not a Production rollout.
+
+| Status | Work | Remaining gate |
+|---|---|---|
+| IN PROGRESS | License Cron contract recovery | Separate Integration PR, exact-head Full CI/Preview, merge and post-merge CI. |
+| BLOCKED | T08 original WIP | Original Owner worktree inaccessible; no recreation or WIP modification. Root 559 staged deletions preserved. |
+| PARTIAL — MEASUREMENT BLOCKED | T18/T24 | Additional naturally occurring telemetry is required; no SLO or speculative optimization. |
+| DEFERRED UNTIL FEATURE FREEZE | Final Hosted / Business / Physical acceptance | PR #589/#590 remain OPEN/DRAFT; no hosted business mutations or live Cron reconciliation authorized. |
+
+Historical checkpoints below are preserved. Final PR/SHA/CI/Preview results will be recorded after the gates complete; missing live Cron evidence remains separate from Development Complete.
+
+---
+
 # CURRENT CHECKPOINT — T08 recovery / T18-T24 measurement — 2026-10-11 06:29 ICT
 
 This checkpoint supersedes the prior T19 execution checkpoint below. Live repository and runtime state was rechecked on 2026-10-10 UTC at approximately 23:26. This records development readiness only; Final Hosted, Business, and Physical UAT remain deferred until Feature Freeze.

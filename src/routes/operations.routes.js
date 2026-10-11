@@ -222,7 +222,8 @@ const licenseDocumentUpload = (req, res, next) => licenseUpload(req, res, (error
 const allowedAttachmentTypes = new Set(['application/pdf', 'image/jpeg', 'image/png']);
 const authorizedLicenseReconciliationCron = (req) => {
   const secret = process.env.CRON_SECRET;
-  return Boolean(secret) && req.get('authorization') === `Bearer ${secret}`;
+  // Express routes HEAD through GET handlers; scheduled business mutations require GET explicitly.
+  return req.method === 'GET' && Boolean(secret) && req.get('authorization') === `Bearer ${secret}`;
 };
 const safeRecord = (record, fields) => Object.fromEntries(fields.map((field) => [field, record[field]]));
 const licenseEmployeeWhere = (employeeStatus) => {
@@ -421,8 +422,20 @@ const sortByEmployeeCode = (left, right) => {
   return new Date(left.expiryDate).getTime() - new Date(right.expiryDate).getTime();
 };
 
+router.get('/internal/license-reconciliation', async (req, res, next) => {
+  try {
+    res.set('Cache-Control', 'no-store');
+    if (!authorizedLicenseReconciliationCron(req)) throw new HttpError(401, 'Unauthorized.');
+    const schedule = await reconcileAllEmployeeLicenseSchedules(prisma);
+    const expired = await expireDueLicenseDocuments({ prisma, storage: licenseStorage, audit });
+    const cleanup = await cleanupDueLicenseDocuments({ prisma, storage: licenseStorage });
+    res.json({ data: { schedule, expired, cleanup } });
+  } catch (error) { next(error); }
+});
+
 router.get('/internal/attendance-evidence-retention', async (req, res, next) => {
   try {
+    res.set('Cache-Control', 'no-store');
     if (!authorizedLicenseReconciliationCron(req)) throw new HttpError(401, 'Unauthorized.');
     res.json({ data: await attendanceEvidenceStorage.purgeExpired() });
   } catch (error) { next(error); }
@@ -438,6 +451,7 @@ router.get('/internal/data-retention-cleanup', async (req, res, next) => {
 
 router.get('/internal/annual-leave-quota-provisioning', async (req, res, next) => {
   try {
+    res.set('Cache-Control', 'no-store');
     if (!authorizedLicenseReconciliationCron(req)) throw new HttpError(401, 'Unauthorized.');
     res.json({ data: await provisionAnnualLeaveQuotas({ prismaClient: prisma }) });
   } catch (error) { next(error); }
@@ -473,16 +487,6 @@ router.get('/executive-report', authorize('ADMIN', 'MANAGER', 'SUPERVISOR'), asy
     res.json({ data: await getExecutiveReport({ prismaClient: prisma, requestUser: currentUser, filters: parsedQuery.data, requestId: req.requestId }) });
   } catch (error) { next(error); }
 });
-router.post('/internal/license-reconciliation', async (req, res, next) => {
-  try {
-    if (!authorizedLicenseReconciliationCron(req)) throw new HttpError(401, 'Unauthorized.');
-    const schedule = await reconcileAllEmployeeLicenseSchedules(prisma);
-    const expired = await expireDueLicenseDocuments({ prisma, storage: licenseStorage, audit });
-    const cleanup = await cleanupDueLicenseDocuments({ prisma, storage: licenseStorage });
-    res.json({ data: { schedule, expired, cleanup } });
-  } catch (error) { next(error); }
-});
-
 router.get('/licenses', authorize('ADMIN', 'MANAGER', 'SUPERVISOR'), async (req, res, next) => {
   try {
     const { page, pageSize, employeeStatus, employeeId } = licenseListQuery.parse(req.query);

@@ -1,4 +1,6 @@
 const { workDate } = require('./license-state.service');
+const { bangkokToday } = require('../utils/bangkok-date');
+const { securityGuardEmployeeWhere } = require('./security-guard-scope.service');
 
 const LICENSE_DOCUMENT_TRANSACTION_OPTIONS = Object.freeze({ maxWait: 10000, timeout: 30000 });
 
@@ -41,7 +43,8 @@ async function cleanupDueLicenseDocuments({ prisma, storage, now = new Date(), l
       storageDeleteAfter: { lte: now },
       storageDeletedAt: null,
       status: 'EXPIRED',
-      isCurrent: false
+      isCurrent: false,
+      employee: { is: securityGuardEmployeeWhere() }
 
     },
     select: { id: true, storageObjectKey: true, storageDeleteObjectKey: true },
@@ -63,9 +66,9 @@ async function cleanupSupersededLicenseDocuments({ prisma, storage, now = new Da
 }
 
 async function expireDueLicenseDocuments({ prisma, storage, audit, now = new Date(), limit = 100 }) {
-  const today = workDate(now);
+  const today = bangkokToday(now);
   const candidates = await prisma.employeeLicenseDocument.findMany({
-    where: { status: 'APPROVED', isCurrent: true, expirationProcessedAt: null, license: { expiryDate: { lt: today } } },
+    where: { status: 'APPROVED', isCurrent: true, expirationProcessedAt: null, employee: { is: securityGuardEmployeeWhere() }, license: { expiryDate: { lt: today } } },
     select: { id: true, storageObjectKey: true, licenseId: true, employeeId: true },
     orderBy: { id: 'asc' },
     take: limit

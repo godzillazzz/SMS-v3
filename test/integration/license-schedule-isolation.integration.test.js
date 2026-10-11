@@ -123,6 +123,7 @@ if (process.env.RUN_INTEGRATION_TESTS !== 'true') {
         firstName: 'License',
         lastName: 'Fixture ' + label,
         department: 'Integration ' + runMarker,
+        jobTitle: 'Security Guard',
         isActive: true
       }
     });
@@ -555,10 +556,12 @@ if (process.env.RUN_INTEGRATION_TESTS !== 'true') {
     // Existing route requires both authenticated user and matching cron bearer.
     // Use a fixture JWT as a disposable test-only cron secret; never change real configuration.
     const previousCronSecret = process.env.CRON_SECRET;
-    process.env.CRON_SECRET = token;
+    const cronSecret = randomUUID();
+    process.env.CRON_SECRET = cronSecret;
     try {
-      assert.equal((await request(app).post('/api/v1/internal/license-reconciliation')).status, 401);
-      const cron = await request(app).post('/api/v1/internal/license-reconciliation').set('Authorization', 'Bearer ' + token);
+      assert.equal((await request(app).get('/api/v1/internal/license-reconciliation')).status, 401);
+      assert.equal((await request(app).get('/api/v1/internal/license-reconciliation').set('Authorization', 'Bearer ' + token)).status, 401);
+      const cron = await request(app).get('/api/v1/internal/license-reconciliation').set('Authorization', 'Bearer ' + cronSecret);
       assert.equal(cron.status, 200, JSON.stringify(cron.body));
       assert.ok(cron.body.data.schedule.blocked >= 1);
       await assertState(off.id);

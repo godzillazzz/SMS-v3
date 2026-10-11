@@ -52,7 +52,7 @@ function expirationHarness(documents) {
   };
   const prisma = {
     employeeLicenseDocument: {
-      findMany: async () => documents.filter((document) => document.status === 'APPROVED' && document.isCurrent && !document.expirationProcessedAt && document.licenseExpiryDate < new Date('2026-08-01T00:00:00Z')).map((document) => ({ id: document.id, storageObjectKey: document.storageObjectKey, licenseId: document.licenseId, employeeId: document.employeeId })),
+      findMany: async ({ where }) => documents.filter((document) => document.status === 'APPROVED' && document.isCurrent && !document.expirationProcessedAt && document.licenseExpiryDate < where.license.expiryDate.lt).map((document) => ({ id: document.id, storageObjectKey: document.storageObjectKey, licenseId: document.licenseId, employeeId: document.employeeId })),
       update: async ({ where, data }) => { const document = documents.find((item) => item.id === where.id); const next = { ...data }; if (data.storageDeleteAttempts?.increment) { document.storageDeleteAttempts = Number(document.storageDeleteAttempts || 0) + data.storageDeleteAttempts.increment; delete next.storageDeleteAttempts; } return Object.assign(document, next); }
     },
     $transaction: async (callback) => callback(tx)
@@ -81,4 +81,19 @@ test('expiration keeps retry metadata when storage removal fails', async () => {
   const result = await expireDueLicenseDocuments({ ...context, now: new Date('2026-08-01T00:00:00Z') });
   assert.deepEqual(result, { inspected: 1, expired: 1, deleted: 0, failed: 1 });
   assert.equal(expired.status, 'EXPIRED'); assert.equal(expired.storageDeletedAt, null); assert.equal(expired.storageDeleteAttempts, 1);
+});
+
+test('expiration follows Bangkok midnight while preserving the inclusive date through 23:59', async () => {
+  const document = { id: 'midnight', employeeId: 'guard', licenseId: 'license', storageObjectKey: 'licenses/midnight', status: 'APPROVED', isCurrent: true, licenseExpiryDate: new Date('2026-07-31T00:00:00Z'), expirationProcessedAt: null, storageDeletedAt: null };
+  const context = expirationHarness([document]);
+  await context.storage.put(document.storageObjectKey, { buffer: Buffer.from('%PDF-1.7\n%%EOF'), mimetype: 'application/pdf', size: 8 });
+  const before = await expireDueLicenseDocuments({ ...context, now: new Date('2026-07-31T16:59:59Z') });
+  assert.equal(before.expired, 0);
+  assert.equal(context.storage.objectExists(document.storageObjectKey), true);
+  const scheduled = await expireDueLicenseDocuments({ ...context, now: new Date('2026-07-31T17:05:00Z') });
+  assert.equal(scheduled.expired, 1);
+  assert.equal(context.storage.objectExists(document.storageObjectKey), false);
+  const repeated = await expireDueLicenseDocuments({ ...context, now: new Date('2026-07-31T17:05:00Z') });
+  assert.equal(repeated.expired, 0);
+  assert.equal(context.audits.length, 1);
 });

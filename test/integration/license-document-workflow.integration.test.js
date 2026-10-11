@@ -43,7 +43,7 @@ if (process.env.RUN_INTEGRATION_TESTS !== 'true') {
 
   async function fixture(label) {
     const marker = `${label}-${Date.now()}-${crypto.randomBytes(4).toString('hex')}`;
-    const employee = await prisma.employee.create({ data: { employeeCode: `LIC-${marker}`.slice(0, 50), firstName: 'License', lastName: 'Fixture', department: 'Operations', isActive: true } });
+    const employee = await prisma.employee.create({ data: { employeeCode: `LIC-${marker}`.slice(0, 50), firstName: 'License', lastName: 'Fixture', department: 'Operations', jobTitle: 'Security Guard', isActive: true } });
     created.employeeIds.push(employee.id);
     const user = await prisma.user.create({ data: { email: `${marker}@example.test`, passwordHash: 'integration-test-only', displayName: `Admin ${marker}`, role: 'ADMIN', accountStatus: 'ACTIVE', isActive: true } });
     const managerUser = await prisma.user.create({ data: { email: `manager-${marker}@example.test`, passwordHash: 'integration-test-only', displayName: `Manager ${marker}`, role: 'MANAGER', accountStatus: 'ACTIVE', isActive: true } });

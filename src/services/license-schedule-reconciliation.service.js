@@ -1,18 +1,13 @@
 const audit = require('./audit.service');
 const { licenseStateForWorkDate, loadLicenseAuthorityByEmployee } = require('./license-state.service');
+const { bangkokToday } = require('../utils/bangkok-date');
+const { securityGuardEmployeeWhere } = require('./security-guard-scope.service');
 
 const dateText = (value) => new Date(value).toISOString().slice(0, 10);
 const isWorkingCode = (code) => !['OFF', 'AL'].includes(String(code || '').toUpperCase());
 const legacyBlockedCode = (remark) => /^License Block:\s*\[([A-Z0-9_-]+)\]/i.exec(String(remark || ''))?.[1]?.toUpperCase() || null;
 
-// ShiftAssignment.workDate is a date-only UTC value; the cutoff is Bangkok's calendar day.
-function bangkokToday(now = new Date()) {
-  const instant = new Date(now);
-  if (!Number.isFinite(instant.getTime())) throw new Error('Valid reconciliation time is required.');
-  const parts = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Bangkok', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(instant);
-  const value = (type) => Number(parts.find((part) => part.type === type).value);
-  return new Date(Date.UTC(value('year'), value('month') - 1, value('day')));
-}
+// ShiftAssignment.workDate is a date-only UTC value; the cutoff is Asia/Bangkok's calendar day.
 
 function buildLicenseScheduleReconciliation({ licenses, assignments, shiftTypes, now = new Date() }) {
   const shiftsByCode = new Map(shiftTypes.map((shift) => [String(shift.code).toUpperCase(), shift]));
@@ -111,7 +106,7 @@ async function reconcileEmployeeLicenseSchedules(tx, employeeId, actorUserId, { 
 
 async function reconcileAllEmployeeLicenseSchedules(prisma, { now = new Date() } = {}) {
   return prisma.$transaction(async (tx) => {
-    const employees = await tx.employee.findMany({ where: { deletedAt: null, isActive: true }, select: { id: true } });
+    const employees = await tx.employee.findMany({ where: securityGuardEmployeeWhere({ deletedAt: null, isActive: true }), select: { id: true } });
     const totals = { employees: employees.length, blocked: 0, restored: 0, validated: 0, preservedOverrides: 0, affectedAssignments: 0 };
     for (const employee of employees) {
       const result = await reconcileEmployeeLicenseSchedules(tx, employee.id, null, { now });
