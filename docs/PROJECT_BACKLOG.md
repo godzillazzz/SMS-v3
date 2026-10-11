@@ -1,4 +1,23 @@
-# CURRENT CHECKPOINT — Feature Freeze readiness and Selective R6-B — 2026-10-11 12:31 ICT
+# CURRENT CHECKPOINT — Owner Feature Freeze Declaration: Selective R6-B — 2026-10-11 (Asia/Bangkok)
+
+**FEATURE_FREEZE_R6_B=DECLARED by explicit Owner approval.** This freezes the **R6-B development scope only**, not the Full Integration branch, Production release, or Final UAT. Approval evidence: [PR #610 Owner decision](https://github.com/godzillazzz/SMS-v3/issues/610#issuecomment-6105943759).
+
+## Frozen scope and owner decisions
+
+- **INCLUDE:** T30a PR #556; T30b PRs #593, #594, #595, #596; T32 PR #591; T33 PR #592; T19 PR #602. Preserve their reviewed dependency closure and current Production business/security contracts. Scope changes require a separate explicit Owner decision.
+- **EXCLUDE / DEFER:** T08 Approval Details is **outside R6-B only**. Its original inaccessible WIP and worktrees must remain untouched; T08 is not marked completed, cancelled, or deleted.
+- **NOT a pre-Freeze gate:** T18/T24 quantified performance SLO is not required to **declare this scope freeze**. Available performance samples remain insufficient; no p50/p95/SLO claim is made. Any applicable CI/build/bundle/runtime performance gate still applies before an eventual Production release.
+- **EXCLUDE from R6-B:** Leave Duplicate Guard PR #601, License Cron PR #604 and T31 Timesheet PR #597. These remain separately gated. Do not activate Cron schedule/document/storage side effects in an R6-B release.
+- **Source baseline:** Future Selective R6-B candidate starts from frozen Production R5-B source SHA `77641a2657aa4fd05276afe645dd32648f5cc56b`, not Full Integration; carefully reconstruct only reviewed PR-specific hunks. In particular never copy `src/routes/operations.routes.js`, `src/services/dashboard.service.js`, or `frontend/src/main.tsx` wholesale from Integration.
+- **Outstanding gates:** A selected application candidate has **NOT** been created or validated. Require exact candidate tree and CI, native Preview identity + health/readiness/CORS, role/RBAC and department boundary checks, device/GPS/offline and Service Worker regressions. After isolation of disposable DB/Storage/Email is proven, perform authorized four-role Hosted/Business/Physical UAT as applicable with mandatory protected Human Environment Approval. A skipped or unexecuted test is not PASS.
+- **Production:** R5-B remains frozen at deployment `dpl_Hjo1fTmgjEdmg5G7fZBX9gssenQP` and Application SHA `77641a2657aa4fd05276afe645dd32648f5cc56b`. Both canonical aliases stay unchanged. This decision does NOT authorize a Production deploy/dispatch, manifest, alias change, DB/schema/data mutation, secret change, or live Cron execution.
+- **WIP governance:** Preserve 559 staged deletions, untracked `.worktrees/`, original T08 WIP and `MASTER_HANDOFF.md`. No reset/clean/stash or local workspace reconstruction.
+
+**NEXT AUTHORIZED STEP:** after this document's exact-head CI/Preview and governed merge, begin *non-Production* Selective R6-B candidate reconstruction on a dedicated remote branch from the exact frozen Production SHA. Stop before any Production release or unapproved Hosted mutation.
+
+---
+
+# HISTORICAL READINESS CHECKPOINT — Feature Freeze readiness and Selective R6-B — 2026-10-11 12:31 ICT
 
 **FEATURE_FREEZE_READINESS: CONDITIONAL. Feature Freeze has not been declared; the Owner decision gate remains open. No R6-B application candidate has been created.**
 
