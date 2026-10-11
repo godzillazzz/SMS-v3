@@ -40,6 +40,7 @@ function verifyEvent(event, env) {
 }
 function verifyEnvironment(environment, policies) {
   guard(environment?.name === ENVIRONMENT, 'ENVIRONMENT_IDENTITY_MISMATCH');
+  guard(environment.can_admins_bypass === false, 'ENVIRONMENT_BYPASS_FORBIDDEN');
   const review = environment.protection_rules?.find(rule => rule.type === 'required_reviewers');
   guard(review?.reviewers?.some(item => item.type === 'User'
     && item.reviewer?.login === OWNER.login && item.reviewer.id === OWNER.id), 'HUMAN_OWNER_REVIEW_REQUIRED');

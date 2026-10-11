@@ -20,7 +20,7 @@ function env() {
     VERCEL_TOKEN: 'fixture-vercel-secret-value', VERCEL_AUTOMATION_BYPASS_SECRET: 'fixture-protection-secret-value' };
 }
 function environment() {
-  return { name: 'Hosted UAT', protection_rules: [{ type: 'required_reviewers',
+  return { name: 'Hosted UAT', can_admins_bypass: false, protection_rules: [{ type: 'required_reviewers',
     reviewers: [{ type: 'User', reviewer: { login: 'godzillazzz', id: 279642101 } }] }],
   deployment_branch_policy: { protected_branches: false, custom_branch_policies: true } };
 }
@@ -98,7 +98,7 @@ test('owner command has no technical inputs and rejects forged, PR, edited, fork
 });
 test('main-only environment and actual Owner reviewer are required; tags, globs, absent approval fail closed', () => {
   operator.verifyEnvironment(environment(), policies());
-  for (const mutate of [e => { e.protection_rules = []; }, e => { e.name = 'production-sms-v3-staging'; },
+  for (const mutate of [e => { e.can_admins_bypass = true; }, e => { delete e.can_admins_bypass; }, e => { e.protection_rules = []; }, e => { e.name = 'production-sms-v3-staging'; },
     e => { e.protection_rules[0].reviewers[0].reviewer.id = 7; }, e => { e.deployment_branch_policy.custom_branch_policies = false; }]) {
     const e = environment(); mutate(e); assert.throws(() => operator.verifyEnvironment(e, policies()));
   }
