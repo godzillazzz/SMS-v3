@@ -1,0 +1,93 @@
+name: SMS-v3 Cloud Preview Operations (Read Only)
+
+# Installed selectively on protected main. This is not an authenticated UAT harness.
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sms-v3-cloud-preview-operations
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    if: >-
+      github.repository == 'godzillazzz/SMS-v3' &&
+      github.ref == 'refs/heads/main' &&
+      github.event.issue.number == 551 &&
+      github.event.issue.pull_request == null &&
+      github.event.sender.login == 'godzillazzz' &&
+      github.event.comment.user.login == 'godzillazzz' &&
+      github.event.comment.body == '/sms-v3-preview-check'
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    permissions:
+      contents: read
+      actions: read
+      deployments: read
+      issues: write
+    outputs:
+      plan: ${{ steps.plan.outputs.plan }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+      - name: Resolve exact CI and Git Preview, verify human gate, claim command
+        id: plan
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/ci/cloud-preview-operations.cjs prepare
+
+  protected-preview:
+    needs: prepare
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: Hosted UAT
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+      - name: Verify native Preview, health, readiness, CORS and unchanged canonicals
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CLOUD_PREVIEW_PLAN: ${{ needs.prepare.outputs.plan }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+        run: node scripts/ci/cloud-preview-operations.cjs verify
+
+  publish:
+    if: always() && needs.prepare.result == 'success'
+    needs: [prepare, protected-preview]
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+      - name: Publish traceable status without protected credentials
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CLOUD_PREVIEW_RESULT: ${{ needs.protected-preview.result }}
+        run: node scripts/ci/cloud-preview-operations.cjs publish
