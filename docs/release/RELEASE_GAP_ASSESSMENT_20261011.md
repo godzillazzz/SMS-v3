@@ -2,7 +2,7 @@
 
 **Assessment status:** COMPLETE FOR RELEASE PLANNING; NO CANDIDATE IS APPROVED FOR PRODUCTION. This is a read-only assessment plus documentation. No Production deployment, dispatch, promotion, rollback, alias/configuration change, database operation, live Cron execution, shared-hosted mutation, or Hosted UAT was performed.
 
-**Evidence timestamp:** 2026-10-11 11:14 Asia/Bangkok (04:14 UTC). Repository state was refreshed through GitHub and Vercel APIs immediately before writing this report.
+**Evidence timestamp:** 2026-10-11 11:57 Asia/Bangkok (04:57 UTC). GitHub was rechecked before this revision: Integration still points to `5b764d0d471ecd426c21e6043d6eb526a2e7780b`; PR #609 still targets that exact base.
 
 ## 1. Verified baselines
 
@@ -45,12 +45,30 @@ There are 9 documentation paths in the compare, including `MASTER_HANDOFF.md`. T
 
 ### Hidden dependencies and conflict hot spots
 
-- `frontend/src/main.tsx`: PRs #556, #591, #592, #593, #594, #596, #601, #602.
+- `frontend/src/main.tsx`: PRs #556, #591, #592, #593, #594, #596, #601, #602. The selected R6-B must apply only the first six relevant UI hunks and the #602 dashboard routing hunk from the frozen Production tree.
 - `frontend/public/sw.js`: #591 and #592; the cache generation must remain monotonic and both asset sets travel together.
 - Shared layout components: #556/#593/#594; attendance pages and browser contracts: #595/#596; DashboardPage: #596/#602; ReportCenterPage: #596/#597.
-- `src/routes/operations.routes.js`: #601/#602/#604; `src/services/dashboard.service.js`: #602/#604. The Cron and Leave changes are not disjoint at file level.
-- PR #604 extracts the guard-only scope shared with the T19 dashboard summary/detail code while preserving the dashboard-service export consumed by T19. A Production-base selection must retain the same guard predicate and import contract or deliberately reimplement/retest that boundary. The full merged PR cannot be treated as a stand-alone file copy.
+- `src/routes/operations.routes.js`: #601/#602/#604; `src/services/dashboard.service.js`: #602/#604. The same files contain distinct feature hunks, so copying either whole file from current Integration would import unrelated changes.
+- #604 adds a new `security-guard-scope.service.js` and extracts the T19 relation predicate from `dashboard.service.js`; Cron uses the employee predicate for guard-only reconciliation. That extraction is a source-level overlap, not a runtime dependency on T19's Dashboard detail API. A Cron-only reconstruction can include the employee predicate and Cron service hunks without the dashboard-service extraction, but must retain and retest the original T19 scope contract if both candidates are composed.
 - No schema migration is a hidden dependency in Git. Runtime use of existing fields and the live Production schema was not inspected against the database, by design.
+
+### Selective R6-B dependency closure and shared-file audit
+
+The **Selective R6-B Candidate** is reconstructed from frozen Production SHA `77641a2657aa4fd05276afe645dd32648f5cc56b`. Its complete feature set is #556 (T30a), #593–#596 (T30b), #591 (T32), #592 (T33), and #602 (T19). It explicitly excludes #601 (Leave Duplicate Guard), #604 (License Cron), and #597 (T31 / R6-C).
+
+Dependency order and closure:
+
+1. #556 supplies shared layout primitives required by the T30b layout PRs #593–#596.
+2. #593, #594, #595, and #596 travel as the reconciled T30b page/layout set because they overlap in `main.tsx`, shared components/styles, attendance pages, and browser contracts.
+3. #591 precedes #592: the splash/PWA assets and Service Worker cache version changes form one ordered asset/cache chain.
+4. #602 travels with the #596 DashboardPage base and its own dashboard detail page, route/filter wiring, authenticated read-only API, and server-side query/count scope. Use the #602 patch's inline `securityGuardRelationScope` contract; do not take #604's later helper extraction as an implicit prerequisite.
+5. #597 is excluded. Its Report Center and horizontal-logo dependencies (#596 and #592) are in R6-B; T31 remains a later R6-C candidate after that base.
+
+Shared-file review was against each constituent PR diff, not the merged Integration file snapshot. In #602, the `operations.routes.js` hunk adds the authenticated, read-only `GET /dashboard/details` handler. Its `dashboard.service.js` hunks compute filtered dashboard summaries/details; they do not perform writes. The #602 diff contains no `/internal/license-reconciliation` route, `CRON_SECRET` handler, scheduled-service import, `reconcileAllEmployeeLicenseSchedules`, `expireDueLicenseDocuments`, or `cleanupDueLicenseDocuments`.
+
+Those Cron GET/HEAD guards and the schedule/expiry/Storage cleanup calls are in #604's separate hunks. The employee-row lock, overlap preflight, and leave conflict response are in #601's separate hunks. Neither set is required to serve the selected #602 Dashboard details route. A generic `data-retention` Settings section remains in #596's frontend layout diff; it is an existing UI section selection, not the License Cron service or an invocation path.
+
+Therefore the **current Full Integration SHA is not an R6-B-only release**: it already contains merged PR #601 and #604 in addition to all R6-B and R6-C features. Do not copy `operations.routes.js` or `dashboard.service.js` wholesale from Integration when building Selective R6-B. Apply the reviewed R6-B PR-specific hunks to the frozen Production source, then inspect the resulting exact tree for absence of #601/#604 routes, imports, and runtime side effects. No such reconstructed candidate tree has been built or tested yet; the patch audit establishes the intended closure, not final candidate CI/Preview evidence.
 
 ### Exact merged feature heads, merge commits, and CI
 
@@ -75,29 +93,30 @@ All 11 exact PR-head `validate` jobs above completed SUCCESS with no failed or s
 ### Candidate R6-A — License Cron #604 + Leave Duplicate Guard #601
 
 - **Included exact PRs/commits:** #601 head `08c4653a…`, merge `f6ecd99d…`, CI [38048242486](https://github.com/godzillazzz/SMS-v3/actions/runs/38048242486); #604 head `85db9f6a…`, merge `1bde6d9…`, CI [38098449395](https://github.com/godzillazzz/SMS-v3/actions/runs/38098449395).
-- **Minimum dependency closure:** At source-file level #601 and #604 both change `operations.routes.js`; #604 also extracts `security-guard-scope.service.js` from the dashboard service scope used by T19. The as-merged code is therefore not a clean two-PR cherry-pick from frozen Production. At minimum, reconstruct and test the Cron guard-scope contract plus the T19 server-side security-guard predicate/interface with #604; preserve #601 route semantics. The simplest tested closure is to release the T19 server/API scope with #604 (and reconcile it with R6-B), while keeping unrelated T19 UI optional only if an isolated exact-head CI proves it.
-- **Risk / blast radius:** HIGH for #604; LOW–MEDIUM for #601. R6-A as proposed contains two different operational classes and should be split.
+- **Minimum dependency closure:** These are two independent behaviors and should not be treated as a single inseparable release. A Leave-only candidate needs the #601 create-transaction lock/conflict check, read-only overlap preflight and client flow. A Cron-only candidate needs the #604 Cron GET/HEAD/CRON_SECRET contract, guard-only employee predicate, Bangkok-date helper, schedule/expiry/Storage services and their tests. It does not require T19's Dashboard detail endpoint. Because #604's merged patch also extracts a predicate shared with #602 into `security-guard-scope.service.js`, construct Cron from its Cron-specific hunks; do not copy the Integration `dashboard.service.js` refactor as a Cron dependency.
+- **Risk / blast radius:** HIGH for #604; LOW–MEDIUM for #601. Keep their release approvals and verification independent.
 - **Runtime writes / reversibility:** #601 prevents overlapping PENDING/APPROVED/RETURNED_FOR_CORRECTION Leave requests by locking the employee row before checking conflicts. It still creates the normal accepted request/attachment/audit/quota records; rollback does not undo accepted requests. #604 is materially stateful: at 00:05 Bangkok it can update future ShiftAssignments for security-guard employees, write audit events, transition expired current license documents, and permanently remove storage objects for due documents. A code rollback cannot restore deleted files or reverse database writes.
 - **Cron auth/date/guard-only evidence:** exact GET and Bearer CRON_SECRET; explicit HEAD/POST rejection; missing/untrusted secret and all four user JWT roles return 401 without invoking scheduled work; secret absence fails closed. `securityGuardEmployeeWhere` scopes to active/nondeleted guard employees. Bangkok inclusive expiry boundary is covered at 16:59:59Z versus 17:05Z (23:59:59 vs 00:05 Bangkok); daily schedule itself is 17:05Z. Disposable PostgreSQL regression verifies non-guard/inactive rows and approval state remain unchanged; no live Production Cron was invoked.
 - **Leave duplicate/concurrency evidence:** mock regression verifies the raw employee-row lock is called before overlap detection, 409 on conflict, and read-only preflight. No actual two-connection/parallel PostgreSQL race test is present in the changed test set; this is a missing release regression for the feature’s concurrency guarantee. Role scoping is enforced in route code (VIEWER self-only, MANAGER/SUPERVISOR department approval policy) but should be covered by candidate-level authorization tests.
-- **CI/Preview:** both exact PR CI runs and PR Preview health/readiness/CORS steps PASS. Current Integration preview is READY. No hosted Cron run, shared-hosted mutation, or actual Production CRON_SECRET verification was performed. Vercel Cron invocation is Production-only; deploying this GET route will activate the already configured schedule on the next eligible tick.
+- **CI/Preview:** both exact PR CI runs and PR Preview health/readiness/CORS steps PASS. Current Integration preview is READY. No hosted Cron run, shared-hosted mutation, or actual Production CRON_SECRET verification was performed. Vercel Cron invocation is Production-only; deploying the GET route will activate the already configured schedule on the next eligible tick.
 - **Hosted/Business/Physical gaps:** no unattended Cron observation against disposable hosted infrastructure; no protected-secret metadata or production setting verification; no signed business acceptance of license-driven schedule changes and irreversible file retention; no parallel real-DB leave race test. Physical acceptance is not applicable to Cron/Leave code, but end-user Leave acceptance remains absent.
 - **Rollback:** route/code can be reverted; database schedule/document changes and object deletions are not automatically reversible. Capture a pre-release inventory/backup and define a stop/repair procedure before any real Cron activation.
-- **Required gate:** isolate R6-A into `Leave Guard` and `License Cron` sub-batches or combine the Cron sub-batch with the T19 backend scope in R6-B; create an exact Production-base release PR; run true concurrent disposable-DB Leave test, Cron authorization/guard/date tests, complete Preview readiness; verify actual Production Environment gate and Owner approval; obtain explicit Owner acceptance of schedule/retention effects. Never run the live Cron as a test.
-- **Decision: HOLD.** Do not deploy R6-A as currently grouped. Leave guard can be considered separately after rebase/reconstruction; Cron should be last and requires explicit side-effect approval.
+- **Required gate:** keep Leave and Cron gates separate. Before Leave: exact Production-base candidate, role/department authorization coverage and a true concurrent disposable-DB race regression. Before Cron: exact Production-base candidate, GET/HEAD/secret/guard/date checks, disposable side-effect regression, final Preview readiness and explicit Owner acceptance of unattended schedule, document-expiry and permanent Storage-deletion effects. Verify the protected Production Environment approval before any eventual release. Never run the live Cron as a test.
+- **Decision: HOLD.** Neither behavior is included in Selective R6-B. Full Integration also remains HOLD until both behaviors pass their own release gates.
 
-### Candidate R6-B — T30a/T30b + T32/T33 + T19
+### Candidate R6-B — Selective T30a/T30b + T32/T33 + T19
 
-- **Included PRs:** #556, #593–#596, #591, #592, #602; exact heads/merge SHAs/CI are in Section 2.
-- **Minimum dependency closure:** #556 shared layout foundation before #593–#596; all four T30b groups because personnel/roster/attendance/system pages share components, `main.tsx`, style files, browser contracts, and #596/#602 both change DashboardPage; #591 before #592 because Service Worker cache generation and brand assets progress from v3 to v4; #602 must travel with the Dashboard detail API/service scope. Treat this as one reconciled UI/API candidate, not independent cherry-picks.
+- **Included exact PRs:** #556, #593–#596, #591, #592, #602; exact heads/merge SHAs/CI are in Section 2. Explicitly **exclude #601, #604, and #597**.
+- **Minimum dependency closure:** build the complete Selective R6-B closure from frozen Production as listed in Section 2: #556 before #593–#596; #591 before #592; #596 DashboardPage with #602 detail/API scope. #601 Leave guard, #604 License Cron and #597 T31 are outside this candidate.
 - **Risk / blast radius:** MEDIUM–HIGH; broad UI/PWA surface and a new read-only dashboard endpoint, across employees, device, roster, leave, approvals, attendance, dashboard, reports, settings and system-health pages.
-- **Runtime writes:** T19 details use GET/read-only server filters with totals before pagination; T30a/T30b/T32/T33 are presentation/static/PWA changes. Existing roster, leave, attendance, approval, device and security-site actions remain callable from the UI, so preserve existing RBAC/guards and verify the real role-specific mutation boundaries. No schema change.
+- **Runtime writes:** T19 details use GET/read-only server filters with totals before pagination; T30a/T30b/T32/T33 are presentation/static/PWA changes. Existing roster, leave, attendance, approval, device and security-site actions remain callable from the UI, so preserve existing RBAC/guards and verify the real role-specific mutation boundaries. The selected patch closure adds no Cron handler or License schedule/document/Storage mutation code. No schema change.
 - **Security/RBAC:** T19 backend role and department scope tests exist; viewer self-scope and denied metric cases are checked. T30b PR descriptions/tests preserve existing device binding, GPS/geofence, offline-key and approval logic. No middleware source changed. End-user authorization across actual accounts, department data, mutation surfaces and all four roles is not yet UAT evidence.
 - **Unit/integration/browser evidence:** all exact PR validation runs passed (backend tests/integration, frontend tests/typecheck/build); PR Preview readiness/health/CORS step passed for each. The current Integration SHA CI passed but its Preview step was skipped on push; a separate Vercel Preview deployment with exact SHA is READY. Browser tests are fixture-based Playwright, not authenticated hosted-role tests.
-- **Missing/skipped checks:** one current Integration CI substep (PR Preview health/readiness/CORS) is SKIPPED because the workflow event was `push`; the exact current deployment metadata is READY but no CORS/readiness HTTP smoke at this current final SHA is evidenced here. No real desktop/mobile role walkthrough, four-role cross-scope test, physical PWA install/offline/update test, or Final Hosted UAT. No full exact-tree Production-base candidate run exists.
+- **Missing/skipped checks:** one current Integration CI substep (PR Preview health/readiness/CORS) is SKIPPED because the workflow event was `push`; the exact current deployment metadata is READY but no CORS/readiness HTTP smoke at this current final SHA is evidenced here. No real desktop/mobile role walkthrough, four-role cross-scope test, physical PWA install/offline/update test, or Final Hosted UAT. No full exact-tree Selective R6-B candidate run exists.
 - **Rollback:** code rollback is feasible, but Service Worker cache version changes can remain on clients until their next update/activation; validate cache cleanup/old-client behavior and avoid assuming alias rollback alone restores client state.
-- **Required gate:** Feature Freeze; one complete exact candidate tree and exact-head CI + authenticated Preview smoke/CORS; final role-based Hosted UAT after required disposable isolation and Environment approval; desktop/mobile/light/dark/PWA regression; confirm approval/roster/device/GPS/offline mutation contracts; fresh Production and Environment metadata before any separate release decision.
-- **Decision: CONDITIONAL for future candidate construction; NOT READY FOR PRODUCTION.** This is the preferred integration direction after Feature Freeze, not a release approval.
+- **Hosted/Business/Physical gaps:** Final Hosted UAT remains deferred until Feature Freeze; Business and Physical acceptance are not inferred from fixture CI.
+- **Required gate:** Feature Freeze; reconstruct from frozen Production SHA using only the reviewed PR-specific R6-B patches; inspect exact resulting tree to confirm no #601/#604 code/side effects; run full exact-head CI + Preview health/readiness/CORS on that exact tree; authenticated role/department UAT after disposable DB isolation and Environment approval; desktop/mobile/light/dark/PWA regression; confirm approval/roster/device/GPS/offline mutation contracts; fresh Production and Environment metadata before any separate release decision.
+- **Decision: CONDITIONAL — RECOMMENDED SELECTIVE R6-B CANDIDATE, NOT READY FOR PRODUCTION.** This recommendation is specifically the frozen-Production reconstruction excluding #601/#604/#597. It is not the current Full Integration tree and does not authorize dispatch.
 
 ### Candidate R6-C — T31 Monthly Timesheet / PDF
 
@@ -113,34 +132,37 @@ All 11 exact PR-head `validate` jobs above completed SUCCESS with no failed or s
 
 ## 4. Recommended release order
 
-Do not use the proposed `R6-A → R6-B → R6-C` order. The verified dependency and side-effect evidence supports:
+The corrected recommendation is **Selective R6-B from frozen Production**, not Full Integration. The current Integration source already contains #601 and #604, so it cannot serve as an R6-B-only artifact.
 
-1. **R6-B first** as one reconciled UI/T19 tree after Feature Freeze.
-2. **R6-C second** after its T30a/T30b/T33 print dependencies are present.
-3. **Leave duplicate guard (#601) as a small, separate follow-on** after a Production-base reconciliation and real two-connection database concurrency regression.
-4. **License Cron (#604) last and separately gated** (or carried with the T19 server-side guard-scope portion in the same exact candidate). Require explicit Owner acceptance for automatic schedule changes, document expiry, and permanent storage deletion before any deployment. Never “test” this by calling Production Cron.
+1. **Selective R6-B first** after Feature Freeze: reconstruct from frozen Production with #556, #593–#596, #591, #592 and #602 only; exclude #601, #604 and #597. Exact candidate CI, Preview and full acceptance gates remain outstanding.
+2. **R6-C / T31 next** after Selective R6-B supplies the Report Center and #592 horizontal-logo dependencies. Validate the combined print candidate separately.
+3. **Leave guard #601 separately** after Production-base reconstruction, scoped authorization coverage and a real concurrent disposable-DB race regression.
+4. **License Cron #604 separately and last** after Cron-specific authorization/date/guard/side-effect tests and explicit Owner acceptance of unattended schedule, DB and irreversible Storage effects.
+5. **Full Integration remains HOLD** until #601 and #604 each pass their own gates and every other candidate-level release/acceptance gate is complete. Its current SHA is broader than R6-B and includes R6-C plus cloud release-control changes.
 
-Every selected candidate must be reconstructed from the frozen source or from an explicitly chosen complete Integration tree, have its own exact source SHA, CI and Preview evidence, and pass required Environment approvals. Do not assume the historical PR merge sequence is a release cherry-pick sequence.
+Do not cherry-pick historical merge commits blindly or copy shared Integration files wholesale. Each candidate needs an exact source SHA, exact-head CI and Preview evidence, and the required Environment approval before any separate release decision.
 
 ## 5. Release architecture
 
-### A. Minimum-diff selective candidate from frozen Production
+### A. Minimum-diff Selective R6-B candidate from frozen Production — recommended
 
-- **Reproducibility:** possible in principle from exact Production SHA/tree `77641a…` / `f67e7a…`, but no candidate branch/tree has been created or tested. The PR file overlaps above make cherry-picking merged PRs in isolation unsafe; reconstruct selected diff and resolve conflicts from the frozen tree.
-- **CI/Preview:** only constituent PR-head CI and Preview evidence exists. No exact selected-candidate CI or Preview exists. It must be built and verified after Feature Freeze.
-- **Database compatibility:** no migration in the full diff and CI tests disposable Prisma databases. Actual Production schema fingerprint/runtime compatibility was not read. Selected Cron/report code must be checked against the live schema without writing.
-- **Rollback/security:** smaller code blast radius, but the same irreversible Cron/document effects apply if #604 is selected; client cache/report privacy considerations also remain. Rollback cannot undo database writes or storage deletions.
-- **Human approval:** same required Production Environment approval and explicit separate Owner Production Release approval; this assessment did not initiate either. Branch rules do not grant release authority.
-- **Relative risk:** lowest delta only if exact source reconstruction and end-to-end candidate testing are performed. Current evidence is insufficient to call the selected tree reproducible or safe to dispatch.
+- **Source and closure:** begin at frozen Production SHA/tree `77641a…` / `f67e7a…`; apply only #556, #593–#596, #591, #592 and #602 feature hunks. Exclude #601, #604 and #597. This is the recommended release candidate shape; no candidate branch/tree has been created.
+- **Reproducibility/conflicts:** exact source base is known, but the candidate has not been reconstructed. Shared `main.tsx`, layout, DashboardPage, `operations.routes.js` and `dashboard.service.js` overlaps mean whole-file copies or merge commits are unsafe. Use PR-specific hunks and record the resulting tree/SHA.
+- **CI/Preview:** constituent PR-head CI/Preview evidence exists. No exact Selective R6-B candidate CI or Preview exists; both are mandatory after reconstruction and Feature Freeze.
+- **Database compatibility:** no migration exists in the Integration source delta, but actual Production schema/runtime compatibility has not been checked. This candidate excludes Cron DB/Storage writes.
+- **Rollback/security:** smaller blast radius than Full Integration. Service Worker cache changes may remain on client devices through update/activation; rollback of server code alone does not instantly restore old client caches. Preserve existing RBAC, approval, roster, device binding, GPS/geofence, and offline contracts.
+- **Human approval:** any future Production release still requires the protected Production Environment approval and a separate Owner Production Release decision. This assessment did not initiate either.
+- **Relative risk:** lower application/runtime blast radius than Full Integration, with higher reconstruction/conflict risk until the exact tree is built and validated. **Recommended planning direction; not approved or ready to deploy.**
 
-### B. Full Integration after Feature Freeze
+### B. Full Integration candidate — HOLD
 
-- **Reproducibility:** exact source tree is known: Integration SHA `5b764d…`, tree `92a93b…`; the 107-commit/169-path compare is reproducible and current CI passes. It also includes cloud-only/read-only release-control and manifest/documentation changes outside the eight features.
-- **CI/Preview:** strongest present evidence (all feature PR exact-head CI/Preview checks and full Integration exact-head CI; current Integration Preview READY). Current Integration push CI skipped its inline Preview check, so final exact-tree health/readiness/CORS evidence must still be completed on a PR/candidate.
-- **Database compatibility:** no schema/migrations changed, but Cron and Leave operations can write and the runtime DB schema was not inspected. Preview/CI use separate disposable databases.
-- **Rollback/security:** simpler single-source reconciliation and fewer cherry-pick conflicts, but wider application, service-worker, test and workflow delta. Cron mutations/storage deletions remain non-reversible. Full Integration is not a release artifact by itself.
-- **Human approval:** requires Production Environment approval and separate Owner Release approval. Vercel docs note promoting a Preview deployment to Production triggers a complete rebuild using Production environment variables, so Preview validation does not establish byte-identical Production artifact equivalence. [Vercel Preview promotion documentation](https://vercel.com/docs/deployments/promote-preview-to-production).
-- **Relative risk:** lower integration/reconciliation risk, higher blast radius than architecture A. Prefer this only after Feature Freeze and full final UAT.
+- **Exact contents:** Integration `5b764d…` contains the full feature stack, the cloud-first/read-only release-control changes, and both merged PR #601 (Leave Duplicate Guard) and #604 (License Cron), as well as #597 (T31). It is therefore **not R6-B-only**.
+- **Reproducibility:** exact Integration source tree is known (`92a93b…`), 107 commits/169 paths ahead of frozen Production, and current Integration exact-head CI passes. It also has unrelated governance/documentation delta and broad shared-file changes.
+- **CI/Preview:** constituent PR exact-head CI/Preview checks and Integration exact-head CI are evidence. The Integration push run skipped its inline Preview health/readiness/CORS step; a separate exact-SHA Preview deployment is READY, but no current final-SHA CORS/readiness smoke is recorded.
+- **Database/runtime effects:** no schema/migration changed. Full Integration includes #604's unattended License Cron route and side effects, plus #601's write-path Leave guard. The Cron becomes active on the configured Production schedule when that code serves Production; schedule reconciliation, license expiry and object deletion are not undone by code rollback.
+- **Rollback/security:** fewer cherry-pick conflicts than selective reconstruction but substantially greater application and operational blast radius. Code rollback does not reverse database writes or recreate deleted Storage objects.
+- **Human approval:** requires protected Production Environment approval and the separate Owner Production Release decision. The Human Environment gate cannot be inferred from Integration CI or PR merge status.
+- **Relative risk/decision:** HOLD until #601 and #604 pass their own independent release gates, followed by exact Full-Integration candidate validation and final Business/Hosted/Physical acceptance. Full Integration is a future broader alternative, not the recommended R6-B candidate.
 
 ## 6. Production effects and rollback caveats
 
@@ -152,7 +174,7 @@ The production alias list and deployment identity were read-only verified. Verce
 
 ## 7. Explicit Owner decisions before any Production release
 
-1. Select architecture A (a smaller reconstructed candidate) or B (full Integration); recommendation is B only after Feature Freeze and final UAT, with T31 after UI/brand dependencies.
+1. The recommended planning direction is Architecture A: Selective R6-B reconstructed from frozen Production and excluding #601/#604/#597. Full Integration (Architecture B) remains HOLD; its eventual use requires both #601 and #604 release gates plus full candidate acceptance.
 2. Decide whether the License Cron’s automatic future-shift changes, license-document expiry timing, and permanent storage deletion are approved business behavior. Keep #604 out until this is explicit; deployment will activate the existing daily schedule.
 3. Decide if Leave guard ships separately or alongside R6-B; require a genuine concurrent disposable-DB test before accepting its concurrency guarantee.
 4. Approve final Hosted/Business/Physical acceptance after Feature Freeze and require disposable DB isolation before any authenticated or mutating UAT.
