@@ -1,4 +1,93 @@
-# PARTIAL — Cloud-first release operations #561 — 2026-10-11 (Asia/Bangkok)
+# CURRENT CHECKPOINT — Owner Feature Freeze Declaration: Selective R6-B — 2026-10-11 (Asia/Bangkok)
+
+**FEATURE_FREEZE_R6_B=DECLARED by explicit Owner approval.** This freezes the **R6-B development scope only**, not the Full Integration branch, Production release, or Final UAT. Approval evidence: [PR #610 Owner decision](https://github.com/godzillazzz/SMS-v3/issues/610#issuecomment-6105943759).
+
+## Frozen scope and owner decisions
+
+- **INCLUDE:** T30a PR #556; T30b PRs #593, #594, #595, #596; T32 PR #591; T33 PR #592; T19 PR #602. Preserve their reviewed dependency closure and current Production business/security contracts. Scope changes require a separate explicit Owner decision.
+- **EXCLUDE / DEFER:** T08 Approval Details is **outside R6-B only**. Its original inaccessible WIP and worktrees must remain untouched; T08 is not marked completed, cancelled, or deleted.
+- **NOT a pre-Freeze gate:** T18/T24 quantified performance SLO is not required to **declare this scope freeze**. Available performance samples remain insufficient; no p50/p95/SLO claim is made. Any applicable CI/build/bundle/runtime performance gate still applies before an eventual Production release.
+- **EXCLUDE from R6-B:** Leave Duplicate Guard PR #601, License Cron PR #604 and T31 Timesheet PR #597. These remain separately gated. Do not activate Cron schedule/document/storage side effects in an R6-B release.
+- **Source baseline:** Future Selective R6-B candidate starts from frozen Production R5-B source SHA `77641a2657aa4fd05276afe645dd32648f5cc56b`, not Full Integration; carefully reconstruct only reviewed PR-specific hunks. In particular never copy `src/routes/operations.routes.js`, `src/services/dashboard.service.js`, or `frontend/src/main.tsx` wholesale from Integration.
+- **Outstanding gates:** A selected application candidate has **NOT** been created or validated. Require exact candidate tree and CI, native Preview identity + health/readiness/CORS, role/RBAC and department boundary checks, device/GPS/offline and Service Worker regressions. After isolation of disposable DB/Storage/Email is proven, perform authorized four-role Hosted/Business/Physical UAT as applicable with mandatory protected Human Environment Approval. A skipped or unexecuted test is not PASS.
+- **Production:** R5-B remains frozen at deployment `dpl_Hjo1fTmgjEdmg5G7fZBX9gssenQP` and Application SHA `77641a2657aa4fd05276afe645dd32648f5cc56b`. Both canonical aliases stay unchanged. This decision does NOT authorize a Production deploy/dispatch, manifest, alias change, DB/schema/data mutation, secret change, or live Cron execution.
+- **WIP governance:** Preserve 559 staged deletions, untracked `.worktrees/`, original T08 WIP and `MASTER_HANDOFF.md`. No reset/clean/stash or local workspace reconstruction.
+
+**NEXT AUTHORIZED STEP:** after this document's exact-head CI/Preview and governed merge, begin *non-Production* Selective R6-B candidate reconstruction on a dedicated remote branch from the exact frozen Production SHA. Stop before any Production release or unapproved Hosted mutation.
+
+---
+
+# HISTORICAL READINESS CHECKPOINT — Feature Freeze readiness and Selective R6-B — 2026-10-11 12:31 ICT
+
+**FEATURE_FREEZE_READINESS: CONDITIONAL. Feature Freeze has not been declared; the Owner decision gate remains open. No R6-B application candidate has been created.**
+
+## Verified live baseline
+
+- Integration branch `fix/serverless-database-reliability`: `e0ce2336d540172f6b8716916b83c4a0d8bf6267`. Exact post-merge CI [#38113618372](https://github.com/godzillazzz/SMS-v3/actions/runs/38113618372) is SUCCESS for this SHA. Native Vercel Preview `dpl_7FX3aASFYc9G4oEXFsgMu7JShc9q` is READY, project `prj_XwhNUOB2zLSPZ6UgQcfyOKBYJ75s`, ref `fix/serverless-database-reliability`, exact SHA above, target `null`.
+- Release Gap Assessment PR [#609](https://github.com/godzillazzz/SMS-v3/pull/609) merged at `e0ce2336d540172f6b8716916b83c4a0d8bf6267`; its post-merge CI is the run above. The assessment itself records its original analysis baseline `5b764d0d471ecd426c21e6043d6eb526a2e7780b`; comparing that baseline to the current Integration shows the #609 assessment document as the only intervening changed path.
+- Frozen Production remains Application SHA `77641a2657aa4fd05276afe645dd32648f5cc56b`, deployment `dpl_Hjo1fTmgjEdmg5G7fZBX9gssenQP`, READY / target `production`. The canonical aliases `sms-v3-staging-godzillazzz.vercel.app` and `sms-v3-staging-ten.vercel.app` still belong to that deployment.
+- Issue [#561](https://github.com/godzillazzz/SMS-v3/issues/561) is CLOSED / completed. Its closure evidence records the real Owner-approved read-only protected Preview run [#38109986188](https://github.com/godzillazzz/SMS-v3/actions/runs/38109986188) SUCCESS for the then-current exact Integration/main/Preview identities, health, readiness, CORS, and unchanged canonical aliases. That run did not perform authenticated Business UAT, verify four-role credentials, or prove disposable DB, Storage, and Email isolation.
+- `MASTER_HANDOFF.md` was read at this Integration SHA and left unchanged. Its newest top checkpoint is dated 9 October and still names an older Integration SHA; current GitHub, Vercel, and this 11 October backlog checkpoint supersede that baseline for present status.
+
+## Feature Freeze readiness matrix
+
+| Area | Status | Evidence / remaining condition |
+|---|---|---|
+| Completed development in proposed R6-B | COMPLETED DEVELOPMENT / READY FOR FINAL UAT: T30a #556; T30b #593–#596; T32 #591; T33 #592; T19 #602. Exact PR-head CI/Preview evidence is in the merged Release Gap Assessment. This is development evidence, not a composed selective-candidate result or UAT acceptance. | The candidate patch set has not been reconstructed, by design. |
+| Completed development outside R6-B | T31 #597, Leave Duplicate Guard #601, and License Cron #604 are integrated with their PR CI evidence. They remain excluded from R6-B and retain independent release gates. | #601 lacks a true concurrent two-connection disposable-Postgres race regression. #604 has no live unattended Cron observation or production credential verification. #597 has no physical-printer/device acceptance. |
+| Other development groups | G06, Employee License, Q13B/Q13C, and G07 are recorded READY FOR FINAL UAT by the latest source audit; no new implementation defect was identified in that pass. | This is development-level readiness only. Hosted mutations and physical/business acceptance remain deferred until isolation and post-freeze acceptance gates pass. |
+| Cloud-first release operations | Issue #561 CLOSED for its read-only Preview operator DoD. | Closure is not Feature Freeze, authenticated UAT, or Production release approval. The old OPEN/WAITING backlog checkpoint is historical and superseded. |
+| T08 Approval Details | BLOCKED / OWNER SCOPE DECISION. Last recorded read-only diagnostics found the original `fix/t08-approval-details-1008` worktree unavailable in the managed runtime; no replacement is authorized. Root worktree and existing WIP were not inspected or changed during this assessment. | If T08 remains in this release scope, the original WIP must be made accessible, safely checkpointed, and completed before freezing. Otherwise Owner must explicitly defer/exclude T08 from this release scope. |
+| T18/T24 performance measurement | PARTIAL / measurement incomplete. Available natural runtime samples were too few to support p50/p95, error-rate SLO, or bottleneck conclusions; no verified Development defect was identified. No synthetic Production benchmark was used. | A hard performance SLO is a pre-freeze blocker only if Owner confirms that such an SLO is part of this release acceptance. Otherwise collect adequate no-cost telemetry later without claiming an SLO early. |
+| Known R6-B product defect | None independently verified in the reviewed Release Gap Assessment. | The exact composed candidate has not been built/tested, so integration regressions remain an open release-candidate risk rather than a claimed defect or pass. |
+| Final security/regression coverage | Required after candidate reconstruction: exact-tree backend/frontend/unit/integration/browser/security CI; role and department authorization; no Cron/Leave Guard side effects; Preview identity, health/readiness/CORS; desktop/mobile/light/dark/PWA cache/update checks; existing approval, roster, device-binding, GPS/geofence, and secure-offline contracts. | Original PR CI passed; the exact selectively composed tree and its complete regression surface are not yet evidenced. |
+| Final Hosted/Business/Physical acceptance | INTENTIONALLY DEFERRED until after Feature Freeze and disposable-environment proof. | No authenticated four-role Hosted UAT, business mutation acceptance, or physical iPhone/PWA acceptance is claimed. Browser fixtures are not physical acceptance. |
+
+### Freeze blockers versus post-freeze work
+
+The genuine scope blocker is whether T08 is still required in the release being frozen. Its original worktree is not available to this runtime, so its unfinished scope cannot be declared complete. Owner must either make that original WIP available for safe recovery before freeze or explicitly defer/exclude T08.
+
+T18/T24 is not a proven product defect. It blocks freeze only if Owner sets a performance SLO as a release requirement; no such threshold is evidenced in the current source material. This checkpoint therefore treats it as conditional rather than inventing a threshold.
+
+Exact-tree R6-B CI/Preview, authenticated role tests, disposable infrastructure verification, Business UAT, and physical acceptance are gates intentionally scheduled after Feature Freeze. Their absence does not by itself block declaring development scope frozen, but each remains a hard gate before the corresponding release/acceptance claim.
+
+## Selective R6-B scope and reconstruction plan
+
+Future Selective R6-B source must start from frozen Production SHA `77641a2657aa4fd05276afe645dd32648f5cc56b`, not the Full Integration branch.
+
+- Include T30a #556; T30b #593, #594, #595, #596; T32 #591; T33 #592; and T19 #602.
+- Exclude Leave Guard #601, License Cron #604, and T31 #597. Current Full Integration already contains all three excluded groups, so it is not an R6-B-only source.
+- Dependency closure: #556 layout foundation before #593–#596; apply #593–#596 as one reconciled layout/page set; apply #591 before #592 to preserve the Service Worker/static asset cache-version chain; apply #602 on top of the #596 DashboardPage base.
+- Reconstruct from constituent PR diffs/hunks, not merge commits or whole Integration files. Audit the final tree and changed-file list against the exact allowed PR scope.
+
+File/hunk controls for the later candidate:
+
+- `frontend/src/main.tsx`: include only the #593–#596 layout/page registration and #602 Dashboard navigation hunks. Exclude #601 Leave preflight/client-flow hunks.
+- Shared layout/components/styles, attendance pages/styles, and their browser contracts: take only the reviewed #556/#593–#596 hunks. Preserve existing approval, roster, device binding, GPS/geofence, and secure-offline behavior.
+- Dashboard UI/API path (`frontend/src/pages/dashboard/**`, Dashboard components/types/deep-links, and the #602 route/client changes): keep the authenticated read-only details endpoint, URL/filter contract, role/department scope, and server total-before-pagination behavior.
+- `src/routes/operations.routes.js`: apply only #602's authenticated read-only `GET /dashboard/details` hunk in its intended auth context. Do not import/copy #604's `/internal/license-reconciliation` GET/HEAD handler, CRON_SECRET verifier, scheduled-service imports, or Cron registration; do not include #601's leave preflight/write path.
+- `src/services/dashboard.service.js`: apply only the #602 filtered count/detail hunks, including its inline security-guard relation scope. Do not copy #604's extraction to `security-guard-scope.service.js` or any license reconciliation/expiry/Storage cleanup call path.
+- `frontend/public/sw.js` and static brand/splash assets: apply #591 then #592 in sequence; retain monotonic cache versions and cache only the intended same-origin shell/static assets. Verify old-client/update cleanup behavior because client caches may outlive code rollback.
+- Exclude #597 report/PDF implementation files. Its later R6-C closure depends on the R6-B Report Center/logo foundation but is not required for R6-B.
+- The merged assessment found no schema/migration path in its Production-to-Integration source compare. Keep `vercel.json` unchanged and recheck the candidate diff for schema, migration, cron, retention, and unrelated runtime-write changes.
+
+Required candidate regression after the Owner Freeze decision: full exact-head CI; exact native Preview SHA/ref/project/target and health/readiness/CORS; server-side KPI totals/filter and all-role/department authorization tests; UI desktop/mobile/light/dark regression; PWA service-worker update/cache checks; and regression assertions for approval, roster, device, GPS/geofence, and offline security boundaries. A skipped check is not PASS.
+
+## UAT prerequisites (post-freeze)
+
+Before authenticated Hosted UAT: prove Preview runtime DB fingerprint equals an authorized disposable DB and differs from Production; prove separate Storage and Email targets; verify exact Preview identity and Trusted Main SHA/CI; confirm four authorized distinct role accounts and secret configuration without exposing values; and obtain the actual required Hosted UAT Environment approval with its main-only restriction. The Issue #561 read-only Preview success does not supply these proofs. Do not perform Hosted or Physical UAT in this checkpoint.
+
+## Owner decision required
+
+Owner must decide the feature-scope boundary: (1) retain T08 as a release requirement and make its original WIP accessible for recovery/completion, or (2) explicitly defer/exclude T08 from this release; and confirm whether a quantified T18/T24 performance SLO is a pre-freeze acceptance requirement. Owner alone may then declare Feature Freeze. This report does not declare it.
+
+**Execution boundary:** documentation planning only. No application candidate, Hosted/Business/Physical UAT, Cron run, Production dispatch/deploy/promotion, alias or secret change, database/schema/data mutation, or edit to `MASTER_HANDOFF.md` was performed.
+
+---
+
+# HISTORICAL / SUPERSEDED CHECKPOINT — Cloud-first release operations #561 — 2026-10-11 (Asia/Bangkok)
+
+> Historical snapshot only: GitHub now records Issue #561 as CLOSED / completed. The OPEN/WAITING statements below describe its earlier checkpoint and are superseded by the current Feature Freeze checkpoint above. Closure evidence is [protected read-only Preview run #38109986188](https://github.com/godzillazzz/SMS-v3/actions/runs/38109986188); this did not execute authenticated Business UAT.
 
 **Cloud implementation and selective integration complete; live protected Preview verification is waiting on the required Owner Environment review. Issue #561 remains OPEN.** The work started from Integration `e5e55663640627ae75d58721a82c38c70a1da2da`, where the reusable cloud-only Preview operator was absent. No duplicate Production dispatcher was added: existing Issue #548 remains the Production path, and PR #560 remains historical R5-B Preview evidence.
 
