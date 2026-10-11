@@ -4,6 +4,8 @@
 
 This runbook covers the Vercel staging deployment for SMS v3. It does not authorize production use, destructive database rollback, or deployment to a company server.
 
+Use [Cloud-first operations](release/CLOUD_FIRST_OPERATIONS.md) for GitHub/Vercel CI, immutable Preview resolution and governed release initiation. Owner computers, Codex Desktop and Khai Hub are optional; actual human Environment approval remains mandatory. Never use a read-only Preview request as Production or Final Hosted UAT authorization.
+
 ## Pre-release checklist
 
 1. Confirm the reviewed main branch commit and intended deployment identifier.
