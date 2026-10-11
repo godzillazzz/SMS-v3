@@ -5,6 +5,8 @@ import { securitySiteOperations } from './security-site-operations-client';
 const SecuritySiteMapPicker = lazy(() => import('./SecuritySiteMapPicker').then((module) => ({ default: module.SecuritySiteMapPicker })));
 import { useActionDialog } from './useActionDialog';
 import { formatThaiDateTime } from '../thai-date-time';
+import { PageHeader, SectionCard } from './layout';
+import { SmsIcon } from './SmsIcon';
 import '../styles/security-site-management.css';
 import {
   createSecuritySiteQrDataUrl,
@@ -386,37 +388,29 @@ export function SecuritySiteManagementPanel({ token }: { token: string }) {
     }
   };
 
-  return <><section className="security-site-admin nexus-gis-workspace nexus-site-command" aria-label="Security Site & Checkpoint Command">
-    <div className="nexus-page-breadcrumb">จัดการสถานที่ปฏิบัติงาน</div>
-    <header className="security-site-admin__header gis-legacy-header">
-      <div><p className="eyebrow">ADMIN · ATTENDANCE SITE AUTHORITY</p><h2>Security Site Management</h2><p>กำหนด Site, Geofence, Department ↔ Site และ Default/Home Site โดยไม่ผูก Site ถาวรไว้ที่ Employee</p></div>
-      <button type="button" className="btn-neutral" disabled={loading || saving} onClick={() => void reload()}>↻ รีเฟรช</button>
-    </header>
+  return <><section className="security-site-admin security-site-admin--layout layout-page-surface" aria-label="จัดการจุดรักษาความปลอดภัย">
+    <PageHeader kicker="ผู้ดูแลระบบ · สถานที่ลงเวลา" title="จุดรักษาความปลอดภัยและรหัส QR" description="กำหนด Site, Geofence, ความสัมพันธ์กับแผนก และ Default/Home Site โดยไม่ผูก Site ถาวรกับพนักงาน" actions={<button type="button" className="btn-neutral" disabled={loading || saving} onClick={() => void reload()}><SmsIcon name="refresh" size={16} />รีเฟรช</button>} className="security-site-page-header" />
 
-    <div className="security-site-authority-rule"><strong>Expected Site authority</strong><span>1. Schedule Site override</span><span>2. Department Default Site</span><span>3. BLOCK — ไม่เดา Site</span></div>
+    <SectionCard kicker="ลำดับอ้างอิง" title="แหล่งกำหนด Site สำหรับลงเวลา" description="ระบบใช้ลำดับนี้และหยุดเมื่อไม่มีข้อมูลที่อนุญาต ห้ามเดา Site" className="security-site-authority-card">
+      <div className="security-site-authority-rule"><strong>ลำดับ Site</strong><span>1. Schedule Site override</span><span>2. Department Default Site</span><span>3. BLOCK — ไม่เดา Site</span></div>
+    </SectionCard>
     {error && <div className="alert alert-error" role="alert">{error}</div>}
     {notice && <div className="settings-notice" role="status">{notice}</div>}
 
-    <section className="gis-command-header">
-      <div>
-        <p className="gis-command-breadcrumb">ดูแลพิกัดสถานที่</p>
-        <h1>GIS Surveillance &amp; Site Control</h1>
-        <p>ระบบแผนที่ยุทธวิธีและการกำกับ Security Site / Geofence จากข้อมูลจริงของระบบ</p>
-      </div>
-      <button type="button" className="btn-neutral" disabled={loading || saving} onClick={() => void reload()}>รีเฟรชข้อมูล</button>
-    </section>
-
-    <div className="nexus-gis-status-strip" aria-label="สรุปสถานที่" aria-busy={loading}>
+    <SectionCard kicker="ข้อมูลสถานที่" title="สถานะ Site ในระบบ" description="สรุปข้อมูลจริงที่โหลดมาในหน้านี้" className="security-site-status-card" aria-label="สรุปสถานที่">
+    <div className="nexus-gis-status-strip" aria-busy={loading}>
       <span><small>สถานที่ทั้งหมด</small><b>{loading ? <i className="gis-status-skeleton" aria-hidden="true" /> : sites.length}</b><em>สถานที่ในระบบ</em></span>
       <span><small>สถานะใช้งาน</small><b className="is-nominal">{loading ? <i className="gis-status-skeleton" aria-hidden="true" /> : activeSiteCount}</b><em>สถานะพื้นที่ทำงาน</em></span>
       <span><small>พื้นที่ซ้อนทับ</small><b className={overlaps.length ? 'is-warning' : 'is-nominal'}>{loading ? <i className="gis-status-skeleton" aria-hidden="true" /> : overlaps.length}</b><em>{overlaps.length ? 'พบพื้นที่ที่ควรตรวจสอบ' : 'ไม่พบพื้นที่ซ้อนทับ'}</em></span>
     </div>
+    </SectionCard>
 
-    <section className="gis-tactical-workspace" aria-label="Tactical GIS workspace">
+    <SectionCard kicker="แผนที่และ Site" title="แผนที่ตำแหน่งและข้อมูลพื้นที่" description="เลือกตำแหน่งและตรวจข้อมูล Geofence จาก Site ที่เลือก โดยคงแผนที่ OpenStreetMap เดิมไว้" className="security-site-map-card" aria-label="แผนที่และ Site">
+    <section className="gis-tactical-workspace">
       <article className="gis-map-deck">
         <header className="gis-map-deck__header">
-          <div><span>TACTICAL MAP WELL</span><strong>{selectedSite ? `${selectedSite.code} / ${selectedSite.name}` : 'SITE CHANNEL UNSELECTED'}</strong></div>
-          <div className="gis-map-deck__meta"><span>SECTOR GRID</span><b>EPSG:4326</b></div>
+          <div><span>แผนที่ของ Site</span><strong>{selectedSite ? `${selectedSite.code} / ${selectedSite.name}` : 'ยังไม่ได้เลือก Site'}</strong></div>
+          <div className="gis-map-deck__meta"><span>ระบบพิกัด</span><b>EPSG:4326</b></div>
         </header>
         <Suspense fallback={<SiteMapLoading />}>
         <SecuritySiteMapPicker
@@ -435,7 +429,7 @@ export function SecuritySiteManagementPanel({ token }: { token: string }) {
 
       <aside className={`gis-intelligence-sheet ${intelligenceOpen ? 'is-open' : ''}`} aria-label="Site intelligence panel">
         <button type="button" className="gis-intelligence-sheet__toggle" aria-expanded={intelligenceOpen} onClick={() => setIntelligenceOpen((value) => !value)}>
-          <span>SITE INTELLIGENCE</span><b>{selectedSite?.code || 'NO SITE SELECTED'}</b><i>{intelligenceOpen ? '−' : '+'}</i>
+          <span>ข้อมูลพื้นที่</span><b>{selectedSite?.code || 'ยังไม่ได้เลือก Site'}</b><i>{intelligenceOpen ? '−' : '+'}</i>
         </button>
         <div className="gis-intelligence-sheet__content">
           {selectedSite ? <>
@@ -450,14 +444,14 @@ export function SecuritySiteManagementPanel({ token }: { token: string }) {
             <section className="gis-intel-section"><header><span>ATTENDANCE QR LIFECYCLE</span><b className={selectedSite.currentQrCredential ? 'is-nominal' : 'is-warning'}>{selectedQrStatus}</b></header><div className="gis-qr-facts"><span>VERSION <strong>{selectedSite.currentQrCredential?.version ?? '—'}</strong></span><span>VALID FROM <strong>{selectedSite.currentQrCredential ? displayDate(selectedSite.currentQrCredential.validFrom) : 'AWAITING QR'}</strong></span></div><div className="gis-intel-actions"><button type="button" className="btn-primary" disabled={saving || !selectedSite.isActive || qrReason.trim().length < 3} title="ระบุเหตุผล Rotate QR ในส่วน QR lifecycle อย่างน้อย 3 ตัวอักษรก่อน" onClick={() => void rotateQr()}>ROTATE QR</button><button type="button" className="btn-neutral" disabled title="ยังไม่มี site-scoped access audit API">ACCESS AUDIT</button></div></section>
             <section className="gis-intel-section gis-alert-channel"><header><span>ACTIVE GEOFENCE ALERT</span><b>NOT CONFIGURED</b></header><p>Backend ปัจจุบันไม่มี live out-of-bounds event channel จึงไม่สร้างเหตุการณ์จำลอง</p>{selectedOverlaps.length > 0 && <div className="gis-config-warning">{selectedOverlaps.length} configuration overlap warning{selectedOverlaps.length > 1 ? 's' : ''} requires review.</div>}</section>
             <div className="gis-mobile-quick-actions"><button type="button" disabled>SCAN SITE QR</button><button type="button" disabled>COMMS</button><small>CHANNEL NOT CONFIGURED</small></div>
-          </> : <div className="gis-intel-empty-state"><strong>SELECT A SECURITY SITE</strong><span>เลือก Site จาก Site master เพื่อเปิด Spatial Geometry, Department mapping และ QR lifecycle</span></div>}
+          </> : <div className="gis-intel-empty-state"><strong>เลือก Security Site</strong><span>เลือก Site จากรายการเพื่อดูตำแหน่ง ขอบเขตพื้นที่ ความสัมพันธ์กับแผนก และวงจร QR</span></div>}
         </div>
       </aside>
     </section>
+    </SectionCard>
 
     <div className="security-site-admin__grid">
-      <article className="security-site-admin__card">
-        <div className="security-site-admin__card-title"><div><h3>Site master</h3><small>เพิ่ม / แก้ไข / deactivate / reactivate · ไม่มี hard delete</small></div><button type="button" className="btn-neutral small-action" onClick={() => applySite(null)}>+ Site ใหม่</button></div>
+      <SectionCard kicker="ข้อมูลสถานที่" title="สถานที่ปฏิบัติงาน" description="เพิ่ม แก้ไข ปิด หรือเปิดใช้งานโดยเก็บประวัติไว้" className="security-site-admin__card" actions={<button type="button" className="btn-neutral small-action" onClick={() => applySite(null)}><SmsIcon name="plus" size={15} />ไซต์ใหม่</button>}>
         <div className="security-site-governance-toolbar"><label className="field-group"><span>ค้นหา Site</span><input value={siteQuery} placeholder="Code หรือชื่อ Site" onChange={(event) => setSiteQuery(event.target.value)} /></label><label className="field-group"><span>สถานะ</span><select value={siteStatusFilter} onChange={(event) => setSiteStatusFilter(event.target.value as 'ALL' | 'ACTIVE' | 'INACTIVE')}><option value="ALL">ทั้งหมด</option><option value="ACTIVE">Active</option><option value="INACTIVE">Inactive</option></select></label></div>
         <label className="field-group"><span>เลือก Site</span><select value={selectedSiteId} onChange={(event) => applySite(sites.find((site) => site.id === event.target.value) || null)}><option value="">— Site ใหม่ —</option>{visibleSites.map((site) => <option key={site.id} value={site.id}>{site.code} · {site.name}{site.isActive ? '' : ' · INACTIVE'}</option>)}</select></label>
         <div className="security-site-form-grid">
@@ -468,10 +462,9 @@ export function SecuritySiteManagementPanel({ token }: { token: string }) {
           <label className="field-group"><span>Geofence radius (เมตร)</span><input type="number" min={1} max={100000} value={form.geofenceRadiusMeters} onChange={(event) => setForm((current) => ({ ...current, geofenceRadiusMeters: event.target.value }))} /></label>
         </div>
         {selectedSite?.isActive && <label className="field-group security-site-deactivation-reason"><span>เหตุผลก่อนปิดใช้งาน</span><textarea rows={3} maxLength={1000} value={deactivationReason} placeholder="ระบุเหตุผลเพื่อบันทึกใน Audit" onChange={(event) => setDeactivationReason(event.target.value)} /><small>ระบบจะตรวจ Default Site และ open Attendance session อีกครั้งที่ server ก่อนปิดใช้งาน</small></label>}<div className="security-site-actions"><button type="button" className="btn-primary" disabled={saving} onClick={() => void saveSite()}>{saving ? 'กำลังบันทึก…' : selectedSite ? 'บันทึกการแก้ไข' : 'เพิ่ม Security Site'}</button>{selectedSite && <button type="button" className="btn-neutral" disabled={saving} onClick={() => void duplicateSite()}>Duplicate Site</button>}{selectedSite && <button type="button" className={selectedSite.isActive ? 'danger-action' : 'btn-success'} disabled={saving || (selectedSite.isActive && deactivationReason.trim().length < 3)} onClick={requestSiteStatusChange}>{selectedSite.isActive ? 'Deactivate' : 'Reactivate'}</button>}</div>
-      </article>
+      </SectionCard>
 
-      <article className="security-site-admin__card">
-        <div className="security-site-admin__card-title"><div><h3>OpenStreetMap / Geofence</h3><small>คลิกบนแผนที่หรือลากหมุดเพื่อเลือกตำแหน่ง Site · วง Geofence แสดงตามรัศมีจริง</small></div></div>
+      <SectionCard kicker="แผนที่" title="แผนที่ OpenStreetMap และ Geofence" description="คลิกแผนที่หรือลากหมุดเพื่อเลือกตำแหน่ง วง Geofence อ้างอิงจากรัศมีจริง" className="security-site-admin__card">
         <Suspense fallback={<SiteMapLoading />}>
         <SecuritySiteMapPicker
           latitude={numberOrNull(form.latitude)}
@@ -486,20 +479,18 @@ export function SecuritySiteManagementPanel({ token }: { token: string }) {
         />
         </Suspense>
         <div className="security-site-overlap-list">{selectedOverlaps.length ? selectedOverlaps.map((warning) => <div key={`${warning.siteId}-${warning.otherSiteId}`} className="security-site-overlap-warning"><strong>⚠ {warning.siteCode} ↔ {warning.otherSiteCode}</strong><span>ศูนย์กลางห่าง {warning.distanceMeters} ม. · วงซ้อนประมาณ {warning.overlapMeters} ม.</span></div>) : <div className="security-site-no-warning">ไม่พบ Geofence overlap ในชุดที่เลือก</div>}</div>
-      </article>
+      </SectionCard>
 
-      <article className="security-site-admin__card security-site-admin__card--wide">
-        <div className="security-site-admin__card-title"><div><h3>Department ↔ Security Site</h3><small>Department เลือก Allowed Sites ได้หลายแห่ง แต่ Default/Home Site ได้สูงสุด 1 แห่ง</small></div></div>
+      <SectionCard kicker="ความสัมพันธ์หน่วยงาน" title="กำหนดสถานที่ให้แผนก" description="แผนกเลือก Allowed Sites ได้หลายแห่ง และกำหนด Default/Home Site ได้สูงสุดหนึ่งแห่ง" className="security-site-admin__card security-site-admin__card--wide">
         <label className="field-group"><span>Department</span><select value={selectedDepartmentId} onChange={(event) => applyMapping(departments.find((department) => department.departmentMasterId === event.target.value) || null)}><option value="">— เลือก Department —</option>{departments.map((department) => <option key={department.departmentMasterId} value={department.departmentMasterId}>{department.departmentCode} · {department.departmentName}{department.isActive ? '' : ' · Inactive'}</option>)}</select></label>
         {selectedMapping ? <>
           <div className="security-site-mapping-grid">{activeSites.map((site) => <label key={site.id} className={`security-site-mapping-option ${mappingSiteIds.includes(site.id) ? 'is-selected' : ''}`}><input type="checkbox" checked={mappingSiteIds.includes(site.id)} onChange={(event) => toggleMappedSite(site.id, event.target.checked)} /><span><strong>{site.code} · {site.name}</strong><small>{site.latitude}, {site.longitude} · {site.geofenceRadiusMeters} ม.</small></span></label>)}</div>
           <label className="field-group"><span>Default / Home Site</span><select value={defaultSiteId} onChange={(event) => setDefaultSiteId(event.target.value)}><option value="">— ไม่มี Default (Attendance จะ BLOCK หาก Schedule ไม่ override) —</option>{activeSites.filter((site) => mappingSiteIds.includes(site.id)).map((site) => <option key={site.id} value={site.id}>{site.code} · {site.name}</option>)}</select><small>ฐานข้อมูลบังคับ unique partial index: 1 Department มี Default ได้ไม่เกิน 1 Site</small></label>
           <button type="button" className="btn-primary" disabled={saving} onClick={() => void saveMapping()}>บันทึก Department Site authority</button>
         </> : <div className="security-site-map-empty">เลือก Department เพื่อกำหนด Allowed Site และ Default Site</div>}
-      </article>
+      </SectionCard>
 
-      <article className="security-site-admin__card security-site-admin__card--wide">
-        <div className="security-site-admin__card-title"><div><h3>Attendance QR lifecycle</h3><small>Server เก็บ SHA-256 hash เท่านั้น · QR token จริงแสดงเฉพาะผล Rotate ครั้งนี้</small></div></div>
+      <SectionCard kicker="การลงเวลา" title="วงจร QR ประจำ Site" description="Server เก็บเฉพาะ SHA-256 hash และแสดง QR token จริงเฉพาะผลการออกครั้งนี้" className="security-site-admin__card security-site-admin__card--wide">
         {selectedSite ? <>
           <div className="security-site-qr-state"><span>Site</span><strong>{selectedSite.code} · {selectedSite.name}</strong><span>QR ปัจจุบัน</span><strong>{selectedSite.currentQrCredential ? `Version ${selectedSite.currentQrCredential.version} · ${displayDate(selectedSite.currentQrCredential.validFrom)}` : 'ยังไม่มี Active QR'}</strong></div>
           <label className="field-group"><span>เหตุผล Rotate / Revoke QR</span><input value={qrReason} maxLength={1000} onChange={(event) => setQrReason(event.target.value)} placeholder="เช่น เปลี่ยนป้าย QR ประจำจุด" /><small>บังคับอย่างน้อย 3 ตัวอักษร และบันทึกใน Audit</small></label><div className="security-site-actions"><button type="button" className="btn-primary" disabled={saving || !selectedSite.isActive} onClick={() => void rotateQr()}>Generate / Rotate QR</button>{selectedSite.currentQrCredential && <button type="button" className="danger-action" disabled={saving} onClick={requestQrRevoke}>Revoke current QR</button>}</div>
@@ -517,7 +508,7 @@ export function SecuritySiteManagementPanel({ token }: { token: string }) {
             {rawQrToken && !generatedQr && <div className="security-site-actions"><button type="button" className="btn-neutral" onClick={() => void copyQrToken()}>คัดลอก Token</button><button type="button" className="btn-neutral" onClick={() => setRawQrToken('')}>ซ่อน Token</button></div>}
           </div>}
         </> : <div className="security-site-map-empty">เลือก Site ก่อนจัดการ QR lifecycle</div>}
-      </article>
+      </SectionCard>
     </div>
 
     {pendingDestructiveAction && selectedSite && <div className="security-site-confirm-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !saving) setPendingDestructiveAction(null); }}>

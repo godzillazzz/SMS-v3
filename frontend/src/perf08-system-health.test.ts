@@ -28,8 +28,8 @@ describe('PERF-08 Admin Performance & System Health contract', () => {
 
   it('labels telemetry scope honestly and does not claim global SLA metrics', () => {
     expect(page).toContain('CURRENT_RUNTIME_INSTANCE');
-    expect(page).toContain('rolling runtime samples');
-    expect(page).toContain('ไม่ใช่ global SLA');
+    expect(page).toContain('ตัวอย่างคำขอใน runtime ปัจจุบัน');
+    expect(page).toContain('ไม่ใช่ SLA รวมทั้งระบบ');
     expect(page).toContain('<SmsIcon name="refresh" size={16} />');
     expect(page).toContain('ไม่มี query string, payload, request ID หรือข้อมูลผู้ใช้');
   });

@@ -28,7 +28,7 @@ describe('Employee action and bulk auto-schedule hotfix', () => {
   });
 
   it('describes bulk auto scheduling as all-employee magic-wand continuation from the previous month', () => {
-    expect(main).toContain('✨ ดูตัวอย่างจัดกะอัตโนมัติ');
+    expect(main).toContain('ดูตัวอย่างจัดกะอัตโนมัติ');
     expect(main).toContain('api.previewAutoSchedule(auth.token, scheduleMonth)');
     expect(main).not.toContain('Shared Pattern Engine');
     expect(main).not.toContain('ตรวจสอบ workflow, validation และ backend behavior');

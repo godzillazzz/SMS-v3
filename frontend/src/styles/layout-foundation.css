@@ -1,0 +1,28 @@
+/* T30a: reuse semantic palette/shadows and workflow/card rhythm; page adoption belongs to T30b. */
+:root { --layout-card-radius:16px; --layout-nested-radius:10px; --layout-card-padding:24px; --layout-gap:16px; --layout-heading-font:"Kanit",sans-serif; --layout-body-font:"Noto Sans Thai",sans-serif; }
+/* Existing legacy shell declarations are important; keep this override scoped to the desktop shell. */
+html[data-theme] .app-shell:not(.pwa-shell) { background:var(--color-bg) !important; }
+html[data-theme] .app-shell:not(.pwa-shell) :is(.main-area,.content-area,.view-pane) { background:transparent !important; }
+.layout-page-header,.layout-section-card__heading { display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:var(--layout-gap); }
+.layout-page-header { padding:0; border:0; background:transparent; color:var(--color-text); }
+.layout-section-card,.layout-metric-card,.layout-step-flow { min-width:0; border:1px solid var(--color-border); border-radius:var(--layout-card-radius); padding:var(--layout-card-padding); background:var(--color-surface); color:var(--color-text); box-shadow:var(--shadow-sm); }
+.layout-section-card { display:grid; gap:var(--layout-gap); }
+.layout-page-header,.layout-section-card,.layout-metric-card,.layout-step-flow { font-family:var(--layout-body-font); }
+.layout-page-header h1,.layout-section-card h2,.layout-metric-card h2,.layout-step-flow h2 { margin:0; color:var(--color-text); font-family:var(--layout-heading-font) !important; line-height:var(--line-height-heading); }
+.layout-kicker { margin:0 0 8px; color:var(--color-text-secondary); font:600 12px var(--layout-body-font); letter-spacing:.04em; }
+.layout-page-header p:not(.layout-kicker),.layout-section-card__heading p:not(.layout-kicker),.layout-metric-card p,.layout-step-flow > p:not(.layout-kicker) { margin:8px 0 0; color:var(--color-text-secondary); }
+.layout-actions { display:flex; flex-wrap:wrap; gap:8px; }
+.layout-section-card__content { min-width:0; }
+.layout-section-card__content > .table-scroll { background:transparent; border-radius:inherit; }
+.layout-metric-card__value { display:block; margin:8px 0; font:700 28px var(--layout-heading-font); }
+.layout-step-flow__steps { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,200px),1fr)); gap:var(--layout-gap); margin:16px 0 0; padding:0; list-style:none; }
+.layout-step-flow__steps button { display:flex; gap:12px; width:100%; height:100%; padding:16px; border:1px solid var(--color-border); border-radius:var(--layout-nested-radius); background:var(--color-surface-muted); color:var(--color-text); text-align:left; font:inherit; }
+.layout-step-flow__steps button > svg { flex-shrink:0; }
+.layout-step-flow__steps strong,.layout-step-flow__steps small,.layout-step-flow__steps span span { display:block; }
+.layout-step-flow__steps small,.layout-step-flow__steps span span { color:var(--color-text-secondary); }
+.layout-step-flow__steps [aria-current="step"] button { border-color:var(--color-primary); }
+@media(max-width:768px) { :root { --layout-card-padding:16px; } }
+
+/* Keep existing shell labels readable when the canvas is light. */
+[data-theme="light"] .app-shell:not(.pwa-shell) .environment-pill { color:color-mix(in srgb,var(--color-success) 80%,var(--color-text) 20%) !important; }
+[data-theme="light"] .app-shell:not(.pwa-shell) .nexus-command__hero > div > p:not(.nexus-kicker) { color:var(--color-text-secondary) !important; }

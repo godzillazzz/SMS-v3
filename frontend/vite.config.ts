@@ -14,6 +14,9 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks(id) {
+          if (id.includes('/components/layout/')) return 'layout-components';
+          // Keep the initial accessible loader available without enlarging the application entry.
+          if (id.endsWith('/components/AppLoader.tsx')) return 'app-loader';
           if (id.includes('/node_modules/react/') || id.includes('/node_modules/react-dom/')) return 'react-vendor';
           if (id.includes('/node_modules/@simplewebauthn/')) return 'webauthn-vendor';
           return undefined;

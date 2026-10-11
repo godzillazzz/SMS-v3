@@ -1,0 +1,138 @@
+/* T30b group 4: system pages consume the shared layout and palette tokens. */
+html[data-theme] .app-shell .content-area .layout-page-surface {
+  --color-surface: var(--surface-card, #fff);
+  --color-surface-muted: var(--surface-raised, #f8fafc);
+  --color-border: var(--border-card, #dce6ee);
+  --color-text: var(--text-on-surface, #102033);
+  --color-text-secondary: var(--text-on-surface-muted, #52677a);
+  --color-text-muted: var(--text-on-surface-muted, #52677a);
+  min-width: 0;
+  background: transparent !important;
+  color: var(--color-text);
+}
+
+html[data-theme] .app-shell .content-area .layout-page-surface > .layout-page-header {
+  min-height: 0;
+  margin: 0;
+}
+
+/* Dashboard keeps its established information order while using shared cards. */
+html[data-theme] .app-shell .content-area .layout-page-surface.nexus-command {
+  max-width: 1600px;
+  margin: 0 auto;
+  gap: 16px;
+  color: var(--color-text) !important;
+}
+html[data-theme] .app-shell .content-area .layout-page-surface.nexus-command :is(h1,h2,h3) {
+  color: var(--color-text) !important;
+  font-family: var(--layout-heading-font) !important;
+}
+html[data-theme] .app-shell .content-area .layout-page-surface.nexus-command .nexus-command__hero {
+  min-height: 0;
+  padding: 0;
+  align-items: flex-start;
+  border: 0;
+  background: transparent !important;
+}
+html[data-theme] .app-shell .content-area .layout-page-surface.nexus-command .nexus-command__hero > div > p:last-child,
+html[data-theme] .app-shell .content-area .layout-page-surface.nexus-command .nexus-hero-status small {
+  color: var(--color-text-secondary) !important;
+}
+html[data-theme] .app-shell .content-area .layout-page-surface.nexus-command .nexus-hero-status strong { color: var(--color-text) !important; }
+html[data-theme] .app-shell .content-area .layout-page-surface.nexus-command .nexus-kicker { color: var(--color-primary, #5145cd) !important; font-family: var(--layout-body-font); letter-spacing: .04em; }
+html[data-theme="light"] .app-shell .content-area .layout-page-surface.nexus-command .nexus-kicker { color: #006b82 !important; }
+html[data-theme] .app-shell .content-area .layout-page-surface.nexus-command :is(.nexus-panel,.nexus-stream,.nexus-readiness,.nexus-activity) {
+  color: var(--color-text) !important;
+  background: var(--color-surface) !important;
+  border: 1px solid var(--color-border) !important;
+  border-radius: 16px !important;
+  box-shadow: var(--shadow-sm) !important;
+}
+html[data-theme] .app-shell .content-area .layout-page-surface.nexus-command .nexus-kpis {
+  grid-template-columns: repeat(4,minmax(0,1fr));
+  gap: 10px;
+  border: 0;
+  background: transparent !important;
+}
+html[data-theme] .app-shell .content-area .layout-page-surface.nexus-command .nexus-kpis button {
+  min-width: 0;
+  min-height: 100px;
+  padding: 16px;
+  border: 1px solid var(--color-border) !important;
+  border-radius: 10px !important;
+  background: var(--color-surface-muted) !important;
+}
+html[data-theme] .app-shell .content-area .layout-page-surface.nexus-command .nexus-kpis :is(span,em) { color: var(--color-text-secondary) !important; font: 600 12px var(--layout-body-font); letter-spacing: 0; }
+html[data-theme] .app-shell .content-area .layout-page-surface.nexus-command .nexus-kpis strong { color: var(--color-text) !important; font-family: var(--layout-heading-font); text-shadow: none; }
+html[data-theme] .app-shell .content-area .layout-page-surface.nexus-command .nexus-kpis strong small { color: var(--color-text-secondary) !important; }
+html[data-theme] .app-shell .content-area .layout-page-surface.nexus-command .nexus-readiness :is(button,span,b),
+html[data-theme] .app-shell .content-area .layout-page-surface.nexus-command .nexus-activity :is(strong,small) { color: var(--color-text-secondary) !important; }
+@media(max-width:760px) {
+  html[data-theme] .app-shell .content-area .layout-page-surface.nexus-command .nexus-hero-status { display: none; }
+  html[data-theme] .app-shell .content-area .layout-page-surface.nexus-command .nexus-kpis { grid-template-columns: repeat(2,minmax(0,1fr)); }
+}
+@media(max-width:420px) {
+  html[data-theme] .app-shell .content-area .layout-page-surface.nexus-command .nexus-kpis button { padding: 12px; }
+}
+
+/* Audit, quality, reports, settings and sites inherit shared tokens in both themes. */
+html[data-theme] .app-shell .content-area .layout-page-surface :is(.audit-page-header,.data-quality-header,.report-center-heading,.settings-heading,.security-site-page-header) {
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+html[data-theme] .app-shell .content-area .layout-page-surface :is(.audit-page-header h1,.data-quality-header h1,.report-center-heading h1,.settings-heading h1,.security-site-page-header h1) { font-family: var(--layout-heading-font) !important; color: var(--color-text) !important; }
+html[data-theme] .app-shell .content-area .layout-page-surface :is(.audit-page-header p:not(.layout-kicker),.data-quality-header p:not(.layout-kicker),.report-center-heading p:not(.layout-kicker),.settings-heading p:not(.layout-kicker),.security-site-page-header p:not(.layout-kicker)) { color: var(--color-text-secondary) !important; }
+html[data-theme] .app-shell .content-area .layout-page-surface :is(.audit-metric,.data-quality-kpi,.system-health-kpi,.metric-card,.report-center-export-card,.report-center-filter-card,.report-center-state,.settings-section-nav a,.security-site-admin__card) {
+  border-color: var(--color-border) !important;
+  background: var(--color-surface) !important;
+  color: var(--color-text) !important;
+  box-shadow: var(--shadow-sm) !important;
+}
+html[data-theme] .app-shell .content-area .layout-page-surface :is(.audit-metric p,.audit-metric small,.data-quality-kpi p,.data-quality-kpi small,.system-health-kpi span,.system-health-kpi small,.settings-section-nav small,.security-site-admin__card-title small) { color: var(--color-text-secondary) !important; }
+html[data-theme] .app-shell .content-area .layout-page-surface :is(.audit-metric strong,.data-quality-kpi strong,.system-health-kpi strong,.settings-section-nav strong,.security-site-admin__card h3) { color: var(--color-text) !important; font-family: var(--layout-heading-font); }
+html[data-theme] .app-shell .content-area .layout-page-surface :is(.audit-toolbar,.data-quality-filter-bar,.report-center-tabs,.report-center-tabs button,.report-center-state,.audit-table-card,.data-quality-desktop-table,.data-quality-mobile-card,.system-health-scope,.security-site-authority-rule) {
+  border-color: var(--color-border) !important;
+  border-radius: 10px;
+  background: var(--color-surface-muted) !important;
+  color: var(--color-text) !important;
+}
+html[data-theme] .app-shell .content-area .layout-page-surface :is(.audit-table th,.data-quality-desktop-table th) { background: var(--color-surface-muted) !important; color: var(--color-text-secondary) !important; }
+html[data-theme] .app-shell .content-area .layout-page-surface :is(.audit-table td,.data-quality-desktop-table td,.system-health-details dd,.system-health-details dt) { border-color: var(--color-border) !important; color: var(--color-text) !important; background: transparent !important; }
+html[data-theme] .app-shell .content-area .layout-page-surface :is(.report-center-filters select,.audit-toolbar input,.audit-toolbar select,.data-quality-filter-bar input,.data-quality-filter-bar select) { border-color: var(--color-border) !important; border-radius: 10px !important; background: var(--color-surface) !important; color: var(--color-text) !important; color-scheme: inherit; }
+html[data-theme] .app-shell .content-area .layout-page-surface :is(.report-center-filter-note,.report-center-section-heading p,.report-center-state span,.data-quality-desktop-table td small,.data-quality-mobile-card p,.data-quality-mobile-card dt,.data-quality-mobile-card dd,.audit-table td small) { color: var(--color-text-secondary) !important; }
+html[data-theme] .app-shell .content-area .layout-page-surface :is(.report-center-tabs button[aria-selected="true"],.settings-section-nav a[aria-current="page"]) { color: var(--color-primary) !important; border-color: var(--color-primary) !important; }
+html[data-theme] .app-shell .content-area .security-site-admin.layout-page-surface.security-site-admin--layout { margin: 0; padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
+html[data-theme] .app-shell .content-area .security-site-admin--layout .security-site-authority-rule span { border-color: var(--color-border); background: var(--color-surface); color: var(--color-text-secondary); }
+html[data-theme] .app-shell .content-area .security-site-admin--layout .security-site-admin__grid { margin-top: 0; }
+html[data-theme] .app-shell .content-area .security-site-admin--layout .security-site-map-card .gis-tactical-workspace { min-width: 0; }
+html[data-theme] .app-shell .content-area .security-site-admin--layout :is(.security-site-map,.security-site-map-empty,.gis-map-deck,.gis-intelligence-sheet) { border-radius: 10px; }
+html[data-theme] .app-shell .content-area .security-site-admin--layout .nexus-gis-status-strip { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); overflow: hidden; gap: 10px; }
+html[data-theme] .app-shell .content-area .security-site-admin--layout .nexus-gis-status-strip > span { min-width: 0; padding: 14px; border: 1px solid var(--color-border); border-radius: 10px; background: var(--color-surface-muted); }
+html[data-theme] .app-shell .content-area .security-site-admin--layout .nexus-gis-status-strip :is(small,em) { color: var(--color-text-secondary); font-family: var(--layout-body-font); font-size: 12px; font-style: normal; }
+html[data-theme] .app-shell .content-area .security-site-admin--layout .nexus-gis-status-strip b { color: var(--color-text); font-family: var(--layout-heading-font); font-size: 22px; }
+html[data-theme] .app-shell .content-area .security-site-admin--layout .gis-tactical-workspace { margin: 0; }
+html[data-theme] .app-shell .content-area .security-site-admin--layout .gis-map-deck { border-color: var(--color-border) !important; background: var(--color-surface-muted) !important; }
+html[data-theme] .app-shell .content-area .security-site-admin--layout .gis-map-deck__header { border-color: var(--color-border); background: var(--color-surface-muted); }
+html[data-theme] .app-shell .content-area .security-site-admin--layout .gis-map-deck__header :is(span,strong),
+html[data-theme] .app-shell .content-area .security-site-admin--layout .gis-map-deck__meta :is(span,b) { color: var(--color-text) !important; font-family: var(--layout-body-font); letter-spacing: 0; }
+html[data-theme] .app-shell .content-area .security-site-admin--layout .gis-intelligence-sheet { border-color: var(--color-border); background: var(--color-surface); color: var(--color-text); }
+html[data-theme] .app-shell .content-area .security-site-admin--layout .gis-intelligence-sheet__toggle { border-color: var(--color-border); background: var(--color-surface-muted); color: var(--color-text); }
+html[data-theme] .app-shell .content-area .security-site-admin--layout .gis-intelligence-sheet__toggle :is(span,b,i),
+html[data-theme] .app-shell .content-area .security-site-admin--layout .gis-intelligence-sheet__content :is(span,strong,p,dt,dd,small) { color: var(--color-text-secondary); font-family: var(--layout-body-font); letter-spacing: 0; }
+html[data-theme] .app-shell .content-area .security-site-admin--layout .gis-intelligence-sheet__content strong { color: var(--color-text); }
+@media(max-width:980px) {
+  html[data-theme] .app-shell .content-area .security-site-admin--layout .nexus-gis-status-strip { grid-template-columns: repeat(2,minmax(0,1fr)); }
+}
+@media(max-width:700px) {
+  html[data-theme] .app-shell .content-area .security-site-admin--layout .nexus-gis-status-strip { grid-template-columns: repeat(2,minmax(0,1fr)); }
+}
+@media(max-width:430px) {
+  html[data-theme] .app-shell .content-area .security-site-admin--layout .nexus-gis-status-strip { grid-template-columns: 1fr; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .layout-page-surface :is(.data-quality-loading-row,.audit-metric-skeleton,.gis-status-skeleton) { animation: none !important; }
+}

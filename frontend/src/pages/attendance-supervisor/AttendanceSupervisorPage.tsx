@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { api, type SecuritySite } from '../../api';
 import { formatRequestErrorMessage } from '../../request-error';
 import { SmsIcon, type SmsIconName } from '../../components/SmsIcon';
+import { PageHeader, SectionCard } from '../../components/layout';
 import { useAccessibleOverlay } from '../../components/useAccessibleOverlay';
 import { roleDisplayName } from '../../role-display';
 import { attendanceOperationalLabels, attendanceTimeLabels } from './attendance-time-labels';
@@ -968,15 +969,8 @@ export function AttendanceSupervisorPage({ token, role, department, userId, onOp
     )}
   </div>;
 
-  return <section className="attendance-supervisor-v4 nexus-attendance-ops" aria-label="Attendance Operations Control">
-    <div className="nexus-page-breadcrumb">ติดตามการลงเวลา</div>
-    <header className="attendance-supervisor-v4__hero">
-      <div>
-        <span className="attendance-supervisor-v4__eyebrow">การควบคุมการลงเวลา</span>
-        <h2>ศูนย์ควบคุมการลงเวลา</h2>
-        <p>{manager ? `ขอบเขต Supervisor / Manager: ${department || 'ไม่ระบุ Department'}` : 'Admin มองเห็นทุก Department ตามสิทธิ์'}</p>
-      </div>
-      <div className="attendance-supervisor-v4__hero-controls">
+  return <section className="attendance-supervisor-v4 nexus-attendance-ops layout-page-surface" aria-label="ศูนย์ควบคุมการลงเวลา">
+    <PageHeader kicker="การควบคุมการลงเวลา" title="ศูนย์ควบคุมการลงเวลา" description={manager ? `ขอบเขต Supervisor / Manager: ${department || 'ไม่ระบุ Department'}` : 'Admin มองเห็นทุก Department ตามสิทธิ์'} actions={<div className="attendance-supervisor-v4__hero-controls">
         <button type="button" className="attendance-supervisor-v4__manual-btn" onClick={openManualConfirmation}>
           <SmsIcon name="attendance" size={17} />คีย์ยืนยันมาปฏิบัติงานย้อนหลัง
         </button>
@@ -992,10 +986,10 @@ export function AttendanceSupervisorPage({ token, role, department, userId, onOp
             <SmsIcon name="approval" size={17} />คำขอแก้ไข
           </button>
         </div>
-      </div>
-    </header>
+      </div>} />
 
     {mode !== 'requests' ? <>
+      <SectionCard className="attendance-supervisor-v4__filter-card" kicker="ค้นหารายการ" title="ตัวกรองข้อมูลลงเวลา" description="เลือกช่วงเวลา หน่วยงาน สถานที่ กะ พนักงาน และสถานะที่ต้องการตรวจสอบ">
       <section className="attendance-supervisor-v4__filters">
         {mode === 'daily' ? (
           <label><span>วันที่</span><input type="date" value={date} onChange={(event) => setDate(event.target.value)} /></label>
@@ -1054,8 +1048,10 @@ export function AttendanceSupervisorPage({ token, role, department, userId, onOp
           </select>
         </label>
       </section>
+      </SectionCard>
 
-      {summary && <section className="attendance-supervisor-v4__kpis">
+      {summary && <SectionCard className="attendance-supervisor-v4__kpi-card" kicker="ภาพรวมข้อมูล" title="สรุปสถานะการลงเวลา" description="ตัวเลขจากข้อมูลในช่วงและขอบเขตที่เลือก">
+      <section className="attendance-supervisor-v4__kpis">
         <KPI label="ต้องตรวจสอบ" value={summary.requiresAttention} icon="quality" tone="danger" onClick={() => setStatus('REQUIRES_ATTENTION')} />
         <KPI label="มีตาราง" value={summary.scheduledToday} icon="calendar" />
         <KPI label="ลงเวลาแล้ว" value={summary.checkedIn} icon="check" tone="good" />
@@ -1069,18 +1065,10 @@ export function AttendanceSupervisorPage({ token, role, department, userId, onOp
         <KPI label="ลา" value={summary.leave} icon="leave" onClick={() => setStatus('LEAVE')} />
         <KPI label="ขาด" value={summary.absent} icon="quality" tone="danger" onClick={() => setStatus('ABSENT')} />
         <KPI label="เวลาผิดปกติ" value={summary.timeAbnormal} icon="quality" tone="danger" onClick={() => setStatus('TIME_ABNORMAL')} />
-      </section>}
+      </section>
+      </SectionCard>}
 
-      <section className="attendance-supervisor-v4__table-card">
-        <div className="attendance-supervisor-v4__table-head">
-          <div>
-            <strong>{mode === 'daily' ? 'สถานะประจำวัน' : 'ประวัติการลงเวลา'}</strong>
-            <span>{loading ? 'กำลังโหลด…' : `${rows.length} รายการ`}</span>
-          </div>
-          {mode === 'history' && history?.meta && (
-            <span>หน้า {history.meta.page}/{history.meta.totalPages} · {history.meta.total} รายการ</span>
-          )}
-        </div>
+      <SectionCard className="attendance-supervisor-v4__table-card" kicker={mode === 'daily' ? 'ข้อมูลวันนี้' : 'ข้อมูลย้อนหลัง'} title={mode === 'daily' ? 'สถานะประจำวัน' : 'ประวัติการลงเวลา'} description={loading ? 'กำลังโหลดรายการตามตัวกรอง' : `${rows.length} รายการในขอบเขตที่เลือก`} actions={mode === 'history' && history?.meta ? <span>หน้า {history.meta.page}/{history.meta.totalPages} · {history.meta.total} รายการ</span> : undefined}>
         <ResponsiveDataTable
           ariaLabel={attendanceTableLabel}
           loading={loading && !error}
@@ -1102,20 +1090,10 @@ export function AttendanceSupervisorPage({ token, role, department, userId, onOp
             className="attendance-supervisor-v4__pager"
           />
         )}
-      </section>
+      </SectionCard>
     </> : (
-      <section className="attendance-supervisor-v4__requests">
-        <div className="attendance-supervisor-v4__request-toolbar">
-          <div>
-            <span className="attendance-supervisor-v4__eyebrow">GOVERNED ADJUSTMENT</span>
-            <h3>{admin ? 'คิวอนุมัติ Attendance' : 'คำขอแก้ไข Attendance'}</h3>
-            <p>
-              {admin
-                ? 'ทุกการเปลี่ยนเวลาต้องผ่านปุ่มอนุมัติแยกต่างหากก่อนมีผลจริง'
-                : 'คำขอของ Supervisor / Manager ไม่มีผลต่อ Attendance จนกว่า ADMIN จะอนุมัติ'}
-            </p>
-          </div>
-          <label>
+      <SectionCard className="attendance-supervisor-v4__requests" kicker="คำขอปรับข้อมูลที่มีการควบคุม" title={admin ? 'คิวอนุมัติการลงเวลา' : 'คำขอแก้ไขการลงเวลา'} description={admin ? 'ทุกการเปลี่ยนเวลาต้องผ่านการอนุมัติแยกต่างหากก่อนมีผลจริง' : 'คำขอแก้ไขไม่มีผลต่อข้อมูลลงเวลาจนกว่า ADMIN จะอนุมัติ'} actions={
+          <label className="attendance-supervisor-v4__request-status-filter">
             <span>สถานะคำขอ</span>
             <select
               value={requestStatus}
@@ -1126,7 +1104,7 @@ export function AttendanceSupervisorPage({ token, role, department, userId, onOp
               ))}
             </select>
           </label>
-        </div>
+        }>
 
         {requestNotice && (
           <div className="attendance-supervisor-v4__notice" role="status">
@@ -1249,7 +1227,7 @@ export function AttendanceSupervisorPage({ token, role, department, userId, onOp
             <button type="button" disabled={requestPage >= requestMeta.totalPages} onClick={() => setRequestPage((value) => value + 1)}>ถัดไป</button>
           </div>
         )}
-      </section>
+      </SectionCard>
     )}
 
     {(detailLoading || detail) && (

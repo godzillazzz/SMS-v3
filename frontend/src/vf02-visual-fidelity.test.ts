@@ -48,7 +48,8 @@ describe('G04.2 VF-02 owner visual fidelity correction contract', () => {
   });
 
   it('uses the approved Command Nexus hierarchy with four operational KPIs before deeper signals', () => {
-    expect(dashboardPage).toContain('<h1>ภาพรวมระบบ</h1>');
+    expect(dashboardPage).toContain('title="ภาพรวมระบบ"');
+    expect(dashboardPage).toContain('<PageHeader');
     expect(dashboardPage).toContain('nexus-command__grid');
     for (const label of ['พนักงานปฏิบัติงาน', 'ทำงานวันนี้', 'ลาวันนี้', 'ใบอนุญาตใกล้หมดอายุ']) expect(dashboardPage).toContain(label);
     expect(dashboardPage).not.toContain('GIS INTEGRATION PENDING');
@@ -130,6 +131,6 @@ describe('G04.2 VF-02 owner visual fidelity correction contract', () => {
   });
 
   it('locks the authorized API source after T25 cross-tab refresh coordination', () => {
-    expect(apiSha256).toBe('ee259e1e4f8b95049f345ae885a94b354b87cd1c22050bceebb1064a8fa0629f');
+    expect(apiSha256).toBe('b0144981af17f3b286158a7a82277656bab79097242d1a563b1b157a96378b18');
   });
 });

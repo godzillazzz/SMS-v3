@@ -12,6 +12,7 @@ import {
 import { AttendanceOfficialReportPanel } from './AttendanceOfficialReport';
 import { SmsIcon, type SmsIconName } from '../../components/SmsIcon';
 import { activateTabFromKeyboard } from '../../components/AccessibleTabs';
+import { PageHeader, SectionCard } from '../../components/layout';
 import '../../styles/report-center.css';
 
 type ReportTab = 'executive' | 'details' | 'export';
@@ -92,15 +93,10 @@ export function ReportCenterPage({ token, role, onNavigate, initialTab = 'execut
     void printDocument('.executive-report-print', pdfFilename, { orientation: 'landscape', margin: '12mm' });
   };
 
-  return <section className="report-center-page view-pane nexus-report-intelligence" aria-label="Operational Intelligence & Reports">
-    <div className="nexus-page-breadcrumb">ศูนย์รายงาน</div>
-    <header className="report-center-heading">
-      <div><p className="eyebrow">UNIFIED REPORT CENTER</p><h1>รายงานและวิเคราะห์</h1><p>Executive &amp; Operational Report Center</p></div>
-      {(activeTab === 'executive' || activeTab === 'export') && <div className="report-center-quick-export" aria-label="ส่งออกด่วน"><button type="button" className="btn-primary" disabled={!executiveReport} onClick={exportPdf}>ส่งออก PDF</button></div>}
-    </header>
+  return <section className="report-center-page view-pane nexus-report-intelligence layout-page-surface" aria-label="รายงานและวิเคราะห์">
+    <PageHeader kicker="ศูนย์รายงาน" title="รายงานและวิเคราะห์" description="สรุปข้อมูลปฏิบัติงานและส่งออกรายงานจากข้อมูล API ที่มีอยู่" className="report-center-heading" actions={(activeTab === 'executive' || activeTab === 'export') ? <div className="report-center-quick-export" aria-label="ส่งออกด่วน"><button type="button" className="btn-primary" disabled={!executiveReport} onClick={exportPdf}>ส่งออก PDF</button></div> : undefined} />
 
-    <section className="report-center-filter-card" aria-label="ตัวกรองรายงาน">
-      <div className="report-center-filter-heading"><div><strong>ช่วงรายงาน</strong><small>คงค่าตัวกรองไว้เมื่อสลับแท็บที่รองรับ</small></div></div>
+    <SectionCard kicker="ตัวกรองรายงาน" title="ช่วงรายงาน" description="คงค่าตัวกรองไว้เมื่อสลับแท็บที่รองรับ" className="report-center-filter-card" aria-label="ตัวกรองรายงาน">
       <div className="report-center-filters">
         <label><span>เดือน</span><select value={filters.month} onChange={(event) => setFilters((value) => ({ ...value, month: Number(event.target.value) }))}>{monthNames.map((name, index) => <option value={index + 1} key={name}>{name}</option>)}</select></label>
         <label><span>ปี</span><select value={filters.year} onChange={(event) => setFilters((value) => ({ ...value, year: Number(event.target.value) }))}>{years.map((item) => <option key={item} value={item}>พ.ศ. {item + 543}</option>)}</select></label>
@@ -108,7 +104,7 @@ export function ReportCenterPage({ token, role, onNavigate, initialTab = 'execut
       </div>
       {activeTab === 'details' && <p className="report-center-filter-note">รายงานรายละเอียดใช้ช่วงเดือน/ปีและขอบเขตหน่วยงานเดียวกับตัวกรองด้านบน โดยคำนวณจากข้อมูลฝั่งเซิร์ฟเวอร์</p>}
       {activeTab === 'export' && role === 'ADMIN' && ATTENDANCE_OFFICIAL_REPORT_ENABLED && <p className="report-center-filter-note">Official Attendance Report ใช้เดือน/ปีที่เลือกและ Certified Snapshot ทั้งองค์กร ไม่ใช้ตัวกรองหน่วยงานของ Executive Report</p>}
-    </section>
+    </SectionCard>
 
     <div className="report-center-tabs" role="tablist" aria-label="ประเภทรายงาน" onKeyDown={activateTabFromKeyboard}>
       <button id="report-tab-executive" type="button" role="tab" aria-selected={activeTab === 'executive'} aria-controls="report-panel-executive" tabIndex={activeTab === 'executive' ? 0 : -1} className={activeTab === 'executive' ? 'active' : ''} onClick={() => setActiveTab('executive')}>ภาพรวมผู้บริหาร</button>
@@ -121,20 +117,22 @@ export function ReportCenterPage({ token, role, onNavigate, initialTab = 'execut
     </div>
 
     <div id="report-panel-details" role="tabpanel" aria-labelledby="report-tab-details" hidden={activeTab !== 'details'} className="report-center-tab-panel">
-      <section className="report-center-section-heading"><div><p className="eyebrow">DETAILED REPORTS</p><h2>รายงานรายละเอียด</h2><p>สรุปข้อมูลปฏิบัติงานจากชุดข้อมูลและ API เดิม โดยไม่เปลี่ยนสูตรคำนวณ</p></div><button type="button" className="btn-neutral small-action" disabled={summaryLoading} onClick={() => { setSummaryLoaded(false); setSummaryRefresh((value) => value + 1); }}><SmsIcon name="refresh" size={16} />รีเฟรช</button></section>
+      <SectionCard kicker="รายงานรายละเอียด" title="สรุปข้อมูลปฏิบัติงาน" description="ใช้ชุดข้อมูลและ API เดิม โดยไม่เปลี่ยนสูตรคำนวณ" className="report-center-section-heading" actions={<button type="button" className="btn-neutral small-action" disabled={summaryLoading} onClick={() => { setSummaryLoaded(false); setSummaryRefresh((value) => value + 1); }}><SmsIcon name="refresh" size={16} />รีเฟรช</button>}>
       {summaryLoading && <div className="report-center-state" role="status">กำลังสรุปข้อมูล…</div>}
       {summaryError && <div className="report-center-state report-center-state--error" role="alert"><strong>ไม่สามารถโหลดรายงานรายละเอียด</strong><RequestErrorContent error={summaryError} /></div>}
       {!summaryLoading && !summaryError && summary && <div className="metrics-grid report-grid">{summaryCards.map(([label, key, icon]) => <article className="metric-card" key={String(key)}><span className="metric-icon blue" aria-hidden="true"><SmsIcon name={icon} size={18} /></span><div><p>{label}</p><strong>{String(summary[key] ?? 0)}</strong><small>ตามช่วงและขอบเขตที่เลือก</small></div></article>)}</div>}
       {!summaryLoading && !summaryError && summary && summaryCards.every(([, key]) => Number(summary[key] || 0) === 0) && <div className="report-center-state"><strong>ยังไม่มีข้อมูลสรุป</strong><span>ไม่พบรายการในชุดข้อมูลรายงานปัจจุบัน</span></div>}
+      </SectionCard>
     </div>
 
     <div id="report-panel-export" role="tabpanel" aria-labelledby="report-tab-export" hidden={activeTab !== 'export'} className="report-center-tab-panel">
-      <section className="report-center-section-heading"><div><p className="eyebrow">ADVANCED EXPORT</p><h2>ส่งออก</h2><p>รวมเฉพาะรูปแบบส่งออกที่ระบบรองรับจริงในปัจจุบัน</p></div></section>
+      <SectionCard kicker="ส่งออกรายงาน" title="รูปแบบที่รองรับ" description="เลือกส่งออกจากข้อมูลและรูปแบบที่ระบบรองรับในปัจจุบัน" className="report-center-export-section">
       <div className="report-center-export-grid">
         <article className="report-center-export-card"><div className="report-center-export-icon">PDF</div><div><h3>รายงานผู้บริหาร PDF</h3><p>ใช้ข้อมูลและตัวกรองเดียวกับแท็บภาพรวมผู้บริหาร พร้อมรูปแบบเอกสาร A4 ที่มีอยู่เดิม</p><small>รูปแบบที่รองรับ: PDF</small></div><button type="button" className="btn-primary" disabled={!executiveReport} onClick={exportPdf}>ส่งออก PDF</button></article>
         {role === 'ADMIN' && ATTENDANCE_OFFICIAL_REPORT_ENABLED && <AttendanceOfficialReportPanel token={token} month={attendanceMonth} enabled={activeTab === 'export'} />}
       </div>
       {!executiveReport && <div className="report-center-state" role="status"><strong>กำลังเตรียมข้อมูลสำหรับส่งออก</strong><span>รอข้อมูล Executive Report จาก API เดิม</span></div>}
+      </SectionCard>
     </div>
 
     {executiveReport && <ExecutiveReportPrint report={executiveReport} />}

@@ -1,6 +1,10 @@
 import React from 'react';
 import { createRoot } from 'react-dom/client';
+import '@fontsource/kanit/thai-400.css';
+import '@fontsource/kanit/thai-600.css';
 import '../../src/styles.css';
+import '../../src/styles/tokens.css';
+import '../../src/styles/layout-foundation.css';
 import { PersonnelDirectoryPage } from '../../src/pages/personnel/PersonnelDirectoryPage';
 
 document.documentElement.dataset.theme = 'light';

@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../../api';
 import { formatRequestErrorMessage } from '../../request-error';
 import { acquireDocumentScrollLock } from '../../document-scroll-lock';
+import { SectionCard } from '../../components/layout';
+import '../../styles/personnel-layout.css';
 import { SmsIcon } from '../../components/SmsIcon';
 import { DataTablePagination } from '../../components/ResponsiveDataTable';
 import { formatThaiDate } from '../../thai-date-time';
@@ -197,11 +199,7 @@ export function RegistrationReviewPanel({ token, role, refreshSignal, initialReq
   const terminal = selected && ['APPROVED', 'REJECTED'].includes(selected.status);
   const approvalDisabled = busy || selected?.status !== 'MATCHED' || !selected?.matchedEmployeeId;
 
-  return <section className="registration-review" aria-label="คำขอลงทะเบียนแบบส่วนตัว">
-    <header className="registration-review__header">
-      <div><h2>คำขอลงทะเบียน</h2><span>ตรวจสอบข้อมูลผู้สมัครและจับคู่กับทะเบียนพนักงานก่อนตัดสินใจอนุมัติบัญชี</span></div>
-      <button type="button" className="btn-neutral registration-review__refresh" disabled={loading} onClick={() => void load()}><SmsIcon name="history" size={17} />รีเฟรช</button>
-    </header>
+  return <SectionCard className="registration-review" kicker="บุคลากรและสิทธิ์" title="คำขอลงทะเบียน" description="ตรวจสอบข้อมูลผู้สมัครและจับคู่กับทะเบียนพนักงานก่อนตัดสินใจอนุมัติบัญชี" actions={<button type="button" className="btn-neutral registration-review__refresh" disabled={loading} onClick={() => void load()}><SmsIcon name="history" size={17} />รีเฟรช</button>}>
     {error && <div className="registration-review__feedback registration-review__feedback--error" role="alert" aria-live="assertive"><SmsIcon name="shield" size={18} /><span>{error}</span></div>}
     {message && <div className="registration-review__feedback registration-review__feedback--success" role="status" aria-live="polite"><SmsIcon name="approval" size={18} /><span>{message}</span></div>}
     <div className={`registration-review__grid ${mobileDetail ? 'is-mobile-detail' : ''}`}>
@@ -290,5 +288,5 @@ export function RegistrationReviewPanel({ token, role, refreshSignal, initialReq
         <footer><button type="button" className="btn-neutral" disabled={busy} onClick={closeReject}>ยกเลิก</button><button type="button" className="btn-danger" disabled={busy} onClick={() => void reject()}>{busy ? 'กำลังบันทึก…' : 'ไม่อนุมัติคำขอ'}</button></footer>
       </section>
     </div>}
-  </section>;
+  </SectionCard>;
 }

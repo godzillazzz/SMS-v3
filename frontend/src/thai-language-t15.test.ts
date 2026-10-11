@@ -56,7 +56,7 @@ describe('T15 Thai user-facing language', () => {
     for (const section of SETTINGS_SECTIONS) expect(section.label).toMatch(thai);
     for (const label of Object.values(ROLE_DISPLAY_LABEL)) expect(label).toMatch(thai);
     for (const label of Object.values(ROLE_MANAGEMENT_LABEL)) expect(label).toMatch(thai);
-    expect(read('pages/dashboard/DashboardPage.tsx')).toContain('<h1>ภาพรวมระบบ</h1>');
+    expect(read('pages/dashboard/DashboardPage.tsx')).toContain('title="ภาพรวมระบบ"');
   });
 
   it('keeps role and internal rule codes separate from their Thai presentation labels', () => {

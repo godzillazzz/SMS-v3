@@ -1,4 +1,4 @@
-export type DashboardPage = 'employees' | 'licenses' | 'schedule' | 'leave' | 'leavePending' | 'leaveHistory' | 'quota' | 'users' | 'rules' | 'approvalCenter';
+export type DashboardPage = 'employees' | 'licenses' | 'schedule' | 'leave' | 'leavePending' | 'leaveHistory' | 'quota' | 'users' | 'rules' | 'approvalCenter' | 'dashboardDetails';
 
 export type DashboardFilters = { date: string; month: string; department: string };
 
@@ -14,7 +14,7 @@ export type DashboardUser = {
   department?: string;
 };
 
-export type DashboardNavigate = (page: DashboardPage) => void;
+export type DashboardNavigate = (page: DashboardPage, query?: Record<string, string | undefined>) => void;
 
 export const asNumber = (value: unknown) => Number.isFinite(Number(value)) ? Number(value) : 0;
 

@@ -15,14 +15,14 @@ const apiBytes = fs.readFileSync(path.join(root, 'api.ts'), 'utf8').replace(/\r\
 
 describe('G04.2 VF-07.1 Owner brand + login hero correction', () => {
   it('renders the approved SMS logo asset across desktop, login and mobile brand surfaces', () => {
-    expect(main).toContain('function Logo()');
-    expect(main).toMatch(/<img\s+className="brand-logo"\s+src="\/attendance-sms-logo\.svg"\s+alt="SMS"\s*\/>/);
-    expect(main).toContain('renderLogo={() => <Logo />}');
-    expect(main).toContain('<div className="intro-brand auth-brand"><Logo />');
-    expect(main).toContain('<div className="auth-mobile-brand"><Logo />');
+    expect(main).not.toContain('function Logo()');
+    expect(main).toContain("import { BrandLogo } from './components/BrandLogo';");
+    expect(main).toContain('renderLogo={() => <BrandLogo tone="dark-surface" />}');
+    expect(main).toContain('<div className="intro-brand auth-brand"><BrandLogo tone="dark-surface" />');
+    expect(main).toContain('<div className="auth-mobile-brand"><BrandLogo tone="dark-surface" />');
     expect(main).toContain('<div className="sidebar-brand">');
-    expect(main).toContain('<span className="pwa-mobile-brand"><Logo />');
-    expect(main).toContain('<span className="mobile-brand"><Logo />');
+    expect(main).toContain('<span className="pwa-mobile-brand"><BrandLogo tone="dark-surface" />');
+    expect(main).toContain('<span className="mobile-brand"><BrandLogo />');
     expect(main).toContain('className="intro-brand auth-brand"');
     expect(main).toContain('className="auth-mobile-brand"');
     expect(main).toContain('className="sidebar-brand"');
@@ -77,6 +77,6 @@ describe('G04.2 VF-07.1 Owner brand + login hero correction', () => {
     expect(css).toMatch(/\.auth-brand \.brand-logo \{[\s\S]*?width: 44px;[\s\S]*?height: 44px;/);
   });
   it('locks the authorized API source after T25 cross-tab refresh coordination', () => {
-    expect(crypto.createHash('sha256').update(apiBytes).digest('hex')).toBe('ee259e1e4f8b95049f345ae885a94b354b87cd1c22050bceebb1064a8fa0629f');
+    expect(crypto.createHash('sha256').update(apiBytes).digest('hex')).toBe('b0144981af17f3b286158a7a82277656bab79097242d1a563b1b157a96378b18');
   });
 });

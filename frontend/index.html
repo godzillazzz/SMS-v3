@@ -39,10 +39,27 @@
       body { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
       #root { isolation: isolate; }
     </style>
+    <link rel="preload" as="image" href="/brand/sms-logo-splash.webp" media="(prefers-color-scheme: light)" />
+    <link rel="preload" as="image" href="/brand/sms-logo-splash-dark.webp" media="(prefers-color-scheme: dark)" />
+    <style>
+      .sms-splash{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;background:#f5f7fb;color:#14243e;font-family:Kanit,sans-serif}
+      .sms-splash img{height:240px;width:auto;max-width:90vw;object-fit:contain}
+      .sms-splash p{margin:0}
+      @media(prefers-color-scheme:dark){.sms-splash{background:#020813;color:#f1f5f9}}
+      html[data-theme=light]:not([data-sms-shell=employee]) .sms-splash{background:#f5f7fb;color:#14243e}
+      html[data-theme=dark] .sms-splash,html[data-sms-shell=employee] .sms-splash{background:#020813;color:#f1f5f9}
+      @media(max-width:600px){.sms-splash img{height:180px}}
+    </style>
     <title>Security Management System</title>
   </head>
   <body style="background-color: #020813 !important; margin: 0; padding: 0;">
-    <div id="root"></div>
+    <div id="root"><div class="sms-splash" role="status" aria-live="polite">
+      <picture><source id="sms-splash-dark" media="(prefers-color-scheme: dark)" srcset="/brand/sms-logo-splash-dark.webp" /><img src="/brand/sms-logo-splash.webp" alt="SMS Security Management System" /></picture>
+      <p>กำลังเตรียมระบบ…</p>
+    </div></div>
+    <script>
+      document.getElementById('sms-splash-dark').media = document.documentElement.dataset.smsShell === 'employee' || document.documentElement.dataset.theme === 'dark' ? 'all' : 'not all';
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

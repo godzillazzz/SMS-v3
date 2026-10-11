@@ -949,31 +949,8 @@
   min-height: 40px;
 }
 
-.leave-quota-card {
-  border-color: var(--color-border);
-  color: var(--color-text);
-  background: var(--color-surface);
-  box-shadow: var(--shadow-sm);
-}
-
-.leave-quota-card p,
-.leave-quota-card small,
-.my-leave-quota-heading,
-.my-leave-quota-strip {
+.my-leave-quota-heading,.my-leave-quota-strip {
   color: var(--color-text-secondary);
-}
-
-.leave-quota-card p,
-.leave-quota-card small,
-.my-leave-quota-grid .leave-quota-card p,
-.my-leave-quota-grid .leave-quota-card small {
-  font-size: 12px;
-  line-height: 1.4;
-}
-
-.leave-quota-card strong,
-.my-leave-quota-grid .leave-quota-card strong {
-  color: var(--color-text);
 }
 
 /* Audit */

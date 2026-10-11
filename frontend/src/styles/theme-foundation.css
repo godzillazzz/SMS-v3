@@ -329,12 +329,7 @@ input[type="radio"] { accent-color: var(--color-primary); }
 .login-theme-control { position: absolute; top: var(--space-5); right: var(--space-5); z-index: 2; }
 
 /* Dark-only repairs for legacy module hard-codes that cannot yet consume semantic tokens. */
-[data-theme="dark"] .calendar-toolbar-box,
-[data-theme="dark"] .leave-hero,
-[data-theme="dark"] .leave-history-filter,
-[data-theme="dark"] .schedule-workbench,
-[data-theme="dark"] .line-secure-grid,
-[data-theme="dark"] .template-help {
+[data-theme="dark"] .calendar-toolbar-box,[data-theme="dark"] .leave-history-filter,[data-theme="dark"] .schedule-workbench,[data-theme="dark"] .line-secure-grid,[data-theme="dark"] .template-help {
   color: var(--color-text);
   background: var(--color-surface-muted) !important;
   border-color: var(--color-border) !important;

@@ -76,7 +76,6 @@ html[data-sms-shell="employee"] #root {
   border-color: var(--nexus-line);
 }
 .app-shell.pwa-shell .pwa-mobile-brand strong { color: var(--nexus-text); }
-.app-shell.pwa-shell .pwa-mobile-brand .sms-brand-copy small { color: var(--nexus-muted) !important; }
 .app-shell.pwa-shell .pwa-profile-hero p { color: var(--nexus-cyan-soft) !important; }
 .app-shell.pwa-shell .pwa-profile-card dd { font-family: var(--font-ui); }
 .app-shell.pwa-shell .pwa-profile-card .is-online { color: var(--nexus-success); }

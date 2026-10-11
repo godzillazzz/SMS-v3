@@ -5,7 +5,7 @@ const { logger } = require('../utils/logger');
 
 const EMPTY_ID = '00000000-0000-0000-0000-000000000000';
 const LICENSE_STATUSES = ['PENDING', 'APPROVED', 'RETURNED_FOR_CORRECTION', 'REJECTED', 'EXPIRED', 'SUPERSEDED'];
-const ACTIVE_LEAVE_STATUSES = ['PENDING', 'APPROVED'];
+const ACTIVE_LEAVE_STATUSES = ['APPROVED'];
 const LEAVE_STATUSES = ['PENDING', 'APPROVED', 'REJECTED', 'CANCELLED'];
 const TECHNICAL_AUDIT_ACTIONS = ['LOGIN', 'LOGIN_FAILED', 'REFRESH', 'LOGOUT', 'LOGOUT_ALL', 'TOKEN_REUSE'];
 
@@ -15,6 +15,23 @@ function employeeScope(user, relation = false) {
     return relation ? { employee: { is: { department: user.department, isActive: true, deletedAt: null } } } : { department: user.department };
   }
   return relation ? { employee: { is: { id: user.employeeId || EMPTY_ID, isActive: true, deletedAt: null } } } : { id: user.employeeId || EMPTY_ID };
+}
+
+function securityGuardRelationScope(scope) {
+  const employee = scope?.employee?.is || { isActive: true, deletedAt: null };
+  return {
+    ...scope,
+    employee: {
+      is: {
+        ...employee,
+        OR: [
+          { jobTitle: { contains: 'guard', mode: 'insensitive' } },
+          { jobTitle: { contains: 'รปภ' } },
+          { jobTitle: { contains: 'รักษาความปลอดภัย' } }
+        ]
+      }
+    }
+  };
 }
 
 function licenseStatusSummary(rows) {
@@ -29,8 +46,13 @@ function leaveStatusSummary(rows) {
   return summary;
 }
 
-function expiringLicenseWhere(relationScope, expiry30) {
-  return { ...relationScope, status: 'APPROVED', isCurrent: true, proposedExpiryDate: { lte: expiry30 } };
+function expiringLicenseWhere(relationScope, expiry30, todayStart) {
+  return {
+    ...relationScope,
+    status: 'APPROVED',
+    isCurrent: true,
+    proposedExpiryDate: todayStart ? { gte: todayStart, lte: expiry30 } : { lte: expiry30 }
+  };
 }
 
 function buildExpiringLicenseDetails(rows, todayStart) {
@@ -62,11 +84,13 @@ function buildShiftSummary(rows) {
   rows.forEach((row) => {
     const shiftType = row.shiftType || {};
     const key = String(shiftType.code || shiftType.name || 'UNSPECIFIED');
-    const current = groups.get(key) || { code: shiftType.code || null, name: shiftType.name || 'ไม่ระบุกะ', color: shiftType.color || null, count: 0 };
-    current.count += 1;
+    const current = groups.get(key) || { code: shiftType.code || null, name: shiftType.name || 'ไม่ระบุกะ', color: shiftType.color || null, employeeIds: new Set() };
+    current.employeeIds.add(row.employeeId);
     groups.set(key, current);
   });
-  return [...groups.values()].sort((left, right) => right.count - left.count || String(left.name).localeCompare(String(right.name), 'th'));
+  return [...groups.values()]
+    .map(({ employeeIds, ...group }) => ({ ...group, count: employeeIds.size }))
+    .sort((left, right) => right.count - left.count || String(left.name).localeCompare(String(right.name), 'th'));
 }
 
 function parseDashboardDate(value, fallback) {
@@ -100,10 +124,13 @@ function actionableQuotaWhere(scope) {
   };
 }
 
-function pendingUserWhere(requestUser) {
+function pendingUserWhere(requestUser, requestedDepartment) {
+  const department = ['MANAGER', 'SUPERVISOR'].includes(requestUser.role)
+    ? requestUser.department
+    : requestUser.role === 'ADMIN' ? requestedDepartment : undefined;
   return {
     accountStatus: 'PENDING',
-    ...(['MANAGER', 'SUPERVISOR'].includes(requestUser.role) ? { department: requestUser.department } : {}),
+    ...(department ? { department } : {}),
     OR: [
       { employeeId: null },
       { employee: { is: { isActive: true, deletedAt: null } } }
@@ -228,7 +255,7 @@ async function legacyLicenseAggregate(client, licenseWhere, approvedCurrentWhere
     () => countIfAvailable(client.employeeLicenseDocument, { where: { ...approvedCurrentWhere, proposedExpiryDate: { gt: expiry90 } } }),
     () => countIfAvailable(client.employeeLicenseDocument, { where: { ...licenseWhere, status: 'EXPIRED', isCurrent: true } }),
     () => countIfAvailable(client.employeeLicenseDocument, { where: { ...licenseWhere, status: 'PENDING' } }),
-    () => countIfAvailable(client.employeeLicenseDocument, { where: expiringLicenseWhere(licenseWhere, expiry30) })
+    () => countIfAvailable(client.employeeLicenseDocument, { where: expiringLicenseWhere(licenseWhere, expiry30, todayStart) })
   ], { maxConcurrency: 1 });
   return {
     statusRows: results[0]?.status === 'fulfilled' ? results[0].value : [],
@@ -277,7 +304,7 @@ async function getDashboardSummary({ prismaClient, requestUser, now = new Date()
   const departmentWhere = { deletedAt: null, ...employeeScope(requestUser) };
   const canManage = ['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(requestUser.role);
   const canAdmin = requestUser.role === 'ADMIN';
-  const licenseWhere = { ...relationScope };
+  const licenseWhere = securityGuardRelationScope(relationScope);
   const leaveWhere = { ...relationScope };
   const shiftWhere = { ...relationScope };
   const quotaWhere = canAdmin ? actionableQuotaWhere(relationScope) : relationScope;
@@ -285,17 +312,17 @@ async function getDashboardSummary({ prismaClient, requestUser, now = new Date()
   const queryResults = await settleDashboardQueries([
     { stage: 'DASH_WORKFORCE', run: () => workforceAggregate(client, employeeWhere) },
     { stage: 'DASH_WORKFORCE', run: () => client.employee.findMany({ where: departmentWhere, select: { department: true }, distinct: ['department'] }) },
-    { stage: 'DASH_TODAY_OPERATIONS', run: () => client.shiftAssignment.findMany({ where: { ...shiftWhere, workDate: { gte: todayStart, lt: tomorrowStart } }, select: { employeeId: true, shiftType: { select: { code: true, name: true, color: true } } }, distinct: ['employeeId'] }) },
+    { stage: 'DASH_TODAY_OPERATIONS', run: () => client.shiftAssignment.findMany({ where: { ...shiftWhere, workDate: { gte: todayStart, lt: tomorrowStart } }, select: { employeeId: true, shiftType: { select: { code: true, name: true, color: true } } } }) },
     { stage: 'DASH_TODAY_OPERATIONS', run: () => client.shiftAssignment.count({ where: { ...shiftWhere, workDate: { gte: monthStart, lt: nextMonth } } }) },
     { stage: 'DASH_LEAVE', run: () => typeof client.leaveRequest?.findMany === 'function' ? Promise.resolve(null) : client.leaveRequest.count({ where: { ...leaveWhere, status: { in: ACTIVE_LEAVE_STATUSES }, startDate: { lte: todayStart }, endDate: { gte: todayStart } } }) },
     { stage: 'DASH_TODAY_OPERATIONS', run: () => findManyIfAvailable(client.leaveRequest, { where: { ...leaveWhere, status: { in: ACTIVE_LEAVE_STATUSES }, startDate: { lte: todayStart }, endDate: { gte: todayStart } }, select: { employeeId: true }, distinct: ['employeeId'] }) },
     { stage: 'DASH_LEAVE', run: () => monthlyLeaveAggregate(client, leaveWhere, monthStart, nextMonth) },
     { stage: 'DASH_LEAVE', run: () => client.leaveRequest.count({ where: { ...leaveWhere, status: 'PENDING' } }) },
-    { stage: 'DASH_ATTENTION', run: () => canAdmin || (['MANAGER', 'SUPERVISOR'].includes(requestUser.role) && requestUser.department) ? client.user.count({ where: pendingUserWhere(requestUser) }) : 0 },
+    { stage: 'DASH_ATTENTION', run: () => canAdmin || (['MANAGER', 'SUPERVISOR'].includes(requestUser.role) && requestUser.department) ? client.user.count({ where: pendingUserWhere(requestUser, filters.department) }) : 0 },
     { stage: 'DASH_ATTENTION', run: () => canManage ? client.scheduleApproval.count({ where: { status: { in: ['DRAFT', 'PENDING'] } } }) : 0 },
     { stage: 'DASH_LICENSE', run: () => licenseAggregate(client, licenseWhere, approvedCurrentWhere, todayStart, expiry30, expiry90) },
     { stage: 'DASH_LICENSE', run: () => client.employeeLicenseDocument.findMany({
-      where: expiringLicenseWhere(licenseWhere, expiry30),
+      where: expiringLicenseWhere(licenseWhere, expiry30, todayStart),
       select: { employeeId: true, licenseId: true, proposedExpiryDate: true, employee: { select: { employeeCode: true, firstName: true, lastName: true, displayName: true } } },
       orderBy: { proposedExpiryDate: 'asc' }, take: 100
     }) },
@@ -329,7 +356,8 @@ async function getDashboardSummary({ prismaClient, requestUser, now = new Date()
   const unmatchedQuotas = settledValue(queryResults, 12, 0, 'leaveQuota', queryErrors);
   const recentActivity = settledValue(queryResults, 13, [], 'recentActivity', queryErrors);
 
-  const workingToday = todayAssignments.length;
+  const scheduledEmployeeIds = new Set(todayAssignments.map((row) => row.employeeId));
+  const workingToday = scheduledEmployeeIds.size;
   const expiringLicenses = buildExpiringLicenseDetails(expiringLicenseRows, todayStart);
   const licenseSummary = licenseStatusSummary(licenseStatusRows);
   const hasLicenseCount = typeof client.employeeLicenseDocument.count === 'function';
@@ -349,7 +377,9 @@ async function getDashboardSummary({ prismaClient, requestUser, now = new Date()
   };
   const leaveOverview = leaveStatusSummary(leaveStatusRows);
   const leaveTodayEmployeeIds = Array.isArray(leaveTodayEmployeeRows) ? new Set(leaveTodayEmployeeRows.map((row) => row.employeeId)) : null;
-  const onDutyToday = leaveTodayEmployeeIds ? todayAssignments.filter((row) => !leaveTodayEmployeeIds.has(row.employeeId)).length : workingToday;
+  const onDutyToday = leaveTodayEmployeeIds
+    ? new Set(todayAssignments.filter((row) => !leaveTodayEmployeeIds.has(row.employeeId)).map((row) => row.employeeId)).size
+    : workingToday;
   const todayOperations = {
     totalScheduled: workingToday,
     onDuty: onDutyToday,
@@ -397,4 +427,4 @@ async function getDashboardSummary({ prismaClient, requestUser, now = new Date()
   return summary;
 }
 
-module.exports = { DASHBOARD_QUERY_CONCURRENCY, LICENSE_STATUSES, actionRequired, buildExpiringLicenseDetails, employeeScope, expiringLicenseWhere, getDashboardSummary, licenseStatusSummary, settleDashboardQueries };
+module.exports = { DASHBOARD_QUERY_CONCURRENCY, LICENSE_STATUSES, actionRequired, actionableQuotaWhere, buildExpiringLicenseDetails, employeeScope, expiringLicenseWhere, getDashboardSummary, licenseStatusSummary, pendingUserWhere, scopeForDashboard, securityGuardRelationScope, settleDashboardQueries };

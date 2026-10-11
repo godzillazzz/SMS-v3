@@ -65,19 +65,26 @@ describe('Approval Center Command Nexus frontend contracts', () => {
   });
 
   it('renders the zero-white command-nexus surface and real telemetry fallbacks', () => {
-    expect(page).toContain('ศูนย์อนุมัติ');
-    expect(page).toContain('ศูนย์อนุมัติคำขอ');
-    expect(page).toContain('bg-[#020813]');
-    expect(page).toContain('bg-[#061421]');
-    expect(page).toContain('bg-[#020f1c]');
-    expect(page).toContain('bg-[#0f1d2a]');
-    expect(page).toContain('text-white');
+    expect(page).toContain('className="nexus-approval-center approval-center-page layout-page-surface"');
+    expect(page).toContain('<PageHeader kicker="งานที่รอการพิจารณา" title="ศูนย์อนุมัติคำขอ"');
+    expect(page).toContain('<SectionCard kicker="ตัวกรอง"');
+    expect(page).toContain('<SectionCard kicker="คิวคำขอ"');
     expect(page).not.toContain('AWAITING TELEMETRY');
-    expect(page).toContain('metric.loading ? <span');
+    expect(page).toContain('approval-metric-skeleton');
     expect(page).toContain('metric.value !== null');
     expect(page).toContain('value: summaryAvailable ? String(summary.total) : null');
-    expect(page).not.toContain('bg-white');
-    expect(css).toContain('.nexus-approval-center{background:#020813!important');
+    expect(css).not.toContain('.nexus-approval-center{background:#020813!important');
+    expect(css).toContain('var(--color-surface)');
+  });
+
+  it('uses the shared theme with semantic Approval Center classes instead of page utility styling', () => {
+    expect(page).toContain('approval-filter-layout');
+    expect(page).toContain('approval-queue-table');
+    expect(page).toContain('approval-mobile-card-meta');
+    expect(page).not.toMatch(/rounded-\[|bg-\[|text-slate-|font-\[|grid-cols-|md:hidden|min-h-\[/);
+    expect(css).toContain('.approval-filter-option.is-selected');
+    expect(css).toContain('.approval-queue-row.is-selected');
+    expect(css).toContain('.approval-mobile-card.is-selected');
   });
 
   it('keeps every supported approval type and routes direct decisions through existing APIs', () => {
@@ -151,13 +158,14 @@ describe('Approval Center Command Nexus frontend contracts', () => {
     expect(page).toContain('fmt(item.submittedAt)');
     expect(page).toContain('รายละเอียด / ดำเนินการ');
     expect(page).toContain('summary.total');
-    expect(page).toContain('overflow-x-hidden');
+    expect(css).toContain('.nexus-approval-center{max-width:100vw;overflow-x:hidden}');
     expect(page).toContain('aria-pressed={selected?.id === item.id}');
-    expect(css).toContain('.nexus-approval-select:focus-visible{border:0!important');
+    expect(css).toContain('.nexus-approval-select:hover,.nexus-approval-select:active,.nexus-approval-select:focus{border:0;background:transparent;color:inherit}');
     expect(page).not.toContain('backend ยังคงตรวจสอบสิทธิ์อีกชั้นหนึ่ง');
     expect(main).toContain("{ id: 'leavePending', icon: 'approval', label: 'อนุมัติคำขอลา' }");
     expect(main).toContain("setActivePage(canManage ? 'approvalCenter' : 'leave')");
-    expect(css).toContain('.nexus-approval-center{background:#020813!important');
+    expect(page).toContain('layout-page-surface');
+    expect(css).not.toContain('.nexus-approval-center{background:#020813!important');
   });
 
   it('keeps request UUIDs internal while showing an icon and the submitter in both queue layouts', () => {

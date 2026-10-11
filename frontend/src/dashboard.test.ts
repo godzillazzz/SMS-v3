@@ -39,6 +39,7 @@ describe('executive dashboard contract', () => {
   it('routes the authenticated Dashboard page to the executive component', () => {
     expect(app).toContain("import { DashboardPage } from './pages/dashboard/DashboardPage';");
     expect(app).toContain("if (activePage === 'dashboard') return <DashboardPage");
+    expect(app).toContain("if (activePage === 'dashboardDetails') return <DashboardDetailsPage");
     expect(app).toContain('summary={dashboardSummary}');
     expect(app).toContain('canManage={canManage}');
   });
@@ -56,6 +57,11 @@ describe('executive dashboard contract', () => {
     expect(styles).toContain('dashboard-secondary-metrics');
   });
 
+  it('keeps the light-theme dashboard kicker above WCAG AA text contrast', () => {
+    const layout = read('styles/system-layout-group4.css');
+    expect(layout).toContain('html[data-theme="light"] .app-shell .content-area .layout-page-surface.nexus-command .nexus-kicker { color: #006b82 !important; }');
+  });
+
   it('formats dashboard counts with Thai number formatting', () => {
     expect(formatMetric(1234)).toMatch(/[0-9๑-๙],[0-9๑-๙]{3}/);
   });
@@ -65,7 +71,8 @@ describe('executive dashboard contract', () => {
     expect(actions).toContain('expiryDate');
     expect(actions).toContain('daysRemaining');
     expect(actions).toContain('urgency');
-    expect(actions).toContain("onNavigate('licenses')");
+    expect(actions).toContain("metric: 'licenseExpiry'");
+    expect(actions).toContain("expiryBucket: 'EXPIRING_0_30'");
     expect(actions).not.toContain('signedUrl');
   });
 

@@ -85,7 +85,7 @@ describe('Employee PWA dark chrome ownership', () => {
       expect(block).not.toContain('transparent');
     }
     expect(css).not.toMatch(/(?:^|\n)(?:body|#root|\.topbar)\s*\{/);
-    expect(css).toContain('.pwa-mobile-brand .sms-brand-copy small { color: var(--nexus-muted) !important; }');
+    expect(main).toContain('<span className="pwa-mobile-brand"><BrandLogo tone="dark-surface" />');
     expect(css).toContain('.employee-v4-section-header h1 { color: var(--nexus-text); }');
   });
 

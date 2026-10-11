@@ -29,7 +29,7 @@ describe('Q12-B route-level code splitting contracts', () => {
   });
 
   it('keeps lazy route rendering behind a user-visible Suspense fallback', () => {
-    expect(main).toContain('<React.Suspense fallback={<div className="full-loader" role="status">กำลังโหลดหน้า…</div>}>{content()}</React.Suspense>');
+    expect(main).toContain('<React.Suspense fallback={<AppLoader variant="content" message={loadingMessages.page} />}>{content()}</React.Suspense>');
   });
 
   it('keeps lazy overlay modules behind their own Suspense boundary', () => {

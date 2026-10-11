@@ -19,12 +19,12 @@ describe('CFG-01 Configuration Center shell contract', () => {
       expect(routing).toContain(`path: '${section}'`);
       expect(settingsPage).toContain(`section === '${section}'`);
     }
-    expect(settingsPage).toContain('<h1>{currentSection.label}</h1>');
+    expect(settingsPage).toContain('title={currentSection.label}');
     expect(settingsPage).toContain('aria-label="หมวดตั้งค่าระบบ"');
     expect(settingsPage).toContain('{sectionContent}');
     expect(settingsPage).toContain('<ConfigurationRegistryPanel settings={settings} />');
     expect(settingsPage).toContain('<AttendancePolicySettingsCard settings={settings} onSave={onSaveAttendancePolicy} onRefresh={onRefresh} />');
-    expect(settingsPage).toContain('LINE Notification Settings');
+    expect(settingsPage).toContain('ตั้งค่าการแจ้งเตือน LINE');
     expect(main).toContain('onSectionChange={setSettingsSection}');
   });
 

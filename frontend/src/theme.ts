@@ -35,12 +35,13 @@ export function systemPrefersDark(media?: Pick<MediaQueryList, 'matches'>): bool
 
 export function applyThemePreference(
   preference: ThemePreference,
-  root?: Pick<HTMLElement, 'dataset'>,
+  root?: Pick<HTMLElement, 'dataset'> & Partial<Pick<HTMLElement, 'classList'>>,
   media?: Pick<MediaQueryList, 'matches'>
 ): ResolvedTheme {
   const resolved = resolveThemePreference(preference, systemPrefersDark(media));
   if (root) {
     root.dataset.theme = resolved;
+    root.classList?.toggle('dark', resolved === 'dark');
     root.dataset.themePreference = preference;
   }
   return resolved;

@@ -108,6 +108,7 @@ describe('AttendanceDevicePage local key readiness', () => {
     const device = await screen.findByTestId('attendance-active-device');
     await waitFor(() => expect(device.getAttribute('data-local-key-state')).toBe('READY_LOCAL_KEY'));
     expect(screen.getByText('คีย์ลับพร้อมใช้งานบนอุปกรณ์นี้')).toBeTruthy();
+    expect(screen.getByRole('region', { name: 'สถานะอุปกรณ์ของฉัน' }).querySelectorAll('li')[2].textContent).toContain('เสร็จแล้ว');
     expect(screen.getByText(/พร้อมยืนยันอุปกรณ์/)).toBeTruthy();
     expect(screen.getByText('อุปกรณ์หลักในระบบ')).toBeTruthy();
     expect(screen.getByText('มีคีย์ส่วนตัวในอุปกรณ์นี้')).toBeTruthy();
@@ -128,6 +129,7 @@ describe('AttendanceDevicePage local key readiness', () => {
     expect(screen.getByText('ผลการตรวจสอบรหัสอุปกรณ์')).toBeTruthy();
     expect(screen.getByText(/ระบบจะหยุดการลงเวลาก่อนยืนยันอุปกรณ์/)).toBeTruthy();
     expect(screen.queryByText('คีย์ลับพร้อมใช้งานบนอุปกรณ์นี้')).toBeNull();
+    expect(screen.getByRole('region', { name: 'สถานะอุปกรณ์ของฉัน' }).querySelectorAll('li')[2].textContent).not.toContain('เสร็จแล้ว');
   });
 
   it('reports active and in-flight candidate key states independently', async () => {
@@ -147,6 +149,9 @@ describe('AttendanceDevicePage local key readiness', () => {
 
     const activeDevice = await screen.findByTestId('attendance-active-device');
     const candidate = await screen.findByTestId('attendance-candidate-key-state');
+    const reviewStep = screen.getByRole('region', { name: 'สถานะอุปกรณ์ของฉัน' }).querySelectorAll('li')[1];
+    expect(reviewStep.getAttribute('aria-current')).toBe('step');
+    expect(reviewStep.textContent).not.toContain('เสร็จแล้ว');
     await waitFor(() => {
       expect(activeDevice.getAttribute('data-local-key-state')).toBe('READY_LOCAL_KEY');
       expect(candidate.getAttribute('data-local-key-state')).toBe('PRESENT');

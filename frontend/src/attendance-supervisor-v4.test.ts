@@ -123,7 +123,7 @@ describe('Attendance Supervisor UX V4', () => {
   it('adds a dedicated approval queue with explicit ADMIN approve return and reject actions', () => {
     expect(page).toContain("type Mode = 'daily' | 'history' | 'requests'");
     expect(page).toContain('คำขอแก้ไข');
-    expect(page).toContain('คิวอนุมัติ Attendance');
+    expect(page).toContain("admin ? 'คิวอนุมัติการลงเวลา' : 'คำขอแก้ไขการลงเวลา'");
     expect(page).toContain('Before');
     expect(page).toContain('After');
     expect(page).toContain('อนุมัติและให้มีผล');

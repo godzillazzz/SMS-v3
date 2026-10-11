@@ -82,6 +82,64 @@
 .attendance-simple__footer { display:flex; align-items:center; justify-content:space-between; gap:12px; color:var(--attendance-simple-text-muted); font-size:11px; }
 .attendance-simple__footer span { text-align:right; max-width:430px; }
 
+/* T30b group 3: use the shared page canvas and light authenticated-app surface.
+   The standalone PWA retains its existing dark, offline-first presentation. */
+.attendance-simple { padding:0; gap:16px; background:transparent; }
+.attendance-simple__profile { display:inline-flex; min-height:44px; align-items:center; justify-content:center; gap:8px; border:1px solid #27465f; border-radius:10px; padding:8px 12px; background:#0c2030; color:#d8e7f5; font:inherit; font-weight:700; cursor:pointer; }
+.attendance-simple__profile:focus-visible { outline:3px solid #60a5fa; outline-offset:2px; }
+.attendance-simple__receipt { border-radius:16px; }
+.attendance-simple__move { border-radius:16px; }
+.attendance-simple__receipt-heading > svg { width:34px; height:34px; flex:0 0 auto; border-radius:50%; padding:8px; background:#1d8c69; color:#fff; }
+.attendance-simple__receipt-heading strong { color:inherit; }
+.attendance-simple__main-card .attendance-simple__journey { margin-bottom:14px; }
+
+[data-theme="light"] .app-shell:not(.pwa-shell) .attendance-simple {
+  --attendance-simple-text-secondary:#475569;
+  --attendance-simple-text-muted:#64748b;
+  background:transparent!important;
+  color:#102033!important;
+}
+[data-theme="light"] .app-shell:not(.pwa-shell) .attendance-simple__profile { border-color:#cbd5e1; background:#fff; color:#1e3a5f; }
+[data-theme="light"] .app-shell:not(.pwa-shell) .attendance-simple__journey article { border-color:#d7e1ec; background:#f8fafc; }
+[data-theme="light"] .app-shell:not(.pwa-shell) .attendance-simple__journey span { color:#1d4ed8; }
+[data-theme="light"] .app-shell:not(.pwa-shell) .attendance-simple__journey strong { color:#14263d; }
+[data-theme="light"] .app-shell:not(.pwa-shell) .attendance-simple__journey small { color:#475569; }
+[data-theme="light"] .app-shell:not(.pwa-shell) .attendance-simple__exception { border-color:#d6a23a; background:#fffbeb; }
+[data-theme="light"] .app-shell:not(.pwa-shell) .attendance-simple__exception > span { color:#854d0e; }
+[data-theme="light"] .app-shell:not(.pwa-shell) .attendance-simple__exception strong { color:#451a03; }
+[data-theme="light"] .app-shell:not(.pwa-shell) .attendance-simple__exception p { color:#713f12; }
+[data-theme="light"] .app-shell:not(.pwa-shell) .attendance-simple__exception small { color:#854d0e; }
+[data-theme="light"] .app-shell:not(.pwa-shell) .attendance-simple__status { border-color:#cbd5e1; background:#f1f5f9; }
+[data-theme="light"] .app-shell:not(.pwa-shell) .attendance-simple__status strong { color:#172b45; }
+[data-theme="light"] .app-shell:not(.pwa-shell) .attendance-simple__status span { color:#475569; }
+[data-theme="light"] .app-shell:not(.pwa-shell) .attendance-simple__status.is-success { border-color:#86c9ad; background:#ecfdf5; }
+[data-theme="light"] .app-shell:not(.pwa-shell) .attendance-simple__status.is-success strong { color:#14532d; }
+[data-theme="light"] .app-shell:not(.pwa-shell) .attendance-simple__status.is-warning { border-color:#d6a23a; background:#fffbeb; }
+[data-theme="light"] .app-shell:not(.pwa-shell) .attendance-simple__status.is-warning strong { color:#713f12; }
+[data-theme="light"] .app-shell:not(.pwa-shell) .attendance-simple__status.is-danger { border-color:#e2a3a8; background:#fef2f2; }
+[data-theme="light"] .app-shell:not(.pwa-shell) .attendance-simple__status.is-danger strong { color:#7f1d1d; }
+[data-theme="light"] .app-shell:not(.pwa-shell) .attendance-simple__assurance article { border-color:#d7e1ec; background:#f8fafc; }
+[data-theme="light"] .app-shell:not(.pwa-shell) .attendance-simple__assurance b { color:#1e293b; }
+[data-theme="light"] .app-shell:not(.pwa-shell) .attendance-simple__assurance span { color:#475569; }
+[data-theme="light"] .app-shell:not(.pwa-shell) .attendance-simple__clock { box-shadow:0 8px 24px rgba(0,76,178,.16),inset 0 -18px 0 rgba(18,102,221,.08); }
+[data-theme="light"] .app-shell:not(.pwa-shell) .attendance-simple__clock:disabled { background:#e7eef6; border-color:#a1b2c2; }
+[data-theme="light"] .app-shell:not(.pwa-shell) .attendance-simple__clock:disabled small { color:#465f76; }
+[data-theme="light"] .app-shell:not(.pwa-shell) .attendance-simple__disabled-guidance { border-color:#b8c9da; background:#f8fafc; }
+[data-theme="light"] .app-shell:not(.pwa-shell) .attendance-simple__disabled-guidance p { color:#334155; }
+[data-theme="light"] .app-shell:not(.pwa-shell) .attendance-simple__receipt { border-color:#a7d6c2; background:#f0fdf4; color:#14532d; }
+[data-theme="light"] .app-shell:not(.pwa-shell) .attendance-simple__receipt-heading strong { color:#14532d; }
+[data-theme="light"] .app-shell:not(.pwa-shell) .attendance-simple__receipt-heading small { color:#166534; }
+[data-theme="light"] .app-shell:not(.pwa-shell) .attendance-simple__receipt-grid > div { border-color:#c4e4d1; background:#fff; }
+[data-theme="light"] .app-shell:not(.pwa-shell) .attendance-simple__receipt-grid span { color:#475569; }
+[data-theme="light"] .app-shell:not(.pwa-shell) .attendance-simple__receipt-grid strong { color:#14532d; }
+[data-theme="light"] .app-shell:not(.pwa-shell) .attendance-simple__receipt p { color:#713f12; }
+[data-theme="light"] .app-shell:not(.pwa-shell) .attendance-simple__move { border-color:#d6a23a; background:#fffbeb; color:#451a03; }
+[data-theme="light"] .app-shell:not(.pwa-shell) .attendance-simple__move p { color:#713f12; }
+[data-theme="light"] .app-shell:not(.pwa-shell) .attendance-simple__move textarea { border-color:#cbd5e1; background:#fff; color:#172b45; }
+[data-theme="light"] .app-shell:not(.pwa-shell) .attendance-simple__technical { border-color:#cbd5e1; color:#475569; }
+[data-theme="light"] .app-shell:not(.pwa-shell) .attendance-simple__technical code { color:#334155; }
+[data-theme="light"] .app-shell:not(.pwa-shell) .attendance-simple__footer { color:#475569; }
+
 @media (max-width: 640px) {
   .attendance-simple { padding:14px 12px 98px; gap:14px; }
   .attendance-simple__journey { grid-template-columns:1fr; gap:8px; }

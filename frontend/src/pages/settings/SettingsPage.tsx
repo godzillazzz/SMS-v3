@@ -6,6 +6,7 @@ import { attendancePolicyKeys, type AttendancePolicyForm } from '../../component
 import { leavePolicyKeys, type LeavePolicyForm } from '../../components/leave-policy-contract';
 import { SmsIcon } from '../../components/SmsIcon';
 import { SETTINGS_SECTIONS, type SettingsSectionId } from '../../routing';
+import { PageHeader, SectionCard } from '../../components/layout';
 import '../../styles/settings-page.css';
 
 const AttendancePolicySettingsCard = React.lazy(() => import('../../components/AttendancePolicySettingsCard').then((module) => ({ default: module.AttendancePolicySettingsCard })));
@@ -113,8 +114,8 @@ export function SettingsPage({ token, settings, leaveTypes, leaveTypesLoading, l
                 ? <ApprovalAuthorityMatrixPanel token={token} />
                 : section === 'data-retention'
                   ? <DataRetentionCenterPanel token={token} />
-                  : section === 'notifications' ? <><NotificationCenterPanel token={token} /><section className="line-settings-card">
-      <div className="line-settings-title"><span aria-hidden="true"><SmsIcon name="bell" size={20} /></span><div><h2>LINE Notification Settings (ตั้งค่าแจ้งเตือน LINE)</h2><p>รูปแบบเดิมถูกคงไว้ แต่ credential ต้องตั้งค่าที่ Vercel Environment Variables เท่านั้น</p></div></div>
+      : section === 'notifications' ? <><NotificationCenterPanel token={token} /><section className="line-settings-card">
+      <div className="line-settings-title"><span aria-hidden="true"><SmsIcon name="bell" size={20} /></span><div><h2>ตั้งค่าการแจ้งเตือน LINE</h2><p>รูปแบบเดิมถูกคงไว้ แต่ credential ต้องตั้งค่าที่ Vercel Environment Variables เท่านั้น</p></div></div>
       <div className="line-secure-grid"><label className="field-group"><span>LINE Access Token / Channel Access Token</span><span className="line-secret-managed" role="status">จัดการผ่าน Vercel Environment Variables</span><small>ระบบไม่แสดงค่า credential ในหน้านี้</small></label><label className="field-group"><span>LINE Group ID / Target ID</span><input type="text" value="จัดการผ่าน deployment configuration" disabled /><small>ตั้งค่าจาก Vercel Environment Variables เมื่อเปิดใช้ provider ที่อนุมัติ</small></label></div>
       <div className="line-template-grid"><label className="field-group"><span>เทมเพลตคำขอลางานใหม่ (New Leave Request Template)</span><textarea rows={7} value={newLeaveTemplate} onChange={(event) => setNewLeaveTemplate(event.target.value)} maxLength={2000} /></label><label className="field-group"><span>เทมเพลตอัปเดตสถานะใบลา (Leave Status Update Template)</span><textarea rows={7} value={leaveStatusTemplate} onChange={(event) => setLeaveStatusTemplate(event.target.value)} maxLength={2000} /></label></div>
       <div className="template-help"><strong><SmsIcon name="quality" size={15} /> ตัวแปรที่ใช้ในข้อความได้</strong><span><code>{'{Name}'}</code> พนักงาน</span><span><code>{'{Department}'}</code> แผนก</span><span><code>{'{Type}'}</code> ประเภทการลา</span><span><code>{'{Days}'}</code> จำนวนวัน</span><span><code>{'{StartDate}'}</code> / <code>{'{EndDate}'}</code> วันที่ลา</span><span><code>{'{Reason}'}</code> เหตุผล</span><span><code>{'{FileUrl}'}</code> ไฟล์แนบ</span><span><code>{'{Status}'}</code> สถานะ</span></div>
@@ -122,10 +123,14 @@ export function SettingsPage({ token, settings, leaveTypes, leaveTypesLoading, l
       <div className="line-settings-actions"><button type="button" className="btn-primary compact" disabled={saving} onClick={saveTemplates}><SmsIcon name="check" size={15} /> {saving ? 'กำลังบันทึก…' : 'บันทึกเทมเพลตการแจ้งเตือน'}</button><button type="button" className="btn-neutral small-action" disabled title="การส่ง LINE ยังไม่เปิดใช้ใน staging"><SmsIcon name="bell" size={15} /> ทดสอบส่งข้อความแจ้งเตือน</button><button type="button" className="btn-neutral small-action" onClick={onRefresh}><SmsIcon name="refresh" size={15} /> รีเฟรช</button></div>
       <p className="line-settings-footnote">สถานะปัจจุบัน: การส่ง LINE ยังไม่เปิดใช้งานใน staging — การบันทึกด้านบนเก็บเฉพาะเทมเพลตที่ไม่มีข้อมูลลับ</p>
     </section></> : <DataTableState variant="empty" title="ไม่พบหมวดตั้งค่า" description="เลือกหมวดตั้งค่าจากรายการด้านบน" />;
-  return <section className="view-pane settings-page">
-    <div className="page-heading settings-heading"><div><p className="eyebrow">ตั้งค่าระบบ · สำหรับผู้ดูแลระบบ</p><h1>{currentSection.label}</h1><p>{currentSection.description} · ค่าที่แก้ได้ถูกกำหนดและตรวจสอบโดยระบบ ส่วน secret และสิทธิ์เชิงปฏิบัติการแยกจาก SystemSetting</p></div><div className="heading-actions">{section === 'overview' && <button type="button" className="btn-neutral small-action" disabled={!exportableSettings.length} onClick={() => downloadCsv(exportableSettings, 'smsv3-governed-settings')}><SmsIcon name="report" size={15} /> Export governed values</button>}<button type="button" className="btn-neutral small-action" onClick={onAudit}><SmsIcon name="audit" size={15} /> บันทึกการใช้งาน</button></div></div>
-    <nav className="settings-section-nav" aria-label="หมวดตั้งค่าระบบ">{SETTINGS_SECTIONS.map((item) => <a key={item.id} href={`/app/settings/${item.path}`} aria-current={item.id === section ? 'page' : undefined} onClick={(event) => { event.preventDefault(); onSectionChange(item.id); }}><strong>{item.label}</strong><small>{item.description}</small></a>)}</nav>
+  return <section className="view-pane settings-page layout-page-surface">
+    <PageHeader kicker="ตั้งค่าระบบ · ผู้ดูแลระบบ" title={currentSection.label} description={`${currentSection.description} · ค่าที่แก้ได้ถูกกำหนดและตรวจสอบโดยระบบ ส่วน secret และสิทธิ์เชิงปฏิบัติการแยกจาก SystemSetting`} className="settings-heading" actions={<div className="heading-actions">{section === 'overview' && <button type="button" className="btn-neutral small-action" disabled={!exportableSettings.length} onClick={() => downloadCsv(exportableSettings, 'smsv3-governed-settings')}><SmsIcon name="report" size={15} /> ส่งออกค่าที่กำหนด</button>}<button type="button" className="btn-neutral small-action" onClick={onAudit}><SmsIcon name="audit" size={15} /> บันทึกการใช้งาน</button></div>} />
+    <SectionCard kicker="หมวดการตั้งค่า" title="เลือกหมวดที่ต้องการจัดการ" description="แต่ละหมวดแสดงเฉพาะการตั้งค่าที่อยู่ในขอบเขตสิทธิ์" className="settings-navigation-card">
+      <nav className="settings-section-nav" aria-label="หมวดตั้งค่าระบบ">{SETTINGS_SECTIONS.map((item) => <a key={item.id} href={`/app/settings/${item.path}`} aria-current={item.id === section ? 'page' : undefined} onClick={(event) => { event.preventDefault(); onSectionChange(item.id); }}><strong>{item.label}</strong><small>{item.description}</small></a>)}</nav>
+    </SectionCard>
     {error && <div className="alert alert-error"><RequestErrorContent error={error} /></div>}
-    <div className="settings-section-content" data-settings-section={section}>{sectionContent}</div>
+    <SectionCard kicker="ค่าปัจจุบัน" title={currentSection.label} description={currentSection.description} className="settings-active-section">
+      <div className="settings-section-content" data-settings-section={section}>{sectionContent}</div>
+    </SectionCard>
   </section>;
 }

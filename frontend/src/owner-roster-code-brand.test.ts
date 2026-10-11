@@ -60,17 +60,12 @@ describe('Owner-approved roster and brand contracts', () => {
     expect(main).toContain("{dept || 'ไม่ระบุแผนก'} · {deptEmployees.length} คน");
   });
 
-  it('keeps the Security Management System subtitle visible in the authenticated sidebar and public tablet navbar', () => {
-    expect(main).toContain('<div className="sms-brand-copy"><strong>SMS</strong><span>Security Management System</span></div>');
-    expect(operational).not.toContain('.sidebar-brand>div span{display:none!important}');
-    expect(operational).toContain('.app-shell:not(.pwa-shell) .sidebar-brand>.sms-brand-copy>span{display:block!important}');
-    expect(operational).toMatch(/\.sidebar-brand \.sms-brand-copy>span\{[^}]*display:block!important;[^}]*font-family:"Plus Jakarta Sans","Kanit",sans-serif!important;/);
-    expect(operational).toContain('.sidebar-brand{min-height:66px!important;margin-bottom:8px!important;padding-bottom:10px!important;gap:4px!important}');
-    expect(operational).toContain('letter-spacing:0!important;font-size:10px!important;color:#b4cbd9!important');
-    expect(operational).toMatch(/@media\(max-width:1024px\)\s*\{\s*\.app-shell:not\(\.pwa-shell\) \.sidebar-brand>\.sms-brand-copy>span\s*\{\s*white-space:normal!important;\s*line-height:1.3!important;\s*overflow-wrap:break-word!important;/);
-    expect(nexus).not.toContain('.nexus-brand__copy small{display:none}');
-    expect(nexus).toMatch(/@media\(max-width:760px\)[\s\S]*?\.nexus-brand__copy small\{display:block\}/);
-    expect(nexus).toMatch(/@media \(max-width: 560px\)[\s\S]*?\.award-auth-page \.nexus-brand__copy small\s*\{\s*display: block !important;/);
+  it('uses the complete horizontal brand image without duplicate HTML subtitles', () => {
+    expect(main).toContain('<BrandLogo />');
+    expect(main).not.toContain('sms-brand-copy');
+    expect(operational).not.toContain('.sms-brand-copy');
+    expect(nexus).not.toContain('.nexus-brand__copy');
+    expect(landing).toContain('aria-label="SMS Security Management System — กลับภาพรวม"');
   });
 
   it('uses the reference shield and versionless SMS identity across brand surfaces', () => {
@@ -81,11 +76,8 @@ describe('Owner-approved roster and brand contracts', () => {
     expect(icon).not.toContain('fill="#123b8f"');
     expect(visual).toMatch(/\.nexus-brand__mark \.brand-logo\s*\{[^}]*filter:\s*none;/);
     expect(visual).toMatch(/\[data-theme="dark"\] \.brand-logo\s*\{[^}]*filter:\s*none;/);
-    expect(nexus).toMatch(/@media \(max-width: 560px\)[\s\S]*?\.nexus-brand__copy small\s*\{[^}]*display: block !important;/);
-    expect(main).toContain('src="/attendance-sms-logo.svg"');
-    expect(main).toContain('Security Management System</strong>');
-    expect(main).toContain('Security Management System</small>');
-    expect(landing).toContain('<strong>SMS</strong><small>Security Management System</small>');
+    expect(main).toContain("import { BrandLogo } from './components/BrandLogo';");
+    expect(main).not.toContain('src="/attendance-sms-logo.svg"');
     expect(qr).not.toContain('Security Management System V3');
     expect(main).not.toMatch(/<[^>]+>\s*SMS V3\s*</i);
   });

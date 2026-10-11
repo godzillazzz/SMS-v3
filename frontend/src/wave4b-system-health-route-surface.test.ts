@@ -13,9 +13,9 @@ describe('WAVE 4B System Health route-table responsive contract', () => {
     expect(page).toContain('DataTableSkeletonRows');
     expect(page).toContain('DataTableSkeletonCards');
     expect(page).toContain('DataTableState');
-    expect(page).toContain('ariaLabel="API latency by route template"');
-    expect(page).toContain('loadingLabel="กำลังอ่าน runtime samples…"');
-    expect(page).toContain('errorLabel="ไม่สามารถอ่าน route samples ได้"');
+    expect(page).toContain('ariaLabel="เวลา API แยกตาม Route"');
+    expect(page).toContain('loadingLabel="กำลังอ่านตัวอย่าง Runtime…"');
+    expect(page).toContain('errorLabel="ไม่สามารถอ่านตัวอย่าง Route ได้"');
     expect(page).not.toContain('api.update');
     expect(page).not.toContain('api.create');
     expect(page).not.toContain('api.delete');
@@ -23,7 +23,7 @@ describe('WAVE 4B System Health route-table responsive contract', () => {
 
   it('retains all route metrics and semantic column headers on desktop', () => {
     expect((page.match(/<th scope="col"/g) ?? []).length).toBe(7);
-    for (const label of ['Method', 'Route template', 'Samples', 'p50', 'p95', 'Max', '5xx']) {
+    for (const label of ['วิธีการ', 'แม่แบบเส้นทาง', 'ตัวอย่าง', 'p50', 'p95', 'สูงสุด', '5xx']) {
       expect(page).toContain(`>${label}</th>`);
     }
     for (const field of ['route.method', 'route.route', 'route.requestCount', 'route.p50Ms', 'route.p95Ms', 'route.maxMs', 'route.serverErrorCount']) {
@@ -47,7 +47,7 @@ describe('WAVE 4B System Health route-table responsive contract', () => {
     expect(styles).toContain('.system-health-route-surface > .data-table-mobile');
     expect(styles).toContain('overflow-wrap: anywhere');
     expect(styles).toContain('min-width: 760px');
-    for (const label of ['Samples', 'p50', 'p95', 'Max']) {
+    for (const label of ['ตัวอย่าง', 'p50', 'p95', 'สูงสุด']) {
       expect(page).toContain(`<dt>${label}</dt>`);
     }
   });

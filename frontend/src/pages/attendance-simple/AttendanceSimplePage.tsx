@@ -9,6 +9,8 @@ import {
   type SimpleEventResult
 } from './attendance-simple-client';
 import { RequestErrorReference, toRequestErrorState } from '../../request-error';
+import { SmsIcon } from '../../components/SmsIcon';
+import { PageHeader, SectionCard } from '../../components/layout';
 import { formatThaiDateTime } from '../../thai-date-time';
 import {
   deviceFingerprint,
@@ -486,16 +488,15 @@ export function AttendanceSimplePage({
                   : { message: 'กำลังโหลดข้อมูลกะงาน กรุณารอสักครู่' }
                 : null;
 
-  return <section className="attendance-simple">
-    <header className="attendance-simple__header">
-      <div>
-        <span>SMS TIME</span>
-        <h1>{employeeName}</h1>
-        <p>{department || bootstrap?.employee.department || 'Security Operations'}</p>
-      </div>
-      <button type="button" onClick={onOpenSettings} aria-label="เปิดโปรไฟล์">⚙︎</button>
-    </header>
+  return <section className="attendance-simple layout-page-surface" aria-label="ลงเวลา">
+    <PageHeader
+      kicker="ลงเวลาประจำวัน"
+      title="ลงเวลา"
+      description={`${employeeName} · ${department || bootstrap?.employee.department || '—'}`}
+      actions={<button type="button" className="attendance-simple__profile" onClick={onOpenSettings}><SmsIcon name="settings" size={18} /><span>โปรไฟล์</span></button>}
+    />
 
+    <SectionCard className="attendance-simple__main-card" kicker="สถานะวันนี้" title="การลงเวลาเข้า–ออก" description="ตรวจสอบกะ สถานที่ อุปกรณ์ และสถานะก่อนบันทึก">
     <div className="attendance-simple__journey" aria-label="สถานะการลงเวลา">
       <article>
         <span>ตอนนี้</span>
@@ -548,23 +549,21 @@ export function AttendanceSimplePage({
           <span>GPS / GEOFENCE ตรวจทุกครั้งก่อนบันทึก</span>
         </article>
         <article>
-          <b>{bindingState === 'PRIMARY' ? 'อุปกรณ์นี้ยืนยันแล้ว ✓' : 'อุปกรณ์'}</b>
+          <b>{bindingState === 'PRIMARY' ? <><SmsIcon name="check" size={15} /> อุปกรณ์นี้ยืนยันแล้ว</> : 'อุปกรณ์'}</b>
           <span>{bindingState === 'PRIMARY' ? 'เครื่องหลักของคุณ' : bindingState === 'AUTO_BIND' ? 'เครื่องแรกจะผูกอัตโนมัติ' : bindingState === 'FOREIGN' ? 'ใช้อุปกรณ์อื่น · ต้องตรวจ' : 'กำลังตรวจอุปกรณ์'}</span>
         </article>
         <article>
           <b>ออฟไลน์พร้อมใช้งาน</b>
           <span>ถ้าเน็ตหลุด ระบบเก็บรายการในเครื่องและส่งให้อัตโนมัติเมื่อออนไลน์</span>
         </article>
-      </div>
     </div>
+    </div>
+    </SectionCard>
 
-    {receiptEvent && <section className="attendance-simple__receipt" aria-label="หลักฐานการลงเวลา">
+    {receiptEvent && <SectionCard className="attendance-simple__receipt" aria-label="หลักฐานการลงเวลา" kicker="หลักฐานจากระบบ" title={receiptTitle} description={`${receiptTime} · บันทึกกับ Server แล้ว`}>
       <div className="attendance-simple__receipt-heading">
-        <span aria-hidden="true">✓</span>
-        <div>
-          <strong>{receiptTitle}</strong>
-          <small>{receiptTime} · บันทึกกับ Server แล้ว</small>
-        </div>
+        <SmsIcon name="check" size={18} />
+        <strong>บันทึกเวลาและตรวจสอบข้อมูลจาก Server แล้ว</strong>
       </div>
       <div className="attendance-simple__receipt-grid">
         <div><span>Site จริง</span><strong>{receiptSite}</strong></div>
@@ -574,16 +573,15 @@ export function AttendanceSimplePage({
       </div>
       {receiptDetails.length > 0 && <p>{receiptDetails.join(' · ')}</p>}
       <button type="button" onClick={onTodayHistory}>ดูประวัติวันนี้</button>
-    </section>}
+    </SectionCard>}
 
-    {bindingState === 'FOREIGN' && <section className="attendance-simple__move">
-      <strong>ต้องการย้ายเครื่องหลักมาที่เครื่องนี้?</strong>
+    {bindingState === 'FOREIGN' && <SectionCard className="attendance-simple__move" kicker="อุปกรณ์ลงเวลา" title="ขอย้ายเครื่องหลัก" description="รายการลงเวลาจากอุปกรณ์อื่นจะถูกส่งให้ตรวจสอบตามสิทธิ์เดิม">
       <p>การลงเวลายังทำได้แต่รายการจะถูกส่งให้ตรวจ การย้ายเครื่องต้องให้ ADMIN อนุมัติและมี Audit log</p>
       <textarea value={moveReason} onChange={(event) => setMoveReason(event.target.value)} maxLength={1000} placeholder="เหตุผลที่ย้ายเครื่อง เช่น เปลี่ยนโทรศัพท์เครื่องหลัก" />
       <button type="button" disabled={!online || !token || moveBusy || moveReason.trim().length < 3} onClick={() => void requestMove()}>
         {moveBusy ? 'กำลังส่ง…' : 'ขอให้ ADMIN อนุมัติย้ายเครื่อง'}
       </button>
-    </section>}
+    </SectionCard>}
 
     {lastResult?.reviewReasons?.length ? <details className="attendance-simple__technical">
       <summary>รายละเอียดทางเทคนิค</summary>

@@ -35,13 +35,14 @@ describe('G04.2 VF-07 visual baseline with Owner brand correction', () => {
   });
 
   it('uses one versionless SMS brand lockup everywhere and removes the redundant secure-transition banner', () => {
-    expect(main).toContain('function Logo()');
-    expect(main).toMatch(/<img\s+className="brand-logo"\s+src="\/attendance-sms-logo\.svg"\s+alt="SMS"\s*\/>/);
+    expect(main).not.toContain('function Logo()');
+    expect(main).toContain("import { BrandLogo } from './components/BrandLogo';");
     expect(main).not.toMatch(/SMS V3|SMS v3/);
-    expect(main).toContain('<strong>Security Management System</strong>');
+    expect(main).toContain('<BrandLogo');
     for (const capability of ['ข้อมูลบุคลากร', 'ตารางกะและการลา', 'สิทธิ์และกฎการทำงาน']) expect(main).toContain(capability);
-    expect(main).toContain('className="sms-brand-copy"');
-    expect(publicExperience).toContain('<strong>SMS</strong><small>Security Management System</small>');
+    expect(main).not.toContain('className="sms-brand-copy"');
+    expect(publicExperience).toContain('aria-label="SMS Security Management System — กลับภาพรวม"');
+    expect(publicExperience).not.toContain('nexus-brand__copy');
     expect(publicExperience).not.toMatch(/SMS <em>v\d+\.\d+<\/em>/);
     expect(publicExperience).not.toContain('DEFENSE MATRIX VER 4.8.19');
     expect(publicExperience).not.toContain('SECURE SURFACE / AUTHENTICATED ONLY');
@@ -121,6 +122,6 @@ describe('G04.2 VF-07 visual baseline with Owner brand correction', () => {
   });
 
   it('locks the authorized API source after T25 cross-tab refresh coordination', () => {
-    expect(apiSha256).toBe('ee259e1e4f8b95049f345ae885a94b354b87cd1c22050bceebb1064a8fa0629f');
+    expect(apiSha256).toBe('b0144981af17f3b286158a7a82277656bab79097242d1a563b1b157a96378b18');
   });
 });
