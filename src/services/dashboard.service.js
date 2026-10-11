@@ -2,6 +2,7 @@
 
 const { performance } = require('node:perf_hooks');
 const { logger } = require('../utils/logger');
+const { securityGuardRelationScope } = require('./security-guard-scope.service');
 
 const EMPTY_ID = '00000000-0000-0000-0000-000000000000';
 const LICENSE_STATUSES = ['PENDING', 'APPROVED', 'RETURNED_FOR_CORRECTION', 'REJECTED', 'EXPIRED', 'SUPERSEDED'];
@@ -15,23 +16,6 @@ function employeeScope(user, relation = false) {
     return relation ? { employee: { is: { department: user.department, isActive: true, deletedAt: null } } } : { department: user.department };
   }
   return relation ? { employee: { is: { id: user.employeeId || EMPTY_ID, isActive: true, deletedAt: null } } } : { id: user.employeeId || EMPTY_ID };
-}
-
-function securityGuardRelationScope(scope) {
-  const employee = scope?.employee?.is || { isActive: true, deletedAt: null };
-  return {
-    ...scope,
-    employee: {
-      is: {
-        ...employee,
-        OR: [
-          { jobTitle: { contains: 'guard', mode: 'insensitive' } },
-          { jobTitle: { contains: 'รปภ' } },
-          { jobTitle: { contains: 'รักษาความปลอดภัย' } }
-        ]
-      }
-    }
-  };
 }
 
 function licenseStatusSummary(rows) {
