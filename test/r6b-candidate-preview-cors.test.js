@@ -44,7 +44,7 @@ function deployment(overrides = {}) {
   return {
     id: EXPECTED.deploymentId,
     name: 'sms-v3-staging',
-    projectId: EXPECTED.projectId,
+    project: { id: EXPECTED.projectId, name: 'sms-v3-staging' },
     url: new URL(EXPECTED.previewUrl).hostname,
     target: null,
     readyState: 'READY',
@@ -125,6 +125,46 @@ test('rejects candidate PR drift and production-target Preview identities', () =
     { code: 'NATIVE_PREVIEW_IDENTITY_MISMATCH' });
 });
 
+test('accepts exact Vercel project ID response shapes and rejects mismatches', () => {
+  const previewString = deployment({ project: EXPECTED.projectId });
+  verifyDeployment(previewString, previewString);
+  verifyDeploymentRecord(previewString, EXPECTED.deploymentId);
+
+  const productionString = {
+    id: EXPECTED.productionDeploymentId,
+    target: 'production',
+    readyState: 'READY',
+    project: EXPECTED.projectId,
+    meta: { githubCommitSha: EXPECTED.frozenProductionSha }
+  };
+  assert.doesNotThrow(() => verifyProduction(productionString));
+
+  const productionProjectId = {
+    id: EXPECTED.productionDeploymentId,
+    target: 'production',
+    readyState: 'READY',
+    projectId: EXPECTED.projectId,
+    meta: { githubCommitSha: EXPECTED.frozenProductionSha }
+  };
+  assert.doesNotThrow(() => verifyProduction(productionProjectId));
+
+  assert.throws(() => verifyDeployment(
+    { ...previewString, project: 'prj_unapproved' }, previewString),
+  { code: 'NATIVE_PREVIEW_IDENTITY_MISMATCH' });
+  assert.throws(() => verifyDeploymentRecord(
+    { ...previewString, project: { id: 'prj_unapproved' } }, EXPECTED.deploymentId),
+  { code: 'NATIVE_PREVIEW_IDENTITY_MISMATCH' });
+  assert.throws(() => verifyProduction(
+    { ...productionString, projectId: 'prj_unapproved' }),
+  { code: 'FROZEN_PRODUCTION_IDENTITY_MISMATCH' });
+  assert.throws(() => verifyDeploymentRecord(
+    { ...previewString, projectId: 'prj_unapproved' }, EXPECTED.deploymentId),
+  { code: 'NATIVE_PREVIEW_IDENTITY_MISMATCH' });
+  assert.throws(() => verifyProduction(
+    { ...productionString, project: 'prj_unapproved' }),
+  { code: 'FROZEN_PRODUCTION_IDENTITY_MISMATCH' });
+});
+
 test('uses only HTTPS origins and refuses HTTP mutation methods', () => {
   assert.equal(origin(EXPECTED.trustedOrigin), EXPECTED.trustedOrigin);
   assert.throws(() => origin('https://user:pass@sms-v3-staging-ten.vercel.app'), { code: 'ORIGIN_INVALID' });
@@ -172,7 +212,7 @@ test('requires frozen Production identity and metadata-verified candidate config
     id: EXPECTED.productionDeploymentId,
     target: 'production',
     readyState: 'READY',
-    projectId: EXPECTED.projectId,
+    project: { id: EXPECTED.projectId, name: 'sms-v3-staging' },
     meta: { githubCommitSha: EXPECTED.frozenProductionSha }
   };
   assert.doesNotThrow(() => verifyProduction(production));

@@ -33,6 +33,27 @@ function fail(code) {
 function guard(condition, code) {
   if (!condition) fail(code);
 }
+function verifyProjectIdentity(record) {
+  if (!record || typeof record !== 'object' || Array.isArray(record)) return false;
+  const identifiers = [];
+  if (Object.prototype.hasOwnProperty.call(record, 'projectId')) {
+    if (typeof record.projectId !== 'string') return false;
+    identifiers.push(record.projectId);
+  }
+  if (Object.prototype.hasOwnProperty.call(record, 'project')) {
+    const project = record.project;
+    if (typeof project === 'string') {
+      identifiers.push(project);
+    } else if (project && typeof project === 'object' && !Array.isArray(project)
+      && typeof project.id === 'string') {
+      identifiers.push(project.id);
+    } else {
+      return false;
+    }
+  }
+  return identifiers.length > 0
+    && identifiers.every((id) => id === EXPECTED.projectId);
+}
 function safeMethod(method) {
   guard(SAFE_METHODS.has(method), 'UNSAFE_METHOD_REJECTED');
 }
@@ -105,7 +126,7 @@ function verifyDeployment(record, byHost) {
   const host = new URL(EXPECTED.previewUrl).hostname;
   const matches = (item) => item && item.id === EXPECTED.deploymentId
     && item.name === 'sms-v3-staging'
-    && (item.projectId === EXPECTED.projectId || item.project && item.project.id === EXPECTED.projectId)
+    && verifyProjectIdentity(item)
     && item.url === host
     && (item.readyState || item.state) === 'READY'
     && (item.target === null || item.target === 'preview')
@@ -253,7 +274,7 @@ function verifyPlan(plan, event, env) {
 function verifyDeploymentRecord(record, expectedId) {
   const host = new URL(EXPECTED.previewUrl).hostname;
   guard(record && record.id === expectedId && record.name === 'sms-v3-staging'
-    && (record.projectId === EXPECTED.projectId || record.project && record.project.id === EXPECTED.projectId)
+    && verifyProjectIdentity(record)
     && record.url === host && (record.readyState || record.state) === 'READY'
     && (record.target === null || record.target === 'preview')
     && record.meta && record.meta.githubCommitSha === EXPECTED.candidateSha
@@ -264,7 +285,7 @@ function verifyDeploymentRecord(record, expectedId) {
 function verifyProduction(record) {
   guard(record && record.id === EXPECTED.productionDeploymentId
     && record.target === 'production' && (record.readyState || record.state) === 'READY'
-    && (record.projectId === EXPECTED.projectId || record.project && record.project.id === EXPECTED.projectId) && record.meta
+    && verifyProjectIdentity(record) && record.meta
     && record.meta.githubCommitSha === EXPECTED.frozenProductionSha,
   'FROZEN_PRODUCTION_IDENTITY_MISMATCH');
 }
