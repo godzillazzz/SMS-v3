@@ -1,0 +1,73 @@
+name: R6-B Integration Exact Deployment Isolation (Read Only)
+
+# Trusted main code only. Owner command on Issue #614 needed AFTER merge.
+# No PR event can run the protected job. Never executes migrations or authenticated UAT.
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sms-v3-r6b-integration-exact-isolation
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    if: >-
+      github.repository == 'godzillazzz/SMS-v3' &&
+      github.ref == 'refs/heads/main' &&
+      github.event.issue.number == 614 &&
+      github.event.issue.pull_request == null &&
+      github.event.sender.login == 'godzillazzz' &&
+      github.event.comment.user.login == 'godzillazzz' &&
+      github.event.comment.body == '/sms-v3-r6b-exact-isolation-attestation-20261012'
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      plan: ${{ steps.guard.outputs.plan }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+      - name: Guard Owner issue command, main approval policy and exact Integration CI
+        id: guard
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/ci/r6b-exact-deployment-isolation.cjs prepare
+
+  protected-isolation:
+    needs: prepare
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    environment:
+      name: Hosted UAT
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+      - name: Verify exact Preview deployment and runtime DB-Storage receipt with GET only
+        env:
+          GH_TOKEN: ${{ github.token }}
+          R6B_ISOLATION_PLAN: ${{ needs.prepare.outputs.plan }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+          APPROVED_PRODUCTION_DB_REF: ${{ vars.APPROVED_PRODUCTION_DB_REF }}
+          APPROVED_PRODUCTION_STORAGE_REF: ${{ vars.APPROVED_PRODUCTION_STORAGE_REF }}
+          RUNTIME_PROBE_SOURCE_REVIEW_APPROVED: ${{ vars.RUNTIME_PROBE_SOURCE_REVIEW_APPROVED }}
+        run: node scripts/ci/r6b-exact-deployment-isolation.cjs verify
