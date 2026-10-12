@@ -3,6 +3,7 @@ const cors = require('cors');
 const helmet = require('helmet');
 const env = require('./config/env');
 const routes = require('./routes');
+const { createRuntimeIsolationRoutes } = require('./routes/runtime-isolation-probe.routes');
 const { notFound, errorHandler } = require('./middlewares/error-handler');
 const prisma = require('./config/prisma');
 const requestContext = require('./middlewares/request-context');
@@ -63,6 +64,10 @@ async function readiness(req, res) {
 }
 app.get('/ready', readiness);
 app.get('/api/v1/ready', readiness);
+app.use('/api/v1/ops/preview-isolation-attestation', createRuntimeIsolationRoutes({
+  environment: process.env,
+  prisma
+}));
 app.use('/api/v1', routes);
 app.use(notFound);
 app.use(errorHandler);
