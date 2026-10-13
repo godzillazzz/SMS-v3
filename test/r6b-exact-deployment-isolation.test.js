@@ -11,8 +11,11 @@ const {
 
 const MAIN_SHA = 'a'.repeat(40);
 const NONCE = 'f'.repeat(32);
-const command = EXPECTED.command + ' sha=' + EXPECTED.integrationSha
-  + ' deployment=' + EXPECTED.deploymentId;
+const INTEGRATION_SHA = 'a'.repeat(40);
+const DEPLOYMENT_ID = 'dpl_TestPreviewV3';
+const CI_RUN_ID = 12345678901;
+const command = EXPECTED.command + ' sha=' + INTEGRATION_SHA
+  + ' deployment=' + DEPLOYMENT_ID;
 const copy = x => JSON.parse(JSON.stringify(x));
 
 function event() {
@@ -41,11 +44,11 @@ function environment() {
 const policies = () => ({ total_count: 1, branch_policies: [{ name: 'main', type: 'branch' }] });
 function deployment() {
   return {
-    id: EXPECTED.deploymentId, name: 'sms-v3-staging',
+    id: DEPLOYMENT_ID, name: 'sms-v3-staging',
     project: { id: EXPECTED.projectId }, target: null, readyState: 'READY',
     url: 'sms-v3-staging-a0nfl2zk7-godzillazz.vercel.app',
     meta: {
-      githubCommitSha: EXPECTED.integrationSha,
+      githubCommitSha: INTEGRATION_SHA,
       githubCommitRef: EXPECTED.integrationBranch,
       githubOrg: 'godzillazzz', githubRepo: 'SMS-v3'
     }
@@ -54,13 +57,13 @@ function deployment() {
 function receipt() {
   return {
     contract: 'sms-v3-preview-isolation/v3', nonce: NONCE,
-    deploymentId: EXPECTED.deploymentId,
-    applicationSha: EXPECTED.integrationSha,
+    deploymentId: DEPLOYMENT_ID,
+    applicationSha: INTEGRATION_SHA,
     vercelProjectId: EXPECTED.projectId,
     gitCommitRef: EXPECTED.integrationBranch,
     signedChallengeIdentity: {
       host: 'sms-v3-staging-a0nfl2zk7-godzillazz.vercel.app',
-      deploymentId: EXPECTED.deploymentId, applicationSha: EXPECTED.integrationSha,
+      deploymentId: DEPLOYMENT_ID, applicationSha: INTEGRATION_SHA,
       nonce: NONCE, issuedAt: 1760000000000, signatureVerified: true
     },
     database: {
@@ -85,6 +88,9 @@ function receipt() {
 }
 const proof = () => ({
   deploymentVerified: true,
+  deploymentId: DEPLOYMENT_ID,
+  applicationSha: INTEGRATION_SHA,
+  integrationRef: EXPECTED.integrationBranch,
   approvedRuntimePrincipal: 'postgres',
   approvedPreviewClusterFingerprintSha256: 'a'.repeat(64),
   approvedProductionClusterFingerprintSha256: 'b'.repeat(64),
@@ -92,15 +98,15 @@ const proof = () => ({
   approvedProductionStorageRef: 'y'.repeat(20)
 });
 const plan = () => ({
-  version: 2, commentId: 123, mainSha: MAIN_SHA,
-  integrationSha: EXPECTED.integrationSha, deploymentId: EXPECTED.deploymentId
+  version: 3, commentId: 123, mainSha: MAIN_SHA,
+  integrationSha: INTEGRATION_SHA, integrationBranch: EXPECTED.integrationBranch,
+  deploymentId: DEPLOYMENT_ID, ciRunId: CI_RUN_ID
 });
 
 test('owner-only exact command pins new SHA and deployment ID', () => {
-  assert.equal(EXPECTED.integrationSha, 'e80a1883d1598c035741ca55d9a1fc09061718f9');
-  assert.equal(EXPECTED.ciRunId, 38324590377);
-  assert.equal(EXPECTED.deploymentId, 'dpl_9FeFnk1yQx8LUsENMA7TR3R8fpwk');
-  assert.equal(assertOwnerEvent(event(), env()), 123);
+  assert.deepEqual(assertOwnerEvent(event(), env()), {
+    commentId: 123, integrationSha: INTEGRATION_SHA, deploymentId: DEPLOYMENT_ID
+  });
 });
 test('wrong issue, PR comment, or forged owner are rejected', () => {
   const a=event();a.issue.number=615;
@@ -110,12 +116,13 @@ test('wrong issue, PR comment, or forged owner are rejected', () => {
   const c=event();c.sender.id=2;
   assert.throws(() => assertOwnerEvent(c,env()),/OWNER_IDENTITY_REQUIRED/);
 });
-test('old command, missing fields, wrong SHA/deployment, extra tokens rejected', () => {
+test('old command, missing fields, malformed identity and extra tokens rejected', () => {
   for(const value of [
+    '/sms-v3-r6b-exact-isolation-attestation-20261012 sha='+INTEGRATION_SHA+' deployment='+DEPLOYMENT_ID,
     EXPECTED.command,
-    EXPECTED.command+' sha='+EXPECTED.integrationSha,
-    command.replace(EXPECTED.integrationSha,'e'.repeat(40)),
-    command.replace(EXPECTED.deploymentId,'dpl_stale'),
+    EXPECTED.command+' sha='+INTEGRATION_SHA,
+    EXPECTED.command+' sha=not-a-sha deployment='+DEPLOYMENT_ID,
+    EXPECTED.command+' sha='+INTEGRATION_SHA+' deployment=not-a-deployment',
     command+' extra=yes'
   ]) {
     const a=event();a.comment.body=value;
@@ -139,13 +146,14 @@ test('Hosted UAT owner reviewer / branch only / no bypass',()=>{
 });
 test('strict project identity rejects conflicting or missing IDs',()=>{
   assert.equal(projectIsExpected({projectId:EXPECTED.projectId}),true);
+  assert.equal(projectIsExpected({project:EXPECTED.projectId}),true);
   assert.equal(projectIsExpected({project:{id:EXPECTED.projectId}}),true);
   assert.equal(projectIsExpected({projectId:EXPECTED.projectId,project:{id:'wrong'}}),false);
   assert.equal(projectIsExpected({}),false);
 });
 test('Preview pinned deployment requires READY, preview, host, ref and project',()=>{
   const d=deployment();
-  assert.doesNotThrow(()=>verifyDeployment(d,d.url));
+  assert.doesNotThrow(()=>verifyDeployment(d,d.url,plan()));
   for(const mutation of [
     x=>x.meta.githubCommitSha='e'.repeat(40),
     x=>x.target='production',
@@ -155,7 +163,7 @@ test('Preview pinned deployment requires READY, preview, host, ref and project',
     x=>x.meta.githubCommitRef='main'
   ]){
     const x=copy(d);mutation(x);
-    assert.throws(()=>verifyDeployment(x,d.url),/EXACT_PREVIEW_DEPLOYMENT_REQUIRED/);
+    assert.throws(()=>verifyDeployment(x,d.url,plan()),/EXACT_PREVIEW_DEPLOYMENT_REQUIRED/);
   }
 });
 test('frozen Production deployment rejects target or SHA changes',()=>{
@@ -164,16 +172,16 @@ test('frozen Production deployment rejects target or SHA changes',()=>{
   assert.doesNotThrow(()=>verifyProduction(d));
   d.target='preview';
   assert.throws(()=>verifyProduction(d),/FROZEN_PRODUCTION_CHANGED/);
-  d.target='production';d.meta.githubCommitSha=EXPECTED.integrationSha;
+  d.target='production';d.meta.githubCommitSha=INTEGRATION_SHA;
   assert.throws(()=>verifyProduction(d),/FROZEN_PRODUCTION_CHANGED/);
 });
 test('CI must be exact-head success, not older success',()=>{
-  const r={id:EXPECTED.ciRunId,name:'CI',head_sha:EXPECTED.integrationSha,
+  const r={id:CI_RUN_ID,name:'CI',head_sha:INTEGRATION_SHA,
     head_branch:EXPECTED.integrationBranch,status:'completed',conclusion:'success'};
-  assert.doesNotThrow(()=>verifyCi({workflow_runs:[r]}));
-  for(const x of [{id:38190536543},{head_sha:'e'.repeat(40)},
+  assert.doesNotThrow(()=>verifyCi({workflow_runs:[r]}, INTEGRATION_SHA, EXPECTED.integrationBranch));
+  for(const x of [{head_sha:'e'.repeat(40)},
     {conclusion:'failure'},{status:'in_progress'}]){
-    assert.throws(()=>verifyCi({workflow_runs:[{...r,...x}]}),/EXACT_INTEGRATION_CI_REQUIRED/);
+    assert.throws(()=>verifyCi({workflow_runs:[{...r,...x}]}, INTEGRATION_SHA, EXPECTED.integrationBranch),/EXACT_INTEGRATION_CI_REQUIRED/);
   }
 });
 test('receipt v3 accepts runtime principal/cluster evidence but never labels release PASS',()=>{
@@ -274,8 +282,8 @@ test('independently approved Production ref collision or malformed ref rejected'
 });
 test('HMAC signature canonicalizes exact GET, path, host, deployment, SHA, nonce, issuedAt',()=>{
   const secret='test-only-not-real-hmac-secret-32-bytes';
-  const fields={host:'Preview.EXAMPLE.com',deploymentId:EXPECTED.deploymentId,
-    sha:EXPECTED.integrationSha,nonce:NONCE,issuedAt:1791853000000};
+  const fields={host:'Preview.EXAMPLE.com',deploymentId:DEPLOYMENT_ID,
+    sha:INTEGRATION_SHA,nonce:NONCE,issuedAt:1791853000000};
   const canonical=['GET',EXPECTED.probePath,'preview.example.com',fields.deploymentId,
     fields.sha,fields.nonce,String(fields.issuedAt)].join('\n');
   const expected='v1='+crypto.createHmac('sha256',secret).update(canonical).digest('hex');
@@ -284,11 +292,11 @@ test('HMAC signature canonicalizes exact GET, path, host, deployment, SHA, nonce
   assert.notEqual(signRuntimeChallenge(secret,{...fields,issuedAt:1791853000001}),expected);
   assert.notEqual(signRuntimeChallenge(secret,{...fields,deploymentId:'dpl_stale'}),expected);
 });
-test('v2 plan requires exact owner ID, main SHA and deployment',()=>{
+test('v3 plan binds owner command, main SHA, CI and deployment',()=>{
   assert.doesNotThrow(()=>verifyPlan(plan(),event(),env()));
   for(const change of [
-    {version:1},{mainSha:'b'.repeat(40)},{integrationSha:'e'.repeat(40)},
-    {deploymentId:'dpl_stale'},{commentId:1000}
+    {version:2},{mainSha:'b'.repeat(40)},{integrationSha:'e'.repeat(40)},
+    {integrationBranch:'main'},{deploymentId:'dpl_stale'},{commentId:1000}
   ])assert.throws(()=>verifyPlan({...plan(),...change},event(),env()),/PLAN_TAMPERED/);
 });
 test('verifier fails before network if no HMAC secret or source review',async()=>{
@@ -329,7 +337,7 @@ test('mocked exact-host signed GET is v3 and isolation remains UNVERIFIED', asyn
     VERCEL_TOKEN:'unit-vercel',
     VERCEL_AUTOMATION_BYPASS_SECRET:'unit-bypass',
     RUNTIME_ISOLATION_PROBE_HMAC_SECRET:secret,
-    RUNTIME_PROBE_SOURCE_REVIEW_APPROVED:EXPECTED.integrationSha,
+    RUNTIME_PROBE_SOURCE_REVIEW_APPROVED:INTEGRATION_SHA,
     APPROVED_PREVIEW_RUNTIME_PRINCIPAL:'postgres',
     APPROVED_PREVIEW_DB_CLUSTER_FINGERPRINT:'a'.repeat(64),
     APPROVED_PRODUCTION_DB_CLUSTER_FINGERPRINT:'b'.repeat(64)
@@ -350,14 +358,14 @@ test('mocked exact-host signed GET is v3 and isolation remains UNVERIFIED', asyn
       else if(u.pathname.endsWith('/branches/main'))
         result={protected:true,commit:{sha:MAIN_SHA}};
       else if(u.pathname.endsWith('/git/ref/heads/'+EXPECTED.integrationBranch))
-        result={object:{sha:EXPECTED.integrationSha}};
+        result={object:{sha:INTEGRATION_SHA}};
       else if(u.pathname.endsWith('/actions/runs'))
-        result={workflow_runs:[{id:EXPECTED.ciRunId,name:'CI',
-          head_sha:EXPECTED.integrationSha,head_branch:EXPECTED.integrationBranch,
+        result={workflow_runs:[{id:CI_RUN_ID,name:'CI',
+          head_sha:INTEGRATION_SHA,head_branch:EXPECTED.integrationBranch,
           status:'completed',conclusion:'success'}]};
       else throw Error('unexpected github endpoint '+u.pathname);
     } else if(u.hostname==='api.vercel.com') {
-      if(u.pathname.endsWith('/v13/deployments/'+EXPECTED.deploymentId)
+      if(u.pathname.endsWith('/v13/deployments/'+DEPLOYMENT_ID)
         ||u.pathname.endsWith('/v13/deployments/'+host)) result=deployment();
       else if(u.pathname.endsWith('/v13/deployments/'+EXPECTED.productionDeploymentId)) {
         const p=deployment();p.id=EXPECTED.productionDeploymentId;p.target='production';
@@ -374,11 +382,11 @@ test('mocked exact-host signed GET is v3 and isolation remains UNVERIFIED', asyn
         probes++;
         const nonce=u.searchParams.get('nonce'),issuedAt=u.searchParams.get('issuedAt');
         assert.match(nonce,/^[a-f0-9]{32}$/);
-        assert.equal(u.searchParams.get('sha'),EXPECTED.integrationSha);
-        assert.equal(u.searchParams.get('deploymentId'),EXPECTED.deploymentId);
+        assert.equal(u.searchParams.get('sha'),INTEGRATION_SHA);
+        assert.equal(u.searchParams.get('deploymentId'),DEPLOYMENT_ID);
         assert.equal(Date.now()-Number(issuedAt)<120000,true);
         const signature=signRuntimeChallenge(secret,{host,nonce,issuedAt,
-          sha:EXPECTED.integrationSha,deploymentId:EXPECTED.deploymentId});
+          sha:INTEGRATION_SHA,deploymentId:DEPLOYMENT_ID});
         assert.equal(options.headers['x-smsv3-probe-signature'],signature);
         assert.equal(u.searchParams.has('signature'),false);
         result={...receipt(),nonce,

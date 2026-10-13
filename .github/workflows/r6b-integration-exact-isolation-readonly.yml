@@ -22,7 +22,7 @@ jobs:
       github.event.issue.pull_request == null &&
       github.event.sender.login == 'godzillazzz' &&
       github.event.comment.user.login == 'godzillazzz' &&
-      startsWith(github.event.comment.body, '/sms-v3-r6b-exact-isolation-attestation-20261012 sha=')
+      startsWith(github.event.comment.body, '/sms-v3-r6b-exact-isolation-attestation-v3 sha=')
     runs-on: ubuntu-latest
     timeout-minutes: 8
     permissions:
