@@ -91,3 +91,81 @@ DATABASE_ISOLATION=UNVERIFIED; STORAGE_ISOLATION=UNVERIFIED;
 PRODUCTION_SEPARATION=UNVERIFIED; RLS_SECURITY=HOLD;
 HOSTED_UAT_READY=NO; R6_B_RELEASE=HOLD.
 Evidence: https://github.com/godzillazzz/SMS-v3/issues/614
+
+## Provider evidence plan — Owner-confirmed Production mapping (Draft only)
+
+On 2026-10-13 the Owner clarified that the Supabase project named
+`sms-v3-development` is **the intended Production project**. Names alone are
+not trustworthy. Supabase Management API confirms separate project refs:
+- Production: `jkexwnlxnxbemwavsebv`, private license bucket
+  `sms-v3-license-documents`
+- Preview: `ezxanpfagitckpfsnflp`, private license bucket
+  `license-documents-g05-preview`
+
+Separate provider-scoped, read-only checks gave different PostgreSQL cluster
+system-identifier SHA-256 digests. These digests are not embedded in source,
+logs or test fixtures. This establishes that the independently queried
+**provider-managed clusters** differ. It does NOT establish where the running
+Prisma connection is attached or which project issued its Storage secret.
+
+New `scripts/ci/r6b-provider-witness-contract.cjs` is an **offline,
+pure-function candidate evidence schema**, covered by mocks in
+`test/r6b-provider-witness-contract.test.js`. It rejects project/cluster
+collisions, incorrect buckets, unknown properties, raw credentials, stale
+identity formats and mismatched key-ID/audit correlation. Even perfectly
+matching mocks return only `MATCH_CANDIDATE` and `UNVERIFIED`;
+the module is deliberately **NOT** wired into the protected verifier to
+issue PASS. Neither `source=provider` strings nor arbitrary JSON assertions
+can authenticate a provider. The existing verifier stays fail-closed.
+
+### Reviewed execution design — NOT AUTHORIZED HERE
+
+1. A future trusted runner must retrieve Production and Preview project
+   metadata directly through two authenticated, independently scoped
+   provider API requests; compare project refs with this frozen mapping.
+   Gather nonsecret Storage bucket metadata but no objects or credentials.
+2. Gather distinct PostgreSQL cluster witnesses directly from each
+   provider's management-scoped read-only connection. A privileged
+   `pg_control_system()` function worked for the management principal;
+   **do not assume** that the application Prisma role has access.
+   Do not grant privileges to the app role to make an attestation pass.
+   Review and select a provider-supported least-privilege alternative if
+   necessary, including connection-pooler behavior.
+3. Only after separate Owner HMAC/Protected Workflow authorization, use a
+   one-time nonce-bound signed GET at the **exact immutable Preview host**.
+   Read an approved nonsecret witness of the **effective Prisma connection**;
+   compare its server identity against both provider witnesses. Confirm
+   source authentication and timestamp; no employee/business data reads.
+4. For Storage, request an independently verifiable **nonsecret key
+   identifier, issuer-to-project relation, and matching request/audit ID**
+   from authenticated provider audit/API records, if those records are
+   supported. Correlate them with the signed Preview metadata GET. Neither
+   bucket naming, credential prefix, HMAC challenge, service-role JWT claim,
+   nor an HTTP 200 proves issuer/project binding. If unavailable, keep
+   `STORAGE_ISOLATION=UNVERIFIED` and design an alternative without using
+   Preview credentials on any Production host.
+5. Define a new trusted-runner `providerEvidence` fetcher and source
+   authentication boundary in a **separately reviewed and authorized**
+   change. Pin exact deployment, ref, CI and HMAC challenge, reject
+   contradictions or stale evidence. Do not accept provider assertions
+   from the Preview receipt, user-supplied JSON, environment variables
+   or the pure candidate contract as authoritative sources.
+6. Independently audit effective Production runtime bindings without
+   reading Production secrets or modifying Production, under separately
+   approved read-only provider evidence access. Any ambiguity is STOP.
+
+**This Draft-only change neither implements the future privileged
+provider API fetcher nor changes the runtime endpoint, Release Gate,
+Protected Workflow or deploy behavior.** It only defines testable failure
+cases and non-authoritative candidate comparisons. No live runtime probe
+was performed; no secret was read or configured; PR remains Draft.
+
+RLS is a separate STOP: last provider audit found 25 Production and
+35 Preview public tables with RLS disabled. Any remediation requires
+separate Owner approval and non-regression validation.
+
+Required until all independently authenticated binding checks pass:
+`DATABASE_ISOLATION=UNVERIFIED`,
+`STORAGE_ISOLATION=UNVERIFIED`,
+`PRODUCTION_SEPARATION=UNVERIFIED`,
+`RLS_SECURITY=HOLD`, `R6_B_RELEASE=HOLD`.
