@@ -244,3 +244,114 @@ modification in this Draft update.
 DATABASE_ISOLATION=UNVERIFIED; STORAGE_ISOLATION=UNVERIFIED;
 PRODUCTION_SEPARATION=UNVERIFIED; RLS_SECURITY=HOLD;
 R6_B_RELEASE=HOLD.
+
+
+## 2026-10-13 Source-review decision — runtime attestation approval packet (NOT AN AUTHORIZATION)
+
+**Disposition: REVIEW-ONLY.** The current PR #615 capability inspector
+is a candidate/mocked witness contract, not a trusted runtime/provider
+attestation. CI SUCCESS and a READY Preview do not change release status.
+This checkpoint is documentation-only in the existing Draft PR.
+
+### Evidence authority and trust boundaries
+
+| Observation | Supports | Cannot prove |
+| --- | --- | --- |
+| Two independent Supabase provider-scoped cluster witnesses | Provider-managed Preview and Production clusters differ | Effective Prisma runtime database |
+| Management PostgreSQL role/capability check | Query feasibility for the inspected role | Privileges/identity of live pooled Prisma connection |
+| Vercel immutable deployment, nonce, request HMAC | Selected Preview request identity after approval | Effective DB or Storage credential issuer |
+| Private bucket metadata GET on a configured endpoint | Endpoint request and private bucket metadata | Credential provenance and Production separation |
+| Provider adapter callbacks / mock fixtures | Candidate comparison regression behavior | Independently authenticated provider evidence |
+
+The future trusted evidence runner must bind provider witnesses to
+independently authenticated scopes, exact reviewed deployment ID/SHA,
+approved nonsecret evidence, timestamp, freshness, and immutable host.
+Never trust a Preview-supplied projectRef, provider label, environment
+variable, database name, JWT payload, bucket name or self-asserted key ID
+as an independent attestation.
+
+### A. Database proof design — no runtime execution authorized
+
+1. Capture Preview and Production provider identities from authenticated,
+   separately scoped read-only sources. Compare the *same canonical*
+   cluster fingerprint operation; do not expose the raw identifier,
+   connections, SQL errors, rows, or credentials in ordinary logs.
+2. Future Preview-only endpoint must query through the **actual Prisma
+   client/pooler connection** inside an explicitly read-only transaction.
+   Record the effective SQL principal and connection-path evidence.
+   Management connection checks alone cannot satisfy runtime binding.
+3. PostgreSQL pg_control_system() permission checks are only a capability
+   hint. If the effective Prisma principal/pooler cannot execute an
+   approved identity query, return WITNESS_UNAVAILABLE; retain UNVERIFIED.
+   Do not GRANT privileges, impersonate a role, add SECURITY DEFINER,
+   or bypass RLS to make the test succeed.
+4. A future authoritative result requires an authenticated runtime
+   witness equal to authenticated Preview provider witness and unequal
+   to authenticated Production provider witness. Pooler ambiguity,
+   unavailable/contradictory witness, timeout, stale evidence or missing
+   origin authentication is a STOP. DB hostname/name is not a fallback.
+
+### B. Storage issuer — current BLOCKER
+
+Provider API key endpoints can expose credential values, including
+fields called api_key, even in APIs with metadata. **Do not call such
+endpoints or fetch keys for subsequent redaction/hashing under the current
+no-secret-read restriction.** This prohibition includes reveal flags
+and any API whose nonsecret response is not verified independently.
+
+An acceptable future proof must use a provider-documented, credential-free
+mechanism linking the independently authenticated Preview project, a
+nonsecret identifier of the effective runtime credential, and a trusted
+project-scoped request/audit witness with freshness and correlation.
+A bucket name, project URL, HTTP 200, credential prefix, JWT claim,
+or request HMAC alone is insufficient. Supabase secret-key and legacy
+service-role-JWT formats must each be reviewed. Never use Preview
+credentials against any Production host. If a safe provider-supported
+mechanism does not exist, retain STORAGE_ISOLATION=UNVERIFIED; do not
+replace an issuer proof with endpoint/bucket metadata.
+
+### C. Required mock-only negative tests (Node 22)
+
+- Provider scope collision, project mapping mismatch, same fingerprints
+- Runtime identity read using the wrong/unknown SQL principal or pooler
+- Missing privilege, fingerprint, freshness, or source-authentication
+- Contradictory provider and runtime witnesses; replayed/expired nonce
+- Unknown SHA, deployment, immutable host, or unsigned challenge
+- Missing Storage issuer/key ID, mismatched project, missing audit link
+- Credential-bearing response field; API key retrieval in no-secret mode
+- Fake JWT/project claim, bucket success, CI success or Preview READY
+  masquerading as provider identity proof
+
+These must fail closed and never elevate partial checks to isolation PASS.
+No future live test may precede local/mock review and explicit approval.
+
+### D. Approval sequence and independent RLS gate
+
+**A — allowed now:** Draft PR source review, document updates, mock
+tests, ordinary GitHub CI. PR #615 stays OPEN/Draft; no Merge.
+
+**B — separate Owner approval required:** Review a Preview-only Runtime
+endpoint implementation, effective Prisma identity SQL and permissions,
+trusted provider evidence collector, HMAC design and configuration, and
+exact immutable Preview deployment pin. The runtime endpoint is not
+merged by this Draft review; an Issue #614 patch is not deployment proof.
+
+**C — separate Owner approval required:** Exact Preview GET live probe
+and protected Hosted UAT workflow dispatch, only with narrowly scoped
+nonsecret provider access, source review, log redaction, immutable
+SHA/deployment/host binding and explicit STOP conditions. No Production
+runtime probe is authorized.
+
+**D — separate security approval required:** Remediate historic Preview
+and Production Data API/RLS findings in a disposable test environment
+first. Isolation attestation does not cure public table RLS exposure.
+No changes to RLS/grants, schemas, migrations or Production are
+authorized here.
+
+**Current verdict (unchanged):** DATABASE_ISOLATION=UNVERIFIED;
+STORAGE_ISOLATION=UNVERIFIED; PRODUCTION_SEPARATION=UNVERIFIED;
+RLS_SECURITY=HOLD; R6_B_RELEASE=HOLD.
+
+No secrets, Production requests, live probes, protected workflow
+dispatch, migrations, database queries or Storage object operations
+were performed by this review.
