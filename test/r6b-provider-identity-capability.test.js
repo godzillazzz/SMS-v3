@@ -3,10 +3,15 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const {
   PROJECT, PG_ROLE_CAPABILITY_SQL, PG_READONLY_CLUSTER_SQL,
-  inspectProviderIdentityCapabilities: inspect
+  PG_ENFORCE_READ_ONLY_SQL, PG_VERIFY_READ_ONLY_SQL, PG_RUNTIME_CLUSTER_SQL,
+  STORAGE_CREDENTIAL_ISSUER_ATTESTATION,
+  inspectProviderIdentityCapabilities: inspect,
+  collectPrismaRuntimeWitness
 } = require('../scripts/ci/r6b-provider-identity-capability.cjs');
 
-function makeClient(expected, fingerprint, managementRole='postgres') {
+const NOW = 1791849600000;
+
+function makeClient(expected, fingerprint, managementRole='postgres', observedAtMs=NOW) {
   const stats = {calls:[], dbReads:0, storageReads:0, secretReads:0};
   const client = {
     async getProjectMetadata() {
@@ -25,7 +30,7 @@ function makeClient(expected, fingerprint, managementRole='postgres') {
       assert.match(sql,/pg_control_system/);
       assert.match(sql,/sha256/);
       assert.doesNotMatch(sql,/\b(?:INSERT|UPDATE|DELETE|DROP|ALTER|CREATE|GRANT|REVOKE)\b/i);
-      return {clusterFingerprintSha256:fingerprint,executingRole:managementRole};
+      return {clusterFingerprintSha256:fingerprint,executingRole:managementRole,observedAtMs};
     },
     async getManagementRoleCapability(sql) {
       stats.calls.push('capability');
@@ -40,7 +45,7 @@ function setup(){
   const preview=makeClient(PROJECT.preview,'a'.repeat(64));
   const production=makeClient(PROJECT.production,'b'.repeat(64));
   return { preview, production,
-    args:{previewClient:preview.client,productionClient:production.client}};
+    args:{previewClient:preview.client,productionClient:production.client,nowMs:NOW}};
 }
 test('Owner Production designation is encoded without aliasing Preview',()=>{
   assert.equal(PROJECT.production.ref,'jkexwnlxnxbemwavsebv');
@@ -80,7 +85,7 @@ test('refuse wrong provider project',async()=>{
 test('reject same cluster witness',async()=>{
   const {args}=setup();
   args.productionClient.getProviderClusterWitness=async()=>({
-    clusterFingerprintSha256:'a'.repeat(64),executingRole:'postgres'});
+    clusterFingerprintSha256:'a'.repeat(64),executingRole:'postgres',observedAtMs:NOW});
   await assert.rejects(()=>inspect(args),/CLUSTER_ID_COLLISION/);
 });
 test('refuse any secret, connection string or unknown field',async()=>{
@@ -105,12 +110,126 @@ test('reject private bucket metadata that is public',async()=>{
 test('reject invalid cluster digest and malformed role',async()=>{
   const {args}=setup();
   args.previewClient.getProviderClusterWitness=async()=>({
-    clusterFingerprintSha256:'not-a-digest',executingRole:'postgres'});
+    clusterFingerprintSha256:'not-a-digest',executingRole:'postgres',observedAtMs:NOW});
   await assert.rejects(()=>inspect(args),/CLUSTER_WITNESS_INVALID/);
   const other=setup();
   other.args.previewClient.getManagementRoleCapability=async()=>({
     executingRole:'postgres; DROP TABLE users',mayReadClusterIdentity:true});
   await assert.rejects(()=>inspect(other.args),/ROLE_CAPABILITY_INVALID/);
+});
+
+function makePrismaRuntime({ role='prisma_runtime', fingerprint='c'.repeat(64),
+  readOnly='on', includeWitness=true, credentialField=false } = {}) {
+  const calls=[];
+  const tx={
+    async $executeRawUnsafe(sql){ calls.push(['execute',sql]); return 0; },
+    async $queryRawUnsafe(sql){
+      calls.push(['query',sql]);
+      if(sql===PG_VERIFY_READ_ONLY_SQL) return [{transaction_read_only:readOnly}];
+      if(sql===PG_RUNTIME_CLUSTER_SQL) {
+        if(!includeWitness) return [];
+        const row={cluster_fingerprint_sha256:fingerprint,executing_role:role};
+        if(credentialField) row.service_role_key='sb_secret_mock_never_real';
+        return [row];
+      }
+      throw new Error('UNEXPECTED_SQL');
+    }
+  };
+  const prisma={
+    async $transaction(callback, options){
+      calls.push(['transaction',options]);
+      return callback(tx);
+    }
+  };
+  return {prisma,calls};
+}
+function runtimeArgs(prisma, overrides={}) {
+  return {prisma,expectedRole:'prisma_runtime',deploymentId:'dpl_mockPreview1',
+    applicationSha:'d'.repeat(40),issuedAtMs:NOW,nowMs:NOW,...overrides};
+}
+
+test('mock Prisma witness enforces read-only before reading actual runtime principal',async()=>{
+  const mock=makePrismaRuntime();
+  const result=await collectPrismaRuntimeWitness(runtimeArgs(mock.prisma));
+  assert.deepEqual(mock.calls,[
+    ['transaction',{isolationLevel:'Serializable',maxWait:5000,timeout:5000}],
+    ['execute',PG_ENFORCE_READ_ONLY_SQL],
+    ['query',PG_VERIFY_READ_ONLY_SQL],
+    ['query',PG_RUNTIME_CLUSTER_SQL]
+  ]);
+  assert.equal(result.executingRole,'prisma_runtime');
+  assert.equal(result.transactionReadOnly,true);
+  assert.equal(result.evidenceAuthority,'MOCK_ONLY_RUNTIME_CANDIDATE');
+  assert.equal(result.databaseIsolation,'UNVERIFIED');
+  assert.equal(result.productionSeparation,'UNVERIFIED');
+  assert.equal(result.r6bRelease,'HOLD');
+});
+
+test('missing runtime witness and mismatched runtime role fail closed',async()=>{
+  const missing=makePrismaRuntime({includeWitness:false});
+  await assert.rejects(()=>collectPrismaRuntimeWitness(runtimeArgs(missing.prisma)),
+    /RUNTIME_WITNESS_MISSING/);
+  const mismatch=makePrismaRuntime({role:'postgres'});
+  await assert.rejects(()=>collectPrismaRuntimeWitness(runtimeArgs(mismatch.prisma)),
+    /RUNTIME_PRINCIPAL_MISMATCH/);
+});
+
+test('read-only mode must be observed before runtime identity query',async()=>{
+  const mock=makePrismaRuntime({readOnly:'off'});
+  await assert.rejects(()=>collectPrismaRuntimeWitness(runtimeArgs(mock.prisma)),
+    /READ_ONLY_MODE_UNVERIFIED/);
+  assert.deepEqual(mock.calls.slice(1),[
+    ['execute',PG_ENFORCE_READ_ONLY_SQL],['query',PG_VERIFY_READ_ONLY_SQL]
+  ]);
+});
+
+test('stale runtime and provider evidence fail closed',async()=>{
+  const runtime=makePrismaRuntime();
+  await assert.rejects(()=>collectPrismaRuntimeWitness(runtimeArgs(runtime.prisma,{
+    issuedAtMs:NOW-(5*60*1000)-1
+  })),/RUNTIME_EVIDENCE_STALE/);
+  assert.deepEqual(runtime.calls,[]);
+  const {args}=setup();
+  args.previewClient.getProviderClusterWitness=async()=>({
+    clusterFingerprintSha256:'a'.repeat(64),executingRole:'postgres',
+    observedAtMs:NOW-(5*60*1000)-1
+  });
+  await assert.rejects(()=>inspect(args),/CLUSTER_WITNESS_STALE/);
+});
+
+test('callers cannot relax the five-minute freshness policy',async()=>{
+  const runtime=makePrismaRuntime();
+  await assert.rejects(()=>collectPrismaRuntimeWitness(runtimeArgs(runtime.prisma,{
+    maxEvidenceAgeMs:(5*60*1000)+1
+  })),/RUNTIME_EVIDENCE_STALE/);
+  assert.deepEqual(runtime.calls,[]);
+});
+
+test('runtime credential fields and credential-like values are rejected',async()=>{
+  const field=makePrismaRuntime({credentialField:true});
+  await assert.rejects(()=>collectPrismaRuntimeWitness(runtimeArgs(field.prisma)),
+    /RUNTIME_WITNESS_SHAPE/);
+  const value=makePrismaRuntime({role:'prisma_runtime'});
+  value.prisma.$transaction=async callback=>callback({
+    async $executeRawUnsafe(){},
+    async $queryRawUnsafe(sql){
+      if(sql===PG_VERIFY_READ_ONLY_SQL) return [{transaction_read_only:'on'}];
+      return [{cluster_fingerprint_sha256:'a'.repeat(64),
+        executing_role:'sb_secret_mock_never_real'}];
+    }
+  });
+  await assert.rejects(()=>collectPrismaRuntimeWitness(runtimeArgs(value.prisma)),
+    /CREDENTIAL_VALUE_FORBIDDEN/);
+});
+
+test('Storage credential issuer attestation remains unavailable without reading keys',()=>{
+  assert.deepEqual(STORAGE_CREDENTIAL_ISSUER_ATTESTATION,{
+    status:'UNAVAILABLE_WITH_NONSECRET_METADATA',
+    providerDocumentedIssuerBindingFound:false,
+    rawKeyApiPermitted:false,
+    bucketMetadataProvesIssuer:false,
+    endpointProjectRefProvesIssuer:false
+  });
 });
 test('management role may lack capability without becoming Runtime claim',async()=>{
   const {args}=setup();

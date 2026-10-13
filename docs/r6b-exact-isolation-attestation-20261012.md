@@ -245,6 +245,60 @@ DATABASE_ISOLATION=UNVERIFIED; STORAGE_ISOLATION=UNVERIFIED;
 PRODUCTION_SEPARATION=UNVERIFIED; RLS_SECURITY=HOLD;
 R6_B_RELEASE=HOLD.
 
+## Mock-only runtime witness preparation (source review; not pushed)
+
+Base Draft PR #615 HEAD: `909fe33f8da1ddd40afd73273453d93775c40451`.
+Its existing exact-head CI run `38345332326` is SUCCESS, but that run does
+not contain or validate the local source-review delta described here.
+
+The proposed `collectPrismaRuntimeWitness` contract is deliberately kept in
+the existing mock capability module. It accepts an injected Prisma client so
+tests can prove the future call order without opening a database connection:
+
+1. Enter the same Prisma client's interactive transaction.
+2. Execute the fixed `SET TRANSACTION READ ONLY` statement first.
+3. query `SHOW transaction_read_only` and require exactly `on`.
+4. Execute the fixed cluster-fingerprint/current-user query through the
+   transaction client and require exactly one allow-listed row.
+5. Compare the observed `current_user` with the separately reviewed expected
+   Runtime role, enforce evidence freshness, and expose no URL or credential.
+
+The mock provider collector continues to use separately scoped Preview and
+Production adapters and compares project refs plus hashed cluster witnesses.
+New freshness validation rejects stale provider observations. An adapter is
+still unable to authenticate its own provenance, so a mock match remains
+candidate evidence and all release verdicts remain HOLD/UNVERIFIED.
+
+Negative coverage includes missing Runtime witness, wrong provider project,
+mismatched Runtime principal, read-only mode not enforced, same/mismatched
+cluster, credential-shaped fields or values, and stale Runtime/provider
+evidence. The proposed code is not registered in `src/app.js`, any route,
+workflow, verifier or release gate, and it performs no live SQL/API request.
+
+**Storage issuer feasibility:** current documented nonsecret Management and
+Storage metadata identify a project endpoint and bucket, but do not bind the
+effective Runtime `sb_secret_` or legacy service-role JWT issuer to that
+project. API-key endpoints that can return raw credentials remain prohibited.
+The mock constant therefore records
+`UNAVAILABLE_WITH_NONSECRET_METADATA`; bucket metadata, URL project ref,
+credential prefix, JWT payload and HTTP success cannot substitute for an
+issuer attestation.
+
+Local source-review validation used Node.js `v22.23.3`: 55 tests PASS,
+0 FAIL, 0 SKIPPED across the exact-deployment verifier, provider capability
+and provider witness suites. Syntax checks and `git diff --check` PASS.
+No commit, Push, Preview deployment, live probe, secret read, SQL, Storage
+operation, workflow execution or PR mutation was performed.
+
+Separate Owner approval is required before applying this delta to PR #615,
+because a Push can trigger a Preview deployment. A later live implementation
+also requires a separately reviewed Runtime route/Receipt contract and
+Protected Workflow approval; this source review does not authorize either.
+
+DATABASE_ISOLATION=UNVERIFIED; STORAGE_ISOLATION=UNVERIFIED;
+PRODUCTION_SEPARATION=UNVERIFIED; RLS_SECURITY=HOLD;
+R6_B_RELEASE=HOLD.
+
 
 ## 2026-10-13 Source-review decision — runtime attestation approval packet (NOT AN AUTHORIZATION)
 
