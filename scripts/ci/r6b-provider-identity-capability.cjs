@@ -95,6 +95,11 @@ async function inspectOne(adapter, expected) {
   const witness = parseCluster(await adapter.getProviderClusterWitness(PG_READONLY_CLUSTER_SQL));
   const capability = parseRoleCapability(
     await adapter.getManagementRoleCapability(PG_ROLE_CAPABILITY_SQL));
+  // A capability check under one SQL principal cannot validate a witness
+  // measured under another. This is only a consistency check; adapter
+  // provenance and the effective Prisma principal remain UNVERIFIED.
+  if (witness.executingRole !== capability.executingRole)
+    fail('PROVIDER_ROLE_WITNESS_MISMATCH');
   return { ...project, ...bucket,
     clusterFingerprintSha256: witness.clusterFingerprintSha256,
     clusterWitnessQueryRole: witness.executingRole,
