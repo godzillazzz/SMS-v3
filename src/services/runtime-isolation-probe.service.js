@@ -5,7 +5,7 @@ const { parseAndNormalize } = require('../utils/database-target-identity');
 const { verifyPreviewDatabaseTarget } = require('./runtime-database-target-guard.service');
 
 const EXPECTED = Object.freeze({
-  contract: 'sms-v3-preview-isolation/v2',
+  contract: 'sms-v3-preview-isolation/v3',
   projectId: 'prj_XwhNUOB2zLSPZ6UgQcfyOKBYJ75s',
   repositoryOwner: 'godzillazzz',
   repositorySlug: 'sms-v3',
@@ -20,7 +20,12 @@ const EXPECTED = Object.freeze({
 });
 
 const READ_ONLY_DATABASE_SQL =
-  'SELECT current_database() AS database_name, current_setting(\'transaction_read_only\') AS transaction_read_only';
+  'SELECT current_database() AS database_name, current_user AS executing_role, '
+  + "encode(sha256(convert_to((pg_control_system()).system_identifier::text,'UTF8')),'hex') "
+  + 'AS cluster_fingerprint_sha256';
+const READ_ONLY_MODE_SQL = 'SHOW transaction_read_only';
+const RUNTIME_ROLE_PATTERN = /^[a-z_][a-z0-9_]{0,62}$/;
+const CLUSTER_FINGERPRINT_PATTERN = /^[0-9a-f]{64}$/;
 
 function fail(code) {
   const error = new Error(code);
@@ -207,27 +212,43 @@ async function readDatabase({ environment, target, prisma }) {
   ensure(guard?.required === true && guard?.matched === true, 'DATABASE_PREVIEW_GUARD_REQUIRED');
   ensure(prisma && typeof prisma.$transaction === 'function', 'DATABASE_CLIENT_UNAVAILABLE');
 
-  let rows;
+  const expectedRuntimeRole = environment.RUNTIME_PRISMA_EXPECTED_ROLE;
+  ensure(typeof expectedRuntimeRole === 'string' && RUNTIME_ROLE_PATTERN.test(expectedRuntimeRole),
+    'DATABASE_RUNTIME_ROLE_UNVERIFIED');
+  let witness;
   try {
-    rows = await prisma.$transaction(async (tx) => {
+    witness = await prisma.$transaction(async (tx) => {
+      // This must remain the first statement in the interactive transaction.
       await tx.$executeRawUnsafe('SET TRANSACTION READ ONLY');
-      return tx.$queryRawUnsafe(READ_ONLY_DATABASE_SQL);
+      const modeRows = await tx.$queryRawUnsafe(READ_ONLY_MODE_SQL);
+      const witnessRows = await tx.$queryRawUnsafe(READ_ONLY_DATABASE_SQL);
+      return { modeRows, witnessRows };
     }, { maxWait: 3000, timeout: 8000 });
   } catch {
-    fail('DATABASE_READ_ONLY_CHECK_FAILED');
+    fail('DATABASE_RUNTIME_WITNESS_UNAVAILABLE');
   }
-  const row = Array.isArray(rows) ? rows[0] : null;
-  ensure(row
+  const modeRow = Array.isArray(witness?.modeRows) ? witness.modeRows[0] : null;
+  const row = Array.isArray(witness?.witnessRows) ? witness.witnessRows[0] : null;
+  ensure(modeRow && modeRow.transaction_read_only === 'on'
+    && row
     && row.database_name === target.normalized.database
-    && String(row.transaction_read_only).toLowerCase() === 'on',
-  'DATABASE_READ_ONLY_CHECK_MISMATCH');
+    && typeof row.executing_role === 'string'
+    && RUNTIME_ROLE_PATTERN.test(row.executing_role)
+    && row.executing_role === expectedRuntimeRole
+    && typeof row.cluster_fingerprint_sha256 === 'string'
+    && CLUSTER_FINGERPRINT_PATTERN.test(row.cluster_fingerprint_sha256),
+  'DATABASE_RUNTIME_WITNESS_MISMATCH');
   return {
     configuredDatabaseProjectRef: target.databaseUrl.projectRef,
     configuredDirectProjectRef: target.directUrl.projectRef,
     configuredDatabaseName: target.normalized.database,
     observedDatabaseName: row.database_name,
+    runtimePrincipal: row.executing_role,
+    runtimeClusterFingerprintSha256: row.cluster_fingerprint_sha256,
     targetGuardMatched: true,
-    databaseReadOnlyQuerySucceeded: true
+    databaseReadOnlyQuerySucceeded: true,
+    transactionReadOnly: true,
+    runtimeWitnessVerified: true
   };
 }
 
@@ -264,6 +285,14 @@ async function createRuntimeIsolationReceipt({
     applicationSha: challenge.sha,
     vercelProjectId: environment.VERCEL_PROJECT_ID,
     gitCommitRef: environment.VERCEL_GIT_COMMIT_REF,
+    signedChallengeIdentity: {
+      host: challenge.host,
+      deploymentId: challenge.deploymentId,
+      applicationSha: challenge.sha,
+      nonce: challenge.nonce,
+      issuedAt: challenge.issuedAt,
+      signatureVerified: true
+    },
     database,
     storage: storageReceipt
   };

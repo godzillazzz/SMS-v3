@@ -2,6 +2,8 @@
 
 const PREVIEW_PROJECT_REF = 'ezxanpfagitckpfsnflp';
 const PREVIEW_BUCKET = 'license-documents-g05-preview';
+const RUNTIME_ROLE = /^[a-z_][a-z0-9_]{0,62}$/;
+const CLUSTER_FINGERPRINT = /^[0-9a-f]{64}$/;
 
 function fail(code) {
   const error = new Error(code);
@@ -22,9 +24,9 @@ function verifyRuntimeReceipt(receipt, plan, nonce, provenance) {
   ensure(provenance?.deploymentVerified === true, 'DEPLOYMENT_PROVENANCE_REQUIRED');
   ensure(hasExactKeys(receipt, [
     'contract', 'nonce', 'deploymentId', 'applicationSha', 'vercelProjectId',
-    'gitCommitRef', 'database', 'storage'
+    'gitCommitRef', 'signedChallengeIdentity', 'database', 'storage'
   ]), 'RUNTIME_RECEIPT_FIELDS_UNTRUSTED');
-  ensure(receipt.contract === 'sms-v3-preview-isolation/v2'
+  ensure(receipt.contract === 'sms-v3-preview-isolation/v3'
     && receipt.nonce === nonce
     && /^[a-f0-9]{32}$/.test(nonce || '')
     && receipt.deploymentId === plan.deploymentId
@@ -34,10 +36,23 @@ function verifyRuntimeReceipt(receipt, plan, nonce, provenance) {
   'RUNTIME_PROBE_IDENTITY_UNVERIFIED');
 
   const database = receipt.database;
+  const challenge = receipt.signedChallengeIdentity;
+  ensure(hasExactKeys(challenge, [
+    'host', 'deploymentId', 'applicationSha', 'nonce', 'issuedAt', 'signatureVerified'
+  ])
+    && typeof challenge.host === 'string'
+    && /^[a-z0-9][a-z0-9.-]+\.vercel\.app$/.test(challenge.host)
+    && challenge.deploymentId === receipt.deploymentId
+    && challenge.applicationSha === receipt.applicationSha
+    && challenge.nonce === receipt.nonce
+    && Number.isSafeInteger(challenge.issuedAt)
+    && challenge.signatureVerified === true,
+  'RUNTIME_CHALLENGE_IDENTITY_UNVERIFIED');
   ensure(hasExactKeys(database, [
     'configuredDatabaseProjectRef', 'configuredDirectProjectRef',
-    'configuredDatabaseName', 'observedDatabaseName', 'targetGuardMatched',
-    'databaseReadOnlyQuerySucceeded'
+    'configuredDatabaseName', 'observedDatabaseName', 'runtimePrincipal',
+    'runtimeClusterFingerprintSha256', 'targetGuardMatched',
+    'databaseReadOnlyQuerySucceeded', 'transactionReadOnly', 'runtimeWitnessVerified'
   ]), 'RUNTIME_RECEIPT_FIELDS_UNTRUSTED');
   ensure(database.configuredDatabaseProjectRef === PREVIEW_PROJECT_REF
     && database.configuredDirectProjectRef === PREVIEW_PROJECT_REF
@@ -47,6 +62,13 @@ function verifyRuntimeReceipt(receipt, plan, nonce, provenance) {
     && database.targetGuardMatched === true
     && database.databaseReadOnlyQuerySucceeded === true,
   'RUNTIME_DATABASE_CHECK_UNVERIFIED');
+  ensure(database.transactionReadOnly === true
+    && database.runtimeWitnessVerified === true
+    && typeof database.runtimePrincipal === 'string'
+    && RUNTIME_ROLE.test(database.runtimePrincipal)
+    && typeof database.runtimeClusterFingerprintSha256 === 'string'
+    && CLUSTER_FINGERPRINT.test(database.runtimeClusterFingerprintSha256),
+  'RUNTIME_DATABASE_WITNESS_UNVERIFIED');
 
   const storage = receipt.storage;
   ensure(hasExactKeys(storage, [
