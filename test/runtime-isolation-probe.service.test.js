@@ -31,6 +31,7 @@ function environment(overrides = {}) {
     VERCEL_GIT_REPO_OWNER: 'godzillazzz',
     VERCEL_GIT_REPO_SLUG: 'SMS-v3',
     RUNTIME_ISOLATION_PROBE_HMAC_SECRET: HMAC_FIXTURE,
+    RUNTIME_PRISMA_EXPECTED_ROLE: 'postgres',
     DATABASE_URL: 'postgresql://postgres.ezxanpfagitckpfsnflp:TEST_ONLY_PASSWORD@aws-0-ap-northeast-1.pooler.supabase.com:6543/postgres',
     DIRECT_URL: 'postgresql://postgres:TEST_ONLY_PASSWORD@db.ezxanpfagitckpfsnflp.supabase.co:5432/postgres',
     SUPABASE_URL: 'https://ezxanpfagitckpfsnflp.supabase.co',
@@ -71,7 +72,8 @@ function requestFor(env, updates = {}) {
   return { method: updates.method || 'GET', headers, query };
 }
 
-function databaseFixture({ databaseName = 'postgres', readOnly = 'on' } = {}) {
+function databaseFixture({ databaseName = 'postgres', readOnly = 'on', executingRole = 'postgres',
+  clusterFingerprintSha256 = 'a'.repeat(64), missingWitness = false } = {}) {
   const calls = [];
   const prisma = {
     async $transaction(callback, options) {
@@ -84,9 +86,14 @@ function databaseFixture({ databaseName = 'postgres', readOnly = 'on' } = {}) {
         },
         async $queryRawUnsafe(sql) {
           calls.push({ kind: 'query', sql });
+          if (sql === 'SHOW transaction_read_only') {
+            return [{ transaction_read_only: readOnlyTransaction ? readOnly : 'off' }];
+          }
+          if (missingWitness) return [];
           return [{
             database_name: databaseName,
-            transaction_read_only: readOnlyTransaction ? readOnly : 'off'
+            executing_role: executingRole,
+            cluster_fingerprint_sha256: clusterFingerprintSha256
           }];
         }
       };
@@ -142,6 +149,9 @@ test('returns a sanitized receipt after Preview URL pair, approved guard, read-o
   assert.equal(result.database.observedDatabaseName, 'postgres');
   assert.equal(result.database.targetGuardMatched, true);
   assert.equal(result.database.databaseReadOnlyQuerySucceeded, true);
+  assert.equal(result.database.transactionReadOnly, true);
+  assert.equal(result.signedChallengeIdentity.signatureVerified, true);
+  assert.equal(result.signedChallengeIdentity.deploymentId, DEPLOYMENT_ID);
   assert.equal(result.storage.configuredEndpointProjectRef, EXPECTED.previewStorageRef);
   assert.equal(result.storage.bucket, EXPECTED.licenseBucket);
   assert.equal(result.storage.privateBucketMetadataReadSucceeded, true);
@@ -317,9 +327,32 @@ test('does not connect when the read-only transaction or DB identity check fails
       await assert.rejects(
         createRuntimeIsolationReceipt({ req: signedRequest(env), environment: env, prisma, fetchImpl, now: NOW }),
         error => error.code === 'DATABASE_READ_ONLY_CHECK_MISMATCH'
+          || error.code === 'DATABASE_RUNTIME_WITNESS_MISMATCH'
       );
       assert.deepEqual(storageCalls, []);
       assert.equal(dbCalls.some(x => x.kind === 'sql'), true);
+    });
+  }
+});
+
+test('rejects a missing, stale-shaped, or mismatched Prisma runtime witness', async (t) => {
+  const cases = [
+    { name: 'missing witness', fixture: { missingWitness: true } },
+    { name: 'wrong role', fixture: { executingRole: 'anon' } },
+    { name: 'invalid cluster fingerprint', fixture: { clusterFingerprintSha256: 'not-a-fingerprint' } },
+    { name: 'missing expected role', env: { RUNTIME_PRISMA_EXPECTED_ROLE: '' } }
+  ];
+  for (const item of cases) {
+    await t.test(item.name, async () => {
+      const env = environment(item.env);
+      const { prisma } = databaseFixture(item.fixture);
+      const { fetchImpl, calls: storageCalls } = storageFixture();
+      await assert.rejects(
+        createRuntimeIsolationReceipt({ req: signedRequest(env), environment: env, prisma, fetchImpl, now: NOW }),
+        error => ['DATABASE_RUNTIME_WITNESS_UNAVAILABLE', 'DATABASE_RUNTIME_WITNESS_MISMATCH',
+          'DATABASE_RUNTIME_ROLE_UNVERIFIED'].includes(error.code)
+      );
+      assert.deepEqual(storageCalls, []);
     });
   }
 });

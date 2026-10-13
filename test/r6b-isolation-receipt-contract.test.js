@@ -19,19 +19,31 @@ const deploymentProvenance = { deploymentVerified: true };
 
 function receipt() {
   return {
-    contract: 'sms-v3-preview-isolation/v2',
+    contract: 'sms-v3-preview-isolation/v3',
     nonce,
     deploymentId: plan.deploymentId,
     applicationSha: plan.integrationSha,
     vercelProjectId: plan.projectId,
     gitCommitRef: plan.integrationRef,
+    signedChallengeIdentity: {
+      host: 'sms-v3-staging-preview.vercel.app',
+      deploymentId: plan.deploymentId,
+      applicationSha: plan.integrationSha,
+      nonce,
+      issuedAt: 1760000000000,
+      signatureVerified: true
+    },
     database: {
       configuredDatabaseProjectRef: PREVIEW_PROJECT_REF,
       configuredDirectProjectRef: PREVIEW_PROJECT_REF,
       configuredDatabaseName: 'postgres',
       observedDatabaseName: 'postgres',
+      runtimePrincipal: 'postgres',
+      runtimeClusterFingerprintSha256: 'a'.repeat(64),
       targetGuardMatched: true,
-      databaseReadOnlyQuerySucceeded: true
+      databaseReadOnlyQuerySucceeded: true,
+      transactionReadOnly: true,
+      runtimeWitnessVerified: true
     },
     storage: {
       configuredEndpointProjectRef: PREVIEW_PROJECT_REF,
