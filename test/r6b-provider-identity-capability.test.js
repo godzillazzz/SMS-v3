@@ -140,3 +140,23 @@ test('no fake provider API adapter is accepted as a release attestation',async()
     ['rlsSecurity','HOLD'],['r6bRelease','HOLD']])
     assert.equal(r[k],v);
 });
+
+
+test('reject cluster witness and capability measured under different principals',async()=>{
+  const {args}=setup();
+  args.previewClient.getManagementRoleCapability=async(sql)=>{
+    assert.equal(sql,PG_ROLE_CAPABILITY_SQL);
+    return {executingRole:'authenticated',mayReadClusterIdentity:true};
+  };
+  await assert.rejects(()=>inspect(args),/PROVIDER_ROLE_WITNESS_MISMATCH/);
+});
+test('reject provider metadata with fields that could carry credential values',async()=>{
+  for(const name of ['api_key','secret_jwt_template','Authorization','SUPABASE_SERVICE_ROLE_KEY']){
+    const {args}=setup();
+    const base=args.previewClient.getProjectMetadata;
+    args.previewClient.getProjectMetadata=async()=>({
+      ...await base(),[name]:'TEST_ONLY_NOT_A_CREDENTIAL'
+    });
+    await assert.rejects(()=>inspect(args),/PROJECT_METADATA_SHAPE/);
+  }
+});
