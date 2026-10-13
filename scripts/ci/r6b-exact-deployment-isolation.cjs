@@ -11,9 +11,9 @@ const EXPECTED = Object.freeze({
   command: '/sms-v3-r6b-exact-isolation-attestation-20261012',
   environment: 'Hosted UAT',
   integrationBranch: 'fix/serverless-database-reliability',
-  integrationSha: 'eeeb7cea92357c7d34500fbc74c8e3087e9849c5',
-  ciRunId: 38190536543,
-  deploymentId: 'dpl_yhs6Z4CUHingjrDh1tM8d7wWpNRz',
+  integrationSha: 'e80a1883d1598c035741ca55d9a1fc09061718f9',
+  ciRunId: 38324590377,
+  deploymentId: 'dpl_9FeFnk1yQx8LUsENMA7TR3R8fpwk',
   projectId: 'prj_XwhNUOB2zLSPZ6UgQcfyOKBYJ75s',
   teamId: 'team_nemCExHbZ8EAhSgsvefHPAEz',
   previewRef: 'ezxanpfagitckpfsnflp',
@@ -56,7 +56,7 @@ function assertOwnerEvent(event, env) {
     && !event.issue?.pull_request
     && Number.isSafeInteger(event.comment?.id)
     && event.comment.id > 0
-    && event.comment.body === EXPECTED.command
+    && event.comment.body === EXPECTED.command + ' sha=' + EXPECTED.integrationSha + ' deployment=' + EXPECTED.deploymentId
     && event.comment.author_association === 'OWNER', 'EXACT_OWNER_ISSUE_COMMAND_REQUIRED');
   for (const a of [event.sender, event.comment.user]) {
     ensure(a?.login === EXPECTED.owner && a.id === EXPECTED.ownerId
@@ -100,35 +100,66 @@ function verifyCi(runs) {
     && run.status === 'completed' && run.conclusion === 'success',
   'EXACT_INTEGRATION_CI_REQUIRED');
 }
+function exactKeys(value, keys) {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    && Object.keys(value).sort().join(',') === [...keys].sort().join(',');
+}
 function verifyRuntimeReceipt(receipt, nonce, provenance) {
-  // This data MUST originate at the exact deployment host from a reviewed runtime probe.
-  // No endpoint on the pinned legacy deployment => fail closed; never synthesize a PASS.
+  // Receipt v2 records configured targets and read-only observations,
+  // not independently verified provider identity.
   ensure(provenance?.deploymentVerified === true, 'DEPLOYMENT_PROVENANCE_REQUIRED');
-  ensure(receipt?.contract === 'sms-v3-preview-isolation/v1'
+  ensure(exactKeys(receipt, [
+    'contract', 'nonce', 'deploymentId', 'applicationSha', 'vercelProjectId',
+    'gitCommitRef', 'database', 'storage'
+  ]) && receipt.contract === 'sms-v3-preview-isolation/v2'
     && typeof nonce === 'string' && /^[a-f0-9]{32}$/.test(nonce)
     && receipt.nonce === nonce
-    && receipt.applicationSha === EXPECTED.integrationSha,
+    && receipt.deploymentId === EXPECTED.deploymentId
+    && receipt.applicationSha === EXPECTED.integrationSha
+    && receipt.vercelProjectId === EXPECTED.projectId
+    && receipt.gitCommitRef === EXPECTED.integrationBranch,
   'RUNTIME_PROBE_MISSING_OR_UNTRUSTED');
   const db = receipt.database;
-  ensure(db?.readOnlyQuerySucceeded === true
-    && db.connectionProjectRef === EXPECTED.previewRef
-    && db.directProjectRef === EXPECTED.previewRef
-    && db.connectedProjectRef === EXPECTED.previewRef,
-  'RUNTIME_DATABASE_IDENTITY_UNVERIFIED');
+  ensure(exactKeys(db, [
+    'configuredDatabaseProjectRef', 'configuredDirectProjectRef',
+    'configuredDatabaseName', 'observedDatabaseName',
+    'targetGuardMatched', 'databaseReadOnlyQuerySucceeded'
+  ]) && db.configuredDatabaseProjectRef === EXPECTED.previewRef
+    && db.configuredDirectProjectRef === EXPECTED.previewRef
+    && typeof db.configuredDatabaseName === 'string'
+    && /^[A-Za-z0-9_-]{1,63}$/.test(db.configuredDatabaseName)
+    && db.observedDatabaseName === db.configuredDatabaseName
+    && db.targetGuardMatched === true
+    && db.databaseReadOnlyQuerySucceeded === true,
+  'RUNTIME_DATABASE_TARGET_UNVERIFIED');
   const storage = receipt.storage;
-  ensure(storage?.projectRef === EXPECTED.previewRef
-    && storage.credentialProjectRef === EXPECTED.previewRef
+  ensure(exactKeys(storage, [
+    'configuredEndpointProjectRef', 'bucket',
+    'privateBucketMetadataReadSucceeded', 'bucketIsPrivate'
+  ]) && storage.configuredEndpointProjectRef === EXPECTED.previewRef
     && storage.bucket === EXPECTED.previewBucket
-    && storage.privateBucketReadSucceeded === true,
-  'RUNTIME_STORAGE_IDENTITY_UNVERIFIED');
-  // Production project refs must come from independently approved, non-secret provider evidence,
-  // not from the preview response. Equality with Preview fails closed.
-  const approvedDb = provenance.approvedProductionDatabaseRef;
-  const approvedStorage = provenance.approvedProductionStorageRef;
-  ensure(REF.test(approvedDb || '') && REF.test(approvedStorage || '')
-    && approvedDb !== EXPECTED.previewRef && approvedStorage !== EXPECTED.previewRef,
-  'PRODUCTION_SEPARATION_UNVERIFIED');
-  return { database: 'PASS', storage: 'PASS', productionSeparation: 'PASS' };
+    && storage.privateBucketMetadataReadSucceeded === true
+    && storage.bucketIsPrivate === true,
+  'RUNTIME_STORAGE_TARGET_UNVERIFIED');
+  // Independent production refs can reject collisions, but cannot alone
+  // prove that effective Preview credentials are bound to that provider.
+  for (const ref of [provenance.approvedProductionDatabaseRef,
+    provenance.approvedProductionStorageRef]) {
+    if (ref !== undefined && ref !== '') {
+      ensure(typeof ref === 'string' && REF.test(ref) && ref !== EXPECTED.previewRef,
+        'PRODUCTION_SEPARATION_UNVERIFIED');
+    }
+  }
+  return {
+    deploymentIdentity: 'PASS',
+    configuredDatabaseTarget: 'MATCH',
+    databaseReadOnlyCheck: 'PASS',
+    configuredStorageEndpoint: 'MATCH',
+    privateBucketMetadataGet: 'PASS',
+    database: 'UNVERIFIED',
+    storage: 'UNVERIFIED',
+    productionSeparation: 'UNVERIFIED'
+  };
 }
 function safeUrl(raw, host) {
   let u;
@@ -182,24 +213,37 @@ async function prepare(event, env, fetcher) {
   const api = client(env, fetcher);
   await guardGovernance(api, env);
   await guardIntegration(api);
-  return { version: 1, commentId, mainSha: env.GITHUB_SHA, integrationSha: EXPECTED.integrationSha,
+  return { version: 2, commentId, mainSha: env.GITHUB_SHA, integrationSha: EXPECTED.integrationSha,
     deploymentId: EXPECTED.deploymentId };
 }
 function verifyPlan(plan, event, env) {
   const id = assertOwnerEvent(event, env);
-  ensure(plan?.version === 1 && plan.commentId === id
+  ensure(plan?.version === 2 && plan.commentId === id
     && plan.mainSha === env.GITHUB_SHA
     && plan.integrationSha === EXPECTED.integrationSha
     && plan.deploymentId === EXPECTED.deploymentId, 'PLAN_TAMPERED');
 }
+function signRuntimeChallenge(secret, fields) {
+  return 'v1=' + crypto.createHmac('sha256', secret).update([
+    'GET', EXPECTED.probePath, fields.host.toLowerCase(),
+    fields.deploymentId, fields.sha.toLowerCase(),
+    fields.nonce.toLowerCase(), String(fields.issuedAt)
+  ].join('\n')).digest('hex');
+}
 async function verify(plan, event, env, fetcher) {
   verifyPlan(plan, event, env);
-  ensure(env.VERCEL_TOKEN && env.VERCEL_AUTOMATION_BYPASS_SECRET, 'PROTECTED_READONLY_ACCESS_REQUIRED');
-  // The protected verifier never receives direct database, storage, migration or UAT credentials.
+  ensure(env.VERCEL_TOKEN && env.VERCEL_AUTOMATION_BYPASS_SECRET,
+    'PROTECTED_READONLY_ACCESS_REQUIRED');
+  const secret = env.RUNTIME_ISOLATION_PROBE_HMAC_SECRET;
+  ensure(typeof secret === 'string' && Buffer.byteLength(secret, 'utf8') >= 32,
+    'PROBE_AUTH_NOT_CONFIGURED');
   for (const k of ['DATABASE_URL', 'DIRECT_URL', 'SUPABASE_SERVICE_ROLE_KEY',
     'CRON_SECRET', 'SMTP_PASSWORD', 'UAT_ADMIN_PASSWORD', 'UAT_MANAGER_PASSWORD']) {
     ensure(!env[k], 'UNEXPECTED_DATA_CREDENTIAL');
   }
+  // Never touch the runtime probe without separate source review authorization.
+  ensure(env.RUNTIME_PROBE_SOURCE_REVIEW_APPROVED === EXPECTED.integrationSha,
+    'PROBE_SOURCE_REVIEW_REQUIRED');
   const api = client(env, fetcher);
   await guardGovernance(api, env);
   await guardIntegration(api);
@@ -208,7 +252,8 @@ async function verify(plan, event, env, fetcher) {
     api.vercel('v13/deployments/' + EXPECTED.productionDeploymentId)
   ]);
   const host = byId?.url;
-  ensure(typeof host === 'string' && /^sms-v3-staging-[a-z0-9]+-godzillazz\.vercel\.app$/.test(host),
+  ensure(typeof host === 'string'
+    && /^sms-v3-staging-[a-z0-9]+-godzillazz\.vercel\.app$/.test(host),
     'PREVIEW_HOST_UNTRUSTED');
   const byHost = await api.vercel('v13/deployments/' + host);
   verifyDeployment(byId, host);
@@ -227,21 +272,28 @@ async function verify(plan, event, env, fetcher) {
   try { status = ready.status === 200 ? await ready.json() : null; } catch { status = null; }
   ensure(ready.status === 200 && status?.status === 'ready' && status.database === 'ok',
     'READINESS_UNVERIFIED');
-  // A nonce binds any future reviewed runtime evidence to this verification request.
   const nonce = crypto.randomBytes(16).toString('hex');
-  const receiptResponse = await api.request(previewUrl + EXPECTED.probePath + '?nonce=' + nonce, bypass);
-  ensure(receiptResponse.status === 200, 'RUNTIME_ATTESTATION_ENDPOINT_UNAVAILABLE');
+  const issuedAt = Date.now();
+  const signature = signRuntimeChallenge(secret, {
+    host, deploymentId: EXPECTED.deploymentId, sha: EXPECTED.integrationSha, nonce, issuedAt
+  });
+  const params = new URLSearchParams({
+    nonce, sha: EXPECTED.integrationSha, deploymentId: EXPECTED.deploymentId,
+    issuedAt: String(issuedAt)
+  });
+  const reply = await api.request(previewUrl + EXPECTED.probePath + '?' + params.toString(),
+    { ...bypass, 'x-smsv3-probe-signature': signature });
+  ensure(reply.status === 200, 'RUNTIME_ATTESTATION_ENDPOINT_UNAVAILABLE');
   let receipt;
-  try { receipt = await receiptResponse.json(); } catch { fail('RUNTIME_PROBE_RESPONSE_INVALID'); }
-  const results = verifyRuntimeReceipt(receipt, nonce, {
+  try { receipt = await reply.json(); } catch { fail('RUNTIME_PROBE_RESPONSE_INVALID'); }
+  const partial = verifyRuntimeReceipt(receipt, nonce, {
     deploymentVerified: true,
     approvedProductionDatabaseRef: env.APPROVED_PRODUCTION_DB_REF,
     approvedProductionStorageRef: env.APPROVED_PRODUCTION_STORAGE_REF
   });
-  // PASS requires a separately approved source-reviewed probe deployed at this exact immutable SHA.
-  ensure(env.RUNTIME_PROBE_SOURCE_REVIEW_APPROVED === EXPECTED.integrationSha,
-    'PROBE_SOURCE_REVIEW_REQUIRED');
-  return { result: 'PASS', ...results, deploymentId: EXPECTED.deploymentId,
+  // Without independent provider/runtime credential binding proof these can
+  // NEVER satisfy the R6-B Release gate, even when individual GET checks succeed.
+  return { result: 'UNVERIFIED', ...partial, deploymentId: EXPECTED.deploymentId,
     integrationSha: EXPECTED.integrationSha, productionUnchanged: true };
 }
 async function main() {
@@ -259,8 +311,10 @@ async function main() {
       const p = JSON.parse(env.R6B_ISOLATION_PLAN || '{}');
       const result = await verify(p, event, env);
       console.log('EXACT_DEPLOYMENT_ISOLATION=' + result.result);
-      console.log('DATABASE_ISOLATION=PASS');
-      console.log('STORAGE_ISOLATION=PASS');
+      console.log('DATABASE_ISOLATION=UNVERIFIED');
+      console.log('STORAGE_ISOLATION=UNVERIFIED');
+      console.log('PRODUCTION_SEPARATION=UNVERIFIED');
+      process.exitCode = 1;
       console.log('PRODUCTION_UNCHANGED=PASS');
     } else fail('MODE_INVALID');
   } catch (error) {
@@ -272,4 +326,4 @@ async function main() {
 }
 if (require.main === module) main();
 module.exports = { EXPECTED, projectIsExpected, assertOwnerEvent, verifyEnvironment, verifyDeployment,
-  verifyProduction, verifyCi, verifyRuntimeReceipt, safeUrl, verifyPlan, prepare, verify, client };
+  verifyProduction, verifyCi, verifyRuntimeReceipt, signRuntimeChallenge, safeUrl, verifyPlan, prepare, verify, client };

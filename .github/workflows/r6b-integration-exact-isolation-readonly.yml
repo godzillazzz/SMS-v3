@@ -22,7 +22,7 @@ jobs:
       github.event.issue.pull_request == null &&
       github.event.sender.login == 'godzillazzz' &&
       github.event.comment.user.login == 'godzillazzz' &&
-      github.event.comment.body == '/sms-v3-r6b-exact-isolation-attestation-20261012'
+      startsWith(github.event.comment.body, '/sms-v3-r6b-exact-isolation-attestation-20261012 sha=')
     runs-on: ubuntu-latest
     timeout-minutes: 8
     permissions:
@@ -66,6 +66,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           R6B_ISOLATION_PLAN: ${{ needs.prepare.outputs.plan }}
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          RUNTIME_ISOLATION_PROBE_HMAC_SECRET: ${{ secrets.RUNTIME_ISOLATION_PROBE_HMAC_SECRET }}
           VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
           APPROVED_PRODUCTION_DB_REF: ${{ vars.APPROVED_PRODUCTION_DB_REF }}
           APPROVED_PRODUCTION_STORAGE_REF: ${{ vars.APPROVED_PRODUCTION_STORAGE_REF }}

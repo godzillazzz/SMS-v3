@@ -1,72 +1,93 @@
-# R6-B Protected exact-deployment isolation attestation
+# R6-B — Protected exact-deployment attestation / Receipt v2 (Draft only)
 
-## Current limitation
+## Review checkpoint
 
-This PR adds trusted-main-only, Owner-comment-triggered, Hosted UAT protected,
-GET-only **fail-closed** attestation controls and unit tests. It does not change
-Integration, PR #611, Production, credentials, SQL grants, Storage, or deployments.
-**Do not dispatch the protected workflow merely because the PR exists.**
+This PR contains a main-only, Owner issue-comment-triggered, protected Hosted UAT,
+GET-only fail-closed verifier. It DOES NOT authorize merging, changing secrets,
+running a live probe, Protected Workflow dispatch, or any Production operation.
 
-- Pinned Integration: `fix/serverless-database-reliability` at
-  `eeeb7cea92357c7d34500fbc74c8e3087e9849c5`, READY Preview
-  `dpl_yhs6Z4CUHingjrDh1tM8d7wWpNRz`, CI #38190536543 success.
-- Approved intended Preview provider: Supabase `sms-v3-preview` project
-  `ezxanpfagitckpfsnflp`; private bucket `license-documents-g05-preview`.
-- Frozen Production deployment: `dpl_Hjo1fTmgjEdmg5G7fZBX9gssenQP`,
-  SHA `77641a2657aa4fd05276afe645dd32648f5cc56b`.
-- Existing pinned deployment has **no reviewed sanitized runtime endpoint** for
-  effective Database/Storage project identities. `database=ok` from readiness
-  and Vercel environment-variable *metadata* are insufficient.
-- Production database/Storage identities are not independently approved.
-  Therefore the current script must fail closed with `UNVERIFIED`.
-- Separately: 35 public tables have RLS disabled and broad API grants.
-  UAT writes remain HOLD even if isolation eventually passes.
+Exact Integration HEAD: e80a1883d1598c035741ca55d9a1fc09061718f9.
+Exact GitHub CI: 38324590377 SUCCESS.
+Exact Preview: dpl_9FeFnk1yQx8LUsENMA7TR3R8fpwk, READY, target Preview,
+project prj_XwhNUOB2zLSPZ6UgQcfyOKBYJ75s.
+Frozen Production: dpl_Hjo1fTmgjEdmg5G7fZBX9gssenQP,
+SHA 77641a2657aa4fd05276afe645dd32648f5cc56b.
+Canonical Production aliases remain sms-v3-staging-godzillazzz.vercel.app
+and sms-v3-staging-ten.vercel.app.
 
-## Review and later execution requirements
+Supabase Preview provider project: ezxanpfagitckpfsnflp. This project record,
+a private bucket metadata GET, URL parsing and a read-only DB name check do
+NOT prove effective runtime service-role credential issuer/project binding.
+Production database and Storage project identity refs lack independent approval.
+A dedicated RUNTIME_ISOLATION_PROBE_HMAC_SECRET was not found in the last
+reviewed Vercel variable metadata; no secret is set by this PR.
 
-1. Separate Owner merge approval, successful exact-head CI and code review.
-   The PR does not trigger protected execution.
-2. Trusted protected `main`, exact Owner issue comment on Issue #614,
-   non-PR issue, first attempt, and pinned Integration head/CI.
-3. GitHub `Hosted UAT` Environment human Owner reviewer, bypass disabled,
-   branch allowlist containing only `main`.
-4. Immutable Vercel Preview deployment ID/SHA/ref/project/host, frozen
-   Production deployment and both aliases all verified before data checks.
-5. GET-only `api/v1/ready` plus a nonce-bound source-reviewed **runtime**
-   endpoint (`api/v1/ops/preview-isolation-attestation`). The endpoint must
-   compute its receipt from actual effective runtime connection strings and
-   an executed read-only database check, plus storage private bucket GET
-   using effective service-role credential. **No such endpoint is implemented
-   by this PR or currently deployed.** Only sanitize non-secret project refs,
-   boolean checks and nonce; never return raw URLs, secrets, database rows.
-6. A source-reviewed preview-only implementation and new deployment will
-   need a separate change and approval. The pinned SHA/deployment in this
-   verifier must then be reviewed and updated. Never relabel metadata-only
-   evidence as exact-runtime proof.
-7. Production DB and Storage provider project refs must come from separately
-   confirmed Provider records; provide non-secret protected Environment variables
-   `APPROVED_PRODUCTION_DB_REF` and `APPROVED_PRODUCTION_STORAGE_REF`.
-   Any absence, ambiguity or collision with Preview => `UNVERIFIED`.
-8. Source-approved runtime probe checksum/SHA must be explicitly reviewed;
-   set `RUNTIME_PROBE_SOURCE_REVIEW_APPROVED` to exact deployed Integration SHA
-   only AFTER implementing and validating the probe.
-9. No migrations, `prisma migrate resolve`, DB/Storage mutations, policy
-   changes, UAT credentials, production secrets or Production deployment.
+## Contract v2 and signed GET challenge
 
-**Proposed Owner-only issue command, NOT AUTHORIZED to run now:**
+The runtime and protected verifier share an exact canonical HMAC payload
+of seven lines separated by LF:
+1. GET
+2. /api/v1/ops/preview-isolation-attestation
+3. lowercase runtime host
+4. exact Vercel deployment ID
+5. lowercase Integration application SHA
+6. lowercase 32-hex nonce
+7. issuedAt in milliseconds.
 
-`/sms-v3-r6b-exact-isolation-attestation-20261012`
+The signature header is x-smsv3-probe-signature with v1= HMAC-SHA256 hex.
+GET query keys: nonce, sha, deploymentId, issuedAt. Runtime restricts
+challenge to 120 seconds, preview environment, exact Vercel project,
+repository, Git ref, SHA, immutable host and a dedicated >=32-byte HMAC
+secret. Never log the signature, HMAC key or signed URL.
 
-The command would be posted as an exact comment on Issue #614 only after
-Owner merge approval, a reviewed probe on a new Preview deployment, separately
-approved Production provider identity inputs, and Hosted UAT human approval.
+Owner-only exact command syntax, NOT AUTHORIZED for dispatch:
+ /sms-v3-r6b-exact-isolation-attestation-20261012 sha=e80a1883d1598c035741ca55d9a1fc09061718f9 deployment=dpl_9FeFnk1yQx8LUsENMA7TR3R8fpwk
 
-Until all gates truly pass: `DATABASE_ISOLATION=UNVERIFIED`,
-`STORAGE_ISOLATION=UNVERIFIED`, `RLS_SECURITY=HOLD`,
-`HOSTED_UAT_READY=NO`, `R6_B_RELEASE=HOLD`.
+Workflow filters an exact command prefix; the Node validator enforces the
+complete SHA, Deployment ID, Owner identity, Issue #614, protected main
+and first run attempt. Hosted UAT must require a human Owner approval,
+disable admin bypass and allow only main.
 
-## Non-goals
+Receipt v2 exact allow-listed root fields:
+contract, nonce, deploymentId, applicationSha, vercelProjectId, gitCommitRef,
+database, storage.
 
-No new paid resources, no additional routine feature branch, no alias changes,
-no candidate #611 merge, no frozen Integration rewrite, no delete of historical
-release/rollback/PR branches. Evidence archive: Issue #614.
+Database fields:
+configuredDatabaseProjectRef, configuredDirectProjectRef,
+configuredDatabaseName, observedDatabaseName, targetGuardMatched,
+databaseReadOnlyQuerySucceeded.
+
+Storage fields:
+configuredEndpointProjectRef, bucket,
+privateBucketMetadataReadSucceeded, bucketIsPrivate.
+
+v1 fields, secrets, raw URLs, database rows, Preview-supplied Production
+project identities and all other unlisted keys are rejected.
+
+The verifier may record deployment identity PASS and separately label
+configured database/storage endpoint checks MATCH and read-only checks PASS,
+but DATABASE_ISOLATION, STORAGE_ISOLATION and PRODUCTION_SEPARATION remain
+UNVERIFIED in the absence of independently attested provider/runtime
+credential binding. Even where all partial checks succeed, the protected
+verification exits nonzero, never authorizing a release.
+
+## Required separate approvals and remaining work
+
+1. Review Draft PR source, exact-head CI and workflow; separate Owner merge
+   approval for this protected main-only workflow is required.
+2. Independently confirm intended Production database and Storage provider
+   identities and review a provider/runtime binding attestation strategy.
+3. Separately approve and scope the dedicated HMAC secret in the Preview
+   runtime and protected Hosted UAT Environment. Do not reuse bypass secret.
+4. Separately approve Protected Workflow trigger and live read-only probe.
+5. Resolve Preview Data API/RLS exposure with Prisma and Storage non-regression
+   tests in a disposable environment before changing grants or policies.
+   Current audit: 35 public tables with RLS disabled and broad grants.
+
+NO migration, RLS change, Production edit, Storage write, UAT writes,
+PR #611 merge, PR #615 merge or Protected Workflow execution here.
+
+DATABASE_ISOLATION=UNVERIFIED; STORAGE_ISOLATION=UNVERIFIED;
+PRODUCTION_SEPARATION=UNVERIFIED; RLS_SECURITY=HOLD;
+HOSTED_UAT_READY=NO; R6_B_RELEASE=HOLD.
+Evidence: https://github.com/godzillazzz/SMS-v3/issues/614
