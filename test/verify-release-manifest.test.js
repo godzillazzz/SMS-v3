@@ -187,31 +187,54 @@ test('archived R5-A readiness retains historical Owner boundaries', () => {
   assert.deepEqual(manifest.excluded_uncommitted_tasks, ['T08']);
 });
 
-test('R6 official manifest pins exact Integration SHA/tree and release control policy', () => {
-  const d = JSON.parse(fs.readFileSync('.github/releases/approved-production.json', 'utf8'));
+test('archived R6 release manifest remains immutable and pinned to the original Production promotion', () => {
+  const d = JSON.parse(fs.readFileSync('.github/releases/r6-production-manifest-archive-20261014.json', 'utf8'));
   const validated = validateReleaseManifest(d);
   assert.equal(d.release_batch_id, 'R6');
-  assert.equal(validated.releaseId, 'sms-v3-prod-09486d68-20261014');
   assert.equal(validated.commitSha, '09486d684f2af89a1589ebf8dd11cbeb9f79050b');
   assert.equal(validated.treeSha, '6ae6c222dc8e3b3631ce73b7bc70cb2980e29969');
-  assert.equal(validated.currentProductionSourceSha, '77641a2657aa4fd05276afe645dd32648f5cc56b');
   assert.equal(validated.rollbackDeploymentId, 'dpl_Hjo1fTmgjEdmg5G7fZBX9gssenQP');
-  assert.equal(validated.runMigrations, false);
-  assert.equal(validated.databaseChangePolicy, 'NO_DATABASE_CHANGES');
-  assert.equal(d.manifest_state, 'APPROVED_FOR_OWNER_PRODUCTION_DECISION');
-  assert.equal(d.owner_action, 'APPROVE_PRODUCTION_ONLY');
-  assert.equal(d.owner_batch_frozen_sha_approval, 'APPROVED_OWNER_DIRECTIVE_20261014');
-  assert.equal(d.production_dispatch_authorized, true);
-  assert.equal(d.release_control_transition_owner_scope, 'R6_RELEASE_CONTROL_PR_AND_DISPATCH_WITH_PROTECTED_ENVIRONMENT_APPROVAL');
+  assert.equal(d.production_dispatch_authorized, true); // Historical R6 owner dispatch authorization, NOT R7.
+});
+
+test('R7 draft release control pins exact Smoke-PASS Integration source and current R6 rollback without Owner dispatch approval', () => {
+  const d = JSON.parse(fs.readFileSync('.github/releases/approved-production.json', 'utf8'));
+  const v = validateReleaseManifest(d);
+  assert.equal(d.release_batch_id, 'R7');
+  assert.equal(v.releaseId, 'sms-v3-prod-1b30ec935fb2-20261014');
+  assert.equal(v.commitSha, '1b30ec935fb2fe3ed15c85d74d15245996bff62c');
+  assert.equal(v.treeSha, 'f9cb01e5ff6681bff5491132af27125d61358187');
+  assert.equal(v.currentProductionSourceSha, '09486d684f2af89a1589ebf8dd11cbeb9f79050b');
+  assert.equal(v.rollbackDeploymentId, 'dpl_HbzTEkJnDsyVrRSvMpmVxSQfRCEV');
+  assert.equal(v.runMigrations, false);
+  assert.equal(v.databaseChangePolicy, 'NO_DATABASE_CHANGES');
+  assert.equal(d.preview_github_commit_sha, v.commitSha);
+  assert.equal(d.preview_deployment_id, 'dpl_6xzXLhFoCKC531AvN9BoZx7o2uLb');
+  assert.equal(d.application_exact_sha_ci_run_id, 38510341274);
+  assert.equal(d.preview_technical_smoke_run_id, 38513365357);
+  assert.equal(d.preview_technical_smoke_status, 'SUCCESS');
+  assert.equal(d.preview_technical_smoke_passed, 11);
+  assert.equal(d.preview_technical_smoke_failed, 0);
+  assert.equal(d.preview_technical_smoke_skipped, 23);
+  assert.equal(d.preview_technical_smoke_artifact_leak_count, 0);
+  assert.match(d.preview_authenticated_full_uat_status, /NOT_RUN/);
+  assert.equal(d.production_canonical_deployment_id_before_release, v.rollbackDeploymentId);
+  assert.equal(d.production_dispatch_authorized, false);
+  assert.equal(d.owner_batch_frozen_sha_approval, 'PENDING_SEPARATE_OWNER_PRODUCTION_DECISION');
   assert.equal(d.release_control_integration_merge_sha, null);
-  assert.equal(d.latest_integration_control_preview_evidence.preview_deployment_id, 'dpl_EiNMnRuLahwSAorkrarmYBYMoHTV');
-  assert.equal(d.latest_integration_control_preview_evidence.technical_smoke_run_id, 38492220386);
-  assert.equal(d.latest_integration_control_preview_evidence.technical_smoke_status, 'WAITING_PROTECTED_ENVIRONMENT_APPROVAL');
-  assert.equal(d.anonymous_preview_preflight_status, 'FAIL_CLOSED_REMOTE_ACCESS_NOT_VERIFIED_NOT_A_CORS_PASS');
-  assert.equal(d.local_api_integration_passed, 77);
-  assert.equal(d.local_chromium_browser_passed, 2);
-  assert.equal(d.acceptance_exception_q13b_q13c_hosted_preview_mutation, 'NOT_EXECUTED_ACCEPTED_WITH_RISK');
-  assert.equal(d.project_auto_assign_custom_domains_current_value, false);
   assert.equal(d.db_schema_mutation, 'NONE');
   assert.equal(d.production_data_mutation, 'NONE');
+});
+
+test('R7 draft fails closed if rollback, migration, project or manifest authorization contracts are weakened', () => {
+  const source = JSON.parse(fs.readFileSync('.github/releases/approved-production.json', 'utf8'));
+  for (const [key, value] of [
+    ['rollback_deployment_id', 'not-a-deployment'],
+    ['run_migrations', true],
+    ['database_change_policy', 'UNRESTRICTED'],
+    ['target_project_id', 'not-approved'],
+    ['manifest_state', 'DRAFT_SEPARATE_PRODUCTION_APPROVAL_REQUIRED']
+  ]) {
+    assert.throws(() => validateReleaseManifest({...source, [key]: value}), /release manifest guard/);
+  }
 });
