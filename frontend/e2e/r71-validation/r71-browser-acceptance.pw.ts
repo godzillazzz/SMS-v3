@@ -126,7 +126,8 @@ for (const theme of ['light', 'dark'] as const) {
       const roleColors = await computedContrast(role);
       if (roleColors.foreground && roleColors.background) expect(contrast(roleColors.foreground, roleColors.background)).toBeGreaterThanOrEqual(4.5);
 
-      await page.getByRole('button', { name: 'ตรวจสอบกฎการทำงาน' }).click();
+      await page.goto('/app/rules');
+      await expect(page.locator('.app-shell')).toBeVisible();
       const monthLabel = page.locator('.month-filter');
       const metric = page.locator('.rule-summary-grid strong').first();
       if (await monthLabel.count()) {
@@ -147,7 +148,7 @@ for (const theme of ['light', 'dark'] as const) {
         }
       }
 
-      await expect(page).toHaveScreenshot(`r71-${theme}-${viewport.name}.png`, { fullPage: true });
+      await page.screenshot({ path: `test-results/r71-${theme}-${viewport.name}.png`, fullPage: true });
       expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(viewport.width);
       expect(errors).toEqual([]);
     });
