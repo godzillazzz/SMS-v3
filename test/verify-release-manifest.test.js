@@ -187,25 +187,26 @@ test('archived R5-A readiness retains historical Owner boundaries', () => {
   assert.deepEqual(manifest.excluded_uncommitted_tasks, ['T08']);
 });
 
-test('staged R5-B official manifest pins exact frozen SHA/tree with no Production dispatch authorization', () => {
+test('R6 official manifest pins exact Integration SHA/tree and release control policy', () => {
   const d = JSON.parse(fs.readFileSync('.github/releases/approved-production.json', 'utf8'));
   const validated = validateReleaseManifest(d);
-  assert.equal(d.release_batch_id, 'R5-B');
-  assert.equal(validated.releaseId, 'sms-v3-prod-77641a2657aa-20261009');
-  assert.equal(validated.commitSha, '77641a2657aa4fd05276afe645dd32648f5cc56b');
-  assert.equal(validated.treeSha, 'f67e7a7a6895ca0fbbea8582543882feb36505b3');
-  assert.equal(validated.currentProductionSourceSha, '51c5c828689ce543067c687e204eba7918577bb9');
-  assert.equal(validated.rollbackDeploymentId, 'dpl_HS3R7QJgKgJdL8DkiXncUHarVgPV');
+  assert.equal(d.release_batch_id, 'R6');
+  assert.equal(validated.releaseId, 'sms-v3-prod-09486d68-20261014');
+  assert.equal(validated.commitSha, '09486d684f2af89a1589ebf8dd11cbeb9f79050b');
+  assert.equal(validated.treeSha, '6ae6c222dc8e3b3631ce73b7bc70cb2980e29969');
+  assert.equal(validated.currentProductionSourceSha, '77641a2657aa4fd05276afe645dd32648f5cc56b');
+  assert.equal(validated.rollbackDeploymentId, 'dpl_Hjo1fTmgjEdmg5G7fZBX9gssenQP');
   assert.equal(validated.runMigrations, false);
   assert.equal(validated.databaseChangePolicy, 'NO_DATABASE_CHANGES');
   assert.equal(d.manifest_state, 'APPROVED_FOR_OWNER_PRODUCTION_DECISION');
   assert.equal(d.owner_action, 'APPROVE_PRODUCTION_ONLY');
-  assert.equal(d.owner_batch_frozen_sha_approval, 'PENDING_NOT_AUTHORIZED');
-  assert.equal(d.production_dispatch_authorized, false);
-  assert.equal(d.release_control_transition_owner_scope, 'RELEASE_CONTROL_PREPARATION_ONLY_NO_PRODUCTION_DISPATCH');
-  assert.equal(d.release_control_integration_merge_sha, '06cfb4805af5fc7c4ea4ac93c00da3749d7793ca');
-  assert.equal(d.latest_integration_control_preview_evidence.preview_cors_protected_run_id, 37929488390);
-  assert.equal(d.latest_integration_control_preview_evidence.technical_smoke_run_id, 37924283107);
+  assert.equal(d.owner_batch_frozen_sha_approval, 'APPROVED_OWNER_DIRECTIVE_20261014');
+  assert.equal(d.production_dispatch_authorized, true);
+  assert.equal(d.release_control_transition_owner_scope, 'R6_RELEASE_CONTROL_PR_AND_DISPATCH_WITH_PROTECTED_ENVIRONMENT_APPROVAL');
+  assert.equal(d.release_control_integration_merge_sha, null);
+  assert.equal(d.latest_integration_control_preview_evidence.preview_deployment_id, 'dpl_EiNMnRuLahwSAorkrarmYBYMoHTV');
+  assert.equal(d.latest_integration_control_preview_evidence.technical_smoke_run_id, 38492220386);
+  assert.equal(d.latest_integration_control_preview_evidence.technical_smoke_status, 'WAITING_PROTECTED_ENVIRONMENT_APPROVAL');
   assert.equal(d.anonymous_preview_preflight_status, 'FAIL_CLOSED_REMOTE_ACCESS_NOT_VERIFIED_NOT_A_CORS_PASS');
   assert.equal(d.local_api_integration_passed, 77);
   assert.equal(d.local_chromium_browser_passed, 2);
