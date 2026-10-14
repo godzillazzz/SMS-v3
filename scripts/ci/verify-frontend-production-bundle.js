@@ -11,3 +11,11 @@ for(const c of js){const limit=c.name.startsWith('index-')?budgets.main:c.name.s
 if(!js.some(c=>c.name.startsWith('SecuritySiteMapPicker-')))fail('reason=gis-lazy-chunk-missing');
 for(const c of css){if(c.name.startsWith('index-')&&c.bytes>budgets.css)fail(`reason=css-budget-exceeded file=${c.name} bytes=${c.bytes} budget=${budgets.css}`)}
 if(!failed){const main=js.find(c=>c.name.startsWith('index-'));const map=js.find(c=>c.name.startsWith('SecuritySiteMapPicker-'));const mainCss=css.find(c=>c.name.startsWith('index-'));console.log(`FRONTEND_PRODUCTION_BUNDLE=PASS main_bytes=${main?.bytes||0} map_bytes=${map?.bytes||0} css_bytes=${mainCss?.bytes||0} js_chunks=${js.length}`)}else process.exitCode=1;
+
+// Run the same mandatory feature-sentinel check against the real production-mode
+// frontend bundle in CI, before any Owner-approved Production dispatch.
+if (!failed) {
+  const { verifyArtifact } = require('./verify-release-artifact');
+  const result = verifyArtifact([path.join(root, 'frontend', 'dist')]);
+  console.log(`FRONTEND_RELEASE_ARTIFACT_GUARD=PASS files=${result.fileCount} sentinels=${result.sentinels.length}`);
+}
