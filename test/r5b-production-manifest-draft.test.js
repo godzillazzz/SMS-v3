@@ -87,7 +87,7 @@ test('control evidence binds verified GitHub SHA/CI and avoids a self-referentia
   assert.equal(Object.hasOwn(d, 'release_control_sha'), false);
 });
 
-test('R5-B draft is still rejected, while the staged R6 official decision awaits protected environment approval', () => {
+test('R5-B draft remains rejected while R7 release control requires separate Owner dispatch approval', () => {
   const d = release('r5-b-production-manifest-draft.json');
   assert.equal(d.manifest_state, 'DRAFT_SEPARATE_PRODUCTION_APPROVAL_REQUIRED');
   assert.equal(d.owner_action, 'PENDING_SEPARATE_PRODUCTION_APPROVAL');
@@ -96,12 +96,15 @@ test('R5-B draft is still rejected, while the staged R6 official decision awaits
   assert.throws(() => validateReleaseManifest(d), /manifest_state is not approved/);
   const official = release('approved-production.json');
   const parsed = validateReleaseManifest(official);
-  assert.equal(official.release_batch_id, 'R6');
-  assert.equal(parsed.commitSha, official.commit_sha);
-  assert.equal(parsed.treeSha, official.tree_sha);
-  assert.equal(official.production_dispatch_authorized, true);
-  assert.equal(official.owner_batch_frozen_sha_approval, 'APPROVED_OWNER_DIRECTIVE_20261014');
-  assert.equal(official.release_control_transition_owner_scope, 'R6_RELEASE_CONTROL_PR_AND_DISPATCH_WITH_PROTECTED_ENVIRONMENT_APPROVAL');
+  assert.equal(official.release_batch_id, 'R7');
+  assert.equal(parsed.commitSha, '1b30ec935fb2fe3ed15c85d74d15245996bff62c');
+  assert.equal(parsed.rollbackDeploymentId, 'dpl_HbzTEkJnDsyVrRSvMpmVxSQfRCEV');
+  assert.equal(official.production_dispatch_authorized, false);
+  assert.equal(official.owner_batch_frozen_sha_approval, 'PENDING_SEPARATE_OWNER_PRODUCTION_DECISION');
+  assert.equal(official.release_control_transition_owner_scope, 'R7_DRAFT_CONTROL_ONLY_OWNER_DISPATCH_WITH_PROTECTED_APPROVAL');
+  const previous = release('r6-production-manifest-archive-20261014.json');
+  assert.equal(previous.release_batch_id, 'R6');
+  assert.equal(previous.commit_sha, '09486d684f2af89a1589ebf8dd11cbeb9f79050b');
   const archived = release('r5-a-production-manifest-archive-20261009.json');
   assert.equal(archived.release_batch_id, 'R5-A');
   assert.equal(archived.production_dispatch_authorized, false);
