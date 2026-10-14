@@ -39,37 +39,44 @@ function json(route: Parameters<Parameters<Page['route']>[1]>[0], payload: unkno
 }
 
 async function installFixture(page: Page) {
+  // Closure state belongs to this Playwright Page only. It models the browser
+  // refresh-cookie contract without changing production authentication.
+  let syntheticSession = false;
+  const user = { id: 'synthetic-r71-user', email: 'r71@example.test', displayName: 'R7.1 Fixture', role: 'ADMIN' };
   await page.route('**/api/v1/**', async (route) => {
-    const url = new URL(route.request().url());
-    const path = url.pathname;
-    if (path === '/api/v1/auth/refresh') return json(route, { message: 'No active session' }, 401);
+    const path = new URL(route.request().url()).pathname;
+    if (path === '/api/v1/auth/refresh') return syntheticSession
+      ? json(route, { accessToken: 'synthetic-r71-token', user })
+      : json(route, { message: 'No active session' }, 401);
     if (path === '/api/v1/auth/passkeys/config') return json(route, { enabled: false });
     if (path === '/api/v1/auth/login') {
-      return json(route, {
-        accessToken: 'synthetic-r71-token',
-        user: { id: 'synthetic-r71-user', email: 'r71@example.test', displayName: 'R7.1 Fixture', role: 'ADMIN' },
-      });
+      syntheticSession = true;
+      return json(route, { accessToken: 'synthetic-r71-token', user });
     }
-    if (path === '/api/v1/dashboard/summary') return json(route, { data: dashboardSummary });
+    if (path === '/api/v1/dashboard/summary' || path === '/api/v1/dashboard') return json(route, { data: dashboardSummary });
     if (path === '/api/v1/approval-center/summary') return json(route, approvalSummary);
     if (path === '/api/v1/approval-center') return json(route, approvalList);
     if (path === '/api/v1/rules' || path.includes('/rule')) return json(route, { data: [], summary: {}, meta: { total: 0 } });
-    if (path.includes('/audit')) return json(route, { data: [], summary: {}, meta: { total: 0, page: 1, pageSize: 25, totalPages: 0 } });
+    if (path.includes('/audit')) return json(route, {
+      data: [{ id: 'audit-r71-1', action: 'CREATE', module: 'AUTH', actor: { role: 'ADMIN', displayName: 'R7.1 Fixture' }, createdAt: '2026-10-14T00:00:00.000Z' }],
+      summary: {}, meta: { total: 1, page: 1, pageSize: 25, totalPages: 1 },
+    });
     return json(route, { data: [], summary: {}, meta: { total: 0, page: 1, pageSize: 20, totalPages: 0 } });
   });
 }
 
-async function signIn(page: Page, target = '/app') {
+async function navigateFromShell(page: Page, label: string, mobile: boolean) {
+  if (mobile) await page.getByRole('button', { name: 'เปิดเมนูหลัก' }).click();
+  await page.getByRole('button', { name: label, exact: true }).click();
+}
+
+async function signIn(page: Page) {
   await page.goto('/app');
   await expect(page.locator('#auth-login-form')).toBeVisible();
   await page.locator('#email').fill('r71@example.test');
   await page.locator('#password').fill('synthetic-password');
   await page.locator('#auth-login-form button[type="submit"]').click();
   await expect(page.locator('.app-shell')).toBeVisible({ timeout: 15_000 });
-  if (target !== '/app') {
-    await page.goto(target);
-    await expect(page.locator('.app-shell')).toBeVisible({ timeout: 15_000 });
-  }
 }
 
 function luminance(channel: number) {
@@ -126,30 +133,42 @@ for (const theme of ['light', 'dark'] as const) {
         expect(geometry.imageBottom).toBeLessThanOrEqual(geometry.brandBottom - 1);
       }
 
+      const quickAction = page.locator('.dashboard-quick-actions__grid button small').first();
+      await expect(quickAction).toBeVisible();
+      const quickActionColors = await computedContrast(quickAction);
+      expect(quickActionColors.foreground).not.toBeNull();
+      expect(quickActionColors.background).not.toBeNull();
+      expect(contrast(quickActionColors.foreground!, quickActionColors.background!)).toBeGreaterThanOrEqual(4.5);
+
       const role = page.locator('.topbar-profile small');
+      await expect(role).toBeVisible();
       const roleColors = await computedContrast(role);
-      if (roleColors.foreground && roleColors.background) expect(contrast(roleColors.foreground, roleColors.background)).toBeGreaterThanOrEqual(4.5);
+      expect(roleColors.foreground).not.toBeNull();
+      expect(roleColors.background).not.toBeNull();
+      expect(contrast(roleColors.foreground!, roleColors.background!)).toBeGreaterThanOrEqual(4.5);
 
-      await page.goto('/app/rules');
-      await expect(page.locator('.app-shell')).toBeVisible();
+      await navigateFromShell(page, 'ตรวจสอบกฎการทำงาน', viewport.name === 'mobile');
       const monthLabel = page.locator('.month-filter');
+      await expect(monthLabel).toBeVisible();
+      const monthLabelColors = await computedContrast(monthLabel);
+      expect(monthLabelColors.foreground).not.toBeNull();
+      expect(monthLabelColors.background).not.toBeNull();
+      expect(contrast(monthLabelColors.foreground!, monthLabelColors.background!)).toBeGreaterThanOrEqual(4.5);
       const metric = page.locator('.rule-summary-grid strong').first();
-      if (await monthLabel.count()) {
-        const colors = await computedContrast(monthLabel);
-        if (colors.foreground && colors.background) expect(contrast(colors.foreground, colors.background)).toBeGreaterThanOrEqual(4.5);
-      }
-      if (await metric.count()) {
-        const colors = await computedContrast(metric);
-        if (colors.foreground && colors.background) expect(contrast(colors.foreground, colors.background)).toBeGreaterThanOrEqual(4.5);
-      }
+      await expect(metric).toBeVisible();
+      const metricColors = await computedContrast(metric);
+      expect(metricColors.foreground).not.toBeNull();
+      expect(metricColors.background).not.toBeNull();
+      expect(contrast(metricColors.foreground!, metricColors.background!)).toBeGreaterThanOrEqual(4.5);
 
-      await page.getByRole('button', { name: 'บันทึกการใช้งานระบบ' }).click();
+      await navigateFromShell(page, 'บันทึกการใช้งานระบบ', viewport.name === 'mobile');
       for (const selector of ['.audit-action-badge', '.audit-module-badge', '.audit-role-badge']) {
         const badge = page.locator(selector).first();
-        if (await badge.count()) {
-          const colors = await computedContrast(badge);
-          if (colors.foreground && colors.background) expect(contrast(colors.foreground, colors.background)).toBeGreaterThanOrEqual(4.5);
-        }
+        await expect(badge).toBeVisible();
+        const colors = await computedContrast(badge);
+        expect(colors.foreground).not.toBeNull();
+        expect(colors.background).not.toBeNull();
+        expect(contrast(colors.foreground!, colors.background!)).toBeGreaterThanOrEqual(4.5);
       }
 
       await page.screenshot({ path: `test-results/r71-${theme}-${viewport.name}.png`, fullPage: true });
@@ -168,13 +187,18 @@ test('R7.1 Approval Center deduplicates summary and isolates type query on navig
     summaryRequests += 1;
     return json(route, approvalSummary);
   });
-  await signIn(page, '/app/approvals?type=SCHEDULE&month=2026-10&year=2026');
-  await expect(page.locator('.approval-center-page, .nexus-approval-center')).toBeVisible();
+  await signIn(page);
+  // Intentional deep-link reload: this must use the authenticated refresh mock,
+  // not the in-memory token left by login.
+  await page.goto('/app/approvals?type=SCHEDULE&month=2026-10&year=2026');
+  const approvalCenter = page.locator('.approval-center-page');
+  await expect(approvalCenter).toBeVisible();
   await expect.poll(() => summaryRequests).toBe(1);
 
-  await page.getByRole('button', { name: 'ข้อมูลพนักงาน' }).click();
+  await page.getByRole('button', { name: 'รีเฟรชข้อมูล' }).click();
+  await expect.poll(() => summaryRequests).toBe(2);
+  await navigateFromShell(page, 'ข้อมูลพนักงาน', false);
   await expect(page).toHaveURL(/\/app\/employees\?month=2026-10&year=2026$/);
   expect(new URL(page.url()).searchParams.get('type')).toBeNull();
-  await expect(page.locator('.sidebar .nav-item[data-navigation-id="approvalCenter"]')).toBeVisible();
   await page.screenshot({ path: 'test-results/r71-approval-routing.png', fullPage: true });
 });
