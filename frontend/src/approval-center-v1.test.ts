@@ -47,7 +47,7 @@ describe('Approval Center Command Nexus frontend contracts', () => {
   });
 
   it('keeps Approval Center role scope and the existing aggregate API', () => {
-    expect(main).toContain("{ label: 'ตรวจสอบ', items: [");
+    expect(main).toContain("{ label: '', items: [");
     expect(main).toContain("{ id: 'approvalCenter', icon: 'bell', label: 'ศูนย์อนุมัติ' }");
     expect(routing).toContain("if (page === 'approvalCenter') return ['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(auth.user?.role || '')");
     expect(client).toContain("approvalCenterRequest(token, '/approval-center/summary')");
@@ -55,8 +55,8 @@ describe('Approval Center Command Nexus frontend contracts', () => {
   });
 
   it('keeps native review entry points for every currently actionable approval source', () => {
-    expect(main).toContain("{ id: 'approvals', icon: 'approval', label: 'อนุมัติตารางกะ' }");
-    expect(main).toContain("{ id: 'leavePending', icon: 'approval', label: 'อนุมัติคำขอลา' }");
+    expect(main).not.toContain("{ id: 'approvals', icon: 'approval', label: 'อนุมัติตารางกะ' }");
+    expect(main).not.toContain("{ id: 'leavePending', icon: 'approval', label: 'อนุมัติคำขอลา' }");
     expect(routing).toContain("if (page === 'approvals') return ['ADMIN', 'SUPERVISOR'].includes(auth.user?.role || '') && !auth.isViewingAs");
     expect(routing).toContain("if (page === 'leavePending') return ['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(auth.user?.role || '') && !auth.isViewingAs");
     expect(main).toContain('onNavigate={(item) => { if (item.type === \'REGISTRATION_REQUEST\') setRegistrationReviewInitialRequestId(item.requestId); setActivePage(item.sourcePage); }}');
@@ -162,7 +162,7 @@ describe('Approval Center Command Nexus frontend contracts', () => {
     expect(page).toContain('aria-pressed={selected?.id === item.id}');
     expect(css).toContain('.nexus-approval-select:hover,.nexus-approval-select:active,.nexus-approval-select:focus{border:0;background:transparent;color:inherit}');
     expect(page).not.toContain('backend ยังคงตรวจสอบสิทธิ์อีกชั้นหนึ่ง');
-    expect(main).toContain("{ id: 'leavePending', icon: 'approval', label: 'อนุมัติคำขอลา' }");
+    expect(main).not.toContain("{ id: 'leavePending', icon: 'approval', label: 'อนุมัติคำขอลา' }");
     expect(main).toContain("setActivePage(canManage ? 'approvalCenter' : 'leave')");
     expect(page).toContain('layout-page-surface');
     expect(css).not.toContain('.nexus-approval-center{background:#020813!important');

@@ -13,7 +13,7 @@ const attendanceAuth = read('./attendance-auth-request.ts');
 
 describe('Attendance Supervisor UX V4', () => {
   it('restores a dedicated governed on-behalf Attendance destination for Manager/Admin', () => {
-    expect(main).toContain("{ id: 'attendanceSupervisor', icon: 'dashboard', label: 'ลงเวลาแทนพนักงาน' }");
+    expect(main).toContain("{ id: 'attendanceSupervisor', icon: 'dashboard', label: 'ศูนย์ควบคุมการลงเวลา' }");
     expect(routing).toContain("if (page === 'leavePending') return ['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(auth.user?.role || '') && !auth.isViewingAs");
     expect(routing).toContain("if (page === 'attendanceSupervisor') return ['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(auth.user?.role || '')");
     expect(main).toContain("activePage === 'attendanceSupervisor' && auth.token && ['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(auth.user?.role || '') && !auth.isViewingAs");

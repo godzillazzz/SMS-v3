@@ -83,7 +83,7 @@ import { leavePolicyKeys, type LeavePolicyForm } from './components/leave-policy
 import type { LeaveDecisionAction, LeaveDecisionTarget } from './components/LeaveDecisionConfirmation';
 import { registrationResultPresentation } from './components/auth-experience';
 import { sanitizeLicenseDocumentError, type LicenseDocument } from './components/license-document-utils';
-import { canViewRoutePage, navigate, navigateSettingsSection, pageFromLocation, routeQueryMonth, routeQueryNumber, ROUTE_CHANGE_EVENT, settingsSectionFromPath, subscribeToRouteChanges, updateDocumentTitle, updateRouteQuery, type RoutePage, type RouteResolution, type SettingsSectionId } from './routing';
+import { canViewRoutePage, legacyApprovalRedirectType, navigate, navigateSettingsSection, pageFromLocation, PAGE_PATHS, routeQueryMonth, routeQueryNumber, ROUTE_CHANGE_EVENT, settingsSectionFromPath, subscribeToRouteChanges, updateDocumentTitle, updateRouteQuery, type RoutePage, type RouteResolution, type SettingsSectionId } from './routing';
 import './styles/license-table.css';
 import './styles/responsive-shell.css';
 import './styles/action-system.css';
@@ -178,37 +178,39 @@ const bangkokDateInput = (value = new Date()) => formatBangkokDateInput(value);
 const AuthContext = createContext<Auth | undefined>(undefined);
 
 const navigation: Array<{ label: string; items: Array<{ id: Page; icon: SmsIconName; label: string }> }> = [
-  { label: 'ภาพรวม', items: [{ id: 'dashboard', icon: 'dashboard', label: 'ภาพรวม' }] },
-  { label: 'พนักงาน', items: [
+  { label: '', items: [
+    { id: 'dashboard', icon: 'dashboard', label: 'ภาพรวม' },
+    { id: 'approvalCenter', icon: 'bell', label: 'ศูนย์อนุมัติ' }
+  ] },
+  { label: 'บุคลากร', items: [
     { id: 'employees', icon: 'employees', label: 'ข้อมูลพนักงาน' },
-    { id: 'licenses', icon: 'license', label: 'ใบอนุญาต รปภ.' },
+    { id: 'licenses', icon: 'license', label: 'ใบอนุญาต รปภ.' }
+  ] },
+  { label: 'ลงเวลา', items: [
     { id: 'attendance', icon: 'attendance', label: 'ลงเวลา' },
-    { id: 'attendanceSupervisor', icon: 'dashboard', label: 'ลงเวลาแทนพนักงาน' },
+    { id: 'attendanceSupervisor', icon: 'dashboard', label: 'ศูนย์ควบคุมการลงเวลา' },
     { id: 'attendanceDevice', icon: 'key', label: 'อุปกรณ์ลงเวลา' }
   ] },
   { label: 'ตารางกะ', items: [
     { id: 'schedule', icon: 'calendar', label: 'ตารางกะรายเดือน' },
-    { id: 'approvals', icon: 'approval', label: 'อนุมัติตารางกะ' },
-    { id: 'shiftSetup', icon: 'clock', label: 'รหัสกะและเวลา' }
+    { id: 'shiftSetup', icon: 'clock', label: 'รหัสกะและเวลา' },
+    { id: 'rules', icon: 'shield', label: 'ตรวจสอบกฎการทำงาน' }
   ] },
   { label: 'การลา', items: [
     { id: 'leave', icon: 'leave', label: 'คำขอลา' },
-    { id: 'leavePending', icon: 'approval', label: 'อนุมัติคำขอลา' },
     { id: 'leaveHistory', icon: 'history', label: 'ประวัติการลาทั้งหมด' },
     { id: 'quota', icon: 'quota', label: 'โควต้าวันลา' }
   ] },
-  { label: 'ตรวจสอบ', items: [
-    { id: 'approvalCenter', icon: 'bell', label: 'ศูนย์อนุมัติ' },
-    { id: 'rules', icon: 'shield', label: 'กฎการทำงาน' },
+  { label: 'รายงาน', items: [{ id: 'reportCenter', icon: 'report', label: 'รายงานและวิเคราะห์' }] },
+  { label: 'ตั้งค่า', items: [
+    { id: 'users', icon: 'users', label: 'ผู้ใช้และสิทธิ์' },
+    { id: 'securitySite', icon: 'location', label: 'จุดรักษาความปลอดภัยและ QR' },
+    { id: 'settings', icon: 'settings', label: 'ตั้งค่าระบบ' }
+  ] },
+  { label: 'ผู้ดูแลระบบ', items: [
     { id: 'audit', icon: 'audit', label: 'บันทึกการใช้งานระบบ' },
     { id: 'dataQuality', icon: 'quality', label: 'คุณภาพข้อมูล' },
     { id: 'systemHealth', icon: 'dashboard', label: 'ประสิทธิภาพและสถานะระบบ' }
-  ] },
-  { label: 'ผู้ใช้และสิทธิ์', items: [{ id: 'users', icon: 'users', label: 'ผู้ใช้และสิทธิ์' }] },
-  { label: 'รายงาน', items: [{ id: 'reportCenter', icon: 'report', label: 'รายงานและวิเคราะห์' }] },
-  { label: 'ตั้งค่า', items: [
-    { id: 'securitySite', icon: 'location', label: 'จุดรักษาความปลอดภัยและ QR' },
-    { id: 'settings', icon: 'settings', label: 'ตั้งค่าระบบ' }
   ] }
 ];
 
@@ -2227,7 +2229,7 @@ function Dashboard() {
     approvalCenter: 'รวมงานอนุมัติและตรวจสอบที่คุณต้องดำเนินการจากทุกโมดูล',
     licenses: 'ทะเบียนใบอนุญาตของพนักงาน',
     attendance: 'ลงเวลาเข้าและออกตามนโยบายรหัส QR ตำแหน่ง GPS และอำนาจตัดสินใจของระบบ',
-    attendanceSupervisor: 'ส่งคำขอลงเวลาแทนพนักงานให้ผู้ดูแลระบบอนุมัติก่อนมีผล',
+    attendanceSupervisor: 'ศูนย์ควบคุมการลงเวลาและคำขอแทนพนักงานตามสิทธิ์',
     attendanceHistory: 'ประวัติการลงเวลาของบัญชีพนักงานที่เข้าสู่ระบบ',
     employeeSchedule: 'ตารางงานที่อนุมัติและล็อกแล้วของพนักงาน',
     attendanceDevice: 'ลงทะเบียนและตรวจสอบอุปกรณ์หลักสำหรับลงเวลาและตรวจพื้นที่',
@@ -2977,7 +2979,7 @@ function Dashboard() {
       };
       return <section className="view-pane schedule-calendar-page nexus-roster-workspace layout-roster-page layout-page-surface">
 
-        <PageHeader kicker="ตารางและกฎการทำงาน" title="ตารางกะรายเดือน" description="จัดกะรายเดือน แก้ไขในฉบับร่างแล้วบันทึกการเปลี่ยนแปลงก่อนตรวจและส่งอนุมัติ" actions={<div className="heading-actions">{auth.user?.role === 'ADMIN' && !auth.isViewingAs && <button className="btn-neutral small-action" onClick={() => setActivePage('approvals')}>ประวัติการอนุมัติ</button>}{approval.status === 'APPROVED' && <><button className="excel-action" disabled={scheduleExportBusy} onClick={exportApprovedExcel}>▦ {scheduleExportBusy ? 'กำลังสร้าง Excel…' : `ส่งออก Excel${selectedDepartments.length ? ` · ${selectedDepartments.length} แผนก` : ''}`}</button><button className="btn-info small-action" onClick={() => void printScheduleDocument()}><SmsIcon name="report" /> ส่งออก PDF</button></>}</div>} />
+        <PageHeader kicker="ตารางและกฎการทำงาน" title="ตารางกะรายเดือน" description="จัดกะรายเดือน แก้ไขในฉบับร่างแล้วบันทึกการเปลี่ยนแปลงก่อนตรวจและส่งอนุมัติ" actions={<div className="heading-actions">{auth.user?.role === 'ADMIN' && !auth.isViewingAs && <button className="btn-neutral small-action" onClick={() => setActivePage('approvalCenter', { type: 'SCHEDULE' })}>ประวัติการอนุมัติ</button>}{approval.status === 'APPROVED' && <><button className="excel-action" disabled={scheduleExportBusy} onClick={exportApprovedExcel}>▦ {scheduleExportBusy ? 'กำลังสร้าง Excel…' : `ส่งออก Excel${selectedDepartments.length ? ` · ${selectedDepartments.length} แผนก` : ''}`}</button><button className="btn-info small-action" onClick={() => void printScheduleDocument()}><SmsIcon name="report" /> ส่งออก PDF</button></>}</div>} />
         <StepFlow title="ลำดับการจัดตารางกะ" description="สถานะจากรายการที่โหลดและฉบับร่าง ต้องเปิดผลตรวจกฎของเดือนนี้แยกต่างหาก" steps={[
 {id:'month',icon:'calendar',label:'ขั้นที่หนึ่ง',title:'เลือกเดือน',desc:monthLabel,completed:!operationLoading && !operationError && calendar.month===scheduleMonth},
 {id:'arrange',icon:'edit',label:'ขั้นที่สอง',title:'จัดกะ',desc:Object.keys(scheduleDrafts).length ? 'ยังมีฉบับร่างที่ต้องบันทึก' : 'ตรวจรายการที่บันทึกในตาราง',completed:!operationLoading && !operationError && calendar.month===scheduleMonth && Object.keys(scheduleDrafts).length===0 && calendarEmployees.some(employee=>Array.isArray(employee.shifts) && employee.shifts.length>0)},
@@ -3336,7 +3338,7 @@ function Dashboard() {
           <button type="button" className="sidebar-close-button" aria-label="ปิดเมนูหลัก" onClick={() => setMobileMenuOpen(false)}><SmsIcon name="close" size={20} /></button>
         </div>
         <nav className="nav-menu" aria-label="เมนูหลัก">{visibleNavigation.map((section) => (
-          <div className="nav-section" key={section.label}><p>{section.label}</p>{section.items.map((item) => {
+          <div className="nav-section" key={section.label || section.items.map((item) => item.id).join('-')}>{section.label && <p>{section.label}</p>}{section.items.map((item) => {
             const roleCanSeeCount = Boolean(auth.user?.role && APPROVAL_COUNT_MENU_ROLES[item.id]?.includes(auth.user.role));
             const countEnabled = roleCanSeeCount && !pwaShell && !auth.isViewingAs && Boolean(auth.token);
             const menuCount = countEnabled ? approvalMenuCount(item.id, approvalSummary) : null;
@@ -3592,6 +3594,16 @@ function App() {
   const [route, setRoute] = useState<RouteResolution>(() => pageFromLocation());
 
   useEffect(() => subscribeToRouteChanges(() => setRoute(pageFromLocation())), []);
+  useEffect(() => {
+    if (auth.loading || !auth.token) return;
+    const type = legacyApprovalRedirectType(window.location.pathname);
+    if (!type) return;
+    const next = new URL(window.location.href);
+    next.pathname = PAGE_PATHS.approvalCenter;
+    if (!next.searchParams.has('type')) next.searchParams.set('type', type);
+    window.history.replaceState({ ...(window.history.state ?? {}), smsPage: 'approvalCenter' }, '', `${next.pathname}${next.search}${next.hash}`);
+    window.dispatchEvent(new Event(ROUTE_CHANGE_EVENT));
+  }, [auth.loading, auth.token]);
   useEffect(() => {
     if (auth.token && canViewRoutePage('settings', auth) && route.kind === 'page' && route.page === 'settings' && window.location.pathname.replace(/\/+$/, '') === '/app/settings') {
       navigateSettingsSection('overview', { replace: true });

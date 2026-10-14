@@ -4,7 +4,8 @@ import { getApprovalCenter, getApprovalCenterSummary } from '../../approval-cent
 import { RequestErrorContent, toRequestErrorState, type RequestErrorInput } from '../../request-error';
 import { SmsIcon } from '../../components/SmsIcon';
 import { roleDisplayName } from '../../role-display';
-import { formatThaiDateTime } from '../../thai-date-time';
+import { formatThaiDate, formatThaiDateTime } from '../../thai-date-time';
+import { updateRouteQuery } from '../../routing';
 import type { LeaveDecisionAction } from '../../components/LeaveDecisionConfirmation';
 import { approveAttendanceAdjustment, rejectAttendanceAdjustment } from '../attendance-supervisor/attendance-adjustment-client';
 import '../../styles/approval-center.css';
@@ -118,8 +119,8 @@ function itemSummary(item: ApprovalCenterItem) {
   if (item.type === 'LEAVE_REQUEST') {
     values.push(meta(item, 'leaveType'));
     values.push(meta(item, 'startDate') && meta(item, 'endDate')
-      ? `${text(meta(item, 'startDate'))} – ${text(meta(item, 'endDate'))}`
-      : meta(item, 'startDate'));
+      ? `${displayLeaveDate(meta(item, 'startDate'))} – ${displayLeaveDate(meta(item, 'endDate'))}`
+      : displayLeaveDate(meta(item, 'startDate')));
     values.push(meta(item, 'dayCount') ? `${text(meta(item, 'dayCount'))} วัน` : null);
   } else if (item.type === 'SCHEDULE_APPROVAL') {
     values.push(item.title);
@@ -144,6 +145,34 @@ function itemSummary(item: ApprovalCenterItem) {
   const summary = values.filter((value) => value !== undefined && value !== null && value !== '').map(text).join(' · ');
   return summary || reasonFor(item);
 }
+
+function displayLeaveDate(value: unknown): string {
+  const raw = String(value || '');
+  const day = /^(\d{4}-\d{2}-\d{2})/.exec(raw)?.[1];
+  if (!day) return text(value);
+  try {
+    return formatThaiDate(`${day}T00:00:00.000Z`, { timeZone: 'UTC' });
+  } catch {
+    return text(value);
+  }
+}
+
+const queryTypeForFilter = (value: CategoryFilter): string | undefined => {
+  if (value === 'ALL') return undefined;
+  if (value === 'SCHEDULE_APPROVAL') return 'SCHEDULE';
+  if (value === 'LEAVE_REQUEST') return 'LEAVE';
+  if (value === 'ATTENDANCE_DEVICE_REQUEST') return 'DEVICE';
+  if (value === 'LICENSE_DOCUMENT') return 'LICENSE';
+  return value;
+};
+
+const filterForQueryType = (value: string | null): CategoryFilter => {
+  if (value === 'SCHEDULE') return 'SCHEDULE_APPROVAL';
+  if (value === 'LEAVE') return 'LEAVE_REQUEST';
+  if (value === 'DEVICE') return 'ATTENDANCE_DEVICE_REQUEST';
+  if (value === 'LICENSE') return 'LICENSE_DOCUMENT';
+  return value && approvalTypeOrder.includes(value as ApprovalType) ? value as ApprovalType : 'ALL';
+};
 
 function detailActionLabel(item: ApprovalCenterItem) {
   if (item.type === 'EMPLOYEE_MASTER_CHANGE') return 'ดูรายละเอียดการแก้ไข';
@@ -177,7 +206,7 @@ export function ApprovalCenterPage({
   const [items, setItems] = useState<ApprovalCenterItem[]>([]);
   const [summary, setSummary] = useState<Summary>({ total: 0, byType: {} });
   const [summaryAvailable, setSummaryAvailable] = useState(false);
-  const [filter, setFilter] = useState<CategoryFilter>('ALL');
+  const [filter, setFilter] = useState<CategoryFilter>(() => filterForQueryType(new URLSearchParams(window.location.search).get('type')));
   const [urgencyFilter, setUrgencyFilter] = useState<UrgencyFilter>('ALL');
   const [selectedId, setSelectedId] = useState('');
   const [loading, setLoading] = useState(true);
@@ -280,6 +309,11 @@ export function ApprovalCenterPage({
         } else {
           await api.updateUser(token, item.requestId, { accountStatus: 'REJECTED', isActive: false });
         }
+      } else if (item.type === 'SCHEDULE_APPROVAL') {
+        await api.updateScheduleApproval(token, item.requestId, {
+          status: action === 'approve' ? 'APPROVED' : 'REJECTED',
+          approvalNote: reason || undefined
+        });
       } else {
         onNavigate(item);
         return;
@@ -323,8 +357,9 @@ export function ApprovalCenterPage({
 
   const confirmReject = async () => {
     if (!rejecting) return;
-    if (rejectReason.trim().length < 3) {
-      setError('กรุณาระบุเหตุผลการปฏิเสธอย่างน้อย 3 ตัวอักษร');
+    const minimumLength = rejecting.type === 'SCHEDULE_APPROVAL' ? 5 : 3;
+    if (rejectReason.trim().length < minimumLength) {
+      setError(`กรุณาระบุเหตุผลการปฏิเสธอย่างน้อย ${minimumLength} ตัวอักษร`);
       return;
     }
 
@@ -337,7 +372,8 @@ export function ApprovalCenterPage({
       && Boolean(currentEmployeeId)
       && item.employee?.id === currentEmployeeId;
 
-    if (item.type === 'EMPLOYEE_MASTER_CHANGE' || item.type === 'SCHEDULE_APPROVAL') return null;
+    if (item.type === 'EMPLOYEE_MASTER_CHANGE') return null;
+    if (item.type === 'SCHEDULE_APPROVAL' && !['ADMIN', 'SUPERVISOR'].includes(role)) return null;
 
     if (selfLeave) {
     return <span className="approval-self-leave">
@@ -346,28 +382,40 @@ export function ApprovalCenterPage({
     }
 
     return <div className={`approval-action-buttons${mobile ? ' approval-action-buttons--mobile' : ''}`}>
-      <button
+      {!(item.type === 'SCHEDULE_APPROVAL' && role === 'SUPERVISOR') && <button
         type="button"
         disabled={busy}
         onClick={() => requestReject(item)}
         className="approval-action-button approval-action-button--reject"
       >
         {busy && busyAction?.action === 'reject' ? 'กำลังปฏิเสธ…' : 'ปฏิเสธ'}
-      </button>
-      <button
+      </button>}
+      {!(item.type === 'SCHEDULE_APPROVAL' && role === 'SUPERVISOR') && <button
         type="button"
         disabled={busy}
         onClick={() => void executeDirectDecision(item, 'approve')}
         className="approval-action-button approval-action-button--approve"
       >
         {busy && busyAction?.action === 'approve' ? 'กำลังอนุมัติ…' : 'อนุมัติทันที'}
-      </button>
+      </button>}
+      {item.type === 'SCHEDULE_APPROVAL' && role === 'SUPERVISOR' && <button
+        type="button"
+        disabled={busy}
+        onClick={() => void executeDirectDecision(item, 'approve')}
+        className="approval-action-button approval-action-button--approve"
+      >
+        {busy && busyAction?.action === 'approve' ? 'กำลังอนุมัติ…' : 'อนุมัติ'}
+      </button>}
     </div>;
   };
 
   const openDetails = (item: ApprovalCenterItem) => {
     if (item.type === 'EMPLOYEE_MASTER_CHANGE') {
       onOpenEmployeeChange(item.requestId);
+      return;
+    }
+    if (item.type === 'SCHEDULE_APPROVAL') {
+      setSelectedId(item.id);
       return;
     }
     onNavigate(item);
@@ -420,7 +468,10 @@ export function ApprovalCenterPage({
               type="button"
               key={id}
               aria-pressed={filter === id}
-              onClick={() => setFilter(id)}
+              onClick={() => {
+                setFilter(id);
+                updateRouteQuery({ type: queryTypeForFilter(id) }, { replace: false });
+              }}
               className={`approval-filter-option${filter === id ? ' is-selected' : ''}`}
             >
               {label} <b>{count}</b>
@@ -577,6 +628,26 @@ export function ApprovalCenterPage({
       {summary.truncated && <p className="approval-queue-warning">
         คิวมีรายการมากกว่าจำนวนที่โหลดจาก API (limit 100) — ระบบไม่ได้ซ่อนจำนวนรวมใน Telemetry
       </p>}
+
+      {selected?.type === 'SCHEDULE_APPROVAL' && <aside className="approval-schedule-detail" aria-label="รายละเอียดตารางกะ">
+        <div className="approval-schedule-detail__header">
+          <div>
+            <p className="approval-reject-kicker">SCHEDULE APPROVAL</p>
+            <h2>รายละเอียดตารางกะ</h2>
+          </div>
+          <button type="button" className="approval-detail-button" onClick={() => setSelectedId('')}>ปิดรายละเอียด</button>
+        </div>
+        <dl className="approval-schedule-detail__grid">
+          <div><dt>รายการ</dt><dd>{selected.title}</dd></div>
+          <div><dt>ผู้ส่ง</dt><dd>{senderName(selected)}</dd></div>
+          <div><dt>ฉบับที่</dt><dd>{text(selected.revision || meta(selected, 'revision'))}</dd></div>
+          <div><dt>ส่งเมื่อ</dt><dd>{fmt(selected.submittedAt)}</dd></div>
+          <div><dt>สถานะ</dt><dd>{text(selected.status)}</dd></div>
+          <div><dt>ผลตรวจกฎ</dt><dd>{text(meta(selected, 'ruleCheckSummary') || meta(selected, 'changeType'))}</dd></div>
+          <div><dt>ความเห็น</dt><dd>{text(meta(selected, 'approvalNote') || meta(selected, 'comment'))}</dd></div>
+        </dl>
+        <div className="approval-schedule-detail__actions">{renderActionButtons(selected)}</div>
+      </aside>}
 
       <div className="approval-center-live-region" aria-live="polite">
         {selectedLeaveIsSelf

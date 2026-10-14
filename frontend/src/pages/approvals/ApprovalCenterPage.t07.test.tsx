@@ -3,7 +3,11 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ApprovalCenterPage, type ApprovalCenterItem } from './ApprovalCenterPage';
 
-const mocks = vi.hoisted(() => ({ getApprovalCenter: vi.fn(), getApprovalCenterSummary: vi.fn() }));
+const mocks = vi.hoisted(() => ({
+  getApprovalCenter: vi.fn(),
+  getApprovalCenterSummary: vi.fn(),
+  updateScheduleApproval: vi.fn().mockResolvedValue({ data: {} })
+}));
 
 vi.mock('../../approval-center-client', () => ({
   getApprovalCenter: mocks.getApprovalCenter,
@@ -13,6 +17,7 @@ vi.mock('../../pages/attendance-supervisor/attendance-adjustment-client', () => 
   approveAttendanceAdjustment: vi.fn(),
   rejectAttendanceAdjustment: vi.fn()
 }));
+vi.mock('../../api', () => ({ api: { updateScheduleApproval: mocks.updateScheduleApproval } }));
 
 const leaveItem: ApprovalCenterItem = {
   id: 'leave:request-1',
@@ -45,6 +50,7 @@ const scheduleItem: ApprovalCenterItem = {
   submittedAt: '2026-10-06T06:15:00.000Z',
   ageHours: 4,
   urgency: 'NEW',
+  requestedBy: { id: 'user-schedule', displayName: 'ผู้ส่งตารางตัวอย่าง', role: 'ADMIN' },
   metadata: { month: '2026-10-01T00:00:00.000Z', revision: 4 }
 };
 
@@ -78,6 +84,7 @@ function renderPage(role: string) {
 afterEach(() => cleanup());
 beforeEach(() => {
   vi.clearAllMocks();
+  window.history.replaceState({}, '', '/app/approvals');
   mocks.getApprovalCenter.mockResolvedValue({ data: [leaveItem, scheduleItem], summary: { total: 2, truncated: false } });
 });
 
@@ -120,7 +127,7 @@ describe('ApprovalCenterPage unified approval inbox', () => {
     renderPage('SUPERVISOR');
 
     expect((await screen.findAllByText('ผู้ส่ง: ผู้ส่งคำขอ')).length).toBeGreaterThan(0);
-    expect(screen.getAllByText('ลาพักร้อน · 2026-10-10 – 2026-10-11 · 2 วัน').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('ลาพักร้อน · 10 ต.ค. 2569 – 11 ต.ค. 2569 · 2 วัน').length).toBeGreaterThan(0);
     expect(screen.getAllByText('2 วัน 1 ชม.').length).toBeGreaterThan(0);
     expect(screen.getAllByText(/ต\.ค\./).length).toBeGreaterThan(0);
   });
@@ -150,7 +157,7 @@ describe('ApprovalCenterPage unified approval inbox', () => {
     expect(screen.queryByText('INITIAL')).toBeNull();
   });
 
-  it('filters by a positive server type count and opens schedule approval at its existing destination', async () => {
+  it('filters by type, shows schedule details, and uses the existing approval API', async () => {
     mocks.getApprovalCenterSummary.mockResolvedValue({ summary: { total: 2, byType: { LEAVE_REQUEST: 1, SCHEDULE_APPROVAL: 1 } } });
     const { onNavigate } = renderPage('ADMIN');
 
@@ -159,6 +166,11 @@ describe('ApprovalCenterPage unified approval inbox', () => {
     expect(screen.getAllByText('ตารางกะ ตุลาคม 2569 ฉบับที่ 4').length).toBeGreaterThan(0);
 
     fireEvent.click(screen.getAllByRole('button', { name: 'ดูรายละเอียดตารางกะ' })[0]);
-    await waitFor(() => expect(onNavigate).toHaveBeenCalledWith(scheduleItem));
+    expect(await screen.findByRole('heading', { name: 'รายละเอียดตารางกะ' })).toBeTruthy();
+    expect(screen.getAllByText('ผู้ส่งตารางตัวอย่าง').length).toBeGreaterThan(0);
+    expect(onNavigate).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'อนุมัติทันที' })[0]);
+    await waitFor(() => expect(mocks.updateScheduleApproval).toHaveBeenCalledWith('test-token', 'approval-1', { status: 'APPROVED', approvalNote: undefined }));
   });
 });

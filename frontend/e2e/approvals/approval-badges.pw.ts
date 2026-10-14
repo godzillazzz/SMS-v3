@@ -80,7 +80,7 @@ async function expectAdminMenuCounts(page: Page) {
     ['licenses', 'ใบอนุญาต รปภ.', 5, '5'],
     ['approvals', 'อนุมัติตารางกะ', 7, '7'],
     ['attendanceDevice', 'อุปกรณ์ลงเวลา', 11, '11'],
-    ['attendanceSupervisor', 'ลงเวลาแทนพนักงาน', 13, '13'],
+    ['attendanceSupervisor', 'ศูนย์ควบคุมการลงเวลา', 13, '13'],
     ['users', 'ผู้ใช้และสิทธิ์', 36, '36'],
     ['leavePending', 'อนุมัติคำขอลา', 23, '23']
   ] as const;
