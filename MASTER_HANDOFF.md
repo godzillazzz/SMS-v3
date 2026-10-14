@@ -1,5 +1,45 @@
 # MASTER HANDOFF
 
+## ACTIVE — R7 READY_FOR_OWNER_TECHNICAL_SMOKE — 2026-10-14
+
+**Authoritative latest checkpoint for Codex and Owner, superseding older 'ACTIVE' status claims below.** R7 implementation on Integration is complete and is **READY_FOR_OWNER_TECHNICAL_SMOKE — NOT PRODUCTION APPROVED**. This checkpoint was independently reconciled against current GitHub Integration/PR metadata, one successful GitHub Actions validate job on post-merge run, and exact Vercel Preview/Production deployment metadata on 2026-10-14 (Thailand). No Technical Smoke PASS has been supplied; do not infer acceptance from CI or READY deployments. The Owner has already instructed Codex; **do not dispatch additional development/Smoke/Production workflows from this document.**
+
+### Exact R7 handoff and release baseline
+
+| Item | Verified exact value |
+| --- | --- |
+| Integration branch | `fix/serverless-database-reliability` only; no R7 PR into `main` |
+| **Integration HEAD / R7 application** | `1b30ec935fb2fe3ed15c85d74d15245996bff62c` — [GitHub commit](https://github.com/godzillazzz/SMS-v3/commit/1b30ec935fb2fe3ed15c85d74d15245996bff62c) |
+| **Post-merge CI** | [GitHub Actions run 38510341274](https://github.com/godzillazzz/SMS-v3/actions/runs/38510341274) — validate job **SUCCESS** |
+| **Exact R7 Preview** | `https://sms-v3-staging-5clz1mnzq-godzillazz.vercel.app` — deployment `dpl_6xzXLhFoCKC531AvN9BoZx7o2uLb`, READY, **Preview (target null, not Production)**, SHA exactly `1b30ec935fb2fe3ed15c85d74d15245996bff62c` |
+| **Production remains R6** | Canonical `sms-v3-staging-ten.vercel.app` resolves to `dpl_HbzTEkJnDsyVrRSvMpmVxSQfRCEV`, Production READY, application `09486d684f2af89a1589ebf8dd11cbeb9f79050b` |
+| **R7 rollback pin** | Keep R6 `dpl_HbzTEkJnDsyVrRSvMpmVxSQfRCEV` for the **future** Owner-controlled release |
+| **Release-control** | **NOT STARTED / NOT AUTHORIZED before Owner Smoke PASS**; no Production dispatch or promotion by the assistant |
+
+### R7 merged task evidence
+
+| Task | GitHub PR | CI evidence | Status |
+| --- | --- | --- | --- |
+| **T34** — transient auth-refresh 503 resiliency | [#622](https://github.com/godzillazzz/SMS-v3/pull/622) | [38501743532](https://github.com/godzillazzz/SMS-v3/actions/runs/38501743532) | **MERGED** into Integration |
+| **T35** — center sidebar logo | [#623](https://github.com/godzillazzz/SMS-v3/pull/623) | [38503323357](https://github.com/godzillazzz/SMS-v3/actions/runs/38503323357) — validate SUCCESS | **MERGED** |
+| **T36** — hide irrelevant device-binding warning for approver | [#624](https://github.com/godzillazzz/SMS-v3/pull/624) | [38504162308](https://github.com/godzillazzz/SMS-v3/actions/runs/38504162308) | **MERGED** |
+| **T37** — dark-mode semantic tokens and contrast | [#625](https://github.com/godzillazzz/SMS-v3/pull/625) | [38504910436](https://github.com/godzillazzz/SMS-v3/actions/runs/38504910436) | **MERGED** |
+| **T38** — approval-center functional parity, legacy redirects, navigation and role preservation | [#626](https://github.com/godzillazzz/SMS-v3/pull/626) | [38508348811](https://github.com/godzillazzz/SMS-v3/actions/runs/38508348811), post-merge [38508931775](https://github.com/godzillazzz/SMS-v3/actions/runs/38508931775) | **MERGED** |
+| **R7 backlog documentation checkpoint** | [#627](https://github.com/godzillazzz/SMS-v3/pull/627) | [38509651807](https://github.com/godzillazzz/SMS-v3/actions/runs/38509651807) | **MERGED**; final Integration now newer at `1b30ec9...` |
+
+**UI evidence:** Owner/Codex reports before/after light/dark screenshots at 1440px and 390px for T35–T38 on the respective PRs. Integrated `docs/PROJECT_BACKLOG.md` references `docs/review/screenshots/t35-*-contact.png` through `t38-*-contact.png`. Reported attachments/paths are not an independent review of all visual frames; Owner Technical Smoke and business/role acceptance are still pending.
+
+### Remaining scope and mandatory STOP gate
+
+- **NOW: Owner Technical Smoke** against **the exact R7 Preview deployment/SHA above**. Owner must report run ID, PASS/FAIL and any skipped/blocked checks. If Smoke fails, reopen only the affected R7 task through a governed Integration PR with new exact-head CI/Preview, and do not advance release control.
+- **ONLY IF Owner Smoke PASS:** prepare separate **Draft** release-control PR into `fix/serverless-database-reliability`, updating `.github/releases/approved-production.json` and contract tests; rollback `dpl_HbzTEkJnDsyVrRSvMpmVxSQfRCEV`, `run_migrations=false` when no migration is present. Then follow owner-governed reviews. **Do not dispatch any workflow; Owner presses all Production dispatch controls.**
+- **No Production side effects in R7 development:** Owner reports no Production deployment/alias, secret/env/schema/migration, database/Storage, or business-data writes; Vercel confirms original R6 Production remains the canonical target.
+- **Preserve other work:** original T08/WIP worktree untouched; separate RLS [#618](https://github.com/godzillazzz/SMS-v3/pull/618); authenticated UAT [#589](https://github.com/godzillazzz/SMS-v3/pull/589) and [#87](https://github.com/godzillazzz/SMS-v3/pull/87) retained; stale View-As [#130](https://github.com/godzillazzz/SMS-v3/pull/130) inspected, not merged. Owner-superseded PR #611/#615/#590/#35/#402 closed unmerged.
+- **Document PR caution:** [#621](https://github.com/godzillazzz/SMS-v3/pull/621) is an existing Draft to Integration for `MASTER_HANDOFF.md` and `docs/PROJECT_BACKLOG.md`. Refreshing this PR against the **already merged #627** backlog is mandatory: do not overwrite/revert current Integration backlog, do not confuse old #621 checkpoint SHAs with final R7 HEAD, and verify exact-head CI before merging this documentation-only PR. Historical content below is retained for audit but is NOT current authority.
+
+---
+
+
 ## ACTIVE — R7 verified live checkpoint — 2026-10-14 (after T34 merge)
 
 **Most recent read-only status reconciliation; supersedes all older 'latest' or 'pending' statements below when inconsistent.** The Owner already gave the full R7 instructions to Codex. **Do not invoke another Codex workflow or duplicate implementation** from this note. This is a documentation snapshot, not a release/merge approval. Sources: GitHub PR metadata, exact commit CI, Vercel deployment metadata, and Owner directive of 2026-10-14. Historical sections remain preserved.
