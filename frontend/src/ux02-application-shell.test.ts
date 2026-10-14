@@ -6,8 +6,8 @@ const root = path.resolve(__dirname);
 const read = (relative: string) => fs.readFileSync(path.join(root, relative), 'utf8');
 
 const expectedNavigationIds = [
-  'dashboard', 'employees', 'licenses', 'attendance', 'attendanceSupervisor', 'attendanceDevice', 'schedule', 'approvals', 'shiftSetup',
-  'leave', 'leavePending', 'leaveHistory', 'quota', 'approvalCenter', 'rules', 'audit', 'dataQuality', 'systemHealth', 'users', 'reportCenter', 'securitySite', 'settings'
+  'dashboard', 'approvalCenter', 'employees', 'licenses', 'attendance', 'attendanceSupervisor', 'attendanceDevice', 'schedule', 'shiftSetup',
+  'rules', 'leave', 'leaveHistory', 'quota', 'reportCenter', 'users', 'securitySite', 'settings', 'audit', 'dataQuality', 'systemHealth'
 ];
 
 describe('G04.2 UX-02 application shell contract', () => {
