@@ -55,8 +55,15 @@ test('draft fails closed; prior Owner approval cannot be transferred to a differ
   assert.equal(d.production_dispatch_authorized, false);
   assert.match(d.production_release_go_no_go, /^NO_GO/);
   assert.throws(() => validateReleaseManifest(d), /manifest_state is not approved/);
-  const original = load('approved-production.json');
+  const original = load('r7-production-manifest-superseded-failed-20261014.json');
   assert.notEqual(original.commit_sha, app);
   assert.equal(original.commit_sha, '1b30ec935fb2fe3ed15c85d74d15245996bff62c');
   assert.equal(original.rollback_deployment_id, rollback);
+  const authorized = load('approved-production.json');
+  assert.equal(authorized.commit_sha, app);
+  assert.equal(authorized.tree_sha, tree);
+  assert.equal(authorized.owner_batch_frozen_sha_approval, 'APPROVED_OWNER_R7_NEW_FROZEN_SHA_3CDE5A61581C_20261014');
+  assert.equal(authorized.production_dispatch_authorized, true);
+  assert.equal(authorized.rollback_deployment_id, rollback);
+  assert.equal(validateReleaseManifest(authorized).commitSha, app);
 });

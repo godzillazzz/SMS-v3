@@ -97,11 +97,11 @@ test('R5-B draft remains rejected and R7 Owner-approved control still requires p
   const official = release('approved-production.json');
   const parsed = validateReleaseManifest(official);
   assert.equal(official.release_batch_id, 'R7');
-  assert.equal(parsed.commitSha, '1b30ec935fb2fe3ed15c85d74d15245996bff62c');
+  assert.equal(parsed.commitSha, '3cde5a61581c6239697dfb0cfb2fa5510ec8a239');
   assert.equal(parsed.rollbackDeploymentId, 'dpl_HbzTEkJnDsyVrRSvMpmVxSQfRCEV');
   assert.equal(official.production_dispatch_authorized, true);
-  assert.equal(official.owner_batch_frozen_sha_approval, 'APPROVED_OWNER_DIRECTIVE_20261014');
-  assert.equal(official.release_control_transition_owner_scope, 'R7_OWNER_APPROVED_MANUAL_PROTECTED_DISPATCH_ONLY');
+  assert.equal(official.owner_batch_frozen_sha_approval, 'APPROVED_OWNER_R7_NEW_FROZEN_SHA_3CDE5A61581C_20261014');
+  assert.equal(official.release_control_transition_owner_scope, 'R7_NEW_APP_SHA_OWNER_APPROVED_MANUAL_PROTECTED_DISPATCH_ONLY');
   const previous = release('r6-production-manifest-archive-20261014.json');
   assert.equal(previous.release_batch_id, 'R6');
   assert.equal(previous.commit_sha, '09486d684f2af89a1589ebf8dd11cbeb9f79050b');
