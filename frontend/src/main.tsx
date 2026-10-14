@@ -25,6 +25,7 @@ import '@fontsource/ibm-plex-mono/400.css';
 import '@fontsource/ibm-plex-mono/500.css';
 import '@fontsource/ibm-plex-mono/600.css';
 import { api, refreshAuth, setTokenRefreshHandler } from './api';
+import { isRefreshUnauthenticated, refreshWithRetry } from './auth-startup-recovery';
 import { canDecideScheduleApproval, isSupersededScheduleApproval, scheduleApprovalChangeTypeLabel, scheduleApprovalErrorMessage, scheduleApprovalStatusLabel, scheduleApprovalTone } from './approval-display';
 import { getEmployeeLeaveQuota } from './leave-request-quota-api';
 import type { ScheduleBatchProgress } from './api';
@@ -163,7 +164,7 @@ const SearchableEmployeeCombobox = React.lazy(() => import('./components/Searcha
 type User = { id: string; email: string; displayName: string; role: string; department?: string };
 type Employee = { id: string; employeeCode: string; firstName: string; lastName: string; displayName?: string; email?: string | null; phone?: string | null; department?: string; jobTitle?: string; hiredAt?: string | null; skill?: string | null; isActive: boolean; updatedAt?: string };
 type Page = RoutePage;
-type Auth = { token?: string; user?: User; originalUser?: User; loading: boolean; error?: string; isViewingAs: boolean; login(email: string, password: string): Promise<void>; passkeyLogin(): Promise<void>; logout(): Promise<void>; beginViewAs(userId: string): Promise<void>; endViewAs(): void };
+type Auth = { token?: string; user?: User; originalUser?: User; loading: boolean; error?: string; refreshState: 'checking' | 'ready' | 'unauthenticated' | 'unavailable'; isViewingAs: boolean; login(email: string, password: string): Promise<void>; passkeyLogin(): Promise<void>; logout(): Promise<void>; retryRefresh(): Promise<void>; beginViewAs(userId: string): Promise<void>; endViewAs(): void };
 type DataRow = Record<string, unknown>;
 type DataResponse = { data?: DataRow[] | DataRow; summary?: { total?: number; critical?: number; warning?: number; info?: number }; meta?: { total?: number; page?: number; pageSize?: number; totalPages?: number; statusCounts?: Record<string, number>; unmatchedLegacyCount?: number } };
 type OperationRequestState = { page: Page; key: string; loading: boolean; error?: RequestErrorInput };
@@ -221,12 +222,29 @@ function AuthProvider({ children }: { children: React.ReactNode }) {
   viewAsTokenRef.current = viewAs?.token;
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>();
+  const [refreshState, setRefreshState] = useState<Auth['refreshState']>('checking');
 
   const refresh = async () => {
-    const result = await refreshAuth();
-    setToken(result.accessToken);
-    setUser(result.user);
-    setViewAs(undefined);
+    setLoading(true);
+    try {
+      const result = await refreshWithRetry(refreshAuth);
+      setToken(result.accessToken);
+      setUser(result.user);
+      setViewAs(undefined);
+      setRefreshState('ready');
+    } catch (reason) {
+      if (isRefreshUnauthenticated(reason)) {
+        setToken(undefined);
+        setUser(undefined);
+        setViewAs(undefined);
+        setRefreshState('unauthenticated');
+      } else {
+        setRefreshState('unavailable');
+      }
+      throw reason;
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -241,7 +259,7 @@ function AuthProvider({ children }: { children: React.ReactNode }) {
       if (viewAsTokenRef.current && requestToken === viewAsTokenRef.current) return false;
       return Boolean(primaryTokenRef.current && requestToken === primaryTokenRef.current);
     });
-    refresh().catch(() => undefined).finally(() => setLoading(false));
+    refresh().catch(() => undefined);
     const refreshWhenOnline = () => {
       if (!primaryTokenRef.current) void refresh().catch(() => undefined);
     };
@@ -261,6 +279,7 @@ function AuthProvider({ children }: { children: React.ReactNode }) {
       setToken(result.accessToken);
       setUser(result.user);
       setViewAs(undefined);
+      setRefreshState('ready');
     } catch (reason) {
       setError(formatRequestErrorMessage(reason, 'ไม่สามารถเข้าสู่ระบบได้'));
       throw reason;
@@ -277,6 +296,7 @@ function AuthProvider({ children }: { children: React.ReactNode }) {
       setToken(result.accessToken);
       setUser(result.user);
       setViewAs(undefined);
+      setRefreshState('ready');
     } catch (reason) {
       setError(formatRequestErrorMessage(reason, 'ไม่สามารถเข้าสู่ระบบด้วย Passkey ได้'));
       throw reason;
@@ -288,6 +308,7 @@ function AuthProvider({ children }: { children: React.ReactNode }) {
     setToken(undefined);
     setUser(undefined);
     setViewAs(undefined);
+    setRefreshState('unauthenticated');
   };
 
   const beginViewAs = async (userId: string) => {
@@ -298,7 +319,7 @@ function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const endViewAs = () => setViewAs(undefined);
 
-  return <AuthContext.Provider value={{ token: viewAs?.token || token, user: viewAs?.user || user, originalUser: user, loading, error, isViewingAs: Boolean(viewAs), login, passkeyLogin, logout, beginViewAs, endViewAs }}>{children}</AuthContext.Provider>;
+  return <AuthContext.Provider value={{ token: viewAs?.token || token, user: viewAs?.user || user, originalUser: user, loading, error, refreshState, isViewingAs: Boolean(viewAs), login, passkeyLogin, logout, retryRefresh: refresh, beginViewAs, endViewAs }}>{children}</AuthContext.Provider>;
 }
 
 
@@ -3545,6 +3566,16 @@ function OfflineAttendanceGate() {
   </React.Suspense>;
 }
 
+function SessionConnectionError({ onRetry }: { onRetry: () => void }) {
+  return <main className="full-loader auth-connection-error" role="alert" aria-live="assertive">
+    <section aria-labelledby="auth-connection-error-title" style={{ maxWidth: 560, textAlign: 'center', padding: 24 }}>
+      <h1 id="auth-connection-error-title">เชื่อมต่อระบบไม่ได้</h1>
+      <p>ระบบฐานข้อมูลตอบสนองชั่วคราวไม่ได้ เซสชันเดิมยังไม่ถูกล้าง กรุณาลองใหม่อีกครั้ง</p>
+      <button type="button" className="btn-primary" onClick={onRetry}>ลองใหม่</button>
+    </section>
+  </main>;
+}
+
 function RouteNotice({ kind }: { kind: 'not-found' | 'forbidden' }) {
   const notFound = kind === 'not-found';
   return <main className="full-loader" role="main">
@@ -3573,6 +3604,7 @@ function App() {
   }, [auth.isViewingAs, auth.loading, auth.token, auth.user?.role, route]);
 
   if (auth.loading) return <AppLoader message={loadingMessages.session} />;
+  if (auth.refreshState === 'unavailable') return <SessionConnectionError onRetry={() => { void auth.retryRefresh().catch(() => undefined); }} />;
   if (!auth.token) return <OfflineAttendanceGate />;
   if (shouldOpenG06DeviceContextDiagnostic({ authenticated: Boolean(auth.token), diagnosticBuild: __SMSV3_G06_DEVICE_CONTEXT_DIAGNOSTIC__, search: window.location.search })) {
     return <React.Suspense fallback={<AppLoader message={loadingMessages.readOnly} />}><G06DeviceContextDiagnostic /></React.Suspense>;

@@ -58,6 +58,19 @@ test('refresh, logout, and logout-all create sanitized audit records', async () 
   class Decimal { toJSON() { return '3.00'; } }
   assert.equal(audit.safeMetadata({ dayCount: new Decimal() }).dayCount, '3.00');
 });
+test('refresh transaction failure does not revoke the existing refresh token', async () => {
+  const first = await auth.login('admin@example.com', 'correct-password', 'req-refresh-db-failure');
+  const sessionBefore = sessions.find((item) => item.refreshTokenHash === auth.hashRefreshToken(first.refreshToken));
+  assert.ok(sessionBefore);
+  const transaction = fakePrisma.$transaction;
+  fakePrisma.$transaction = async () => { const error = new Error('pool timeout'); error.code = 'P2024'; throw error; };
+  await assert.rejects(() => auth.refresh(first.refreshToken, 'req-refresh-db-failure-503'), { code: 'P2024' });
+  assert.equal(sessionBefore.revokedAt, null);
+  fakePrisma.$transaction = transaction;
+  const recovered = await auth.refresh(first.refreshToken, 'req-refresh-after-503');
+  assert.ok(recovered.refreshToken);
+  assert.equal(sessionBefore.revokedAt instanceof Date, true);
+});
 test('middleware rejects expired, tampered, and token-version-mismatched JWTs', async () => {
   const run = (token) => new Promise((resolve) => authenticate({ headers: { authorization: `Bearer ${token}` } }, {}, (error) => resolve(error)));
   const base = { sub: users[0].id, email: users[0].email, role: users[0].role, tokenVersion: 0 };
