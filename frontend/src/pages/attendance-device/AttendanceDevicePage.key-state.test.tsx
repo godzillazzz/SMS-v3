@@ -181,4 +181,20 @@ describe('AttendanceDevicePage local key readiness', () => {
     expect(details?.textContent).toContain(requestId);
     expect(api.createAttendanceDeviceRequest).not.toHaveBeenCalled();
   });
+
+  it.each(['ADMIN', 'SUPERVISOR'])('does not show the employee-link warning to %s when the account is not enrolling its own device', async (role) => {
+    const error = Object.assign(new Error('A linked employee account is required.'), {
+      details: { code: 'ATTENDANCE_DEVICE_EMPLOYEE_LINK_REQUIRED' },
+      requestId: `req-${role.toLowerCase()}-unlinked`
+    });
+    vi.mocked(api.attendanceDeviceState).mockReset();
+    vi.mocked(api.attendanceDeviceState).mockImplementation(() => Promise.reject(error));
+
+    render(<AttendanceDevicePage token="test" role={role} />);
+
+    await waitFor(() => expect(api.attendanceDeviceState).toHaveBeenCalled());
+    expect(screen.queryByText('บัญชีนี้ยังไม่ได้ผูกกับข้อมูลพนักงาน กรุณาติดต่อผู้ดูแลระบบ')).toBeNull();
+    expect(screen.queryByText('ลงทะเบียนอุปกรณ์เครื่องแรก')).toBeNull();
+    expect(screen.getByText('บัญชีผู้ดูแลไม่ใช้ลงเวลาเอง')).toBeTruthy();
+  });
 });

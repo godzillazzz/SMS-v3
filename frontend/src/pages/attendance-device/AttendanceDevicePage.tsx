@@ -236,8 +236,9 @@ export function AttendanceDevicePage({ token, role, readOnly = false, onApproval
       const requestError = toRequestErrorState(error, 'ไม่สามารถอ่านสถานะอุปกรณ์ลงเวลาได้ กรุณาลองใหม่หรือติดต่อผู้ดูแลระบบ');
       const linkedAccountRequired = ['ATTENDANCE_DEVICE_EMPLOYEE_LINK_REQUIRED', 'ATTENDANCE_EMPLOYEE_LINK_REQUIRED']
         .includes(attendanceDeviceRequestCode(error) || '');
+      const linkNotRequiredForRole = linkedAccountRequired && ['ADMIN', 'SUPERVISOR'].includes(role);
       setEmployeeLinkRequired(linkedAccountRequired);
-      setSelfError(linkedAccountRequired
+      setSelfError(linkNotRequiredForRole ? undefined : linkedAccountRequired
         ? 'บัญชีนี้ยังไม่ได้ผูกกับข้อมูลพนักงาน กรุณาติดต่อผู้ดูแลระบบ'
         : requestError.message);
       setSelfErrorRequestId(requestError.requestId);
@@ -465,7 +466,7 @@ export function AttendanceDevicePage({ token, role, readOnly = false, onApproval
           {!proofReady && candidateKeyInspection?.status !== 'MISSING' && candidateKeyInspection?.status !== 'INVALID' && <button type="button" className="btn-primary" disabled={busy || readOnly || !capability.supported} onClick={() => void retryProof()}><SmsIcon name="key" size={17} />{busy ? 'กำลังยืนยัน…' : 'ยืนยันอุปกรณ์อีกครั้ง'}</button>}
           {request.status === 'RETURNED_FOR_CORRECTION' && <button type="button" className="btn-primary" disabled={busy || readOnly} onClick={() => void resubmit()}><SmsIcon name="refresh" size={17} />ส่งให้ Admin พิจารณาอีกครั้ง</button>}
           <div className="attendance-device-cancel"><label className="attendance-device-field"><span>เหตุผลที่ยกเลิกคำขอ</span><input value={cancelReason} maxLength={1000} onChange={(event) => setCancelReason(event.target.value)} placeholder="เช่น เลือกอุปกรณ์ผิด / ต้องการลงทะเบียนใหม่" /></label><button type="button" className="btn-danger-outline" disabled={busy || readOnly || !cancelReason.trim()} onClick={() => void cancelRequest()}>ยกเลิกคำขอนี้</button></div>
-        </div> : employeeLinkRequired ? <div className="attendance-device-state attendance-device-state--empty"><strong>กรุณาติดต่อผู้ดูแลระบบ</strong><span>ผู้ดูแลจะผูกบัญชีนี้กับข้อมูลพนักงานก่อนเปิดให้ลงทะเบียนอุปกรณ์</span></div> : <div className="attendance-device-enroll-form">
+        </div> : employeeLinkRequired ? <div className="attendance-device-state attendance-device-state--empty"><strong>{['ADMIN', 'SUPERVISOR'].includes(role) ? 'บัญชีผู้ดูแลไม่ใช้ลงเวลาเอง' : 'กรุณาติดต่อผู้ดูแลระบบ'}</strong><span>{['ADMIN', 'SUPERVISOR'].includes(role) ? 'ใช้ศูนย์อนุมัติด้านล่างเพื่อดูแลอุปกรณ์ของพนักงาน' : 'ผู้ดูแลจะผูกบัญชีนี้กับข้อมูลพนักงานก่อนเปิดให้ลงทะเบียนอุปกรณ์'}</span></div> : <div className="attendance-device-enroll-form">
           <label className="attendance-device-field"><span>ชื่ออุปกรณ์</span><input value={displayName} maxLength={120} onChange={(event) => setDisplayName(event.target.value)} placeholder="เช่น iPhone เครื่องหลัก" /></label>
           {isReplacement && <label className="attendance-device-field"><span>เหตุผลที่ขอเปลี่ยนอุปกรณ์</span><textarea value={reason} maxLength={1000} onChange={(event) => setReason(event.target.value)} placeholder="เช่น เปลี่ยนโทรศัพท์ใหม่ / เครื่องเดิมชำรุด" /></label>}
           <div className="attendance-device-security-note"><SmsIcon name="shield" size={18} /><span>ระบบจะผูกบัญชีของคุณกับอุปกรณ์นี้อย่างปลอดภัย และต้องรอผู้ดูแลระบบอนุมัติ</span></div>
