@@ -33,7 +33,7 @@ import { isG06DeviceContextDiagnosticRequested, shouldOpenG06DeviceContextDiagno
 import { readEncryptedBootstrap } from './pages/attendance-simple/attendance-simple-storage';
 import type { SimpleBootstrap } from './pages/attendance-simple/attendance-simple-client';
 import { ROLE_DISPLAY_LABEL, roleDisplayName } from './role-display';
-import { getApprovalCenterSummary, invalidateApprovalCenterSummary } from './approval-center-client';
+import { getApprovalCenterSummary, invalidateApprovalCenter } from './approval-center-client';
 import { approvalCountsFromSummary } from './approval-count-summary';
 import { shouldPollApprovalCenter } from './approval-center-polling';
 import { approvalBadgeText, approvalMenuCount, type ApprovalCountSummary } from './components/approval-count-badge';
@@ -2103,7 +2103,7 @@ function Dashboard() {
   const previousApprovalMutationKeys = useRef(approvalMutationKeys);
   useEffect(() => {
     if (previousApprovalMutationKeys.current !== approvalMutationKeys) {
-      invalidateApprovalCenterSummary();
+      invalidateApprovalCenter();
       previousApprovalMutationKeys.current = approvalMutationKeys;
     }
     setApprovalSummary(null);

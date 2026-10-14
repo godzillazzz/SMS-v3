@@ -384,12 +384,14 @@ for (const mobile of [false, true]) {
       expect(records('/api/v1/approval-center'), JSON.stringify(fixture.requests)).toHaveLength(1);
       expect(summary.filter(r => r.started < summary[0].responded!), 'no concurrent summary duplicate before first response').toHaveLength(1);
     });
-    await test.step('explicit refresh after TTL issues exactly one new summary', async () => {
+    await test.step('explicit refresh after TTL issues exactly one new summary and list', async () => {
       await refresh.click();
       await expect(refresh).toBeEnabled();
       await expect.poll(() => records('/api/v1/approval-center/summary').filter(r => r.responded !== undefined).length).toBe(2);
+      await expect.poll(() => records('/api/v1/approval-center').filter(r => r.responded !== undefined).length).toBe(2);
       await page.waitForTimeout(SUMMARY_DELAY_MS + SUMMARY_TTL_MS + 300);
       expect(records('/api/v1/approval-center/summary'), JSON.stringify(fixture.requests)).toHaveLength(2);
+      expect(records('/api/v1/approval-center'), JSON.stringify(fixture.requests)).toHaveLength(2);
     });
     const assertQuery = async (path: string) => {
       await expect.poll(() => new URL(page.url()).pathname).toBe(path);

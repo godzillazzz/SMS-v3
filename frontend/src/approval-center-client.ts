@@ -20,36 +20,58 @@ async function approvalCenterRequest(token: string, path: string) {
   return payload;
 }
 
-// One auth scope, bounded memory, and a short lifetime for authoritative counts.
-const SUMMARY_TTL_MS = 2000;
-let summaryEntry: { token: string; expiresAt: number; promise: ReturnType<typeof approvalCenterRequest> } | undefined;
+// One auth scope, bounded memory, and a short lifetime for authoritative reads.
+const APPROVAL_CENTER_TTL_MS = 2000;
+type ApprovalCenterEntry = { token: string; expiresAt: number; promise: ReturnType<typeof approvalCenterRequest> };
+let summaryEntry: ApprovalCenterEntry | undefined;
+let listEntry: ApprovalCenterEntry | undefined;
+
+function getCachedApprovalCenterRead(
+  token: string,
+  path: string,
+  current: () => ApprovalCenterEntry | undefined,
+  replace: (entry: ApprovalCenterEntry | undefined) => void,
+  options: { forceRefresh?: boolean } = {}
+) {
+  if (options.forceRefresh) replace(undefined);
+  const cached = current();
+  if (cached?.token === token && cached.expiresAt > Date.now()) return cached.promise;
+  const entry: ApprovalCenterEntry = { token, expiresAt: Infinity, promise: approvalCenterRequest(token, path) };
+  // Readers of a superseded request follow the newest generation, so a slow
+  // pre-refresh response cannot overwrite a forced refresh result.
+  entry.promise = entry.promise.then(
+    result => current() !== entry && current()?.token === token ? current()!.promise : result,
+    error => {
+      if (current() !== entry && current()?.token === token) return current()!.promise;
+      throw error;
+    }
+  );
+  replace(entry);
+  void entry.promise.then(() => {
+    if (current() === entry) entry.expiresAt = Date.now() + APPROVAL_CENTER_TTL_MS;
+  }, () => {
+    if (current() === entry) replace(undefined);
+  });
+  return entry.promise;
+}
 
 export function invalidateApprovalCenterSummary(): void {
   summaryEntry = undefined;
 }
 
-export function getApprovalCenterSummary(token: string, options: { forceRefresh?: boolean } = {}) {
-  if (options.forceRefresh) invalidateApprovalCenterSummary();
-  if (summaryEntry?.token === token && summaryEntry.expiresAt > Date.now()) return summaryEntry.promise;
-  const entry = { token, expiresAt: Infinity, promise: approvalCenterRequest(token, '/approval-center/summary') };
-  // Readers of a superseded request follow the new generation too, so a slow
-  // pre-mutation response cannot overwrite freshly refreshed global counts.
-  entry.promise = entry.promise.then(
-    result => summaryEntry !== entry && summaryEntry?.token === token ? summaryEntry.promise : result,
-    error => {
-      if (summaryEntry !== entry && summaryEntry?.token === token) return summaryEntry.promise;
-      throw error;
-    }
-  );
-  summaryEntry = entry;
-  void entry.promise.then(() => {
-    if (summaryEntry === entry) entry.expiresAt = Date.now() + SUMMARY_TTL_MS;
-  }, () => {
-    if (summaryEntry === entry) invalidateApprovalCenterSummary();
-  });
-  return entry.promise;
+export function invalidateApprovalCenterList(): void {
+  listEntry = undefined;
 }
 
-export async function getApprovalCenter(token: string) {
-  return approvalCenterRequest(token, '/approval-center?limit=100');
+export function invalidateApprovalCenter(): void {
+  invalidateApprovalCenterSummary();
+  invalidateApprovalCenterList();
+}
+
+export function getApprovalCenterSummary(token: string, options: { forceRefresh?: boolean } = {}) {
+  return getCachedApprovalCenterRead(token, '/approval-center/summary', () => summaryEntry, entry => { summaryEntry = entry; }, options);
+}
+
+export function getApprovalCenter(token: string, options: { forceRefresh?: boolean } = {}) {
+  return getCachedApprovalCenterRead(token, '/approval-center?limit=100', () => listEntry, entry => { listEntry = entry; }, options);
 }

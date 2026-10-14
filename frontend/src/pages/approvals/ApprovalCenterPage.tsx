@@ -225,7 +225,7 @@ export function ApprovalCenterPage({
 
     try {
       const [result, authoritativeSummary] = await Promise.all([
-        getApprovalCenter(token),
+        getApprovalCenter(token, { forceRefresh }),
         getApprovalCenterSummary(token, { forceRefresh })
       ]);
       const next = Array.isArray(result?.data) ? result.data as ApprovalCenterItem[] : [];
