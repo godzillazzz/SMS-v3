@@ -50,7 +50,7 @@ test('legacy navigation and four-role model are represented in the frontend', ()
   assert.match(frontend, /<aside id="app-navigation-drawer"[\s\S]*?<nav className="nav-menu"[\s\S]*?visibleNavigation\.map/);
   assert.match(frontend, /className="mobile-menu-button"[\s\S]*?aria-controls="app-navigation-drawer"[\s\S]*?setMobileMenuOpen\(true\)/);
   assert.match(frontend, /const visibleNavigation = navigation[\s\S]*?section\.items\.filter\(\(item\) => canViewPage\(item\.id\)\)/);
-  for (const section of ['ภาพรวม', 'พนักงาน', 'ตารางกะ', 'การลา', 'ตรวจสอบ', 'ผู้ใช้และสิทธิ์', 'รายงาน', 'ตั้งค่า']) {
+  for (const section of ['บุคลากร', 'ลงเวลา', 'ตารางกะ', 'การลา', 'รายงาน', 'ตั้งค่า', 'ผู้ดูแลระบบ']) {
     assert.ok(navigationBlock.includes(`label: '${section}'`), section);
   }
   assert.match(frontend, /\['ADMIN', 'MANAGER', 'SUPERVISOR', 'VIEWER'\]/);
