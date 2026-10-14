@@ -65,9 +65,11 @@ async function installFixture(page: Page) {
   });
 }
 
-async function navigateFromShell(page: Page, label: string, mobile: boolean) {
+async function navigateFromShell(page: Page, navigationId: string, mobile: boolean) {
   if (mobile) await page.getByRole('button', { name: 'เปิดเมนูหลัก' }).click();
-  await page.getByRole('button', { name: label, exact: true }).click();
+  const item = page.locator(`.sidebar .nav-item[data-navigation-id="${navigationId}"]`);
+  await expect(item).toBeVisible();
+  await item.click();
 }
 
 async function signIn(page: Page) {
@@ -151,7 +153,7 @@ for (const theme of ['light', 'dark'] as const) {
         expect(roleColors.foreground).not.toBeNull();
         expect(roleColors.background).not.toBeNull();
         expect(contrast(roleColors.foreground!, roleColors.background!)).toBeGreaterThanOrEqual(4.5);
-        await page.getByRole('button', { name: 'ปิดเมนูบัญชีและธีม' }).click();
+        await page.locator('button.mobile-utility-backdrop[aria-label="ปิดเมนูบัญชีและธีม"]').click();
       } else {
         await expect(role).toBeVisible();
         const roleColors = await computedContrast(role);
@@ -160,7 +162,7 @@ for (const theme of ['light', 'dark'] as const) {
         expect(contrast(roleColors.foreground!, roleColors.background!)).toBeGreaterThanOrEqual(4.5);
       }
 
-      await navigateFromShell(page, 'ตรวจสอบกฎการทำงาน', viewport.name === 'mobile');
+      await navigateFromShell(page, 'rules', viewport.name === 'mobile');
       const monthLabel = page.locator('.month-filter');
       await expect(monthLabel).toBeVisible();
       const monthLabelColors = await computedContrast(monthLabel);
@@ -174,7 +176,7 @@ for (const theme of ['light', 'dark'] as const) {
       expect(metricColors.background).not.toBeNull();
       expect(contrast(metricColors.foreground!, metricColors.background!)).toBeGreaterThanOrEqual(4.5);
 
-      await navigateFromShell(page, 'บันทึกการใช้งานระบบ', viewport.name === 'mobile');
+      await navigateFromShell(page, 'audit', viewport.name === 'mobile');
       const auditBadges = viewport.name === 'mobile'
         ? ['.audit-action-badge', '.audit-module-badge', '.audit-role-badge']
         : ['.audit-desktop-table .audit-action-badge', '.audit-desktop-table .audit-module-badge', '.audit-desktop-table tbody td:nth-child(2) small'];
@@ -216,7 +218,7 @@ test('R7.1 Approval Center deduplicates summary and isolates type query on navig
 
   await page.getByRole('button', { name: 'รีเฟรชข้อมูล' }).click();
   await expect.poll(() => summaryRequests).toBe(2);
-  await navigateFromShell(page, 'ข้อมูลพนักงาน', false);
+  await navigateFromShell(page, 'employees', false);
   await expect(page).toHaveURL(/\/app\/employees\?month=2026-10&year=2026$/);
   expect(new URL(page.url()).searchParams.get('type')).toBeNull();
   await page.screenshot({ path: 'test-results/r71-approval-routing.png', fullPage: true });
