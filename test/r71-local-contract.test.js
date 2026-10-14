@@ -99,10 +99,11 @@ test('R7.1 semantic CSS source contracts and dark token contrast are AA', () => 
   const main = read('frontend/src/main.tsx');
   assert.ok(main.indexOf("import './styles/r71-theme-contrast.css'") > main.indexOf("import './styles/operational-layer.css'"));
   const page = read('frontend/src/pages/approvals/ApprovalCenterPage.tsx');
-  assert.ok(page.includes('getApprovalCenter(token)'));
+  assert.ok(page.includes('getApprovalCenter(token, { forceRefresh })'));
+  assert.ok(page.includes('getApprovalCenterSummary(token, { forceRefresh })'));
   assert.ok(page.includes('await loadQueue(true)'));
   assert.ok(page.includes('onClick={() => void loadQueue(true)}'));
   assert.ok(page.includes('onSummaryLoaded?.(authoritativeSummary?.summary)'));
   assert.ok(main.includes('onSummaryLoaded='));
-  assert.ok(main.includes('invalidateApprovalCenterSummary()'));
+  assert.ok(main.includes('invalidateApprovalCenter()'));
 });
