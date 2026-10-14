@@ -6,7 +6,7 @@ const settingRows = [
 ];
 
 const sections = [
-  { id: 'overview', path: 'overview', label: 'ภาพรวม', selector: '.configuration-registry' },
+  { id: 'overview', path: 'overview', label: 'ตั้งค่าระบบ', selector: '.configuration-registry' },
   { id: 'attendance-location', path: 'attendance-location', label: 'การลงเวลาและตำแหน่ง', selector: '.attendance-policy-settings-card' },
   { id: 'leave-policy', path: 'leave-policy', label: 'นโยบายการลา', selector: '.leave-policy-settings-card' },
   { id: 'leave-types', path: 'leave-types', label: 'ประเภทการลา', selector: '.leave-type-master-card' },
@@ -90,7 +90,7 @@ test('Settings renders one selected section at a time with nested routes on desk
     await expect(page).toHaveTitle(`${selected.label} | SMS-v3`);
   }
 
-  await navigation.getByRole('link', { name: /ภาพรวม/ }).click();
+  await navigation.getByRole('link', { name: /ตั้งค่าระบบ/ }).click();
   const defaultRow = content.locator('tbody tr').filter({ hasText: 'GPS max accuracy' });
   await expect(defaultRow).toContainText('50 · ค่าเริ่มต้น');
   await expect(defaultRow).toContainText('5–100 · เมตร');
