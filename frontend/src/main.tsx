@@ -2728,7 +2728,7 @@ function Dashboard() {
                 <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 800, color: '#0f172a' }}>📊 สัดส่วนกะปฏิบัติงานประจำเดือน</h3>
                 <span className="record-chip">รวม {text(dashboardSummary.monthShifts || 0)} กะ</span>
               </div>
-              <p style={{ fontSize: '13px', color: '#64748b', margin: '0 0 16px' }}>การกระจายกำลังพลรักษาความปลอดภัยตามประเภทกะเดือนนี้</p>
+              <p style={{ fontSize: '13px', color: 'var(--color-text-secondary)', margin: '0 0 16px' }}>การกระจายกำลังพลรักษาความปลอดภัยตามประเภทกะเดือนนี้</p>
 
               <div style={{ display: 'grid', gap: '14px' }}>
                 <div>
@@ -2827,7 +2827,7 @@ function Dashboard() {
               <span style={{ fontSize: '20px' }}>🚀</span>
               <div>
                 <strong style={{ fontSize: '14px', color: '#0f172a' }}>ทางลัดการใช้งานระบบ (Quick Actions)</strong>
-                <p style={{ margin: 0, fontSize: '12px', color: '#64748b' }}>เข้าสู่เมนูหลักต่างๆ ได้อย่างรวดเร็ว</p>
+                <p style={{ margin: 0, fontSize: '12px', color: 'var(--color-text-secondary)' }}>เข้าสู่เมนูหลักต่างๆ ได้อย่างรวดเร็ว</p>
               </div>
             </div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>

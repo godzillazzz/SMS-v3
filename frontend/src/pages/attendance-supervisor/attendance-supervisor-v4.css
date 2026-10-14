@@ -65,10 +65,10 @@
   display: inline-grid;
   grid-template-columns: repeat(3, minmax(112px, 1fr));
   gap: 6px;
-  border: 1px solid #dfe8f3;
+  border: 1px solid var(--color-border);
   border-radius: 15px;
   padding: 5px;
-  background: rgba(246, 249, 253, .92);
+  background: var(--color-surface-muted);
 }
 
 .attendance-supervisor-v4__tabs button {
@@ -80,7 +80,7 @@
   border: 0;
   border-radius: 11px;
   padding: 8px 14px;
-  color: #65728a;
+  color: var(--color-text-secondary);
   background: transparent;
   font: inherit;
   font-size: 11px;
@@ -89,8 +89,8 @@
 }
 
 .attendance-supervisor-v4__tabs button.active {
-  color: #0b58d8;
-  background: #fff;
+  color: var(--color-primary);
+  background: var(--color-surface-elevated);
   box-shadow: 0 5px 14px rgba(26, 78, 151, .12);
 }
 

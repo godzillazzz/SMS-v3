@@ -6,7 +6,7 @@
 .executive-report-actions, .executive-report-filters { display:flex; flex-wrap:wrap; gap:10px; }
 .executive-report-actions button { min-height:38px; white-space:nowrap; }
 .executive-report-filters { margin-bottom:14px; padding:14px; border:1px solid #dfe5ef; border-radius:14px; background:#fff; }
-.executive-report-filters label { display:grid; min-width:150px; gap:5px; color:#5f6b80; font-size:12px; font-weight:700; }
+.executive-report-filters label { display:grid; min-width:150px; gap:5px; color:var(--color-text-secondary); font-size:12px; font-weight:700; }
 .executive-report-filters select { min-height:38px; border:1px solid #cfd8e7; border-radius:8px; padding:0 9px; color:#1c2941; background:#fff; }
 .executive-report-context { margin:10px 0 17px; font-size:12px; }
 .executive-report-loading { min-height:180px; display:grid; place-items:center; color:#52627c; }
