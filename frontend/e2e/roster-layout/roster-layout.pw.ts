@@ -30,7 +30,7 @@ for(const [path,title] of pages)for(const theme of ['light','dark'])for(const wi
   expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
   expect(writes).toEqual([]);expect(errors).toEqual([]);
   await page.screenshot({path:info.outputPath('approval-center-layout.png'),fullPage:true});
-  continue;
+  return;
  }
  const root=page.locator('.layout-roster-page');await expect(root).toHaveCount(1);
  await expect(root.locator('.layout-section-card:visible').first()).toBeVisible();
