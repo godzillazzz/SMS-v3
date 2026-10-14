@@ -22,7 +22,7 @@ jobs:
       github.event.issue.pull_request == null &&
       github.event.sender.login == 'godzillazzz' &&
       github.event.comment.user.login == 'godzillazzz' &&
-      startsWith(github.event.comment.body, '/sms-v3-r6b-exact-isolation-attestation-20261012 sha=')
+      startsWith(github.event.comment.body, '/sms-v3-r6b-exact-isolation-attestation-v3 sha=')
     runs-on: ubuntu-latest
     timeout-minutes: 8
     permissions:
@@ -70,5 +70,8 @@ jobs:
           VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
           APPROVED_PRODUCTION_DB_REF: ${{ vars.APPROVED_PRODUCTION_DB_REF }}
           APPROVED_PRODUCTION_STORAGE_REF: ${{ vars.APPROVED_PRODUCTION_STORAGE_REF }}
+          APPROVED_PREVIEW_RUNTIME_PRINCIPAL: ${{ vars.APPROVED_PREVIEW_RUNTIME_PRINCIPAL }}
+          APPROVED_PREVIEW_DB_CLUSTER_FINGERPRINT: ${{ vars.APPROVED_PREVIEW_DB_CLUSTER_FINGERPRINT }}
+          APPROVED_PRODUCTION_DB_CLUSTER_FINGERPRINT: ${{ vars.APPROVED_PRODUCTION_DB_CLUSTER_FINGERPRINT }}
           RUNTIME_PROBE_SOURCE_REVIEW_APPROVED: ${{ vars.RUNTIME_PROBE_SOURCE_REVIEW_APPROVED }}
         run: node scripts/ci/r6b-exact-deployment-isolation.cjs verify
