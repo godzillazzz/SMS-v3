@@ -37,6 +37,9 @@ it('R7.1 final cascade uses semantic colors for labels, metrics and audit badges
   const css = read('./styles/r71-theme-contrast.css') + read('./styles/audit-compliance.css');
   for (const selector of ['.dashboard-quick-actions__grid button small', '.rule-summary-grid strong', '.topbar-profile small', '.month-filter', '.audit-action-badge', '.audit-module-badge', '.audit-role-badge']) expect(css).toContain(selector);
   for (const token of ['text-secondary', 'text', 'success', 'success-soft', 'info', 'info-soft', 'border-strong']) expect(css).toContain(`var(--color-${token})`);
+  expect(read('./styles/audit-compliance.css')).toContain('[data-theme="light"] .audit-nexus-v48 .audit-action-badge');
+  expect(read('./styles/audit-compliance.css')).toContain('color-mix(in srgb, var(--color-success) 84%, #000)');
+  expect(read('./styles/audit-compliance.css')).toContain('color-mix(in srgb, var(--color-info) 84%, #000)');
   expect(read('./styles/r71-theme-contrast.css')).not.toMatch(/#[0-9a-f]{3,8}/i);
   const main = read('./main.tsx');
   expect(main.indexOf("import './styles/r71-theme-contrast.css'")).toBeGreaterThan(main.indexOf("import './styles/operational-layer.css'"));

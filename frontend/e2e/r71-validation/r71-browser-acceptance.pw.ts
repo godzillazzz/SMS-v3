@@ -140,12 +140,25 @@ for (const theme of ['light', 'dark'] as const) {
       expect(quickActionColors.background).not.toBeNull();
       expect(contrast(quickActionColors.foreground!, quickActionColors.background!)).toBeGreaterThanOrEqual(4.5);
 
-      const role = page.locator('.topbar-profile small');
-      await expect(role).toBeVisible();
-      const roleColors = await computedContrast(role);
-      expect(roleColors.foreground).not.toBeNull();
-      expect(roleColors.background).not.toBeNull();
-      expect(contrast(roleColors.foreground!, roleColors.background!)).toBeGreaterThanOrEqual(4.5);
+      const role = viewport.name === 'mobile'
+        ? page.getByRole('button', { name: 'เปิดเมนูบัญชีและธีม' })
+        : page.locator('.topbar-profile small');
+      if (viewport.name === 'mobile') {
+        await role.click();
+        const mobileRole = page.locator('.mobile-utility-profile small');
+        await expect(mobileRole).toBeVisible();
+        const roleColors = await computedContrast(mobileRole);
+        expect(roleColors.foreground).not.toBeNull();
+        expect(roleColors.background).not.toBeNull();
+        expect(contrast(roleColors.foreground!, roleColors.background!)).toBeGreaterThanOrEqual(4.5);
+        await page.getByRole('button', { name: 'ปิดเมนูบัญชีและธีม' }).click();
+      } else {
+        await expect(role).toBeVisible();
+        const roleColors = await computedContrast(role);
+        expect(roleColors.foreground).not.toBeNull();
+        expect(roleColors.background).not.toBeNull();
+        expect(contrast(roleColors.foreground!, roleColors.background!)).toBeGreaterThanOrEqual(4.5);
+      }
 
       await navigateFromShell(page, 'ตรวจสอบกฎการทำงาน', viewport.name === 'mobile');
       const monthLabel = page.locator('.month-filter');
@@ -162,7 +175,10 @@ for (const theme of ['light', 'dark'] as const) {
       expect(contrast(metricColors.foreground!, metricColors.background!)).toBeGreaterThanOrEqual(4.5);
 
       await navigateFromShell(page, 'บันทึกการใช้งานระบบ', viewport.name === 'mobile');
-      for (const selector of ['.audit-action-badge', '.audit-module-badge', '.audit-role-badge']) {
+      const auditBadges = viewport.name === 'mobile'
+        ? ['.audit-action-badge', '.audit-module-badge', '.audit-role-badge']
+        : ['.audit-desktop-table .audit-action-badge', '.audit-desktop-table .audit-module-badge', '.audit-desktop-table tbody td:nth-child(2) small'];
+      for (const selector of auditBadges) {
         const badge = page.locator(selector).first();
         await expect(badge).toBeVisible();
         const colors = await computedContrast(badge);
@@ -188,6 +204,9 @@ test('R7.1 Approval Center deduplicates summary and isolates type query on navig
     return json(route, approvalSummary);
   });
   await signIn(page);
+  // The dashboard badge has already made its independent initial request.
+  // Measure the Approval Center runtime from this point onward.
+  summaryRequests = 0;
   // Intentional deep-link reload: this must use the authenticated refresh mock,
   // not the in-memory token left by login.
   await page.goto('/app/approvals?type=SCHEDULE&month=2026-10&year=2026');
