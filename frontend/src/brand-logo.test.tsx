@@ -16,4 +16,11 @@ describe('T33 Owner-approved horizontal image brand',()=>{
     expect(read('./components/AwardPublicExperience.tsx')).not.toContain('nexus-brand__copy');
     for(const tone of ['','-dark']) expect(statSync(new URL(`../public/brand/sms-logo-horizontal${tone}.webp`,import.meta.url)).size).toBeLessThanOrEqual(25000);
   });
+  it('centers the 150x58 horizontal mark only in the desktop sidebar',()=>{
+    const css=read('./components/brand-logo.css');
+    expect(css).toContain('.app-shell:not(.pwa-shell) .sidebar-brand{justify-content:center}');
+    expect(css).toContain('.app-shell:not(.pwa-shell) .sidebar-brand>.sms-brand-logo{width:150px;height:58px;max-width:100%}');
+    expect(css).toContain('.app-shell:not(.pwa-shell) .sidebar-brand>.sms-brand-logo img{width:100%;height:100%}');
+    expect(css).toContain('.mobile-brand .sms-brand-logo,.pwa-mobile-brand .sms-brand-logo,.auth-mobile-brand .sms-brand-logo{height:32px}');
+  });
 });
