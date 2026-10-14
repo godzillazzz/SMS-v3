@@ -1,5 +1,29 @@
 # MASTER HANDOFF
 
+## ACTIVE — R7.1 corrective cycle at frozen review HEAD (14 October 2026)
+
+Current local source HEAD remains `5cef6e6a5e2cde6666735480c88ccf0be091b567`. Owner scope: existing checkout only, uncommitted edits and local tests; no commit, push, CI dispatch, merge, deployment, Production, database, schema, migrations, RLS, auth-policy, secret or unrelated-file changes. No external runtime/release state was inspected or inferred.
+
+- PRODUCT C1: roster `เลือกเดือนที่จะจัดกะ` label uses `roster-month-label` and `--color-text-secondary` in both themes, with inline hardcoded color removed. Rules `.month-filter` remains independently asserted; its text span is measured separately from its select control.
+- Browser acceptance now uses browser canvas CSS Color 4 normalization, alpha compositing from element through ancestors, grouped element/ancestor opacity, unrounded ratios and foreground/background/ratio diagnostics. It returns null for gradients/images, filters/backdrop filters, blend modes, generated paint content, unrelated overlap and unresolved transparent backing. Added native normalization/alpha/opacity/unsupported-paint regression cases; these are NOT executed browser evidence.
+- Mobile: panel geometry and elementFromPoint select a real exposed backdrop click point; no force clicks. Hidden dialog/backdrop and returned trigger focus are asserted. Standalone backdrop and Escape tests run in each theme, independently of visual contracts.
+- Logo: content-box horizontal center tolerance <=1px and width >=140px replace duplicate assertion, retaining vertical divider clearance in both theme visual tests.
+- Approval fixture records every summary/list start and fulfilled-response timestamp with performance.now(), path and lifecycle. Summary is delayed 1500ms; dashboard records are excluded from the new Approval Center document lifecycle. Initial summary/list exact counts are asserted after queue loading disappears, responses settle and a 3800ms window elapses. Explicit refresh after TTL must add exactly one summary. Desktop/mobile shell and command-palette navigation check employees/rules and month/year/type isolation with URL.searchParams. Mutation invalidation browser coverage remains UNVERIFIED because the existing synthetic queue has no actionable mutation fixture.
+- Evidence: scoped console-error allowlist for intentional auth-refresh 401, retained pageerrors, every matching visible audit badge, theme-root assertion, overflow checks, testInfo.outputPath screenshots and request-log attachment.
+
+Local evidence:
+
+1. RED before implementation: `npm --prefix frontend test -- --run src/r7-theme-contrast.test.ts` — 2 new contracts failed, 3 existing passed (missing roster class and browser-native paint/evidence contract).
+2. GREEN: focused theme/routing/client/Approval Center frontend command — 6 files / 38 tests passed. Full `npm --prefix frontend test` — 162 files / 971 tests passed.
+3. `npm --prefix frontend run build` passed (tsc -b and Vite); standalone strict TypeScript check of the Playwright file passed. Generated tracked tsbuildinfo restored to original bytes; no build metadata change retained.
+4. Release/sentinel command: `node --test --test-isolation=none --test-skip-pattern='shell blocks' test/verify-release-artifact.test.js test/r7-protected-production-runtime-sentinels.test.js test/verify-public-runtime.test.js test/release-workflow-syntax.test.js` — 35 passed. `node scripts/ci/verify-release-artifact.js frontend/dist` — PASS, 56 artifacts / 8 sentinels. `node test/r71-local-contract.test.js` — 3 passed. `git diff --check` passed.
+5. Playwright discovery (`--list` with frontend/playwright.print.config.ts) found 11 tests. Actual browser execution was NOT attempted: expected executable `/root/.cache/ms-playwright/chromium-1234/chrome-linux64/chrome` does not exist; neither `/usr/bin/chromium`, `/usr/bin/chromium-browser`, nor `/usr/bin/google-chrome` exists. No dependency installation or weakened assertion. Node runtime is v24.21.0, whereas project engines require 22.x.
+6. Existing operational-layer CSS paints gradients on `.main-area` and the light app shell. The new helper intentionally fails closed on ancestor gradients; real visual acceptance remains OPEN and may report unsupported surfaces. Do not call source contracts browser AA evidence.
+
+Changed scope: `frontend/src/main.tsx`, `frontend/src/styles/r71-theme-contrast.css`, `frontend/src/r7-theme-contrast.test.ts`, `frontend/e2e/r71-validation/r71-browser-acceptance.pw.ts`, and this handoff only. PR body metadata was not found locally; external PR update is left to parent/Owner. Existing `deploy-approved-production-v2.yml` release-control impact belongs in that PR description, but no workflow file was modified here. No release action or live Production verification occurred.
+
+**Status: local implementation / non-browser validation passed; real browser acceptance, screenshots, native contrast regression execution, mutation invalidation and Node 22 validation remain OPEN.**
+
 ## ACTIVE — R7.1 local follow-up implementation / validation pending (14 October 2026)
 
 Owner scope for this isolated checkout overrides release execution: local edits/tests only; **no commit/push, database, credentials, GitHub, Vercel, or Production access**. Base and unchanged HEAD: `5446095e46e56a7b75fbddb91c27013d0ffda87d` (pinned Integration control). No live release state was refreshed or inferred.

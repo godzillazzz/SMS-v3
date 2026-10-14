@@ -44,3 +44,18 @@ it('R7.1 final cascade uses semantic colors for labels, metrics and audit badges
   const main = read('./main.tsx');
   expect(main.indexOf("import './styles/r71-theme-contrast.css'")).toBeGreaterThan(main.indexOf("import './styles/operational-layer.css'"));
 });
+
+it('R7.1 roster month label has its own semantic theme contract', () => {
+  const main = read('./main.tsx');
+  const label = main.slice(main.lastIndexOf('<div', main.indexOf('เลือกเดือนที่จะจัดกะ')), main.indexOf('เลือกเดือนที่จะจัดกะ'));
+  expect(label).toContain('className="roster-month-label"');
+  expect(label).not.toContain('color:');
+  expect(read('./styles/r71-theme-contrast.css')).toMatch(/\.roster-month-label\s*\{[^}]*color: var\(--color-text-secondary\)/);
+});
+
+it('R7.1 browser acceptance preserves fail-closed evidence and interaction contracts', () => {
+  const source = read('../e2e/r71-validation/r71-browser-acceptance.pw.ts');
+  for (const marker of ['getImageData', 'backgroundImage', 'backdropFilter', 'mixBlendMode', 'elementsFromPoint', 'opacity', 'roster-month-label', 'elementFromPoint', 'toBeFocused', 'Escape', 'contentCenter', '1500', 'performance.now()', 'lifecycle', 'searchParams', 'testInfo.outputPath', 'console']) expect(source).toContain(marker);
+  expect(source).not.toContain('Math.round');
+  expect(source).not.toContain('.force');
+});

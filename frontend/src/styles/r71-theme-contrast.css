@@ -9,3 +9,7 @@
 [data-theme="dark"] .rule-summary-grid strong {
   color: var(--color-text) !important;
 }
+
+.roster-month-label {
+  color: var(--color-text-secondary);
+}
