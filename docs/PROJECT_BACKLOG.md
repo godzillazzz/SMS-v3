@@ -1,3 +1,26 @@
+# R7 DEVELOPMENT CHECKPOINT — 2026-10-14 (Asia/Bangkok)
+
+## R6 production baseline
+
+- R6 DEPLOYED: Integration release source 09486d684f2af89a1589ebf8dd11cbeb9f79050b; exact CI run 38494604925 succeeded.
+- Frozen Production: deployment dpl_HbzTEkJnDsyVrRSvMpmVxSQfRCEV, application SHA 09486d684f2af89a1589ebf8dd11cbeb9f79050b. R7 work did not deploy, promote, roll back, mutate aliases, secrets, environment settings, schema, database, storage, or business data.
+
+## R7 development status
+
+- T34 — transient refresh recovery: COMPLETED DEVELOPMENT. PR #622 merged as aeff5fa7fb5ff93ef75336bf8135d5d929a64f89; exact CI 38501743532 succeeded. Preview dpl_3v2guCY35xBFHvp2qpq8LHbnQwno.
+- T35 — sidebar logo alignment: COMPLETED DEVELOPMENT. PR #623 merged as ef1fec80f451c5e34b8556169362cdbbcb6040b3; exact CI 38503323357 succeeded. Preview READY: https://sms-v3-staging-git-codex-r7-t35-sidebar-logo-49d40d-godzillazz.vercel.app (dpl_H2T6ZSiR75m4EZFPATB4wKTcbz74). Screenshot evidence: docs/review/screenshots/t35-*-contact.png.
+- T36 — approver device message: COMPLETED DEVELOPMENT. PR #624 merged as 61c9c32abeda7e2b1d5ccf2997ae1b2cb7a6ebae; exact CI 38504162308 succeeded. Preview READY: https://sms-v3-staging-git-codex-r7-t36-device-approv-219713-godzillazz.vercel.app (dpl_3bUafgyRa9sBZEiTeafqeWuMcY6w). Screenshot evidence: docs/review/screenshots/t36-*-contact.png.
+- T37 — dark-theme token remediation: COMPLETED DEVELOPMENT. PR #625 merged as 6ba2142346ef0f26b89c826202837c0323577c17; exact CI 38504910436 succeeded. Preview READY: https://sms-v3-staging-git-codex-r7-t37-dark-theme-to-8cdf78-godzillazz.vercel.app (dpl_TWpgBbGhkVuctmY8tiarbRZpvTMz). Screenshot evidence: docs/review/screenshots/t37-*-contact.png.
+- T38 — approval center/menu restructuring: COMPLETED DEVELOPMENT. PR #626 merged as d24678b9e0e7b6d48335c2b21de6b49ebe2c5084; exact PR CI 38508348811 and post-merge Integration CI 38508931775 succeeded. Integration Preview READY: https://sms-v3-staging-7k3ug6b4z-godzillazz.vercel.app (dpl_5fZNn5aTLt6Xr3eFybw7QEQKv84G), exact SHA d24678b9e0e7b6d48335c2b21de6b49ebe2c5084, target Preview. Screenshot evidence: docs/review/screenshots/t38-*-contact.png.
+
+## R7 gates and remaining work
+
+- READY FOR OWNER TECHNICAL SMOKE: latest Integration SHA d24678b9e0e7b6d48335c2b21de6b49ebe2c5084 and Preview above. Final Hosted/Business/Physical UAT remains Owner-controlled and is not claimed by CI.
+- T08 remains untouched and blocked by inaccessible original WIP; no worktree was reset, cleaned, stashed, or recreated.
+- RLS remains a separate Production Supabase security workstream and is not an R7 feature gate.
+- Draft/held references remain: #618 (RLS), #589 and #87 (post-feature-freeze authenticated UAT). Closed as superseded by owner directive: #611, #615, #590, #35, #402, and #617.
+- Issue/PR #130 (View-As refresh identity boundary) was inspected and is stale/superseded by current in-memory token guard and T34 refresh handling; it remains unmerged.
+- Node 22 exact CI is authoritative. Local Node 20 checks were used only for focused development validation where compatible; any Node 20 webidl limitations remain explicitly non-PASS.
 # CURRENT CHECKPOINT — Owner Feature Freeze Declaration: Selective R6-B — 2026-10-11 (Asia/Bangkok)
 
 **FEATURE_FREEZE_R6_B=DECLARED by explicit Owner approval.** This freezes the **R6-B development scope only**, not the Full Integration branch, Production release, or Final UAT. Approval evidence: [PR #610 Owner decision](https://github.com/godzillazzz/SMS-v3/issues/610#issuecomment-6105943759).
