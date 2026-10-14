@@ -1,6 +1,6 @@
 import {test,expect} from '@playwright/test';
 const employee={id:'layout-employee',employeeCode:'E001',firstName:'ข้อมูล',lastName:'ทดสอบ',department:'AN1',jobTitle:'พนักงาน',isActive:true};
-const pages=[['roster','ตารางกะรายเดือน'],['shift-codes','รหัสกะและเวลา'],['rules','ตรวจสอบกฎการทำงาน'],['leave','คำขอลา'],['leave/approvals','อนุมัติคำขอลา'],['leave/history','ประวัติการลา'],['leave/quotas','โควตาวันลา']] as const;
+const pages=[['roster','ตารางกะรายเดือน'],['shift-codes','รหัสกะและเวลา'],['rules','ตรวจสอบกฎการทำงาน'],['leave','คำขอลา'],['approvals?type=LEAVE','ศูนย์อนุมัติคำขอ'],['leave/history','ประวัติการลา'],['leave/quotas','โควตาวันลา']] as const;
 for(const [path,title] of pages)for(const theme of ['light','dark'])for(const width of [1366,375])test(`T30b roster/leave ${path} ${theme} ${width}`,async({page},info)=>{
  const errors:string[]=[];const writes:string[]=[];page.on('pageerror',e=>errors.push(e.message));
  await page.setViewportSize({width,height:width===1366?768:812});await page.addInitScript(t=>localStorage.setItem('sms-v3-theme',t),theme);
@@ -25,6 +25,13 @@ for(const [path,title] of pages)for(const theme of ['light','dark'])for(const wi
  await expect(page.locator('.app-shell')).toBeVisible();
  await expect(page.locator('.sms-loader--content')).toHaveCount(0,{timeout:20_000});
  await expect(page.getByRole('heading',{level:1,name:new RegExp(title)})).toBeVisible();
+ if(path.startsWith('approvals?')){
+  await expect(page.locator('.approval-center-page')).toBeVisible();
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+  expect(writes).toEqual([]);expect(errors).toEqual([]);
+  await page.screenshot({path:info.outputPath('approval-center-layout.png'),fullPage:true});
+  return;
+ }
  const root=page.locator('.layout-roster-page');await expect(root).toHaveCount(1);
  await expect(root.locator('.layout-section-card:visible').first()).toBeVisible();
  await expect.poll(()=>root.locator('h1,h2').evaluateAll(els=>els.every(el=>getComputedStyle(el).fontFamily.includes('Kanit')))).toBe(true);

@@ -32,7 +32,7 @@ async function signIn(
   page: Page,
   role: 'ADMIN' | 'MANAGER' | 'SUPERVISOR' | 'VIEWER',
   summary: { status?: number; body: unknown },
-  route = role === 'VIEWER' || role === 'ADMIN' ? '/app' : '/app/leave/approvals',
+  route = '/app',
   expectSummary = role !== 'VIEWER'
 ) {
   let summaryRequests = 0;
@@ -78,11 +78,9 @@ async function expectAdminMenuCounts(page: Page) {
     ['approvalCenter', 'ศูนย์อนุมัติ', 100, '99+'],
     ['employees', 'ข้อมูลพนักงาน', 5, '5'],
     ['licenses', 'ใบอนุญาต รปภ.', 5, '5'],
-    ['approvals', 'อนุมัติตารางกะ', 7, '7'],
     ['attendanceDevice', 'อุปกรณ์ลงเวลา', 11, '11'],
-    ['attendanceSupervisor', 'ลงเวลาแทนพนักงาน', 13, '13'],
-    ['users', 'ผู้ใช้และสิทธิ์', 36, '36'],
-    ['leavePending', 'อนุมัติคำขอลา', 23, '23']
+    ['attendanceSupervisor', 'ศูนย์ควบคุมการลงเวลา', 13, '13'],
+    ['users', 'ผู้ใช้และสิทธิ์', 36, '36']
   ] as const;
 
   for (const [id, label, count, badge] of rows) {
@@ -104,12 +102,12 @@ for (const viewport of [{ label: 'desktop', width: 1366, height: 768 }, { label:
       await expect(page.locator('html')).toHaveAttribute('data-theme', theme);
       await expectAdminMenuCounts(page);
 
-      const leaveApproval = page.locator('[data-navigation-id="leavePending"]');
+      const leaveApproval = page.locator('[data-navigation-id="approvalCenter"]');
       await leaveApproval.focus();
       await expect(leaveApproval).toBeFocused();
       await page.keyboard.press('Enter');
-      await expect(page).toHaveURL('/app/leave/approvals');
-      await expect(page.getByRole('heading', { name: 'อนุมัติคำขอลา' })).toBeVisible();
+      await expect(page).toHaveURL('/app/approvals');
+      await expect(page.getByRole('heading', { name: 'ศูนย์อนุมัติคำขอ' })).toBeVisible();
 
       await page.screenshot({ path: testInfo.outputPath(`approval-badges-${viewport.label}-${theme}.png`), fullPage: true });
       expect(fixtureRequests.unexpectedWrites()).toEqual([]);
@@ -150,18 +148,16 @@ test('Manager sees only counts allowed by the permission-scoped summary', async 
 
   await expect(page.locator('[data-navigation-id="approvalCenter"] .nav-count-badge')).toHaveText('6');
   await expect(page.locator('[data-navigation-id="users"] .nav-count-badge')).toHaveText('3');
-  await expect(page.locator('[data-navigation-id="leavePending"] .nav-count-badge')).toHaveText('3');
   await expect(page.locator('[data-navigation-id="employees"] .nav-count-badge')).toHaveCount(0);
   await expect(page.locator('[data-navigation-id="licenses"] .nav-count-badge')).toHaveCount(0);
   await expect(page.locator('[data-navigation-id="attendanceDevice"] .nav-count-badge')).toHaveCount(0);
-  await expect(page.locator('[data-navigation-id="approvals"]')).toHaveCount(0);
+  await expect(page.locator('[data-navigation-id="approvalCenter"]')).toBeVisible();
 });
 
 test('Supervisor sees counts in its permission-scoped summary', async ({ page }) => {
   await page.setViewportSize({ width: 1366, height: 768 });
   const supervisorCount = await signIn(page, 'SUPERVISOR', { body: { summary: { total: 2, byType: { ...emptyByType, LEAVE_REQUEST: 2 } } } });
   await expect(page.locator('[data-navigation-id="approvalCenter"] .nav-count-badge')).toHaveText('2');
-  await expect(page.locator('[data-navigation-id="leavePending"] .nav-count-badge')).toHaveText('2');
   expect(supervisorCount.summaryRequests()).toBeGreaterThanOrEqual(1);
 });
 
@@ -181,7 +177,7 @@ test('central and native leave decisions refetch the same queue and both menu co
   page.on('pageerror', error => errors.push(error.message));
   await page.setViewportSize({ width: 1366, height: 768 });
   const summary = { total: 2, byType: { ...emptyByType, LEAVE_REQUEST: 2 } };
-  await signIn(page, 'ADMIN', { body: { summary } }, '/app/leave/approvals');
+  await signIn(page, 'ADMIN', { body: { summary } }, '/app/approvals?type=LEAVE');
   const pending = [1, 2].map(id => ({ id: `leave-${id}`, employeeId: `employee-${id}`, employeeNameSnapshot: `Leave Fixture ${id}`, departmentSnapshot: 'AN1', leaveType: 'PERSONAL', startDate: '2026-11-11', endDate: '2026-11-11', dayCount: 1, reason: 'Fixture only', status: 'PENDING' }));
   const decisions: string[] = [];
   await page.route('**/api/v1/leave-requests*', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ data: pending, meta: { page: 1, total: pending.length, pageSize: 100, totalPages: 1 } }) }));
@@ -196,23 +192,21 @@ test('central and native leave decisions refetch the same queue and both menu co
     summary.byType.LEAVE_REQUEST = pending.length;
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ data: { id, status: route.request().postDataJSON().status } }) });
   });
-  await page.locator('[data-navigation-id="approvalCenter"]').click();
+  await page.reload();
+  await expect(page.getByRole('heading', { name: 'ศูนย์อนุมัติคำขอ' })).toBeVisible();
   await page.getByRole('button', { name: 'อนุมัติทันที', exact: true }).first().click();
   const dialog = page.getByRole('dialog');
   await expect(dialog).toBeVisible();
   await dialog.getByRole('button', { name: 'ยืนยันอนุมัติคำขอ', exact: true }).click();
   await expect(dialog).toHaveCount(0);
   await expect(page.locator('[data-navigation-id="approvalCenter"] .nav-count-badge')).toHaveText('1');
-  await expect(page.locator('[data-navigation-id="leavePending"] .nav-count-badge')).toHaveText('1');
-  await page.locator('[data-navigation-id="leavePending"]').click();
-  await expect(page.locator('.leave-decision-item')).toHaveCount(1);
-  await page.getByRole('button', { name: 'ไม่อนุมัติ', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'ปฏิเสธ', exact: true })).toHaveCount(1);
+  await page.getByRole('button', { name: 'ปฏิเสธ', exact: true }).click();
   await expect(dialog).toBeVisible();
   await dialog.getByRole('button', { name: 'ยืนยันไม่อนุมัติ', exact: true }).click();
   await expect(dialog).toHaveCount(0);
-  await expect(page.locator('.leave-decision-item')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'ปฏิเสธ', exact: true })).toHaveCount(0);
   await expect(page.locator('.nav-count-badge')).toHaveCount(0);
-  await page.locator('[data-navigation-id="approvalCenter"]').click();
   await expect(page.getByRole('button', { name: 'อนุมัติทันที', exact: true })).toHaveCount(0);
   expect(decisions).toEqual(['leave-1', 'leave-2']);
   expect(errors).toEqual([]);

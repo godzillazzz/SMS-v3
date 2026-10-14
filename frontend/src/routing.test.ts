@@ -2,6 +2,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   canViewRoutePage,
+  legacyApprovalRedirectType,
   navigate,
   navigateSettingsSection,
   pageFromLocation,
@@ -29,8 +30,9 @@ afterEach(() => {
 describe('application History API routes', () => {
   it('maps every page to a stable path and back', () => {
     for (const [page, path] of Object.entries(PAGE_PATHS)) {
-      expect(pageFromPath(path)).toBe(page);
-      expect(pageFromLocation({ pathname: path, search: '' })).toEqual({ kind: 'page', page });
+      const expectedPage = page === 'approvals' || page === 'leavePending' ? 'approvalCenter' : page;
+      expect(pageFromPath(path)).toBe(expectedPage);
+      expect(pageFromLocation({ pathname: path, search: '' })).toEqual({ kind: 'page', page: expectedPage });
     }
     expect(pageFromPath('/')).toBe('dashboard');
     expect(pageFromPath('/app/leave/history/')).toBe('leaveHistory');
@@ -53,6 +55,14 @@ describe('application History API routes', () => {
     // Login does not rewrite location; after authentication Dashboard resolves the same URL.
     expect(window.location.pathname + window.location.search).toBe('/app/roster?month=2026-10&department=AN1&page=2');
     expect(pageFromLocation()).toEqual(initial);
+  });
+
+  it('maps legacy approval URLs to the unified center while preserving their intent', () => {
+    expect(pageFromPath('/app/roster/approvals')).toBe('approvalCenter');
+    expect(pageFromPath('/app/leave/approvals')).toBe('approvalCenter');
+    expect(legacyApprovalRedirectType('/app/roster/approvals')).toBe('SCHEDULE');
+    expect(legacyApprovalRedirectType('/app/leave/approvals/')).toBe('LEAVE');
+    expect(legacyApprovalRedirectType('/app/approvals')).toBeUndefined();
   });
 
   it('pushes route changes, preserves query state, and responds to browser popstate', () => {

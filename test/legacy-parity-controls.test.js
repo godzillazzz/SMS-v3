@@ -39,17 +39,18 @@ test('Manager account approval is constrained to Viewer and sensitive settings s
 
 test('legacy navigation and four-role model are represented in the frontend', () => {
   const navigationBlock = frontend.match(/const navigation:[\s\S]*?function AuthProvider/)?.[0] || '';
-  for (const label of ['ภาพรวม', 'ข้อมูลพนักงาน', 'ใบอนุญาต รปภ.', 'ตารางกะรายเดือน', 'อนุมัติตารางกะ', 'รหัสกะและเวลา', 'คำขอลา', 'อนุมัติคำขอลา', 'โควต้าวันลา', 'กฎการทำงาน', 'บันทึกการใช้งานระบบ', 'ผู้ใช้และสิทธิ์', 'รายงานและวิเคราะห์', 'ตั้งค่าระบบ']) {
+  for (const label of ['ภาพรวม', 'ศูนย์อนุมัติ', 'ข้อมูลพนักงาน', 'ใบอนุญาต รปภ.', 'ลงเวลา', 'ศูนย์ควบคุมการลงเวลา', 'อุปกรณ์ลงเวลา', 'ตารางกะรายเดือน', 'รหัสกะและเวลา', 'ตรวจสอบกฎการทำงาน', 'คำขอลา', 'ประวัติการลาทั้งหมด', 'โควต้าวันลา', 'รายงานและวิเคราะห์', 'ผู้ใช้และสิทธิ์', 'จุดรักษาความปลอดภัยและ QR', 'ตั้งค่าระบบ', 'บันทึกการใช้งานระบบ', 'คุณภาพข้อมูล', 'ประสิทธิภาพและสถานะระบบ']) {
     assert.ok(navigationBlock.includes(`label: '${label}'`), label);
   }
   assert.doesNotMatch(navigationBlock, /label: 'รายงานและ Export'/);
   assert.doesNotMatch(navigationBlock, /label: 'รายงานผู้บริหาร'/);
-  assert.match(navigationBlock, /id: 'approvals', icon: 'approval', label: 'อนุมัติตารางกะ'/);
-  assert.match(navigationBlock, /id: 'leavePending', icon: 'approval', label: 'อนุมัติคำขอลา'/);
+  assert.doesNotMatch(navigationBlock, /label: 'อนุมัติตารางกะ'/);
+  assert.doesNotMatch(navigationBlock, /label: 'อนุมัติคำขอลา'/);
+  assert.match(navigationBlock, /id: 'approvalCenter', icon: 'bell', label: 'ศูนย์อนุมัติ'/);
   assert.match(frontend, /<aside id="app-navigation-drawer"[\s\S]*?<nav className="nav-menu"[\s\S]*?visibleNavigation\.map/);
   assert.match(frontend, /className="mobile-menu-button"[\s\S]*?aria-controls="app-navigation-drawer"[\s\S]*?setMobileMenuOpen\(true\)/);
   assert.match(frontend, /const visibleNavigation = navigation[\s\S]*?section\.items\.filter\(\(item\) => canViewPage\(item\.id\)\)/);
-  for (const section of ['ภาพรวม', 'พนักงาน', 'ตารางกะ', 'การลา', 'ตรวจสอบ', 'ผู้ใช้และสิทธิ์', 'รายงาน', 'ตั้งค่า']) {
+  for (const section of ['บุคลากร', 'ลงเวลา', 'ตารางกะ', 'การลา', 'รายงาน', 'ตั้งค่า', 'ผู้ดูแลระบบ']) {
     assert.ok(navigationBlock.includes(`label: '${section}'`), section);
   }
   assert.match(frontend, /\['ADMIN', 'MANAGER', 'SUPERVISOR', 'VIEWER'\]/);

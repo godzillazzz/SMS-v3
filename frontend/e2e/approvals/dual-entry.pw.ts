@@ -29,33 +29,31 @@ async function signIn(page: Page, target: string, role: 'ADMIN' | 'MANAGER' | 'S
 test('Admin can open schedule approvals from the native sidebar on desktop', async ({ page }, testInfo: TestInfo) => {
   await page.setViewportSize({ width: 1366, height: 768 });
   await signIn(page, '/app', 'ADMIN');
-  await expect(page.getByRole('button', { name: 'อนุมัติตารางกะ' })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'อนุมัติคำขอลา' })).toBeVisible();
-  await page.getByRole('button', { name: 'อนุมัติตารางกะ' }).click();
-  await expect(page.getByRole('heading', { name: 'อนุมัติตารางกะ' })).toBeVisible();
-  await expect(page).toHaveURL('/app/roster/approvals');
+  await expect(page.locator('[data-navigation-id="approvalCenter"]')).toBeVisible();
+  await page.locator('[data-navigation-id="approvalCenter"]').click();
+  await expect(page.getByRole('heading', { name: 'ศูนย์อนุมัติคำขอ' })).toBeVisible();
+  await expect(page).toHaveURL('/app/approvals');
   await page.screenshot({ path: testInfo.outputPath('approval-native-schedule-desktop.png'), fullPage: true });
 });
 
 test('Supervisor can open both native approval queues from the mobile drawer', async ({ page }, testInfo: TestInfo) => {
   await page.setViewportSize({ width: 375, height: 812 });
-  await signIn(page, '/app/leave/approvals', 'SUPERVISOR');
+  await signIn(page, '/app', 'SUPERVISOR');
   await page.getByRole('button', { name: 'เปิดเมนูหลัก' }).click();
-  await expect(page.getByRole('button', { name: 'อนุมัติตารางกะ' })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'อนุมัติคำขอลา' })).toBeVisible();
-  await page.getByRole('button', { name: 'อนุมัติตารางกะ' }).click();
-  await expect(page.getByRole('heading', { name: 'อนุมัติตารางกะ' })).toBeVisible();
-  await page.getByRole('button', { name: 'เปิดเมนูหลัก' }).click();
-  await page.getByRole('button', { name: 'อนุมัติคำขอลา' }).click();
-  await expect(page.getByRole('heading', { name: 'อนุมัติคำขอลา' })).toBeVisible();
-  await expect(page).toHaveURL('/app/leave/approvals');
+  await expect(page.locator('[data-navigation-id="approvalCenter"]')).toBeVisible();
+  await page.locator('[data-navigation-id="approvalCenter"]').click();
+  await expect(page.getByRole('heading', { name: 'ศูนย์อนุมัติคำขอ' })).toBeVisible();
+  await expect(page).toHaveURL('/app/approvals');
+  await page.goto('/app/approvals?type=LEAVE');
+  await expect(page).toHaveURL('/app/approvals?type=LEAVE');
   await page.screenshot({ path: testInfo.outputPath('approval-native-leave-mobile.png'), fullPage: true });
 });
 
 test('Manager retains leave review while schedule review stays limited to existing reviewer roles', async ({ page }) => {
   await page.setViewportSize({ width: 1366, height: 768 });
-  await signIn(page, '/app/leave/approvals', 'MANAGER');
-  await expect(page.getByRole('heading', { name: 'อนุมัติคำขอลา' })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'อนุมัติคำขอลา' })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'อนุมัติตารางกะ' })).toHaveCount(0);
+  await signIn(page, '/app/approvals?type=LEAVE', 'MANAGER');
+  await expect(page.getByRole('heading', { name: 'ศูนย์อนุมัติคำขอ' })).toBeVisible();
+  await expect(page.getByRole('button', { name: /ลา/ }).first()).toBeVisible();
+  await expect(page.locator('[data-navigation-id="approvals"]')).toHaveCount(0);
+  await expect(page.locator('[data-navigation-id="leavePending"]')).toHaveCount(0);
 });

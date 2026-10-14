@@ -5,6 +5,7 @@ const HttpError = require('../utils/http-error');
 const { leaveTypeDisplayName } = require('./leave-type.service');
 const { createAttendanceAdjustmentService } = require('./attendance-adjustment.service');
 const { canReview, createApprovalPolicyService, positionClass } = require('./approval-policy.service');
+const { approvalIdentity, resolveApprovalActors } = require('./approval-identity.service');
 
 const HOUR_MS = 60 * 60 * 1000;
 const PRIORITY = { OVERDUE: 3, DUE_SOON: 2, NEW: 1 };
@@ -333,7 +334,7 @@ function createApprovalCenterService({
       if (!latestRevisions.length) return [0, []];
       return listWithOverflowCount(prisma.scheduleApproval, {
         where: { status: 'PENDING', OR: latestRevisions },
-        select: { id: true, month: true, status: true, revision: true, changedAt: true, changeType: true, createdAt: true },
+        select: { id: true, month: true, status: true, revision: true, changedByLegacyRef: true, changedAt: true, changeType: true, createdAt: true, approvalNote: true },
         orderBy: [{ changedAt: 'asc' }, { month: 'asc' }, { revision: 'asc' }]
       });
     };
@@ -537,6 +538,7 @@ function createApprovalCenterService({
       }, now, policies.get('ATTENDANCE_ADJUSTMENT_REQUEST')));
     }
 
+    const scheduleApprovalActors = await resolveApprovalActors(prisma, scheduleApprovals.flatMap((row) => [row.changedByLegacyRef]).filter(Boolean));
     for (const row of scheduleApprovals) {
       const monthLabel = new Intl.DateTimeFormat('th-TH', {
         month: 'long',
@@ -550,9 +552,10 @@ function createApprovalCenterService({
         title: `ตารางกะ ${monthLabel} ฉบับที่ ${row.revision}`,
         status: row.status,
         sourcePage: 'approvals',
+        requestedBy: approvalIdentity(row.changedByLegacyRef, scheduleApprovalActors) || { id: null, displayName: null, role: null },
         submittedAt: row.changedAt || row.createdAt,
         revision: row.revision,
-        metadata: { month: row.month, revision: row.revision, changeType: row.changeType || null }
+        metadata: { month: row.month, revision: row.revision, changeType: row.changeType || null, approvalNote: row.approvalNote || null }
       }, now, policies.get('SCHEDULE_APPROVAL')));
     }
 

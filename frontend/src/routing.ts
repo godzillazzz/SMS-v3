@@ -36,7 +36,7 @@ export type RoutePage = keyof typeof PAGE_PATHS;
 export type RouteResolution = { kind: 'page'; page: RoutePage } | { kind: 'not-found'; pathname: string };
 
 export const SETTINGS_SECTIONS = [
-  { id: 'overview', path: 'overview', label: 'ภาพรวม', description: 'สถานะและรายการค่าที่ระบบเปิดให้ดูแล' },
+  { id: 'overview', path: 'overview', label: 'ตั้งค่าระบบ', description: 'สถานะและรายการค่าที่ระบบเปิดให้ดูแล' },
   { id: 'attendance-location', path: 'attendance-location', label: 'การลงเวลาและตำแหน่ง', description: 'นโยบายเวลา GPS และตำแหน่ง' },
   { id: 'leave-policy', path: 'leave-policy', label: 'นโยบายการลา', description: 'ค่าเริ่มต้นและเงื่อนไขคำขอลา' },
   { id: 'leave-types', path: 'leave-types', label: 'ประเภทการลา', description: 'ชื่อและสถานะประเภทการลา' },
@@ -79,7 +79,7 @@ const PAGE_TITLES: Record<RoutePage, string> = {
   employees: 'ข้อมูลพนักงาน',
   licenses: 'ใบอนุญาต รปภ.',
   attendance: 'ลงเวลา',
-  attendanceSupervisor: 'ลงเวลาแทนพนักงาน',
+  attendanceSupervisor: 'ศูนย์ควบคุมการลงเวลา',
   attendanceDevice: 'อุปกรณ์ลงเวลา',
   attendanceHistory: 'ประวัติการลงเวลา',
   employeeSchedule: 'ตารางงาน',
@@ -106,6 +106,10 @@ const PAGE_TITLES: Record<RoutePage, string> = {
 };
 
 const PATH_PAGES = new Map<string, RoutePage>(Object.entries(PAGE_PATHS).map(([page, path]) => [path, page as RoutePage]));
+const LEGACY_APPROVAL_REDIRECTS: Record<string, 'SCHEDULE' | 'LEAVE'> = {
+  [PAGE_PATHS.approvals]: 'SCHEDULE',
+  [PAGE_PATHS.leavePending]: 'LEAVE'
+};
 const PWA_PAGES = new Set<RoutePage>(['attendance', 'attendanceHistory', 'employeeSchedule', 'attendanceDevice', 'leave', 'profile', 'attendanceSupervisor']);
 
 function normalizePath(pathname: string): string {
@@ -117,7 +121,11 @@ export function pageFromPath(pathname: string): RoutePage | null {
   const normalized = normalizePath(pathname);
   if (normalized === SETTINGS_BASE_PATH) return 'settings';
   if (normalized.startsWith(`${SETTINGS_BASE_PATH}/`)) return SETTINGS_SECTION_BY_PATH.has(normalized) ? 'settings' : null;
-  return PATH_PAGES.get(normalized) ?? null;
+  return LEGACY_APPROVAL_REDIRECTS[normalized] ? 'approvalCenter' : PATH_PAGES.get(normalized) ?? null;
+}
+
+export function legacyApprovalRedirectType(pathname: string): 'SCHEDULE' | 'LEAVE' | undefined {
+  return LEGACY_APPROVAL_REDIRECTS[normalizePath(pathname)];
 }
 
 export function pageFromLocation(location: Pick<Location, 'pathname' | 'search'> = window.location): RouteResolution {
