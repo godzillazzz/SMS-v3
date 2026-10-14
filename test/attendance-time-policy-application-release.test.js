@@ -76,11 +76,18 @@ test('workflow pins independent history tools to migration evidence and preserve
   assert(workflow.includes('Auto-rollback to manifest checkpoint'));
   assert(workflow.includes('ATTENDANCE_TIME_POLICY_ARTIFACT=PASS'));
   assert(workflow.includes('Critical UI sentinels: PASS (20/20) base contract'));
-  assert(workflow.includes('ตารางผู้มีอำนาจอนุมัติและกรอบเวลา'));
-  assert(workflow.includes('เกณฑ์ SLA'));
-  assert(!workflow.includes('Approval Authority Matrix / SLA'));
+  const sentinelManifest = JSON.parse(fs.readFileSync('frontend/src/release-runtime-sentinels.json', 'utf8'));
+  assert.equal(sentinelManifest.artifact.length, 8);
+  assert.equal(sentinelManifest.runtime.length, 20);
+  assert.equal(sentinelManifest.attendanceTimePolicy.length, 3);
+  assert(sentinelManifest.artifact.includes('ตารางผู้มีอำนาจอนุมัติและกรอบเวลา'));
+  assert(sentinelManifest.artifact.includes('เกณฑ์ SLA'));
+  assert(workflow.includes('git show "$GITHUB_SHA:frontend/src/release-runtime-sentinels.json"'));
+  assert(workflow.includes("require('./frontend/src/release-runtime-sentinels.json')"));
+  assert(workflow.includes('const sentinels = [...manifest.runtime];'));
+  assert(workflow.includes('...manifest.attendanceTimePolicy'));
+  assert(!workflow.includes("sentinels.push('นโยบายเวลาลงงาน','ผ่อนผันการมาสาย (นาที)','latestCheckInEnabled')"));
   assert(workflow.includes('Attendance Time Policy sentinels: PASS (3/3 additional)'));
-  assert(workflow.includes("sentinels.push('นโยบายเวลาลงงาน','ผ่อนผันการมาสาย (นาที)','latestCheckInEnabled')"));
 });
 test('archived R5-A readiness retains historical Owner approval and immutable policy boundaries', () => {
   const manifest = JSON.parse(fs.readFileSync('.github/releases/r5-a-production-manifest-archive-20261009.json', 'utf8'));

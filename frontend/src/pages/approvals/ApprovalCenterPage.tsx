@@ -57,6 +57,7 @@ type Props = {
   currentEmployeeId?: string;
   refreshKey?: number;
   onChanged(): void;
+  onSummaryLoaded?(summary: unknown): void;
   onOpenEmployeeChange(requestId: string): void;
   onNavigate(item: ApprovalCenterItem): void;
   onLeaveDecision(item: ApprovalCenterItem, action: LeaveDecisionAction): void;
@@ -199,6 +200,7 @@ export function ApprovalCenterPage({
   currentEmployeeId,
   refreshKey = 0,
   onChanged,
+  onSummaryLoaded,
   onOpenEmployeeChange,
   onNavigate,
   onLeaveDecision
@@ -216,7 +218,7 @@ export function ApprovalCenterPage({
   const [rejecting, setRejecting] = useState<ApprovalCenterItem>();
   const [rejectReason, setRejectReason] = useState('');
 
-  const loadQueue = async () => {
+  const loadQueue = async (forceRefresh = false) => {
     setLoading(true);
     setSummaryAvailable(false);
     setError(undefined);
@@ -224,7 +226,7 @@ export function ApprovalCenterPage({
     try {
       const [result, authoritativeSummary] = await Promise.all([
         getApprovalCenter(token),
-        getApprovalCenterSummary(token)
+        getApprovalCenterSummary(token, { forceRefresh })
       ]);
       const next = Array.isArray(result?.data) ? result.data as ApprovalCenterItem[] : [];
       const byType = authoritativeSummary?.summary?.byType;
@@ -237,6 +239,7 @@ export function ApprovalCenterPage({
       });
       setFilter((current) => current === 'ALL' || Number(byType?.[current] || 0) > 0 ? current : 'ALL');
       setSummaryAvailable(true);
+      onSummaryLoaded?.(authoritativeSummary?.summary);
       setSelectedId((current) => next.some((item) => item.id === current) ? current : next[0]?.id || '');
     } catch (cause) {
       setSummaryAvailable(false);
@@ -324,7 +327,7 @@ export function ApprovalCenterPage({
         : 'ปฏิเสธคำขอสำเร็จ และอัปเดตคิวแล้ว');
       setRejecting(undefined);
       setRejectReason('');
-      await loadQueue();
+      await loadQueue(true);
       onChanged();
     } catch (cause) {
       setError(toRequestErrorState(
@@ -443,7 +446,7 @@ export function ApprovalCenterPage({
     aria-label="ศูนย์อนุมัติคำขอ"
   >
     <div className="approval-center-content">
-      <PageHeader kicker="งานที่รอการพิจารณา" title="ศูนย์อนุมัติคำขอ" description="ดูและดำเนินการกับคำขอที่รออนุมัติตามสิทธิ์ของคุณ" className="approval-center-header" actions={<button type="button" disabled={loading} onClick={() => void loadQueue()} className="btn-neutral small-action"><SmsIcon name="refresh" size={16} />รีเฟรชข้อมูล</button>} />
+      <PageHeader kicker="งานที่รอการพิจารณา" title="ศูนย์อนุมัติคำขอ" description="ดูและดำเนินการกับคำขอที่รออนุมัติตามสิทธิ์ของคุณ" className="approval-center-header" actions={<button type="button" disabled={loading} onClick={() => void loadQueue(true)} className="btn-neutral small-action"><SmsIcon name="refresh" size={16} />รีเฟรชข้อมูล</button>} />
 
       {error && <div className="approval-center-alert approval-center-alert--error">
         <RequestErrorContent error={error} />

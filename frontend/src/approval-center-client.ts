@@ -20,8 +20,34 @@ async function approvalCenterRequest(token: string, path: string) {
   return payload;
 }
 
-export async function getApprovalCenterSummary(token: string) {
-  return approvalCenterRequest(token, '/approval-center/summary');
+// One auth scope, bounded memory, and a short lifetime for authoritative counts.
+const SUMMARY_TTL_MS = 2000;
+let summaryEntry: { token: string; expiresAt: number; promise: ReturnType<typeof approvalCenterRequest> } | undefined;
+
+export function invalidateApprovalCenterSummary(): void {
+  summaryEntry = undefined;
+}
+
+export function getApprovalCenterSummary(token: string, options: { forceRefresh?: boolean } = {}) {
+  if (options.forceRefresh) invalidateApprovalCenterSummary();
+  if (summaryEntry?.token === token && summaryEntry.expiresAt > Date.now()) return summaryEntry.promise;
+  const entry = { token, expiresAt: Infinity, promise: approvalCenterRequest(token, '/approval-center/summary') };
+  // Readers of a superseded request follow the new generation too, so a slow
+  // pre-mutation response cannot overwrite freshly refreshed global counts.
+  entry.promise = entry.promise.then(
+    result => summaryEntry !== entry && summaryEntry?.token === token ? summaryEntry.promise : result,
+    error => {
+      if (summaryEntry !== entry && summaryEntry?.token === token) return summaryEntry.promise;
+      throw error;
+    }
+  );
+  summaryEntry = entry;
+  void entry.promise.then(() => {
+    if (summaryEntry === entry) entry.expiresAt = Date.now() + SUMMARY_TTL_MS;
+  }, () => {
+    if (summaryEntry === entry) invalidateApprovalCenterSummary();
+  });
+  return entry.promise;
 }
 
 export async function getApprovalCenter(token: string) {

@@ -1,5 +1,53 @@
 # MASTER HANDOFF
 
+## ACTIVE — R7.1 local follow-up implementation / validation pending (14 October 2026)
+
+Owner scope for this isolated checkout overrides release execution: local edits/tests only; **no commit/push, database, credentials, GitHub, Vercel, or Production access**. Base and unchanged HEAD: `5446095e46e56a7b75fbddb91c27013d0ffda87d` (pinned Integration control). No live release state was refreshed or inferred.
+
+- Implemented semantic dark contrast for quick-action descriptions, rule metrics, profile role and month label; audit action/module/role badges now use semantic foreground/background/border in their base and lazy-loaded dark rules. Source-token contrast calculations pass AA for the inspected dark surfaces; **computed browser rendering is NOT VERIFIED**.
+- Navigation inherits only month/year, plus type when targeting `/app/approvals`; explicit query arguments still apply. Shared auth-scoped summary client deduplicates in-flight/nearby reads, caches completed results for 2 seconds, discards rejected/invalidated generations and supports force refresh; consumers of a superseded in-flight request follow the newer same-auth generation so slow old responses cannot overwrite refreshed counts. Approval mutations invalidate via existing refresh keys; manual page refresh updates global badges through the fetched summary without refreshing unrelated data. List fetching remains.
+- Summary/list emit request-correlated `performance_stage` duration, capped Prisma-call count (1000), allowlisted role and success/error status. Request-local proxies include policy, model and attendance-adjustment raw-query calls. Routes pass `req.requestId`. Concurrency cap, policy, query predicates and API contracts remain unchanged. **These are source/mock call-count measurements, not database query plans, EXPLAIN, or live latency measurements.**
+- `frontend/src/release-runtime-sentinels.json` owns 8 artifact / 20 protected runtime / 3 conditional attendance-policy sentinels. Artifact guard loads it; protected workflow loads it from the dispatched control SHA and validates shape before verifying runtime. Existing authorization, manual dispatch, security, rollback and conditional-extra gates remain. No workflow was dispatched.
+
+Local validation evidence (Node `v24.21.0`; project requires Node 22):
+
+1. `node test/r71-local-contract.test.js`: **3 PASS** actual TS routing/client functions with browser/fetch fixtures and semantic CSS/source contrast; this is not a real browser run. The same tests against the control-SHA source were RED before implementation. Slow-response generation forwarding, cache expiration/rejection, and auth separation are covered.
+2. `npm ci --ignore-scripts --no-audit --no-fund` completed for root and frontend from the lockfiles; no lockfiles changed. `npm run prisma:generate` completed locally without a database connection or migration.
+3. `npm --prefix frontend test -- --run src/routing.test.ts src/approval-center-client.test.ts src/approval-center-v1.test.ts src/r7-theme-contrast.test.ts src/pages/approvals/ApprovalCenterPage.r3.test.tsx src/pages/approvals/ApprovalCenterPage.t07.test.tsx`: **36 PASS**. Full `npm --prefix frontend test`: **162 test files / 969 tests PASS**. `npm --prefix frontend run build` and `npx tsc -b`: **PASS** on Node 24. Generated `frontend/tsconfig.tsbuildinfo` was restored and is not part of the patch.
+4. `node --require /tmp/sms-r71-unit-preload.cjs --test --test-isolation=none test/approval-center.service.test.js test/cfg06-approval-policy.test.js test/approval-identity.test.js test/approval-identity-flow-contract.test.js test/logger.test.js`: **37 PASS** with injected/offline mocked Prisma clients; no DB connection or credential reads. `node --test --test-isolation=none --test-skip-pattern='shell blocks' test/verify-release-artifact.test.js test/r7-protected-production-runtime-sentinels.test.js test/verify-public-runtime.test.js test/release-workflow-syntax.test.js`: **35 PASS**. `node test/r71-local-contract.test.js`: **3 PASS**. Workflow shell blocks, JavaScript syntax, and `git diff --check`: **PASS**.
+5. Full root `npm test -- --test-isolation=none` remains **BLOCKED** after Prisma generation because live Prisma tests require unavailable `DATABASE_URL`; no database access was attempted. Node 22 is not installed and `npx node@22` resolved to the existing Node 24 runtime. Local browser acceptance is **BLOCKED** because Chromium cannot start without host library `libglib-2.0.so.0`.
+6. Latest TDD fix: the Production workflow conditional artifact guard now loads `frontend/src/release-runtime-sentinels.json` and uses `...manifest.attendanceTimePolicy`; the new regression was RED before this fix and release tests are now **35 PASS**.
+7. Independent final read-only review: **PASS_FOR_EXPLICIT_R7.1_SCOPE** with no reproducible implementation blocker. It confirms the dark-theme cascade, routing query behavior, Approval Center dedupe/invalidation/list/instrumentation, and manifest-only artifact/runtime/conditional sentinel contract. Remaining risks are Node 22/browser/environment validation and release provenance because the manifest is intentionally untracked until the reviewed commit.
+8. R7.1-07 Final Sidebar Logo Alignment: changed only `.sidebar-brand .brand-logo` in `frontend/src/styles/visual-fidelity.css`, preserving 38px dimensions and asset while changing `margin-top: 0` to `margin-top: -4px`. This moves only the visible logo upward from the existing branding area; sidebar, navigation, divider, and responsive structure are unchanged. Focused `vf071-owner-brand-fix.test.ts`: **8 PASS**; full frontend Vitest: **162 files / 969 tests PASS**; `tsc -b`, production build, and `git diff --check`: **PASS**. Browser before/after screenshots and computed geometry remain **NOT VERIFIED** because Chromium cannot start without `libglib-2.0.so.0`.
+
+Changed files (all uncommitted; includes new files):
+
+```text
+.github/workflows/deploy-approved-production-v2.yml
+MASTER_HANDOFF.md
+frontend/src/approval-center-client.test.ts
+frontend/src/approval-center-client.ts
+frontend/src/main.tsx
+frontend/src/pages/approvals/ApprovalCenterPage.r3.test.tsx
+frontend/src/pages/approvals/ApprovalCenterPage.tsx
+frontend/src/r7-theme-contrast.test.ts
+frontend/src/release-runtime-sentinels.json
+frontend/src/routing.test.ts
+frontend/src/routing.ts
+frontend/src/styles/audit-compliance.css
+frontend/src/styles/r71-theme-contrast.css
+scripts/ci/verify-release-artifact.js
+src/routes/approval-center.routes.js
+src/services/approval-center.service.js
+test/approval-center.service.test.js
+test/r7-protected-production-runtime-sentinels.test.js
+test/r71-local-contract.test.js
+test/release-workflow-syntax.test.js
+test/verify-release-artifact.test.js
+```
+
+**IMPLEMENTATION STATUS: local patch implemented; standard dependency-backed tests/typecheck/build and browser acceptance remain OPEN.** Next gate: provision approved local dependencies/Node 22, run the focused frontend suite and project build, standard mocked backend suite, and local desktop/mobile browser checks before code acceptance. No schema/migration/index/deployment-setting or business-data change. T39 RLS SQL and live Cron/provider verification remain separate Owner/read-only gates. No release authorization is implied.
+
 ## ACTIVE — Owner standing instruction: one Integration branch + existing Preview DB (12 October 2026)
 
 **This is the newest working-process instruction.** For all future SMS-v3 implementation/integration/diagnostic tasks, reuse **`fix/serverless-database-reliability`**, without routinely creating another Git branch. Root `AGENTS.md` is the permanent CODEX bootstrap contract; it supersedes its former default instruction to create a branch/worktree for each task. Protected `main` is retained for official workflow/PR governance; explain and request an exception only when required by governance or explicit Owner approval. Do not auto-merge a frozen Candidate into Integration or change protected production controls.

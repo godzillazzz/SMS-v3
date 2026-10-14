@@ -145,10 +145,10 @@ describe('Approval Center Command Nexus frontend contracts', () => {
 
   it('uses server byType counts for permission-scoped type filters and retains presentation urgency filters', () => {
     expect(page).toContain("type CategoryFilter = 'ALL' | ApprovalType");
-    expect(page).toContain('getApprovalCenterSummary(token)');
+    expect(page).toContain('getApprovalCenterSummary(token, { forceRefresh })');
     expect(page).toContain('summary.byType?.[id]');
     expect(page).toContain('option.count > 0');
-    expect(page).toContain('getApprovalCenterSummary(token)');
+    expect(page).toContain('getApprovalCenterSummary(token, { forceRefresh })');
     expect(page).not.toContain('Shift Swap');
     expect(page).not.toContain('Secure Vault Access');
     expect(page).toContain('ด่วนที่สุด (Urgent)');

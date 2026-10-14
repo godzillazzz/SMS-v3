@@ -1,5 +1,7 @@
 'use strict';
 
+const { performance } = require('node:perf_hooks');
+const { logger: defaultLogger } = require('../utils/logger');
 const prismaDefault = require('../config/prisma');
 const HttpError = require('../utils/http-error');
 const { leaveTypeDisplayName } = require('./leave-type.service');
@@ -125,8 +127,56 @@ function createApprovalCenterService({
   prisma = prismaDefault,
   clock = () => new Date(),
   attendanceAdjustmentList,
-  approvalPolicyService
+  approvalPolicyService,
+  logger = defaultLogger,
+  measured = false
 } = {}) {
+  // Each request gets its own proxy/counter, including nested policy and raw queries.
+  if (!measured) {
+    const measure = (operation) => async (input) => {
+      let queryCount = 0;
+      const delegates = new WeakMap();
+      const queryMethods = new Set(['findUnique', 'findUniqueOrThrow', 'findFirst', 'findFirstOrThrow', 'findMany', 'count', 'aggregate', 'groupBy', 'create', 'createMany', 'update', 'updateMany', 'upsert', 'delete', 'deleteMany']);
+      const count = () => { queryCount = Math.min(queryCount + 1, 1000); };
+      const client = new Proxy(prisma, {
+        get(target, key) {
+          const value = Reflect.get(target, key);
+          if (typeof value === 'function') {
+            return (...args) => {
+              if (['$queryRaw', '$queryRawUnsafe', '$executeRaw', '$executeRawUnsafe'].includes(key)) count();
+              return value.apply(target, args);
+            };
+          }
+          if (!value || typeof value !== 'object') return value;
+          if (!delegates.has(value)) delegates.set(value, new Proxy(value, {
+            get(delegate, method) {
+              const fn = Reflect.get(delegate, method);
+              if (typeof fn !== 'function') return fn;
+              return (...args) => { if (queryMethods.has(method)) count(); return fn.apply(delegate, args); };
+            }
+          }));
+          return delegates.get(value);
+        }
+      });
+      const startedAt = performance.now();
+      let status = 'success';
+      try {
+        return await createApprovalCenterService({ prisma: client, clock, attendanceAdjustmentList,
+          approvalPolicyService, logger, measured: true })[operation](input);
+      } catch (error) {
+        status = 'error';
+        throw error;
+      } finally {
+        if (input.requestId) logger.info('performance_stage', {
+          requestId: input.requestId, operation: 'approval-center', stage: operation,
+          durationMs: Number((performance.now() - startedAt).toFixed(2)), queryCount,
+          role: ['ADMIN', 'MANAGER', 'SUPERVISOR', 'VIEWER'].includes(String(input.actor?.role).toUpperCase())
+            ? String(input.actor.role).toUpperCase() : 'UNKNOWN', status
+        });
+      }
+    };
+    return { summary: measure('summary'), list: measure('list') };
+  }
   const listAttendanceAdjustments = attendanceAdjustmentList || ((input) => createAttendanceAdjustmentService({ prisma }).list(input));
   const policyService = approvalPolicyService || createApprovalPolicyService({ prismaClient: prisma });
 
@@ -162,7 +212,7 @@ function createApprovalCenterService({
 
     const attendanceAdjustmentTask = async () => {
       if (!allowed('ATTENDANCE_ADJUSTMENT_REQUEST')) return 0;
-      const result = await listAttendanceAdjustments({ actor, status: 'PENDING_APPROVAL', page: 1, pageSize: 1 });
+      const result = await listAttendanceAdjustments({ actor, status: 'PENDING_APPROVAL', page: 1, pageSize: 1 }, prisma);
       return Number(result?.meta?.total || 0);
     };
 
@@ -326,7 +376,7 @@ function createApprovalCenterService({
     };
 
     const attendanceAdjustmentsTask = () => allowed('ATTENDANCE_ADJUSTMENT_REQUEST')
-      ? listAttendanceAdjustments({ actor, status: 'PENDING_APPROVAL', page: 1, pageSize: 100 })
+      ? listAttendanceAdjustments({ actor, status: 'PENDING_APPROVAL', page: 1, pageSize: 100 }, prisma)
       : Promise.resolve({ data: [], meta: { total: 0 } });
     const scheduleApprovalsTask = async () => {
       if (!allowed('SCHEDULE_APPROVAL')) return [0, []];

@@ -4,6 +4,7 @@ const { spawnSync } = require("node:child_process");
 const test = require("node:test");
 const assert = require("node:assert/strict");
 
+const sentinelManifest = require('../frontend/src/release-runtime-sentinels.json');
 const workflowPath = path.join(
   process.cwd(),
   ".github",
@@ -57,7 +58,7 @@ test("Production workflow loads every referenced release-control helper before u
   assert.ok(toolList, "expected the release-control helper loader loop");
   const loaded = new Set(toolList[1].trim().split(/\s+/));
   const referenced = new Set(
-    [...workflow.matchAll(/\/tmp\/sms-release-control-plane\/([A-Za-z0-9-]+\.js)/g)]
+    [...workflow.matchAll(/\/tmp\/sms-release-control-plane\/([A-Za-z0-9-]+\.js)\b/g)]
       .map((match) => match[1]),
   );
 
@@ -123,16 +124,16 @@ test("Production verifier checks native Git provenance and immutable runtime bef
     /verify_public_runtime \"\$EXPECTED_CANONICAL_URL\" CANONICAL_PRODUCTION/,
   );
   assert.match(script, /approval\.status !== 401/);
-  assert.match(script, /ตารางผู้มีอำนาจอนุมัติและกรอบเวลา/);
-  assert.match(script, /เกณฑ์ SLA/);
-  assert.match(script, /การเปลี่ยนแปลงสำคัญ/);
-  assert.match(script, /เปลี่ยนชื่อ/);
-  assert.match(script, /ย้ายหน่วยงาน \/ แผนก/);
-  assert.match(script, /เปลี่ยนตำแหน่ง/);
-  assert.match(script, /Data Retention Center \/ การเก็บรักษาข้อมูล/);
-  assert.match(script, /รัน Cleanup รอบถัดไป/);
-  assert.match(script, /SUPPORT_SITE/);
-  assert.match(script, /ช่วยปฏิบัติงาน/);
+  assert.ok(sentinelManifest.runtime.includes('ตารางผู้มีอำนาจอนุมัติและกรอบเวลา'));
+  assert.ok(sentinelManifest.runtime.includes('เกณฑ์ SLA'));
+  assert.ok(sentinelManifest.runtime.includes('การเปลี่ยนแปลงสำคัญ'));
+  assert.ok(sentinelManifest.runtime.includes('เปลี่ยนชื่อ'));
+  assert.ok(sentinelManifest.runtime.includes('ย้ายหน่วยงาน / แผนก'));
+  assert.ok(sentinelManifest.runtime.includes('เปลี่ยนตำแหน่ง'));
+  assert.ok(sentinelManifest.runtime.includes('Data Retention Center / การเก็บรักษาข้อมูล'));
+  assert.ok(sentinelManifest.runtime.includes('รัน Cleanup รอบถัดไป'));
+  assert.ok(sentinelManifest.runtime.includes('SUPPORT_SITE'));
+  assert.ok(sentinelManifest.runtime.includes('ช่วยปฏิบัติงาน'));
   assert.match(workflow, /Critical UI sentinels: PASS \(20\/20\)/);
 });
 
@@ -152,7 +153,7 @@ test("Production runtime verification includes the G06 Simple Attendance contrac
     "ออฟไลน์พร้อมใช้งาน",
     "รอ ADMIN ยืนยันก่อนนับ",
   ]) {
-    assert.ok(runtime.includes(sentinel), `missing G06 runtime sentinel: ${sentinel}`);
+    assert.ok(sentinelManifest.runtime.includes(sentinel), `missing G06 runtime sentinel: ${sentinel}`);
   }
   assert.match(runtime, /SENTINELS=\$\{sentinels\.length\}/);
   assert.match(workflow, /Critical UI sentinels: PASS \(20\/20\)/);

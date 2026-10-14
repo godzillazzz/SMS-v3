@@ -33,7 +33,8 @@ import { isG06DeviceContextDiagnosticRequested, shouldOpenG06DeviceContextDiagno
 import { readEncryptedBootstrap } from './pages/attendance-simple/attendance-simple-storage';
 import type { SimpleBootstrap } from './pages/attendance-simple/attendance-simple-client';
 import { ROLE_DISPLAY_LABEL, roleDisplayName } from './role-display';
-import { getApprovalCenterSummary } from './approval-center-client';
+import { getApprovalCenterSummary, invalidateApprovalCenterSummary } from './approval-center-client';
+import { approvalCountsFromSummary } from './approval-count-summary';
 import { shouldPollApprovalCenter } from './approval-center-polling';
 import { approvalBadgeText, approvalMenuCount, type ApprovalCountSummary } from './components/approval-count-badge';
 import { ApprovalCenterNotificationButton } from './components/ApprovalCenterNotificationButton';
@@ -115,6 +116,7 @@ import './styles/schedule-roster-ux.css';
 import './styles/layout-foundation.css';
 import './styles/personnel-layout.css';
 import './styles/system-layout-group4.css';
+import './styles/r71-theme-contrast.css';
 
 const DashboardDetailsPage = React.lazy(() => import('./pages/dashboard/DashboardDetailsPage').then((module) => ({ default: module.DashboardDetailsPage })));
 const LicenseTableDocumentColumns = React.lazy(() => import('./components/LicenseDocuments').then((module) => ({ default: module.LicenseTableDocumentColumns })));
@@ -2097,7 +2099,13 @@ function Dashboard() {
     return () => { active = false; };
   }, [activePage, auth.token, auth.user?.role, operationRefresh]);
 
+  const approvalMutationKeys = [operationRefresh, employeeRefresh, approvalCenterRefresh].join(':');
+  const previousApprovalMutationKeys = useRef(approvalMutationKeys);
   useEffect(() => {
+    if (previousApprovalMutationKeys.current !== approvalMutationKeys) {
+      invalidateApprovalCenterSummary();
+      previousApprovalMutationKeys.current = approvalMutationKeys;
+    }
     setApprovalSummary(null);
     if (pwaShell || !auth.token || !APPROVAL_REVIEWER_ROLES.some((role) => role === auth.user?.role) || auth.isViewingAs) {
       setApprovalCountStatus('idle');
@@ -2843,7 +2851,7 @@ function Dashboard() {
         </section>
       );
     }
-    if (activePage === 'approvalCenter' && auth.token && ['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(auth.user?.role || '') && !auth.isViewingAs) return <ApprovalCenterPage token={auth.token} role={auth.user?.role || 'VIEWER'} currentEmployeeId={String(leaveSummary.employeeId || '')} refreshKey={approvalCenterRefresh} onChanged={() => { setApprovalCenterRefresh((value) => value + 1); setEmployeeRefresh((value) => value + 1); setOperationRefresh((value) => value + 1); }} onOpenEmployeeChange={(requestId) => { setEmployeeChangeReviewInitialId(requestId); setEmployeeChangeReviewOpen(true); }} onNavigate={(item) => { if (item.type === 'REGISTRATION_REQUEST') setRegistrationReviewInitialRequestId(item.requestId); setActivePage(item.sourcePage); }} onLeaveDecision={(item, action) => openLeaveDecision({ id: item.requestId, employeeId: item.employee?.id, employeeNameSnapshot: item.employee?.displayName || item.title, departmentSnapshot: item.employee?.department || item.metadata?.department, leaveTypeNameSnapshot: item.metadata?.leaveType, startDate: item.metadata?.startDate, endDate: item.metadata?.endDate, dayCount: item.metadata?.dayCount, reason: item.metadata?.reason, substitute: item.metadata?.substitute, status: item.status }, action)} />;
+    if (activePage === 'approvalCenter' && auth.token && ['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(auth.user?.role || '') && !auth.isViewingAs) return <ApprovalCenterPage token={auth.token} role={auth.user?.role || 'VIEWER'} currentEmployeeId={String(leaveSummary.employeeId || '')} refreshKey={approvalCenterRefresh} onSummaryLoaded={(summary) => { const counts = approvalCountsFromSummary(summary); setApprovalSummary(counts); setApprovalCountStatus(counts ? 'ready' : 'error'); }} onChanged={() => { setApprovalCenterRefresh((value) => value + 1); setEmployeeRefresh((value) => value + 1); setOperationRefresh((value) => value + 1); }} onOpenEmployeeChange={(requestId) => { setEmployeeChangeReviewInitialId(requestId); setEmployeeChangeReviewOpen(true); }} onNavigate={(item) => { if (item.type === 'REGISTRATION_REQUEST') setRegistrationReviewInitialRequestId(item.requestId); setActivePage(item.sourcePage); }} onLeaveDecision={(item, action) => openLeaveDecision({ id: item.requestId, employeeId: item.employee?.id, employeeNameSnapshot: item.employee?.displayName || item.title, departmentSnapshot: item.employee?.department || item.metadata?.department, leaveTypeNameSnapshot: item.metadata?.leaveType, startDate: item.metadata?.startDate, endDate: item.metadata?.endDate, dayCount: item.metadata?.dayCount, reason: item.metadata?.reason, substitute: item.metadata?.substitute, status: item.status }, action)} />;
     if (activePage === 'employees') return <PersonnelDirectoryPage token={auth.token} refreshKey={employeeRefresh} canManage={canManage} role={auth.user?.role || 'VIEWER'} searchValue={search} onSearchValueChange={setSearch} onAdd={() => openEmployeeEditor()} onReviewChanges={() => { if (auth.user?.role === 'ADMIN' && !auth.isViewingAs) { setEmployeeChangeReviewInitialId(undefined); setEmployeeChangeReviewOpen(true); } }} onEdit={openEmployeeEditor} />;
     if (activePage === 'audit') {
       const auditRows = Array.isArray(operationResponse.data) ? operationResponse.data : [];
