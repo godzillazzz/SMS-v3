@@ -60,12 +60,16 @@ async function installFixture(page: Page) {
 }
 
 async function signIn(page: Page, target = '/app') {
-  await page.goto(target);
+  await page.goto('/app');
   await expect(page.locator('#auth-login-form')).toBeVisible();
   await page.locator('#email').fill('r71@example.test');
   await page.locator('#password').fill('synthetic-password');
   await page.locator('#auth-login-form button[type="submit"]').click();
   await expect(page.locator('.app-shell')).toBeVisible({ timeout: 15_000 });
+  if (target !== '/app') {
+    await page.goto(target);
+    await expect(page.locator('.app-shell')).toBeVisible({ timeout: 15_000 });
+  }
 }
 
 function luminance(channel: number) {
@@ -109,7 +113,7 @@ for (const theme of ['light', 'dark'] as const) {
       page.on('pageerror', (error) => errors.push(error.message));
       await signIn(page);
 
-      const logo = page.locator('.sidebar-brand .sms-brand-logo img').filter({ visible: true });
+      const logo = page.locator('.sidebar-brand picture.sms-brand-logo');
       if (viewport.name === 'desktop') {
         await expect(logo).toBeVisible();
         const geometry = await logo.evaluate((element) => {
