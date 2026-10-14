@@ -87,7 +87,7 @@ test('control evidence binds verified GitHub SHA/CI and avoids a self-referentia
   assert.equal(Object.hasOwn(d, 'release_control_sha'), false);
 });
 
-test('R5-B draft remains rejected while R7 release control requires separate Owner dispatch approval', () => {
+test('R5-B draft remains rejected and R7 Owner-approved control still requires protected manual Production dispatch', () => {
   const d = release('r5-b-production-manifest-draft.json');
   assert.equal(d.manifest_state, 'DRAFT_SEPARATE_PRODUCTION_APPROVAL_REQUIRED');
   assert.equal(d.owner_action, 'PENDING_SEPARATE_PRODUCTION_APPROVAL');
@@ -99,9 +99,9 @@ test('R5-B draft remains rejected while R7 release control requires separate Own
   assert.equal(official.release_batch_id, 'R7');
   assert.equal(parsed.commitSha, '1b30ec935fb2fe3ed15c85d74d15245996bff62c');
   assert.equal(parsed.rollbackDeploymentId, 'dpl_HbzTEkJnDsyVrRSvMpmVxSQfRCEV');
-  assert.equal(official.production_dispatch_authorized, false);
-  assert.equal(official.owner_batch_frozen_sha_approval, 'PENDING_SEPARATE_OWNER_PRODUCTION_DECISION');
-  assert.equal(official.release_control_transition_owner_scope, 'R7_DRAFT_CONTROL_ONLY_OWNER_DISPATCH_WITH_PROTECTED_APPROVAL');
+  assert.equal(official.production_dispatch_authorized, true);
+  assert.equal(official.owner_batch_frozen_sha_approval, 'APPROVED_OWNER_DIRECTIVE_20261014');
+  assert.equal(official.release_control_transition_owner_scope, 'R7_OWNER_APPROVED_MANUAL_PROTECTED_DISPATCH_ONLY');
   const previous = release('r6-production-manifest-archive-20261014.json');
   assert.equal(previous.release_batch_id, 'R6');
   assert.equal(previous.commit_sha, '09486d684f2af89a1589ebf8dd11cbeb9f79050b');
