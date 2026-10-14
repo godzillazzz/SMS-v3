@@ -19,8 +19,8 @@
   "source_branch": "fix/serverless-database-reliability",
   "run_migrations": false,
   "owner_action": "APPROVE_PRODUCTION_ONLY",
-  "owner_batch_frozen_sha_approval": "PENDING_SEPARATE_OWNER_PRODUCTION_DECISION",
-  "production_dispatch_authorized": false,
+  "owner_batch_frozen_sha_approval": "APPROVED_OWNER_DIRECTIVE_20261014",
+  "production_dispatch_authorized": true,
   "rollback_policy": "AUTO_ROLLBACK_ON_POST_DEPLOY_VERIFY_FAILURE",
   "database_change_policy": "NO_DATABASE_CHANGES",
   "db_schema_mutation": "NONE",
@@ -49,10 +49,10 @@
   "preview_technical_smoke_artifact_id": 11870693125,
   "preview_authenticated_full_uat_status": "NOT_RUN_CREDENTIAL_OPTIONAL_SMOKE_23_SKIPPED",
   "current_production_ready_metadata": "VERIFIED_VERCEL_READY_SHA_CANONICAL_ALIAS",
-  "production_release_go_no_go": "HOLD_OWNER_PRODUCTION_DECISION_DRAFT_CONTROL_CI_AND_MERGE",
-  "release_control_transition_owner_scope": "R7_DRAFT_CONTROL_ONLY_OWNER_DISPATCH_WITH_PROTECTED_APPROVAL",
+  "production_release_go_no_go": "OWNER_APPROVED_PENDING_EXACT_MERGED_CONTROL_CI_AND_PROTECTED_ENVIRONMENT_REVIEW",
+  "release_control_transition_owner_scope": "R7_OWNER_APPROVED_MANUAL_PROTECTED_DISPATCH_ONLY",
   "release_control_integration_merge_sha": null,
-  "release_control_ci_status": "PENDING_EXACT_DRAFT_HEAD_CI",
+  "release_control_ci_status": "REQUIRE_EXACT_FINAL_MERGED_CONTROL_SHA_SUCCESS",
   "owner_technical_smoke_reference": "https://github.com/godzillazzz/SMS-v3/actions/runs/38513365357",
   "application_exact_sha_ci_reference": "https://github.com/godzillazzz/SMS-v3/actions/runs/38510341274",
   "latest_integration_control_preview_evidence": {
@@ -74,6 +74,6 @@
     "authenticated_role_uat": "NOT_EXECUTED_SKIPPED",
     "production_deployment": "NOT_EXECUTED_R7"
   },
-  "release_control_review_status": "DRAFT_REVIEW_REQUIRED_NO_PRODUCTION_DISPATCH",
+  "release_control_review_status": "OWNER_PRODUCTION_APPROVED_MANUAL_DISPATCH_ONLY",
   "immutable_production_manifest_path": ".github/releases/approved-production.json"
 }
