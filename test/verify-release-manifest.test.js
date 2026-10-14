@@ -197,7 +197,7 @@ test('archived R6 release manifest remains immutable and pinned to the original 
   assert.equal(d.production_dispatch_authorized, true); // Historical R6 owner dispatch authorization, NOT R7.
 });
 
-test('R7 draft release control pins exact Smoke-PASS Integration source and current R6 rollback without Owner dispatch approval', () => {
+test('R7 Owner-approved release control pins exact Smoke-PASS Integration source and R6 rollback; dispatch remains manual', () => {
   const d = JSON.parse(fs.readFileSync('.github/releases/approved-production.json', 'utf8'));
   const v = validateReleaseManifest(d);
   assert.equal(d.release_batch_id, 'R7');
@@ -219,8 +219,10 @@ test('R7 draft release control pins exact Smoke-PASS Integration source and curr
   assert.equal(d.preview_technical_smoke_artifact_leak_count, 0);
   assert.match(d.preview_authenticated_full_uat_status, /NOT_RUN/);
   assert.equal(d.production_canonical_deployment_id_before_release, v.rollbackDeploymentId);
-  assert.equal(d.production_dispatch_authorized, false);
-  assert.equal(d.owner_batch_frozen_sha_approval, 'PENDING_SEPARATE_OWNER_PRODUCTION_DECISION');
+  assert.equal(d.production_dispatch_authorized, true);
+  assert.equal(d.owner_batch_frozen_sha_approval, 'APPROVED_OWNER_DIRECTIVE_20261014');
+  assert.equal(d.release_control_review_status, 'OWNER_PRODUCTION_APPROVED_MANUAL_DISPATCH_ONLY');
+  assert.equal(d.production_release_go_no_go, 'OWNER_APPROVED_PENDING_EXACT_MERGED_CONTROL_CI_AND_PROTECTED_ENVIRONMENT_REVIEW');
   assert.equal(d.release_control_integration_merge_sha, null);
   assert.equal(d.db_schema_mutation, 'NONE');
   assert.equal(d.production_data_mutation, 'NONE');
