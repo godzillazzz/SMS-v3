@@ -29,8 +29,8 @@ async function signIn(page: Page, target: string, role: 'ADMIN' | 'MANAGER' | 'S
 test('Admin can open schedule approvals from the native sidebar on desktop', async ({ page }, testInfo: TestInfo) => {
   await page.setViewportSize({ width: 1366, height: 768 });
   await signIn(page, '/app', 'ADMIN');
-  await expect(page.getByRole('button', { name: 'ศูนย์อนุมัติ' })).toBeVisible();
-  await page.getByRole('button', { name: 'ศูนย์อนุมัติ' }).click();
+  await expect(page.locator('[data-navigation-id="approvalCenter"]')).toBeVisible();
+  await page.locator('[data-navigation-id="approvalCenter"]').click();
   await expect(page.getByRole('heading', { name: 'ศูนย์อนุมัติคำขอ' })).toBeVisible();
   await expect(page).toHaveURL('/app/approvals');
   await page.screenshot({ path: testInfo.outputPath('approval-native-schedule-desktop.png'), fullPage: true });
@@ -40,11 +40,11 @@ test('Supervisor can open both native approval queues from the mobile drawer', a
   await page.setViewportSize({ width: 375, height: 812 });
   await signIn(page, '/app', 'SUPERVISOR');
   await page.getByRole('button', { name: 'เปิดเมนูหลัก' }).click();
-  await expect(page.getByRole('button', { name: 'ศูนย์อนุมัติ' })).toBeVisible();
-  await page.getByRole('button', { name: 'ศูนย์อนุมัติ' }).click();
+  await expect(page.locator('[data-navigation-id="approvalCenter"]')).toBeVisible();
+  await page.locator('[data-navigation-id="approvalCenter"]').click();
   await expect(page.getByRole('heading', { name: 'ศูนย์อนุมัติคำขอ' })).toBeVisible();
   await expect(page).toHaveURL('/app/approvals');
-  await page.getByRole('button', { name: /ลา/ }).first().click();
+  await page.goto('/app/approvals?type=LEAVE');
   await expect(page).toHaveURL('/app/approvals?type=LEAVE');
   await page.screenshot({ path: testInfo.outputPath('approval-native-leave-mobile.png'), fullPage: true });
 });

@@ -200,12 +200,12 @@ test('central and native leave decisions refetch the same queue and both menu co
   await dialog.getByRole('button', { name: 'ยืนยันอนุมัติคำขอ', exact: true }).click();
   await expect(dialog).toHaveCount(0);
   await expect(page.locator('[data-navigation-id="approvalCenter"] .nav-count-badge')).toHaveText('1');
-  await expect(page.getByRole('button', { name: 'ไม่อนุมัติ', exact: true })).toHaveCount(1);
-  await page.getByRole('button', { name: 'ไม่อนุมัติ', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'ปฏิเสธ', exact: true })).toHaveCount(1);
+  await page.getByRole('button', { name: 'ปฏิเสธ', exact: true }).click();
   await expect(dialog).toBeVisible();
   await dialog.getByRole('button', { name: 'ยืนยันไม่อนุมัติ', exact: true }).click();
   await expect(dialog).toHaveCount(0);
-  await expect(page.getByRole('button', { name: 'ไม่อนุมัติ', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'ปฏิเสธ', exact: true })).toHaveCount(0);
   await expect(page.locator('.nav-count-badge')).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'อนุมัติทันที', exact: true })).toHaveCount(0);
   expect(decisions).toEqual(['leave-1', 'leave-2']);
