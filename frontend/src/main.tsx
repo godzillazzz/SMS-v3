@@ -2539,6 +2539,7 @@ function Dashboard() {
       if (request.action === 'return') await api.returnLeaveRequestForCorrection(auth.token, id, reason || '');
       else if (request.action === 'cancel') await api.cancelLeaveRequest(auth.token, id, reason || '');
       else await api.updateLeaveRequest(auth.token, id, { status: request.action === 'approve' ? 'APPROVED' : 'REJECTED' });
+      invalidateApprovalCenter();
       setOperationRefresh((value) => value + 1);
       setApprovalCenterRefresh((value) => value + 1);
       return true;

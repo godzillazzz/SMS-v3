@@ -102,7 +102,9 @@ async function signIn(page: Page) {
   await page.locator('#email').fill('r71@example.test');
   await page.locator('#password').fill('synthetic-password');
   await page.locator('#auth-login-form button[type="submit"]').click();
-  await expect(page.locator('.app-shell')).toBeVisible({ timeout: 15_000 });
+  // The broad two-worker browser suite can queue fixture login behind another worker.
+  // This only stabilizes the post-submit readiness wait; it changes no app behavior.
+  await expect(page.locator('.app-shell')).toBeVisible({ timeout: 30_000 });
 }
 
 // Canvas delegates CSS Color 4 parsing (including alpha) to the browser.

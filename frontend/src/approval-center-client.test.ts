@@ -81,3 +81,20 @@ it('does not cache rejected list reads and protects forced refresh generations',
   expect(fresh).toEqual({ data: ['fresh'] });
   expect(fetcher).toHaveBeenCalledTimes(3);
 });
+
+it('refetches the Approval Center list after a leave-mutation invalidation', async () => {
+  const fetcher = vi.fn()
+    .mockResolvedValueOnce({ ok: true, json: async () => ({ summary: { total: 2 } }) })
+    .mockResolvedValueOnce({ ok: true, json: async () => ({ data: [{ id: 'leave:request-1' }, { id: 'leave:request-2' }] }) })
+    .mockResolvedValueOnce({ ok: true, json: async () => ({ summary: { total: 1 } }) })
+    .mockResolvedValueOnce({ ok: true, json: async () => ({ data: [{ id: 'leave:request-2' }] }) });
+  vi.stubGlobal('fetch', fetcher);
+
+  await Promise.all([getApprovalCenterSummary('reviewer'), getApprovalCenter('reviewer')]);
+  invalidateApprovalCenter();
+  const [summary, list] = await Promise.all([getApprovalCenterSummary('reviewer'), getApprovalCenter('reviewer')]);
+
+  expect(summary).toEqual({ summary: { total: 1 } });
+  expect(list).toEqual({ data: [{ id: 'leave:request-2' }] });
+  expect(fetcher).toHaveBeenCalledTimes(4);
+});

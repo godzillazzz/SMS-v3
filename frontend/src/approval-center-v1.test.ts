@@ -50,8 +50,9 @@ describe('Approval Center Command Nexus frontend contracts', () => {
     expect(main).toContain("{ label: '', items: [");
     expect(main).toContain("{ id: 'approvalCenter', icon: 'bell', label: 'ศูนย์อนุมัติ' }");
     expect(routing).toContain("if (page === 'approvalCenter') return ['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(auth.user?.role || '')");
-    expect(client).toContain("approvalCenterRequest(token, '/approval-center/summary')");
-    expect(client).toContain("approvalCenterRequest(token, '/approval-center?limit=100')");
+    expect(client).toContain("getCachedApprovalCenterRead(token, '/approval-center/summary'");
+    expect(client).toContain("getCachedApprovalCenterRead(token, '/approval-center?limit=100'");
+    expect(client).toContain('export function invalidateApprovalCenter(): void');
   });
 
   it('keeps native review entry points for every currently actionable approval source', () => {
