@@ -11,3 +11,7 @@
 .app-shell:not(.pwa-shell) .sidebar-brand{justify-content:center}
 .app-shell:not(.pwa-shell) .sidebar-brand>.sms-brand-logo{width:150px;height:58px;max-width:100%}
 .app-shell:not(.pwa-shell) .sidebar-brand>.sms-brand-logo img{width:100%;height:100%}
+@media(min-width:1025px){
+  /* R7.1-07: keep the rendered horizontal picture above the branding divider. */
+  .app-shell:not(.pwa-shell) .sidebar-brand>.sms-brand-logo{margin-top:-10px}
+}

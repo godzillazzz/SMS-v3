@@ -75,6 +75,9 @@ describe('G04.2 VF-07.1 Owner brand + login hero correction', () => {
     expect(css).toMatch(/\.brand-logo \{[\s\S]*?display: block;[\s\S]*?object-fit: contain;[\s\S]*?transform: scale\(\.74\);/);
     expect(css).toMatch(/\.sidebar-brand \.brand-logo \{[\s\S]*?width: 38px;[\s\S]*?height: 38px;[\s\S]*?flex-basis: 38px;[\s\S]*?margin-top: -4px;/);
     expect(css).toContain('R7.1-07: keep the visible horizontal mark above the branding divider.');
+    const logoCss = read('components/brand-logo.css');
+    expect(logoCss).toContain('.app-shell:not(.pwa-shell) .sidebar-brand>.sms-brand-logo{margin-top:-10px}');
+    expect(logoCss).toContain('R7.1-07: keep the rendered horizontal picture above the branding divider.');
     expect(css).toMatch(/\.auth-brand \.brand-logo \{[\s\S]*?width: 44px;[\s\S]*?height: 44px;/);
   });
   it('locks the authorized API source after T25 cross-tab refresh coordination', () => {

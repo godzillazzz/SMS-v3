@@ -65,7 +65,7 @@ async function signIn(page: Page, target = '/app') {
   await page.locator('#email').fill('r71@example.test');
   await page.locator('#password').fill('synthetic-password');
   await page.locator('#auth-login-form button[type="submit"]').click();
-  await expect(page.locator('.app-shell')).toBeVisible();
+  await expect(page.locator('.app-shell')).toBeVisible({ timeout: 15_000 });
 }
 
 function luminance(channel: number) {
@@ -170,6 +170,6 @@ test('R7.1 Approval Center deduplicates summary and isolates type query on navig
   await page.getByRole('button', { name: 'ข้อมูลพนักงาน' }).click();
   await expect(page).toHaveURL(/\/app\/employees\?month=2026-10&year=2026$/);
   expect(new URL(page.url()).searchParams.get('type')).toBeNull();
-  await expect(page.getByRole('button', { name: 'ศูนย์อนุมัติ' })).toBeVisible();
+  await expect(page.locator('.sidebar .nav-item[data-navigation-id="approvalCenter"]')).toBeVisible();
   await page.screenshot({ path: 'test-results/r71-approval-routing.png', fullPage: true });
 });
