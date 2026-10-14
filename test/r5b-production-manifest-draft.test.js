@@ -87,7 +87,7 @@ test('control evidence binds verified GitHub SHA/CI and avoids a self-referentia
   assert.equal(Object.hasOwn(d, 'release_control_sha'), false);
 });
 
-test('R5-B draft is still rejected, while staged official R5-B decision payload remains non-dispatch-authorized', () => {
+test('R5-B draft is still rejected, while the staged R6 official decision awaits protected environment approval', () => {
   const d = release('r5-b-production-manifest-draft.json');
   assert.equal(d.manifest_state, 'DRAFT_SEPARATE_PRODUCTION_APPROVAL_REQUIRED');
   assert.equal(d.owner_action, 'PENDING_SEPARATE_PRODUCTION_APPROVAL');
@@ -96,12 +96,12 @@ test('R5-B draft is still rejected, while staged official R5-B decision payload 
   assert.throws(() => validateReleaseManifest(d), /manifest_state is not approved/);
   const official = release('approved-production.json');
   const parsed = validateReleaseManifest(official);
-  assert.equal(official.release_batch_id, 'R5-B');
-  assert.equal(parsed.commitSha, d.commit_sha);
-  assert.equal(parsed.treeSha, d.tree_sha);
-  assert.equal(official.production_dispatch_authorized, false);
-  assert.equal(official.owner_batch_frozen_sha_approval, 'PENDING_NOT_AUTHORIZED');
-  assert.equal(official.release_control_transition_owner_scope, 'RELEASE_CONTROL_PREPARATION_ONLY_NO_PRODUCTION_DISPATCH');
+  assert.equal(official.release_batch_id, 'R6');
+  assert.equal(parsed.commitSha, official.commit_sha);
+  assert.equal(parsed.treeSha, official.tree_sha);
+  assert.equal(official.production_dispatch_authorized, true);
+  assert.equal(official.owner_batch_frozen_sha_approval, 'APPROVED_OWNER_DIRECTIVE_20261014');
+  assert.equal(official.release_control_transition_owner_scope, 'R6_RELEASE_CONTROL_PR_AND_DISPATCH_WITH_PROTECTED_ENVIRONMENT_APPROVAL');
   const archived = release('r5-a-production-manifest-archive-20261009.json');
   assert.equal(archived.release_batch_id, 'R5-A');
   assert.equal(archived.production_dispatch_authorized, false);
