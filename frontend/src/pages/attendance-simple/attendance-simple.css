@@ -48,7 +48,7 @@
 .attendance-simple__clock span { font-size:30px; font-weight:850; line-height:1.18; }
 .attendance-simple__clock small { color:#60758a; font-size:12px; font-weight:650; line-height:1.4; }
 .attendance-simple__clock:disabled { opacity:1; cursor:not-allowed; box-shadow:none; }
-.app-shell:not(.pwa-shell) .attendance-simple .attendance-simple__clock:disabled { background:#e7eef6; border-color:#a1b2c2; }
+.app-shell:not(.pwa-shell) .attendance-simple .attendance-simple__clock:disabled { background:var(--color-surface-muted); border-color:var(--color-border-strong); color:var(--color-text-muted); }
 .app-shell:not(.pwa-shell) .attendance-simple .attendance-simple__clock:disabled small { color:#465f76; }
 .app-shell.pwa-shell .attendance-simple .attendance-simple__clock:disabled { background:#0f1d2a; background-color:#0f1d2a; border-color:#607b90; color:#e8f0f8; }
 .attendance-simple__disabled-guidance { display:grid; justify-items:start; gap:8px; width:100%; padding:12px 14px; border:1px solid #315168; border-radius:12px; background:#091b29; }
@@ -122,7 +122,7 @@
 [data-theme="light"] .app-shell:not(.pwa-shell) .attendance-simple__assurance b { color:#1e293b; }
 [data-theme="light"] .app-shell:not(.pwa-shell) .attendance-simple__assurance span { color:#475569; }
 [data-theme="light"] .app-shell:not(.pwa-shell) .attendance-simple__clock { box-shadow:0 8px 24px rgba(0,76,178,.16),inset 0 -18px 0 rgba(18,102,221,.08); }
-[data-theme="light"] .app-shell:not(.pwa-shell) .attendance-simple__clock:disabled { background:#e7eef6; border-color:#a1b2c2; }
+[data-theme="light"] .app-shell:not(.pwa-shell) .attendance-simple__clock:disabled { background:var(--color-surface-muted); border-color:var(--color-border-strong); color:var(--color-text-muted); }
 [data-theme="light"] .app-shell:not(.pwa-shell) .attendance-simple__clock:disabled small { color:#465f76; }
 [data-theme="light"] .app-shell:not(.pwa-shell) .attendance-simple__disabled-guidance { border-color:#b8c9da; background:#f8fafc; }
 [data-theme="light"] .app-shell:not(.pwa-shell) .attendance-simple__disabled-guidance p { color:#334155; }
