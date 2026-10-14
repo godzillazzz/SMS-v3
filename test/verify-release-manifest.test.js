@@ -197,32 +197,44 @@ test('archived R6 release manifest remains immutable and pinned to the original 
   assert.equal(d.production_dispatch_authorized, true); // Historical R6 owner dispatch authorization, NOT R7.
 });
 
-test('R7 Owner-approved release control pins exact Smoke-PASS Integration source and R6 rollback; dispatch remains manual', () => {
+test('superseded R7 Production manifest preserves failed-run source and legacy authorization as historical evidence', () => {
+  const old = JSON.parse(fs.readFileSync('.github/releases/r7-production-manifest-superseded-failed-20261014.json', 'utf8'));
+  const v = validateReleaseManifest(old);
+  assert.equal(v.commitSha, '1b30ec935fb2fe3ed15c85d74d15245996bff62c');
+  assert.equal(v.treeSha, 'f9cb01e5ff6681bff5491132af27125d61358187');
+  assert.equal(old.preview_technical_smoke_run_id, 38513365357);
+  assert.equal(old.owner_batch_frozen_sha_approval, 'APPROVED_OWNER_DIRECTIVE_20261014');
+  assert.equal(v.rollbackDeploymentId, 'dpl_HbzTEkJnDsyVrRSvMpmVxSQfRCEV');
+});
+
+test('R7 new Owner-approved Application SHA preserves exact-smoke and manual-only Production controls', () => {
   const d = JSON.parse(fs.readFileSync('.github/releases/approved-production.json', 'utf8'));
   const v = validateReleaseManifest(d);
   assert.equal(d.release_batch_id, 'R7');
-  assert.equal(v.releaseId, 'sms-v3-prod-1b30ec935fb2-20261014');
-  assert.equal(v.commitSha, '1b30ec935fb2fe3ed15c85d74d15245996bff62c');
-  assert.equal(v.treeSha, 'f9cb01e5ff6681bff5491132af27125d61358187');
+  assert.equal(v.releaseId, 'sms-v3-prod-3cde5a61581c-20261014');
+  assert.equal(v.commitSha, '3cde5a61581c6239697dfb0cfb2fa5510ec8a239');
+  assert.equal(v.treeSha, 'a009330394d04e0db8ef9c961177483c871a3d25');
   assert.equal(v.currentProductionSourceSha, '09486d684f2af89a1589ebf8dd11cbeb9f79050b');
   assert.equal(v.rollbackDeploymentId, 'dpl_HbzTEkJnDsyVrRSvMpmVxSQfRCEV');
   assert.equal(v.runMigrations, false);
   assert.equal(v.databaseChangePolicy, 'NO_DATABASE_CHANGES');
   assert.equal(d.preview_github_commit_sha, v.commitSha);
-  assert.equal(d.preview_deployment_id, 'dpl_6xzXLhFoCKC531AvN9BoZx7o2uLb');
-  assert.equal(d.application_exact_sha_ci_run_id, 38510341274);
-  assert.equal(d.preview_technical_smoke_run_id, 38513365357);
+  assert.equal(d.preview_deployment_id, 'dpl_8rrGCJLGNrAnsYo87kDDAYCXXRPm');
+  assert.equal(d.application_exact_sha_ci_run_id, 38518813007);
+  assert.equal(d.application_exact_sha_ci_status, 'SUCCESS');
+  assert.equal(d.preview_technical_smoke_run_id, 38522672163);
   assert.equal(d.preview_technical_smoke_status, 'SUCCESS');
   assert.equal(d.preview_technical_smoke_passed, 11);
   assert.equal(d.preview_technical_smoke_failed, 0);
   assert.equal(d.preview_technical_smoke_skipped, 23);
   assert.equal(d.preview_technical_smoke_artifact_leak_count, 0);
+  assert.equal(d.preview_technical_smoke_artifact_id, 11874670698);
   assert.match(d.preview_authenticated_full_uat_status, /NOT_RUN/);
   assert.equal(d.production_canonical_deployment_id_before_release, v.rollbackDeploymentId);
-  assert.equal(d.production_dispatch_authorized, true);
-  assert.equal(d.owner_batch_frozen_sha_approval, 'APPROVED_OWNER_DIRECTIVE_20261014');
-  assert.equal(d.release_control_review_status, 'OWNER_PRODUCTION_APPROVED_MANUAL_DISPATCH_ONLY');
-  assert.equal(d.production_release_go_no_go, 'OWNER_APPROVED_PENDING_EXACT_MERGED_CONTROL_CI_AND_PROTECTED_ENVIRONMENT_REVIEW');
+  assert.equal(d.production_dispatch_authorized, true); // Requires separately authorized manual workflow dispatch.
+  assert.equal(d.owner_batch_frozen_sha_approval, 'APPROVED_OWNER_R7_NEW_FROZEN_SHA_3CDE5A61581C_20261014');
+  assert.equal(d.release_control_review_status, 'OWNER_NEW_APP_SHA_APPROVED_MANUAL_DISPATCH_ONLY');
+  assert.equal(d.production_release_go_no_go, 'OWNER_APPROVED_NEW_APP_SHA_PENDING_EXACT_MERGED_CONTROL_CI_AND_PROTECTED_ENVIRONMENT_REVIEW');
   assert.equal(d.release_control_integration_merge_sha, null);
   assert.equal(d.db_schema_mutation, 'NONE');
   assert.equal(d.production_data_mutation, 'NONE');
