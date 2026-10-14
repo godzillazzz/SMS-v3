@@ -5,3 +5,9 @@
 :root[data-theme=dark] .sms-brand-logo[data-tone=auto] .sms-brand-logo__dark,.sms-brand-logo[data-tone=dark-surface] .sms-brand-logo__dark{display:block}
 .mobile-brand .sms-brand-logo,.pwa-mobile-brand .sms-brand-logo,.auth-mobile-brand .sms-brand-logo{height:32px}
 @media(max-width:760px){.nexus-brand .sms-brand-logo{height:32px}}
+
+/* R7 T35: the desktop navigation owns a wider horizontal mark.  Keep the
+   mobile header, PWA shell and public/login surfaces on their existing sizes. */
+.app-shell:not(.pwa-shell) .sidebar-brand{justify-content:center}
+.app-shell:not(.pwa-shell) .sidebar-brand>.sms-brand-logo{width:150px;height:58px;max-width:100%}
+.app-shell:not(.pwa-shell) .sidebar-brand>.sms-brand-logo img{width:100%;height:100%}
