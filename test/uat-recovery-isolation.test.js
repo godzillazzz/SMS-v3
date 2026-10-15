@@ -3,6 +3,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const crypto = require('node:crypto');
+const Module = require('node:module');
 const { verifyRuntimeIsolation } = require('../e2e/uat-v3/database-isolation');
 const { verifyTrust, verifyHostedGovernance, paths } = require('../scripts/ci/verify-uat-v3-trust');
 const { parseAndNormalize } = require('../src/utils/database-target-identity');
@@ -31,6 +32,64 @@ test('actual runtime guard computes logical target and rejects a format-valid wr
   const changed = { ...synthetic, DATABASE_URL: synthetic.DATABASE_URL.replaceAll('synthetic-project', 'other-project'), DIRECT_URL: synthetic.DIRECT_URL.replaceAll('synthetic-project', 'other-project'), APPROVED_PREVIEW_DATABASE_TARGET_FINGERPRINT: fingerprint };
   assert.throws(() => verifyPreviewDatabaseTarget(changed));
 });
+
+function loadPrismaWithRuntimeEnv(runtimeEnv) {
+  const modulePath = require.resolve('../src/config/prisma');
+  const cachedModule = require.cache[modulePath];
+  const keys = ['VERCEL_ENV', 'DATABASE_URL', 'DIRECT_URL', 'APPROVED_PREVIEW_DATABASE_TARGET_FINGERPRINT', 'NODE_ENV'];
+  const previousEnv = Object.fromEntries(keys.map((key) => [key, process.env[key]]));
+  const originalLoad = Module._load;
+  let constructorCount = 0;
+  class StubPrismaClient {
+    constructor(options) { constructorCount++; this.options = options; }
+    $on() {}
+  }
+
+  try {
+    for (const key of keys) {
+      if (Object.prototype.hasOwnProperty.call(runtimeEnv, key)) process.env[key] = runtimeEnv[key];
+      else delete process.env[key];
+    }
+    delete require.cache[modulePath];
+    Module._load = function loadWithStub(request, parent, isMain) {
+      if (request === '@prisma/client') return { PrismaClient: StubPrismaClient };
+      return originalLoad.call(this, request, parent, isMain);
+    };
+    let client;
+    let error;
+    try { client = require(modulePath); } catch (caught) { error = caught; }
+    return { client, error, constructorCount };
+  } finally {
+    Module._load = originalLoad;
+    delete require.cache[modulePath];
+    if (cachedModule) require.cache[modulePath] = cachedModule;
+    for (const key of keys) {
+      if (previousEnv[key] === undefined) delete process.env[key];
+      else process.env[key] = previousEnv[key];
+    }
+  }
+}
+
+test('Prisma runtime blocks Preview without a matching fingerprint before client creation and leaves Production unchanged', () => {
+  const missing = { ...synthetic };
+  delete missing.APPROVED_PREVIEW_DATABASE_TARGET_FINGERPRINT;
+  const missingResult = loadPrismaWithRuntimeEnv(missing);
+  assert.equal(missingResult.error?.code, 'PREVIEW_DATABASE_TARGET_GUARD_FAILED');
+  assert.equal(missingResult.constructorCount, 0);
+
+  const wrongResult = loadPrismaWithRuntimeEnv({ ...synthetic, APPROVED_PREVIEW_DATABASE_TARGET_FINGERPRINT: 'b'.repeat(64) });
+  assert.equal(wrongResult.error?.code, 'PREVIEW_DATABASE_TARGET_GUARD_FAILED');
+  assert.equal(wrongResult.constructorCount, 0);
+
+  const approvedResult = loadPrismaWithRuntimeEnv({ ...synthetic, APPROVED_PREVIEW_DATABASE_TARGET_FINGERPRINT: fingerprint });
+  assert.equal(approvedResult.error, undefined);
+  assert.equal(approvedResult.constructorCount, 1);
+
+  const productionResult = loadPrismaWithRuntimeEnv({ ...synthetic, VERCEL_ENV: 'production' });
+  assert.equal(productionResult.error, undefined);
+  assert.equal(productionResult.constructorCount, 1);
+});
+
 test('runtime binding requires actual immutable-deployment fingerprint, Preview runtime, distinct Production and readiness', () => {
   const deployment = { env: { VERCEL_ENV: 'preview', APPROVED_PREVIEW_DATABASE_TARGET_FINGERPRINT: fingerprint } };
   assert.equal(verifyRuntimeIsolation(target, deployment, ready).approvedFingerprintMatch, true);

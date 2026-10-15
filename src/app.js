@@ -36,7 +36,7 @@ async function readiness(req, res, next) {
   try {
     await prisma.$queryRaw`SELECT 1`;
     logger.info('readiness_check', { requestId: req.requestId, status: 200, durationMs: Number(process.hrtime.bigint() - startedAt) / 1e6 });
-    return res.json({ status: 'ready', requestId: req.requestId });
+    return res.json({ status: 'ready', database: 'ok', requestId: req.requestId });
   } catch (error) {
     logger.error('readiness_failure', { requestId: req.requestId, status: 503, errorCategory: errorCategory(error) });
     error.statusCode = 503;
