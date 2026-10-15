@@ -97,11 +97,17 @@ BEGIN
   INTO exposed_function_count
   FROM pg_catalog.pg_proc p
   JOIN pg_catalog.pg_namespace n ON n.oid = p.pronamespace
+  CROSS JOIN LATERAL pg_catalog.aclexplode(
+    coalesce(p.proacl, acldefault('f', p.proowner))
+  ) acl
   WHERE n.nspname = 'public'
+    AND acl.privilege_type = 'EXECUTE'
     AND (
-      has_function_privilege('anon', p.oid, 'EXECUTE')
-      OR has_function_privilege('authenticated', p.oid, 'EXECUTE')
-      OR has_function_privilege('PUBLIC', p.oid, 'EXECUTE')
+      acl.grantee = 0
+      OR acl.grantee IN (
+        SELECT oid FROM pg_catalog.pg_roles
+        WHERE rolname IN ('anon', 'authenticated')
+      )
     );
 
   SELECT count(*)::integer
