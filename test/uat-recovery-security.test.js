@@ -84,6 +84,12 @@ test('application source contract rejects missing or drifted guards and navigati
   assert.throws(() => validateApplicationSourceContract('/nonexistent/application'), { code: 'UAT_APPLICATION_SOURCE_REQUIRED' });
   if (process.env.UAT_APPLICATION_ROOT) {
     assert.doesNotThrow(() => validateApplicationSourceContract(process.env.UAT_APPLICATION_ROOT));
+    const matrix = require('../e2e/uat-v3/role-matrix');
+    const driftedMatrix = {
+      getRoleActionMatrix: (role) => matrix.getRoleActionMatrix(role).map((action) => role === 'SUPERVISOR' && action.path === '/api/v1/schedule/approve-month' ? { ...action, guard: 'authorize ADMIN', expectedStatus: 403 } : action),
+      getRoleNavigationContract: matrix.getRoleNavigationContract
+    };
+    assert.throws(() => validateApplicationSourceContract(process.env.UAT_APPLICATION_ROOT, driftedMatrix), { code: 'UAT_APPLICATION_SOURCE_CONTRACT_INVALID' });
     const fixture = fs.mkdtempSync(path.join(os.tmpdir(), 'uat-source-contract-'));
     fs.cpSync(process.env.UAT_APPLICATION_ROOT, fixture, { recursive: true });
     const route = path.join(fixture, 'src/routes/schedules.routes.js');
