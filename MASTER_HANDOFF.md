@@ -1,5 +1,22 @@
 # MASTER HANDOFF
 
+## ACTIVE — R7.1 PRODUCTION CLOSED / LIVE — 15 October 2026 (Asia/Bangkok)
+
+**R7.1 release is CLOSED and LIVE in Production.** This checkpoint supersedes all older R7/R7.1 release-pending statements below. Remaining T/P/security/UAT work is post-release backlog and does not reopen R7.1 unless a verified Production defect is found.
+
+- Application SHA: `d126f9bbe08486370f8841c7863676f909a3af4a` (PR #633 merge).
+- Production control/dispatch SHA: `b96a66edd60fcca69705ec702b2b3cd58c12685f`.
+- Governed Production workflow: `Deploy Approved Production Manifest V2`, run `38665726892`, attempt 1 — **SUCCESS**.
+- New Production deployment: `dpl_4NX1LSXgikNXs2jeWoGBN4RscvzF` — **READY**, target `production`, exact Git SHA/ref/project verified.
+- Canonical URL `https://sms-v3-staging-ten.vercel.app` currently resolves to `dpl_4NX1LSXgikNXs2jeWoGBN4RscvzF`.
+- Rollback checkpoint retained: `dpl_A4BhvDDmshskt75VK36wY5oi33N3` (previous good Production).
+- Release manifest policy: `run_migrations=false`, `NO_DATABASE_CHANGES`, no Production environment/secret mutation.
+- Protected workflow gates passed: manifest/source/tree/ancestry, exact-SHA CI evidence, Attendance schema read-only revalidation, Vercel linkage/control-plane/database target, CORS baseline, rollback checkpoint, Production build + runtime sentinels, immutable candidate, explicit promotion, canonical post-deploy verification.
+- Automatic rollback was **not invoked** because post-deploy verification passed.
+- R7/R7.1 delivered scope includes T34–T38 and the R7.1 corrective work for theme contrast, routing isolation, Approval Center request dedupe/invalidation/performance instrumentation, and release-sentinel fail-closed validation.
+
+**R7.1 closeout disposition:** no further R7.1 implementation or release action is required. Final authenticated/business/physical UAT, T08, T18/T22/T24 performance evidence, T20, T39/RLS/Preview isolation and legacy PR/branch cleanup remain separate post-release workstreams.
+
 ## ACTIVE — R7.1 corrective cycle at frozen review HEAD (14 October 2026)
 
 Current local source HEAD remains `5cef6e6a5e2cde6666735480c88ccf0be091b567`. Owner scope: existing checkout only, uncommitted edits and local tests; no commit, push, CI dispatch, merge, deployment, Production, database, schema, migrations, RLS, auth-policy, secret or unrelated-file changes. No external runtime/release state was inspected or inferred.
