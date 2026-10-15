@@ -200,8 +200,8 @@ test('canonical Production deployment requires READY production source provenanc
 });
 test('canonical Production aliases must converge on one expected project deployment',async()=>{
   const api={vercel:async path=>{
-    for (const name of EXPECTED.aliases) if(path.endsWith('/v4/aliases/'+name)) return alias(name);
-    if(path.endsWith('/v13/deployments/'+PRODUCTION_DEPLOYMENT_ID)) return productionDeployment();
+    for (const name of EXPECTED.aliases) if(path.endsWith('v4/aliases/'+name)) return alias(name);
+    if(path.endsWith('v13/deployments/'+PRODUCTION_DEPLOYMENT_ID)) return productionDeployment();
     throw Error('unexpected '+path);
   }};
   const out=await resolveCanonicalProduction(api);
@@ -209,14 +209,14 @@ test('canonical Production aliases must converge on one expected project deploym
   assert.equal(out.applicationSha,PRODUCTION_SHA);
 
   const divergent={vercel:async path=>{
-    if(path.endsWith('/v4/aliases/'+EXPECTED.aliases[0])) return alias(EXPECTED.aliases[0]);
-    if(path.endsWith('/v4/aliases/'+EXPECTED.aliases[1])) return alias(EXPECTED.aliases[1],'dpl_OtherProduction');
+    if(path.endsWith('v4/aliases/'+EXPECTED.aliases[0])) return alias(EXPECTED.aliases[0]);
+    if(path.endsWith('v4/aliases/'+EXPECTED.aliases[1])) return alias(EXPECTED.aliases[1],'dpl_OtherProduction');
     throw Error('unexpected '+path);
   }};
   await assert.rejects(()=>resolveCanonicalProduction(divergent),/PRODUCTION_ALIAS_DIVERGENCE/);
 
   const wrongProject={vercel:async path=>{
-    if(path.includes('/v4/aliases/')) {
+    if(path.includes('v4/aliases/')) {
       const name=path.split('/').at(-1);
       return {...alias(name),projectId:'prj_wrong'};
     }
