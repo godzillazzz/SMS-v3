@@ -47,7 +47,7 @@ test('R7 recovery draft retains R6 rollback and forbids data/migration/environme
   assert.equal(d.production_cors_config_changed, 'NO');
 });
 
-test('draft fails closed; prior Owner approval cannot be transferred to a different R7 source SHA', () => {
+test('draft fails closed; prior R7 approval cannot be transferred to the current R7.1 source SHA', () => {
   const d = load('r7-sentinel-recovery-production-draft-20261014.json');
   assert.equal(d.manifest_state, 'DRAFT_SEPARATE_PRODUCTION_APPROVAL_REQUIRED');
   assert.equal(d.owner_action, 'PENDING_SEPARATE_PRODUCTION_APPROVAL');
@@ -55,15 +55,18 @@ test('draft fails closed; prior Owner approval cannot be transferred to a differ
   assert.equal(d.production_dispatch_authorized, false);
   assert.match(d.production_release_go_no_go, /^NO_GO/);
   assert.throws(() => validateReleaseManifest(d), /manifest_state is not approved/);
+
   const original = load('r7-production-manifest-superseded-failed-20261014.json');
   assert.notEqual(original.commit_sha, app);
   assert.equal(original.commit_sha, '1b30ec935fb2fe3ed15c85d74d15245996bff62c');
   assert.equal(original.rollback_deployment_id, rollback);
-  const authorized = load('approved-production.json');
-  assert.equal(authorized.commit_sha, app);
-  assert.equal(authorized.tree_sha, tree);
-  assert.equal(authorized.owner_batch_frozen_sha_approval, 'APPROVED_OWNER_R7_NEW_FROZEN_SHA_3CDE5A61581C_20261014');
-  assert.equal(authorized.production_dispatch_authorized, true);
-  assert.equal(authorized.rollback_deployment_id, rollback);
-  assert.equal(validateReleaseManifest(authorized).commitSha, app);
+
+  const current = load('approved-production.json');
+  const validated = validateReleaseManifest(current);
+  assert.equal(current.release_batch_id, 'R7.1');
+  assert.equal(validated.commitSha, 'd126f9bbe08486370f8841c7863676f909a3af4a');
+  assert.equal(validated.currentProductionSourceSha, app);
+  assert.equal(validated.rollbackDeploymentId, 'dpl_A4BhvDDmshskt75VK36wY5oi33N3');
+  assert.equal(current.production_dispatch_authorized, false);
+  assert.equal(current.production_release_go_no_go, 'OWNER_PRODUCTION_DECISION_REQUIRED_NO_DISPATCH_AUTHORIZED');
 });
