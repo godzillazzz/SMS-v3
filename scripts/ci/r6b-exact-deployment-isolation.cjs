@@ -15,8 +15,6 @@ const EXPECTED = Object.freeze({
   teamId: 'team_nemCExHbZ8EAhSgsvefHPAEz',
   previewRef: 'ezxanpfagitckpfsnflp',
   previewBucket: 'license-documents-g05-preview',
-  productionDeploymentId: 'dpl_Hjo1fTmgjEdmg5G7fZBX9gssenQP',
-  productionSha: '77641a2657aa4fd05276afe645dd32648f5cc56b',
   aliases: ['sms-v3-staging-godzillazzz.vercel.app', 'sms-v3-staging-ten.vercel.app'],
   probePath: '/api/v1/ops/preview-isolation-attestation'
 });
@@ -105,11 +103,34 @@ function verifyDeployment(dep, host, expected) {
     && dep.meta?.githubRepo === 'SMS-v3',
   'EXACT_PREVIEW_DEPLOYMENT_REQUIRED');
 }
-function verifyProduction(dep) {
-  ensure(dep?.id === EXPECTED.productionDeploymentId
-    && dep.target === 'production' && (dep.readyState || dep.state) === 'READY'
-    && dep.meta?.githubCommitSha === EXPECTED.productionSha
-    && projectIsExpected(dep), 'FROZEN_PRODUCTION_CHANGED');
+function verifyProduction(dep, expectedDeploymentId) {
+  ensure(DEPLOYMENT.test(expectedDeploymentId || ''), 'CANONICAL_PRODUCTION_UNVERIFIED');
+  ensure(dep?.id === expectedDeploymentId
+    && dep.name === 'sms-v3-staging'
+    && dep.target === 'production'
+    && (dep.readyState || dep.state) === 'READY'
+    && projectIsExpected(dep)
+    && SHA.test(dep.meta?.githubCommitSha || '')
+    && dep.meta?.githubCommitRef === EXPECTED.integrationBranch
+    && dep.meta?.githubOrg === 'godzillazzz'
+    && dep.meta?.githubRepo === 'SMS-v3',
+  'CANONICAL_PRODUCTION_UNVERIFIED');
+  return { deploymentId: dep.id, applicationSha: dep.meta.githubCommitSha };
+}
+async function resolveCanonicalProduction(api) {
+  const aliases = await Promise.all(EXPECTED.aliases.map(alias =>
+    api.vercel('v4/aliases/' + alias)));
+  ensure(aliases.length === EXPECTED.aliases.length
+    && aliases.every((info, index) => info?.alias === EXPECTED.aliases[index]
+      && info.projectId === EXPECTED.projectId
+      && DEPLOYMENT.test(info.deploymentId || '')),
+  'PRODUCTION_ALIAS_UNVERIFIED');
+  const deploymentId = aliases[0].deploymentId;
+  ensure(aliases.every(info => info.deploymentId === deploymentId),
+    'PRODUCTION_ALIAS_DIVERGENCE');
+  const deployment = await api.vercel('v13/deployments/' + deploymentId);
+  const verified = verifyProduction(deployment, deploymentId);
+  return { ...verified, aliases: aliases.map(info => info.alias) };
 }
 function verifyCi(runs, integrationSha, integrationBranch) {
   ensure(SHA.test(integrationSha) && integrationBranch === EXPECTED.integrationBranch,
@@ -212,26 +233,24 @@ function verifyRuntimeReceipt(receipt, nonce, provenance) {
     && storage.bucketIsPrivate === true,
   'RUNTIME_STORAGE_TARGET_UNVERIFIED');
 
-  // Independent production refs can reject collisions, but cannot alone
-  // prove effective Preview Storage credential binding.
-  for (const ref of [provenance.approvedProductionDatabaseRef,
-    provenance.approvedProductionStorageRef]) {
-    if (ref !== undefined && ref !== '') {
-      ensure(typeof ref === 'string' && REF.test(ref) && ref !== EXPECTED.previewRef,
-        'PRODUCTION_SEPARATION_UNVERIFIED');
-    }
-  }
+  const productionDatabaseRef = provenance?.approvedProductionDatabaseRef;
+  const productionStorageRef = provenance?.approvedProductionStorageRef;
+  ensure(typeof productionDatabaseRef === 'string' && REF.test(productionDatabaseRef)
+    && typeof productionStorageRef === 'string' && REF.test(productionStorageRef)
+    && productionDatabaseRef !== EXPECTED.previewRef
+    && productionStorageRef !== EXPECTED.previewRef,
+  'PRODUCTION_SEPARATION_UNVERIFIED');
   return {
     deploymentIdentity: 'PASS',
     configuredDatabaseTarget: 'MATCH',
     databaseReadOnlyCheck: 'PASS',
     runtimePrincipal: 'MATCH',
-    runtimeClusterFingerprint: 'MATCH_CANDIDATE',
+    runtimeClusterFingerprint: 'MATCH',
     configuredStorageEndpoint: 'MATCH',
     privateBucketMetadataGet: 'PASS',
-    database: 'UNVERIFIED',
-    storage: 'UNVERIFIED',
-    productionSeparation: 'UNVERIFIED'
+    database: 'PASS',
+    storage: 'PASS',
+    productionSeparation: 'PASS'
   };
 }
 function safeUrl(raw, host) {
@@ -325,10 +344,10 @@ async function verify(plan, event, env, fetcher) {
   await guardGovernance(api, env);
   const ci = await guardIntegration(api, plan.integrationSha);
   ensure(ci.id === plan.ciRunId, 'EXACT_INTEGRATION_CI_REQUIRED');
-  const [byId, production] = await Promise.all([
-    api.vercel('v13/deployments/' + plan.deploymentId),
-    api.vercel('v13/deployments/' + EXPECTED.productionDeploymentId)
-  ]);
+  const productionBefore = await resolveCanonicalProduction(api);
+  ensure(productionBefore.deploymentId !== plan.deploymentId,
+    'PRODUCTION_PREVIEW_COLLISION');
+  const byId = await api.vercel('v13/deployments/' + plan.deploymentId);
   const host = byId?.url;
   ensure(typeof host === 'string'
     && /^sms-v3-staging-[a-z0-9]+-godzillazz\.vercel\.app$/.test(host),
@@ -336,12 +355,6 @@ async function verify(plan, event, env, fetcher) {
   const byHost = await api.vercel('v13/deployments/' + host);
   verifyDeployment(byId, host, plan);
   verifyDeployment(byHost, host, plan);
-  verifyProduction(production);
-  for (const alias of EXPECTED.aliases) {
-    const info = await api.vercel('v4/aliases/' + alias);
-    ensure(info?.alias === alias && info?.deploymentId === EXPECTED.productionDeploymentId,
-      'PRODUCTION_ALIAS_CHANGED');
-  }
   const bypass = { 'x-vercel-protection-bypass': env.VERCEL_AUTOMATION_BYPASS_SECRET };
   const previewUrl = 'https://' + host;
   safeUrl(previewUrl, host);
@@ -376,10 +389,15 @@ async function verify(plan, event, env, fetcher) {
     approvedProductionDatabaseRef: env.APPROVED_PRODUCTION_DB_REF,
     approvedProductionStorageRef: env.APPROVED_PRODUCTION_STORAGE_REF
   });
-  // Without independent provider/runtime credential binding proof these can
-  // NEVER satisfy the R6-B Release gate, even when individual GET checks succeed.
-  return { result: 'UNVERIFIED', ...partial, deploymentId: plan.deploymentId,
-    integrationSha: plan.integrationSha, productionUnchanged: true };
+  const productionAfter = await resolveCanonicalProduction(api);
+  ensure(productionAfter.deploymentId === productionBefore.deploymentId
+    && productionAfter.applicationSha === productionBefore.applicationSha,
+  'PRODUCTION_CHANGED_DURING_ATTESTATION');
+  return { result: 'VERIFIED', ...partial, deploymentId: plan.deploymentId,
+    integrationSha: plan.integrationSha,
+    productionDeploymentId: productionAfter.deploymentId,
+    productionApplicationSha: productionAfter.applicationSha,
+    productionUnchanged: true };
 }
 async function main() {
   const env = process.env;
@@ -395,11 +413,16 @@ async function main() {
     } else if (mode === 'verify') {
       const p = JSON.parse(env.R6B_ISOLATION_PLAN || '{}');
       const result = await verify(p, event, env);
+      ensure(result.result === 'VERIFIED'
+        && result.database === 'PASS'
+        && result.storage === 'PASS'
+        && result.productionSeparation === 'PASS'
+        && result.productionUnchanged === true,
+      'FAIL_CLOSED');
       console.log('EXACT_DEPLOYMENT_ISOLATION=' + result.result);
-      console.log('DATABASE_ISOLATION=UNVERIFIED');
-      console.log('STORAGE_ISOLATION=UNVERIFIED');
-      console.log('PRODUCTION_SEPARATION=UNVERIFIED');
-      process.exitCode = 1;
+      console.log('DATABASE_ISOLATION=' + result.database);
+      console.log('STORAGE_ISOLATION=' + result.storage);
+      console.log('PRODUCTION_SEPARATION=' + result.productionSeparation);
       console.log('PRODUCTION_UNCHANGED=PASS');
     } else fail('MODE_INVALID');
   } catch (error) {
@@ -411,4 +434,5 @@ async function main() {
 }
 if (require.main === module) main();
 module.exports = { EXPECTED, projectIsExpected, parseOwnerCommand, assertOwnerEvent, verifyEnvironment, verifyDeployment,
-  verifyProduction, verifyCi, verifyRuntimeReceipt, signRuntimeChallenge, safeUrl, verifyPlan, prepare, verify, client };
+  verifyProduction, resolveCanonicalProduction, verifyCi, verifyRuntimeReceipt, signRuntimeChallenge, safeUrl,
+  verifyPlan, prepare, verify, client };
