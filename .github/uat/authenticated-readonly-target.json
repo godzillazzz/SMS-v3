@@ -1,0 +1,28 @@
+{
+  "authorized": false,
+  "database_isolation_verified": false,
+  "database_isolation_evidence": null,
+  "database_target_fingerprint": null,
+  "project_id": "prj_XwhNUOB2zLSPZ6UgQcfyOKBYJ75s",
+  "team_id": "team_nemCExHbZ8EAhSgsvefHPAEz",
+  "target_mode": "preview",
+  "source_sha": null,
+  "source_branch": null,
+  "deployment_id": null,
+  "url": null,
+  "note": "Disabled. Format-valid fingerprints/flags are not runtime isolation proof. Requires normal Solo-Owner PR/validate governance on protected main, actual Hosted UAT Owner Environment approval, exact source guards, current immutable deployment non-sensitive fingerprint, readiness guard, distinct authoritative Production fingerprint and disposable provider evidence. No credentials inspected.",
+  "production_database_target_fingerprint": null,
+  "production_database_identity_evidence": null,
+  "runtime_guard_file_sha256": {
+    "src/app.js": "837205c7902b93f31afb3beb18cb7afeed7c1e31315b11eee1cbc41fea7f9e8c",
+    "src/config/prisma.js": "ba79dfacdb4e6cf2179c67dad5da25c1e1b966294e97d51b95c4722cf09a817f",
+    "src/services/runtime-database-target-guard.service.js": "011ec22787a0efe456bf35fbb99d88f0e03ac9047876882896c3cc02c18aa647",
+    "src/utils/database-target-identity.js": "6f3b961c5affc78284f24ac68f1db1a4e79f1f40549d42b76613d582b53e1067",
+    "frontend/src/main.tsx": "e585c8cf73dd97846063727811319469edc911bae1abf2785925b6c845334e59",
+    "src/services/runtime-isolation-probe.service.js": "ee0a378c634e8d8d02f2e08ecf5888e67517abfd1baedeaa6acce63a2111a1b9",
+    "src/routes/runtime-isolation-probe.routes.js": "d900ef0710fb580ca7115bf1e4cf5c43042decbabcda5053ca83506518b8b9f6"
+  },
+  "preview_database_cluster_fingerprint_sha256": null,
+  "production_database_cluster_fingerprint_sha256": null,
+  "preview_runtime_principal": null
+}
