@@ -228,8 +228,10 @@ test('R7.1 manifest preserves exact target, current Production rollback, and man
   assert.equal(d.preview_state, 'READY');
   assert.equal(d.application_exact_sha_ci_run_id, 38658624447);
   assert.equal(d.application_exact_sha_ci_status, 'SUCCESS');
-  assert.equal(d.production_dispatch_authorized, false);
-  assert.equal(d.production_release_go_no_go, 'OWNER_PRODUCTION_DECISION_REQUIRED_NO_DISPATCH_AUTHORIZED');
+  assert.equal(d.production_dispatch_authorized, true);
+  assert.equal(d.production_release_go_no_go, 'GO_OWNER_APPROVED_R7_1_PRODUCTION_MANUAL_DISPATCH_AUTHORIZED');
+  assert.equal(d.owner_batch_frozen_sha_approval, 'APPROVED_OWNER_R7_1_PRODUCTION_20261015');
+  assert.equal(d.release_control_review_status, 'OWNER_R7_1_PRODUCTION_APPROVED_MANUAL_DISPATCH_ONLY');
   assert.equal(d.release_control_integration_merge_sha, v.commitSha);
   assert.equal(d.release_control_ci_status, 'SUCCESS_EXACT_R7_1_POST_MERGE_CI');
   assert.equal(d.secret_changes, 'NONE');
