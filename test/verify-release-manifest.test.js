@@ -207,37 +207,33 @@ test('superseded R7 Production manifest preserves failed-run source and legacy a
   assert.equal(v.rollbackDeploymentId, 'dpl_HbzTEkJnDsyVrRSvMpmVxSQfRCEV');
 });
 
-test('R7 new Owner-approved Application SHA preserves exact-smoke and manual-only Production controls', () => {
+test('R7.1 manifest preserves exact target, current Production rollback, and manual-only Production controls', () => {
   const d = JSON.parse(fs.readFileSync('.github/releases/approved-production.json', 'utf8'));
   const v = validateReleaseManifest(d);
-  assert.equal(d.release_batch_id, 'R7');
-  assert.equal(v.releaseId, 'sms-v3-prod-3cde5a61581c-20261014');
-  assert.equal(v.commitSha, '3cde5a61581c6239697dfb0cfb2fa5510ec8a239');
-  assert.equal(v.treeSha, 'a009330394d04e0db8ef9c961177483c871a3d25');
-  assert.equal(v.currentProductionSourceSha, '09486d684f2af89a1589ebf8dd11cbeb9f79050b');
-  assert.equal(v.rollbackDeploymentId, 'dpl_HbzTEkJnDsyVrRSvMpmVxSQfRCEV');
+  assert.equal(d.release_batch_id, 'R7.1');
+  assert.equal(v.releaseId, 'sms-v3-prod-d126f9bbe084-20261015');
+  assert.equal(v.commitSha, 'd126f9bbe08486370f8841c7863676f909a3af4a');
+  assert.equal(v.treeSha, 'ce7deb75cabc9c20c2a918e795fd11dfce0dad3b');
+  assert.equal(v.currentProductionSourceSha, '3cde5a61581c6239697dfb0cfb2fa5510ec8a239');
+  assert.equal(v.rollbackDeploymentId, 'dpl_A4BhvDDmshskt75VK36wY5oi33N3');
   assert.equal(v.runMigrations, false);
   assert.equal(v.databaseChangePolicy, 'NO_DATABASE_CHANGES');
-  assert.equal(d.preview_github_commit_sha, v.commitSha);
-  assert.equal(d.preview_deployment_id, 'dpl_8rrGCJLGNrAnsYo87kDDAYCXXRPm');
-  assert.equal(d.application_exact_sha_ci_run_id, 38518813007);
-  assert.equal(d.application_exact_sha_ci_status, 'SUCCESS');
-  assert.equal(d.preview_technical_smoke_run_id, 38522672163);
-  assert.equal(d.preview_technical_smoke_status, 'SUCCESS');
-  assert.equal(d.preview_technical_smoke_passed, 11);
-  assert.equal(d.preview_technical_smoke_failed, 0);
-  assert.equal(d.preview_technical_smoke_skipped, 23);
-  assert.equal(d.preview_technical_smoke_artifact_leak_count, 0);
-  assert.equal(d.preview_technical_smoke_artifact_id, 11874670698);
-  assert.match(d.preview_authenticated_full_uat_status, /NOT_RUN/);
+  assert.equal(v.preAppliedMigrationManifestPath, '');
+  assert.equal(v.preAppliedMigrationEvidenceRunId, '');
   assert.equal(d.production_canonical_deployment_id_before_release, v.rollbackDeploymentId);
-  assert.equal(d.production_dispatch_authorized, true); // Requires separately authorized manual workflow dispatch.
-  assert.equal(d.owner_batch_frozen_sha_approval, 'APPROVED_OWNER_R7_NEW_FROZEN_SHA_3CDE5A61581C_20261014');
-  assert.equal(d.release_control_review_status, 'OWNER_NEW_APP_SHA_APPROVED_MANUAL_DISPATCH_ONLY');
-  assert.equal(d.production_release_go_no_go, 'OWNER_APPROVED_NEW_APP_SHA_PENDING_EXACT_MERGED_CONTROL_CI_AND_PROTECTED_ENVIRONMENT_REVIEW');
-  assert.equal(d.release_control_integration_merge_sha, null);
-  assert.equal(d.db_schema_mutation, 'NONE');
-  assert.equal(d.production_data_mutation, 'NONE');
+  assert.equal(d.production_canonical_source_sha_before_release, v.currentProductionSourceSha);
+  assert.equal(d.production_canonical_state_before_release, 'READY');
+  assert.equal(d.preview_github_commit_sha, v.commitSha);
+  assert.equal(d.preview_deployment_id, 'dpl_B95RN1pS6pmjsef3bwfSddCybjcK');
+  assert.equal(d.preview_state, 'READY');
+  assert.equal(d.application_exact_sha_ci_run_id, 38658624447);
+  assert.equal(d.application_exact_sha_ci_status, 'SUCCESS');
+  assert.equal(d.production_dispatch_authorized, false);
+  assert.equal(d.production_release_go_no_go, 'OWNER_PRODUCTION_DECISION_REQUIRED_NO_DISPATCH_AUTHORIZED');
+  assert.equal(d.release_control_integration_merge_sha, v.commitSha);
+  assert.equal(d.release_control_ci_status, 'SUCCESS_EXACT_R7_1_POST_MERGE_CI');
+  assert.equal(d.secret_changes, 'NONE');
+  assert.equal(d.production_cors_config_changed, 'NO');
 });
 
 test('R7 draft fails closed if rollback, migration, project or manifest authorization contracts are weakened', () => {
