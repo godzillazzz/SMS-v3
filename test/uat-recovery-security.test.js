@@ -13,8 +13,45 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const preview = 'https://sms-v3-staging-uatfixture-godzillazz.vercel.app';
+function workflowEnvBlocks(workflow) {
+  const lines = workflow.split(/\r?\n/);
+  const blocks = [];
+  for (let index = 0; index < lines.length; index += 1) {
+    const match = /^(\s*)env:\s*$/.exec(lines[index]);
+    if (!match) continue;
+    const indent = match[1].length;
+    const entries = [];
+    for (let cursor = index + 1; cursor < lines.length; cursor += 1) {
+      const line = lines[cursor];
+      if (line.trim() && line.search(/\S/) <= indent) break;
+      const entry = new RegExp(`^\\s{${indent + 2},}(UAT_[A-Z]+_(?:EMAIL|PASSWORD))\\s*:`).exec(line);
+      if (entry) entries.push(entry[1]);
+    }
+    blocks.push({ index, entries });
+  }
+  return blocks;
+}
+function assertCompleteCredentialEnvironment(workflowPath) {
+  const workflow = fs.readFileSync(workflowPath, 'utf8');
+  const expected = roles.flatMap((role) => [`UAT_${role}_EMAIL`, `UAT_${role}_PASSWORD`]);
+  const blocks = workflowEnvBlocks(workflow).filter(({ entries }) => entries.length > 0);
+  assert.ok(blocks.length > 0, `no credential env block found in ${workflowPath}`);
+  for (const { entries } of blocks) {
+    assert.deepEqual([...new Set(entries)].sort(), [...expected].sort(), `${workflowPath} has incomplete credential env`);
+  }
+  return workflow;
+}
 function env() { return Object.fromEntries([['UAT_BASE_URL', preview], ...roles.flatMap((role) => [[`UAT_${role}_EMAIL`, `${role.toLowerCase()}@example.test`], [`UAT_${role}_PASSWORD`, `${role.toLowerCase()}-synthetic-only`]])]); }
 function payload(role) { return { user: { id: `synthetic-${role}`, role }, accessToken: `synthetic-session-${role}` }; }
+test('every authenticated workflow env block declares all eight role credentials', () => {
+  const staging = assertCompleteCredentialEnvironment('.github/workflows/automated-uat-sms-v3-staging.yml');
+  assertCompleteCredentialEnvironment('.github/workflows/authenticated-uat-v3-readonly.yml');
+  const mutated = staging.replace(/\n          UAT_SUPERVISOR_EMAIL:[^\n]*/, '');
+  const fixture = path.join(os.tmpdir(), `uat-workflow-${process.pid}.yml`);
+  fs.writeFileSync(fixture, mutated);
+  assert.throws(() => assertCompleteCredentialEnvironment(fixture), /incomplete credential env/);
+  fs.rmSync(fixture, { force: true });
+});
 test('four distinct roles require all eight credentials without leaking values', () => {
   assert.deepEqual(roles, ['ADMIN', 'MANAGER', 'SUPERVISOR', 'VIEWER']);
   assert.equal(Object.keys(readConfig(env()).accounts).length, 4);

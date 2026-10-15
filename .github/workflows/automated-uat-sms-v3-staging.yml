@@ -456,6 +456,8 @@ jobs:
           UAT_ADMIN_PASSWORD: ${{ secrets.UAT_ADMIN_PASSWORD }}
           UAT_MANAGER_EMAIL: ${{ secrets.UAT_MANAGER_EMAIL }}
           UAT_MANAGER_PASSWORD: ${{ secrets.UAT_MANAGER_PASSWORD }}
+          UAT_SUPERVISOR_EMAIL: ${{ secrets.UAT_SUPERVISOR_EMAIL }}
+          UAT_SUPERVISOR_PASSWORD: ${{ secrets.UAT_SUPERVISOR_PASSWORD }}
           UAT_VIEWER_EMAIL: ${{ secrets.UAT_VIEWER_EMAIL }}
           UAT_VIEWER_PASSWORD: ${{ secrets.UAT_VIEWER_PASSWORD }}
         run: |
