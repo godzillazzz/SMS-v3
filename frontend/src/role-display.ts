@@ -1,7 +1,7 @@
 export const ROLE_DISPLAY_LABEL: Record<string, string> = {
   ADMIN: 'ผู้ดูแลระบบ',
-  MANAGER: 'หัวหน้างาน',
-  SUPERVISOR: 'ผู้จัดการ',
+  MANAGER: 'ผู้จัดการ',
+  SUPERVISOR: 'หัวหน้างาน',
   VIEWER: 'ผู้ใช้งาน'
 };
 

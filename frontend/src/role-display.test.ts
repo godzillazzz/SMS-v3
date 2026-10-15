@@ -3,10 +3,10 @@ import { ROLE_DISPLAY_LABEL, ROLE_MANAGEMENT_LABEL, roleDisplayName } from './ro
 
 describe('role display compatibility mapping', () => {
   it('uses established Thai labels for manager and supervisor roles', () => {
-    expect(ROLE_DISPLAY_LABEL.MANAGER).toBe('หัวหน้างาน');
-    expect(ROLE_DISPLAY_LABEL.SUPERVISOR).toBe('ผู้จัดการ');
-    expect(roleDisplayName('MANAGER')).toBe('หัวหน้างาน');
-    expect(roleDisplayName('SUPERVISOR')).toBe('ผู้จัดการ');
+    expect(ROLE_DISPLAY_LABEL.MANAGER).toBe('ผู้จัดการ');
+    expect(ROLE_DISPLAY_LABEL.SUPERVISOR).toBe('หัวหน้างาน');
+    expect(roleDisplayName('MANAGER')).toBe('ผู้จัดการ');
+    expect(roleDisplayName('SUPERVISOR')).toBe('หัวหน้างาน');
   });
 
   it('uses Thai labels for admin and viewer roles', () => {

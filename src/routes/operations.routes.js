@@ -283,7 +283,7 @@ const hasSupervisorApprovalLevel = (user, policy) => user.role === 'ADMIN' || ['
 const ensureLeaveApprovalAllowed = async (tx, employeeId, requestUser, options = {}) => {
   const policy = await approvalPolicyService.assertReviewer('LEAVE_REQUEST', requestUser, tx);
   if (requestUser.role === 'ADMIN') return policy;
-  // Internal SUPERVISOR key is displayed as Manager after the role-name swap; it keeps the former Supervisor peer-review authority.
+  // SUPERVISOR retains its own stored role and peer-review authority; presentation labels must not alter authorization.
   const [leaveEmployee, approver] = await Promise.all([
     tx.employee.findUniqueOrThrow({ where: { id: employeeId }, select: { jobTitle: true, department: true, user: { select: { role: true } } } }),
     tx.user.findUniqueOrThrow({ where: { id: requestUser.sub }, select: { role: true, employeeId: true, employee: { select: { jobTitle: true, department: true, isActive: true, deletedAt: true } } } })
