@@ -207,15 +207,15 @@ test('superseded R7 Production manifest preserves failed-run source and legacy a
   assert.equal(v.rollbackDeploymentId, 'dpl_HbzTEkJnDsyVrRSvMpmVxSQfRCEV');
 });
 
-test('R7.1 manifest preserves exact target, current Production rollback, and manual-only Production controls', () => {
+test('R7.1 hotfix manifest preserves exact target, current Production rollback, and manual-only Production controls', () => {
   const d = JSON.parse(fs.readFileSync('.github/releases/approved-production.json', 'utf8'));
   const v = validateReleaseManifest(d);
-  assert.equal(d.release_batch_id, 'R7.1');
-  assert.equal(v.releaseId, 'sms-v3-prod-d126f9bbe084-20261015');
-  assert.equal(v.commitSha, 'd126f9bbe08486370f8841c7863676f909a3af4a');
-  assert.equal(v.treeSha, 'ce7deb75cabc9c20c2a918e795fd11dfce0dad3b');
-  assert.equal(v.currentProductionSourceSha, '3cde5a61581c6239697dfb0cfb2fa5510ec8a239');
-  assert.equal(v.rollbackDeploymentId, 'dpl_A4BhvDDmshskt75VK36wY5oi33N3');
+  assert.equal(d.release_batch_id, 'R7.1-HOTFIX');
+  assert.equal(v.releaseId, 'sms-v3-prod-2e43619-20261015');
+  assert.equal(v.commitSha, '2e43619957ff4f1fb9bc88da5597a8e68e3eacee');
+  assert.equal(v.treeSha, 'c8e4d42b66c300fb5ffbdc6117b5f419363956ca');
+  assert.equal(v.currentProductionSourceSha, 'd126f9bbe08486370f8841c7863676f909a3af4a');
+  assert.equal(v.rollbackDeploymentId, 'dpl_4NX1LSXgikNXs2jeWoGBN4RscvzF');
   assert.equal(v.runMigrations, false);
   assert.equal(v.databaseChangePolicy, 'NO_DATABASE_CHANGES');
   assert.equal(v.preAppliedMigrationManifestPath, '');
@@ -224,14 +224,14 @@ test('R7.1 manifest preserves exact target, current Production rollback, and man
   assert.equal(d.production_canonical_source_sha_before_release, v.currentProductionSourceSha);
   assert.equal(d.production_canonical_state_before_release, 'READY');
   assert.equal(d.preview_github_commit_sha, v.commitSha);
-  assert.equal(d.preview_deployment_id, 'dpl_B95RN1pS6pmjsef3bwfSddCybjcK');
-  assert.equal(d.preview_state, 'READY');
-  assert.equal(d.application_exact_sha_ci_run_id, 38658624447);
+  assert.equal(d.preview_deployment_id, null);
+  assert.equal(d.preview_state, 'NOT_VERIFIED_PRE_DISPATCH');
+  assert.equal(d.application_exact_sha_ci_run_id, 38671261677);
   assert.equal(d.application_exact_sha_ci_status, 'SUCCESS');
   assert.equal(d.production_dispatch_authorized, false);
   assert.equal(d.production_release_go_no_go, 'OWNER_PRODUCTION_DECISION_REQUIRED_NO_DISPATCH_AUTHORIZED');
   assert.equal(d.release_control_integration_merge_sha, v.commitSha);
-  assert.equal(d.release_control_ci_status, 'SUCCESS_EXACT_R7_1_POST_MERGE_CI');
+  assert.equal(d.release_control_ci_status, 'PENDING_EXACT_HOTFIX_CONTROL_HEAD_CI');
   assert.equal(d.secret_changes, 'NONE');
   assert.equal(d.production_cors_config_changed, 'NO');
 });
