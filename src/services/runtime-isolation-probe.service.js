@@ -104,7 +104,7 @@ function authorizeProbeRequest(req, environment = process.env, now = Date.now())
   const requestHost = String(req?.headers?.host || '').toLowerCase();
   ensure(runtimeHost && requestHost && requestHost === runtimeHost, 'RUNTIME_HOST_MISMATCH');
 
-  const secret = environment.RUNTIME_ISOLATION_PROBE_HMAC_SECRET;
+  const secret = environment.UAT_V3_RUNTIME_PROBE_HMAC_SECRET;
   ensure(typeof secret === 'string' && Buffer.byteLength(secret, 'utf8') >= 32, 'PROBE_AUTH_NOT_CONFIGURED');
   const providedSignature = header(req, 'x-smsv3-probe-signature');
   const expectedSignature = signChallenge(secret, {
