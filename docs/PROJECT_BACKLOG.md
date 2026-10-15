@@ -1,3 +1,31 @@
+# R7.1 PRODUCTION CLOSEOUT — 2026-10-15 (Asia/Bangkok)
+
+## Release disposition
+
+- **R7.1 CLOSED / PRODUCTION LIVE.**
+- Application SHA: `d126f9bbe08486370f8841c7863676f909a3af4a`.
+- Control/dispatch SHA: `b96a66edd60fcca69705ec702b2b3cd58c12685f`.
+- Production workflow run `38665726892`: **SUCCESS**.
+- Production deployment `dpl_4NX1LSXgikNXs2jeWoGBN4RscvzF`: **READY** and canonical.
+- Previous good Production / rollback checkpoint: `dpl_A4BhvDDmshskt75VK36wY5oi33N3`.
+- No migrations, schema/data mutation, environment change, secret change, direct Vercel promotion, or manual alias mutation outside the governed workflow.
+- Post-deploy verification passed; automatic rollback was not used.
+
+## R7 task closure
+
+- T34 — transient refresh recovery: **SHIPPED IN R7.1**.
+- T35 — sidebar logo alignment: **SHIPPED IN R7.1**.
+- T36 — approver device message: **SHIPPED IN R7.1**.
+- T37 — dark-theme token remediation: **SHIPPED IN R7.1**.
+- T38 — Approval Center/menu restructuring: **SHIPPED IN R7.1**.
+- R7.1 corrective scope (theme contrast, routing isolation, Approval Center dedupe/invalidation/performance instrumentation, runtime sentinel fail-closed contract): **SHIPPED IN R7.1**.
+
+## Remaining work is post-R7.1
+
+The following do **not** reopen R7.1 and must be tracked as separate workstreams: authenticated/business/physical UAT where still unexecuted, T08 Approval Details recovery, T18/T22/T24 performance evidence, T20 reusable E2E proposal, T39/RLS and Preview DB/Storage isolation, and legacy PR/branch cleanup.
+
+---
+
 # R7 DEVELOPMENT CHECKPOINT — 2026-10-14 (Asia/Bangkok)
 
 ## R6 production baseline
