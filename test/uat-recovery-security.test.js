@@ -55,14 +55,16 @@ function credentialStep(workflow) {
 function assertCredentialLoopContract(workflowPath) {
   const workflow = fs.readFileSync(workflowPath, 'utf8');
   const step = credentialStep(workflow);
-  const loop = /for role in ([A-Z ]+); do/.exec(step);
-  assert.ok(loop, 'credential loop contract: role loop not found in required step');
+  const loops = [...step.matchAll(/for role in ([A-Z ]+); do([\s\S]*?)\n\s*done/g)];
+  const loop = loops.find((match) => match[1].trim().split(/\s+/).join(' ') === roles.join(' '));
+  assert.ok(loop, 'credential loop contract: required role loop not found in required step');
   assert.deepEqual(loop[1].trim().split(/\s+/), roles, 'credential loop contract: role order does not match roles');
-  assert.match(step, /email_key=\"UAT_\$\{role\}_EMAIL\"/, 'credential loop contract: email key template missing');
-  assert.match(step, /password_key=\"UAT_\$\{role\}_PASSWORD\"/, 'credential loop contract: password key template missing');
-  assert.match(step, /-z \"\$email_value\".*-z \"\$password_value\"/, 'credential loop contract: empty credential check missing');
-  assert.match(step, /echo ['\"]UAT_CREDENTIALS_REQUIRED['\"]/,'credential loop contract: failure marker missing');
-  assert.match(step, /exit 1/, 'credential loop contract: fail-closed exit missing');
+  const body = loop[2];
+  assert.match(body, /email_key="UAT_\$\{role\}_EMAIL"/, 'credential loop contract: email key template missing inside required loop');
+  assert.match(body, /password_key="UAT_\$\{role\}_PASSWORD"/, 'credential loop contract: password key template missing inside required loop');
+  assert.match(body, /-z \"\$email_value\"[\s\S]*-z \"\$password_value\"/, 'credential loop contract: empty credential check missing inside required loop');
+  assert.match(body, /echo ['\"]UAT_CREDENTIALS_REQUIRED['\"]/, 'credential loop contract: failure marker missing inside required loop');
+  assert.match(body, /exit 1/, 'credential loop contract: fail-closed exit missing inside required loop');
 }
 function env() { return Object.fromEntries([['UAT_BASE_URL', preview], ...roles.flatMap((role) => [[`UAT_${role}_EMAIL`, `${role.toLowerCase()}@example.test`], [`UAT_${role}_PASSWORD`, `${role.toLowerCase()}-synthetic-only`]])]); }
 function payload(role) { return { user: { id: `synthetic-${role}`, role }, accessToken: `synthetic-session-${role}` }; }
@@ -82,7 +84,28 @@ test('credential loop is step-scoped, ordered, and checks every role', () => {
     ['M1 missing SUPERVISOR', 'for role in ADMIN MANAGER SUPERVISOR VIEWER; do', 'for role in ADMIN MANAGER VIEWER; do'],
     ['M2 missing VIEWER', 'for role in ADMIN MANAGER SUPERVISOR VIEWER; do', 'for role in ADMIN MANAGER SUPERVISOR; do'],
     ['M3 unauthorized role', 'for role in ADMIN MANAGER SUPERVISOR VIEWER; do', 'for role in ADMIN MANAGER SUPERVISOR VIEWER AUDITOR; do'],
-    ['M4 loop skips credential validation', 'email_key="UAT_${role}_EMAIL"', 'email_key="UAT_${role}_BROKEN"']
+    ['M4 loop skips credential validation', `for role in ADMIN MANAGER SUPERVISOR VIEWER; do
+            email_key="UAT_\${role}_EMAIL"
+            password_key="UAT_\${role}_PASSWORD"
+            email_value="\${!email_key-}"
+            password_value="\${!password_key-}"
+            if [[ -z "$email_value" || -z "$password_value" ]]; then
+              echo 'UAT_CREDENTIALS_REQUIRED'
+              exit 1
+            fi
+          done`, `for role in ADMIN MANAGER SUPERVISOR VIEWER; do
+            :
+          done
+          for role in VIEWER; do
+            email_key="UAT_\${role}_EMAIL"
+            password_key="UAT_\${role}_PASSWORD"
+            email_value="\${!email_key-}"
+            password_value="\${!password_key-}"
+            if [[ -z "$email_value" || -z "$password_value" ]]; then
+              echo 'UAT_CREDENTIALS_REQUIRED'
+              exit 1
+            fi
+          done`]
   ];
   for (const [label, original, replacement] of mutations) {
     const fixture = path.join(os.tmpdir(), `uat-loop-${process.pid}-${label.slice(0, 2)}.yml`);
