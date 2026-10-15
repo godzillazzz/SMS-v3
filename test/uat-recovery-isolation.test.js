@@ -12,7 +12,7 @@ const synthetic = { VERCEL_ENV: 'preview', DATABASE_URL: 'postgresql://synthetic
 // Provider identities are synthetic; no network or credentials are used.
 synthetic.DATABASE_URL = synthetic.DATABASE_URL.replace('synthetic:synthetic@aws-', 'synthetic.synthetic-project:synthetic@aws-');
 const fingerprint = parseAndNormalize(synthetic).fingerprint;
-const target = { database_target_fingerprint: fingerprint, production_database_target_fingerprint: 'c'.repeat(64) };
+const target = { authorized: true, database_isolation_verified: true, database_target_fingerprint: fingerprint, production_database_target_fingerprint: 'c'.repeat(64), preview_database_cluster_fingerprint_sha256: 'a'.repeat(64), production_database_cluster_fingerprint_sha256: 'b'.repeat(64), preview_runtime_principal: 'postgres' };
 const ready = { status: 'ready', database: 'ok' };
 const rules = [{ type: 'deletion' }, { type: 'non_fast_forward' }, { type: 'pull_request', parameters: { required_approving_review_count: 0 } }, { type: 'required_status_checks', parameters: { required_status_checks: [{ context: 'validate', integration_id: 15368 }] } }];
 const hostedEnvironment = { name: 'Hosted UAT', can_admins_bypass: false, protection_rules: [{ type: 'required_reviewers', prevent_self_review: false, reviewers: [{ type: 'User', reviewer: { login: 'godzillazzz' } }] }], deployment_branch_policy: { protected_branches: false, custom_branch_policies: true } };
@@ -90,12 +90,51 @@ test('Prisma runtime blocks Preview without a matching fingerprint before client
   assert.equal(productionResult.constructorCount, 1);
 });
 
-test('runtime binding requires actual immutable-deployment fingerprint, Preview runtime, distinct Production and readiness', () => {
-  const deployment = { env: { VERCEL_ENV: 'preview', APPROVED_PREVIEW_DATABASE_TARGET_FINGERPRINT: fingerprint } };
-  assert.equal(verifyRuntimeIsolation(target, deployment, ready).approvedFingerprintMatch, true);
-  for (const d of [{}, { env: {} }, { env: { VERCEL_ENV: 'production', APPROVED_PREVIEW_DATABASE_TARGET_FINGERPRINT: fingerprint } }, { env: { VERCEL_ENV: 'preview', APPROVED_PREVIEW_DATABASE_TARGET_FINGERPRINT: 'b'.repeat(64) } }]) assert.throws(() => verifyRuntimeIsolation(target, d, ready));
-  assert.throws(() => verifyRuntimeIsolation({ ...target, production_database_target_fingerprint: fingerprint }, deployment, ready));
-  assert.throws(() => verifyRuntimeIsolation(target, deployment, { status: 'not_ready', database: 'unavailable' }));
+test('signed runtime receipt binds exact deployment, Preview DB cluster and independent Production witness', () => {
+  const expected = {
+    host: 'sms-v3-staging-fixture-godzillazz.vercel.app',
+    nonce: 'f'.repeat(32), sha: 'c'.repeat(40),
+    deploymentId: 'dpl_Fixture123',
+    ref: 'validation/uat-v3-exact-preview-20261015',
+    issuedAt: 1792000000000
+  };
+  const receipt = {
+    contract: 'sms-v3-preview-isolation/v3',
+    nonce: expected.nonce,
+    deploymentId: expected.deploymentId,
+    applicationSha: expected.sha,
+    vercelProjectId: 'prj_XwhNUOB2zLSPZ6UgQcfyOKBYJ75s',
+    gitCommitRef: expected.ref,
+    signedChallengeIdentity: {
+      host: expected.host, deploymentId: expected.deploymentId,
+      applicationSha: expected.sha, nonce: expected.nonce,
+      issuedAt: expected.issuedAt, signatureVerified: true
+    },
+    database: {
+      configuredDatabaseProjectRef: 'ezxanpfagitckpfsnflp',
+      configuredDirectProjectRef: 'ezxanpfagitckpfsnflp',
+      configuredDatabaseName: 'postgres', observedDatabaseName: 'postgres',
+      runtimePrincipal: 'postgres', runtimeClusterFingerprintSha256: 'a'.repeat(64),
+      logicalTargetFingerprint: fingerprint, targetGuardMatched: true,
+      databaseReadOnlyQuerySucceeded: true, transactionReadOnly: true, runtimeWitnessVerified: true
+    },
+    storage: {
+      configuredEndpointProjectRef: 'ezxanpfagitckpfsnflp',
+      bucket: 'license-documents-g05-preview',
+      privateBucketMetadataReadSucceeded: true, bucketIsPrivate: true
+    }
+  };
+  assert.equal(verifyRuntimeIsolation(target, receipt, expected).productionDistinct, true);
+  assert.throws(() => verifyRuntimeIsolation({ ...target, authorized: false }, receipt, expected));
+  assert.throws(() => verifyRuntimeIsolation(target, { ...receipt, nonce: '0'.repeat(32) }, expected));
+  assert.throws(() => verifyRuntimeIsolation(target, { ...receipt, applicationSha: '0'.repeat(40) }, expected));
+  assert.throws(() => verifyRuntimeIsolation(target, { ...receipt, signedChallengeIdentity: { ...receipt.signedChallengeIdentity, signatureVerified: false } }, expected));
+  assert.throws(() => verifyRuntimeIsolation(target, { ...receipt, database: { ...receipt.database, runtimeClusterFingerprintSha256: 'd'.repeat(64) } }, expected));
+  assert.throws(() => verifyRuntimeIsolation(target, { ...receipt, database: { ...receipt.database, logicalTargetFingerprint: 'd'.repeat(64) } }, expected));
+  assert.throws(() => verifyRuntimeIsolation(target, { ...receipt, database: { ...receipt.database, transactionReadOnly: false } }, expected));
+  assert.throws(() => verifyRuntimeIsolation(target, { ...receipt, storage: { ...receipt.storage, bucketIsPrivate: false } }, expected));
+  assert.throws(() => verifyRuntimeIsolation({ ...target, production_database_cluster_fingerprint_sha256: 'a'.repeat(64) }, receipt, expected));
+  assert.throws(() => verifyRuntimeIsolation(target, { ...receipt, secret: 'synthetic-never-expose' }, expected));
 });
 test('trusted-main guard denies unprotected/moved main and altered target runtime source', async () => {
   // Main is the control plane; source bytes below are a synthetic hash-check fixture.
