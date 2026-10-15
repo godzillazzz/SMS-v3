@@ -70,13 +70,14 @@ export function SearchableEmployeeCombobox({ id, value, options = [], onChange, 
     };
   }, [inputValue, normalizedQuery, selectedOption]);
 
-  const visibleOptions = useMemo(() => {
+  const allOptions = useMemo(() => {
     const query = normalizedQuery.toLocaleLowerCase();
     const local = options.filter((option) => !query || option.label.toLocaleLowerCase().includes(query));
     const unique = new Map<string, EmployeeComboboxOption>();
     for (const option of [...remoteOptions, ...local]) unique.set(option.value, option);
-    return [...unique.values()].slice(0, 20);
+    return [...unique.values()];
   }, [normalizedQuery, options, remoteOptions]);
+  const visibleOptions = allOptions.slice(0, 100);
 
   const selectOption = (option: EmployeeComboboxOption) => {
     setSelectedOption(option);
@@ -160,6 +161,7 @@ export function SearchableEmployeeCombobox({ id, value, options = [], onChange, 
           onClick={() => selectOption(option)}
         >{option.label}</li>)}
       </ul>}
+      {!loading && !searchError && allOptions.length > visibleOptions.length && <div className="employee-combobox__status" role="status">พบมากกว่า {visibleOptions.length} รายการ กรุณาพิมพ์เพื่อกรองให้แคบลง</div>}
       {!loading && !searchError && normalizedQuery.length >= 2 && visibleOptions.length === 0 && <div className="employee-combobox__status" role="status">ไม่พบพนักงานที่ตรงกับคำค้นหา</div>}
     </div>}
   </div>;

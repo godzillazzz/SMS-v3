@@ -1458,7 +1458,7 @@ function LeaveManagementPage({ rows, loading, error, linked, remaining, quotaSum
 
   const searchEmployees = async (query: string): Promise<EmployeeComboboxOption[]> => {
     if (!auth.token) return [];
-    const result = await api.employees(auth.token, { page: 1, pageSize: 20, search: query, isActive: true });
+    const result = await api.employees(auth.token, { page: 1, pageSize: 100, search: query, isActive: true });
     const rows = Array.isArray(result?.data) ? result.data as DataRow[] : [];
     return rows.map((row) => {
       const name = String(row.displayName || `${row.firstName || ''} ${row.lastName || ''}`.trim());
