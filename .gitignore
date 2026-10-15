@@ -28,3 +28,7 @@ ui-review/
 *.log
 backup-results.ndjson
 .vercel/
+
+# UAT artifacts may contain authentication material; never commit them.
+test-results/
+playwright-report/
