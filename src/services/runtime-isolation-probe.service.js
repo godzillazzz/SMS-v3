@@ -245,6 +245,7 @@ async function readDatabase({ environment, target, prisma }) {
     observedDatabaseName: row.database_name,
     runtimePrincipal: row.executing_role,
     runtimeClusterFingerprintSha256: row.cluster_fingerprint_sha256,
+    logicalTargetFingerprint: target.fingerprint,
     targetGuardMatched: true,
     databaseReadOnlyQuerySucceeded: true,
     transactionReadOnly: true,
