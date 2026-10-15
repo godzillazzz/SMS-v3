@@ -5,6 +5,7 @@ const env = require('./config/env');
 const routes = require('./routes');
 const { notFound, errorHandler } = require('./middlewares/error-handler');
 const prisma = require('./config/prisma');
+const { createRuntimeIsolationRoutes } = require('./routes/runtime-isolation-probe.routes');
 const requestContext = require('./middlewares/request-context');
 const requestLogger = require('./middlewares/request-logger');
 const { logger, errorCategory, setOperationalEventSink } = require('./utils/logger');
@@ -47,6 +48,7 @@ async function readiness(req, res, next) {
 }
 app.get('/ready', readiness);
 app.get('/api/v1/ready', readiness);
+app.use('/api/v1/ops/preview-isolation-attestation', createRuntimeIsolationRoutes({ prisma }));
 app.use('/api/v1', routes);
 app.use(notFound);
 app.use(errorHandler);
