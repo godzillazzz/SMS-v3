@@ -67,7 +67,45 @@ const roleApiMatrix = {
 };
 
 // API permissions reviewed against current Integration route guards.
-roleApiMatrix.SUPERVISOR = roleApiMatrix.MANAGER.map((entry) => [...entry]);
+// Keep SUPERVISOR explicit: it is a first-class role, not a MANAGER alias.
+roleApiMatrix.SUPERVISOR = [
+  ['Dashboard', '/api/v1/dashboard', 200, 'src/routes/operations.routes.js', 'authenticate'],
+  ['Employees', '/api/v1/employees?page=1&pageSize=20', 200, 'src/routes/employees.routes.js', 'authenticate'],
+  ['Shift types', '/api/v1/shift-types', 200, 'src/routes/shifts.routes.js', 'authenticate'],
+  ['Schedule', '/api/v1/schedule-calendar?month={month}', 200, 'src/routes/operations.routes.js', 'authenticate'],
+  ['Leave', '/api/v1/leave-requests?page=1&pageSize=20', 200, 'src/routes/operations.routes.js', 'authenticate; SUPERVISOR scoped review'],
+  ['Leave pending count', '/api/v1/leave-requests/pending-count', 200, 'src/routes/operations.routes.js', 'authorize ADMIN/MANAGER/SUPERVISOR'],
+  ['Leave quota', '/api/v1/leave-quotas?page=1&pageSize=20', 200, 'src/routes/operations.routes.js', 'authorize ADMIN/MANAGER/SUPERVISOR'],
+  ['License', '/api/v1/licenses?page=1&pageSize=20', 200, 'src/routes/operations.routes.js', 'authorize ADMIN/MANAGER/SUPERVISOR'],
+  ['Approval Center', '/api/v1/approval-center/summary', 200, 'src/routes/approval-center.routes.js', 'authorize ADMIN/MANAGER/SUPERVISOR; policy-scoped'],
+  ['Scheduling rules', '/api/v1/scheduling-rules', 200, 'src/routes/operations.routes.js', 'authenticate'],
+  ['Users', '/api/v1/users', 200, 'src/routes/users.routes.js', 'authorize ADMIN/MANAGER/SUPERVISOR; scope-scoped'],
+  ['Personnel masters', '/api/v1/personnel-masters?activeOnly=true', 200, 'src/routes/personnel-masters.routes.js', 'authorize ADMIN/MANAGER/SUPERVISOR; scope-scoped'],
+  ['Data Quality', '/api/v1/data-quality/issues?page=1&pageSize=20', 403, 'src/routes/data-quality.routes.js', 'authorize ADMIN'],
+  ['Audit', '/api/v1/audit-events?page=1&pageSize=1', 403, 'src/routes/operations.routes.js', 'authorize ADMIN'],
+  ['System Health', '/api/v1/admin/system-health', 403, 'src/routes/system-health.routes.js', 'authorize ADMIN'],
+  ['Security Sites', '/api/v1/admin/security-sites', 403, 'src/routes/security-sites.routes.js', 'authorize ADMIN'],
+  ['Executive Report', '/api/v1/executive-report?year={year}&month={monthNumber}', 200, 'src/routes/operations.routes.js', 'authorize ADMIN/MANAGER/SUPERVISOR; scope-scoped'],
+  ['Report summary', '/api/v1/reports/summary', 200, 'src/routes/operations.routes.js', 'authorize ADMIN/MANAGER/SUPERVISOR; scope-scoped'],
+  ['System settings', '/api/v1/system-settings', 403, 'src/routes/operations.routes.js', 'authorize ADMIN']
+];
+
+// Write actions are documented separately from the GET-only read matrix.
+const roleActionMatrix = {
+  ADMIN: [
+    ['Approve monthly schedule', 'POST', '/api/v1/schedule/approve-month', 200, 'src/routes/operations.routes.js', 'authorize ADMIN/SUPERVISOR'],
+    ['Update schedule approval', 'PUT', '/api/v1/schedule-approvals/:id', 200, 'src/routes/operations.routes.js', 'authorize ADMIN/SUPERVISOR'],
+    ['Approve schedule', 'POST', '/api/v1/schedules/approve', 200, 'src/routes/schedules.routes.js', 'authorize ADMIN/SUPERVISOR']
+  ],
+  MANAGER: [],
+  SUPERVISOR: [
+    ['Approve monthly schedule', 'POST', '/api/v1/schedule/approve-month', 200, 'src/routes/operations.routes.js', 'authorize ADMIN/SUPERVISOR'],
+    ['Update schedule approval', 'PUT', '/api/v1/schedule-approvals/:id', 200, 'src/routes/operations.routes.js', 'authorize ADMIN/SUPERVISOR; status APPROVED only'],
+    ['Approve schedule', 'POST', '/api/v1/schedules/approve', 200, 'src/routes/schedules.routes.js', 'authorize ADMIN/SUPERVISOR']
+  ],
+  VIEWER: []
+};
+
 // Login payload omits employeeId. Do not infer VIEWER's linkage from that absence.
 // Employee-scoped leave acceptance needs a separately evidenced fixture contract.
 roleApiMatrix.VIEWER = roleApiMatrix.VIEWER.filter(([label]) => label !== 'Leave');
@@ -93,6 +131,7 @@ const navigationCatalog = {
   systemHealth: { id: 'systemHealth', label: 'ประสิทธิภาพและสถานะระบบ' },
   users: { id: 'users', label: 'ผู้ใช้และสิทธิ์' },
   reportCenter: { id: 'reportCenter', label: 'รายงานและวิเคราะห์' },
+  attendanceReport: { id: 'attendanceReport', label: 'รายงานการลงเวลา' },
   securitySite: { id: 'securitySite', label: 'จุดรักษาความปลอดภัยและ QR' },
   settings: { id: 'settings', label: 'ตั้งค่าระบบ' }
 };
@@ -102,33 +141,20 @@ const legacyPageTargets = {
   reports: { id: 'reports', label: 'รายงานและ Export', navigationId: 'reportCenter', tab: 'details' }
 };
 
-const roleNavigation = {
-  ADMIN: {
-    required: Object.keys(navigationCatalog),
-    forbidden: []
-  },
-  MANAGER: {
-    required: ['dashboard', 'employees', 'licenses', 'attendance', 'attendanceSupervisor', 'attendanceDevice', 'schedule', 'shiftSetup', 'leave', 'leavePending', 'leaveHistory', 'approvalCenter', 'rules', 'users', 'reportCenter'],
-    forbidden: ['approvals', 'quota', 'audit', 'dataQuality', 'systemHealth', 'securitySite', 'settings']
-  },
-  VIEWER: {
-    required: ['dashboard', 'employees', 'attendance', 'attendanceDevice', 'schedule', 'shiftSetup', 'leave', 'leaveHistory', 'rules'],
-    forbidden: ['approvals', 'licenses', 'attendanceSupervisor', 'leavePending', 'quota', 'approvalCenter', 'audit', 'dataQuality', 'systemHealth', 'users', 'reportCenter', 'securitySite', 'settings']
-  }
-};
-
-roleNavigation.SUPERVISOR = {
-  required: [...roleNavigation.MANAGER.required, 'approvals'],
-  forbidden: roleNavigation.MANAGER.forbidden.filter((id) => id !== 'approvals')
-};
-
 const rolePageChecks = {
   ADMIN: ['dashboard', 'employees', 'licenses', 'schedule', 'shiftSetup', 'leave', 'leavePending', 'leaveHistory', 'quota', 'approvalCenter', 'rules', 'audit', 'dataQuality', 'systemHealth', 'users', 'reportCenter', 'securitySite', 'settings'],
   MANAGER: ['dashboard', 'employees', 'licenses', 'schedule', 'shiftSetup', 'leave', 'leavePending', 'leaveHistory', 'approvalCenter', 'rules', 'users', 'reportCenter'],
+  SUPERVISOR: ['dashboard', 'employees', 'licenses', 'schedule', 'approvals', 'shiftSetup', 'leave', 'leavePending', 'leaveHistory', 'approvalCenter', 'rules', 'users', 'reportCenter'],
   VIEWER: ['dashboard', 'employees', 'schedule', 'shiftSetup', 'leave', 'leaveHistory', 'rules']
 };
 
-rolePageChecks.SUPERVISOR = [...rolePageChecks.MANAGER, 'approvals'];
+// Keep navigation contracts explicit so SUPERVISOR cannot silently inherit MANAGER pages.
+const roleNavigation = {
+  ADMIN: { required: Object.keys(navigationCatalog), forbidden: [] },
+  MANAGER: { required: ['dashboard', 'employees', 'licenses', 'attendance', 'attendanceSupervisor', 'attendanceDevice', 'schedule', 'shiftSetup', 'leave', 'leavePending', 'leaveHistory', 'approvalCenter', 'rules', 'users', 'reportCenter'], forbidden: ['approvals', 'quota', 'audit', 'dataQuality', 'systemHealth', 'securitySite', 'settings'] },
+  SUPERVISOR: { required: ['dashboard', 'employees', 'licenses', 'attendance', 'attendanceSupervisor', 'attendanceDevice', 'schedule', 'approvals', 'shiftSetup', 'leave', 'leavePending', 'leaveHistory', 'approvalCenter', 'rules', 'users', 'reportCenter'], forbidden: ['quota', 'audit', 'dataQuality', 'systemHealth', 'securitySite', 'settings', 'attendanceReport'] },
+  VIEWER: { required: ['dashboard', 'employees', 'attendance', 'attendanceDevice', 'schedule', 'shiftSetup', 'leave', 'leaveHistory', 'rules'], forbidden: ['approvals', 'licenses', 'attendanceSupervisor', 'leavePending', 'quota', 'approvalCenter', 'audit', 'dataQuality', 'systemHealth', 'users', 'reportCenter', 'securitySite', 'settings'] }
+};
 
 function currentUatMonth(date = new Date()) {
   const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Bangkok', year: 'numeric', month: '2-digit' }).formatToParts(date);
@@ -149,6 +175,11 @@ function getRoleApiMatrix(role, month = currentUatMonth(), { employeeLinked = fa
     guard,
     readOnly: true
   }));
+}
+
+function getRoleActionMatrix(role) {
+  assertRole(role);
+  return roleActionMatrix[role].map(([label, method, path, expectedStatus, source, guard]) => ({ label, method, path, expectedStatus, source, guard, readOnly: false }));
 }
 
 function getNavigationItem(id) {
@@ -189,6 +220,7 @@ module.exports = {
   getLegacyPageTarget,
   getNavigationItem,
   getRoleApiMatrix,
+  getRoleActionMatrix,
   getRoleNavigation,
   getRoleNavigationContract,
   getRolePageChecks,

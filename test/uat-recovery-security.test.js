@@ -4,7 +4,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { roles, PROJECT_ID, TEAM_ID, readConfig, previewUrl, validateApprovedTarget } = require('../e2e/uat-v3/config');
 const { RoleSessions, preflightAccounts, readRoleApi, installReadonlyBrowser } = require('../e2e/uat-v3/auth');
-const { getRoleApiMatrix, getRoleNavigationContract } = require('../e2e/uat-v3/role-matrix');
+const { getRoleApiMatrix, getRoleActionMatrix, getRoleNavigationContract } = require('../e2e/uat-v3/role-matrix');
 const { authorize } = require('../src/middlewares/authenticate');
 const { scanArtifact, sensitiveUatValues, rolePreflightSummary } = require('../e2e/uat-v3/security');
 const { normalizeDeploymentIdentity } = require('../e2e/uat-v3/vercel-identity');
@@ -88,6 +88,30 @@ test('four-role approval contracts match actual authorization middleware', () =>
     assert.ok(getRoleApiMatrix(role).every((route) => route.readOnly === true));
     if (role !== 'ADMIN') assert.ok(getRoleApiMatrix(role).some((route) => route.expectedStatus === 403));
   }
+});
+test('SUPERVISOR matrix is explicit and preserves role-specific approval boundaries', () => {
+  const source = require('node:fs').readFileSync(require('node:path').join(__dirname, '../e2e/uat-v3/role-matrix.js'), 'utf8');
+  assert.equal(source.includes('roleApiMatrix.SUPERVISOR = roleApiMatrix.MANAGER.map'), false);
+  assert.equal(source.includes('...roleNavigation.MANAGER'), false);
+  assert.equal(source.includes('...rolePageChecks.MANAGER'), false);
+  const supervisor = getRoleApiMatrix('SUPERVISOR');
+  assert.equal(supervisor.find((route) => route.label === 'Data Quality').expectedStatus, 403);
+  assert.equal(supervisor.find((route) => route.label === 'Audit').expectedStatus, 403);
+  assert.equal(supervisor.find((route) => route.label === 'System Health').expectedStatus, 403);
+  assert.equal(supervisor.find((route) => route.label === 'Security Sites').expectedStatus, 403);
+  assert.equal(supervisor.find((route) => route.label === 'System settings').expectedStatus, 403);
+  assert.equal(supervisor.find((route) => route.label === 'Attendance report'), undefined);
+  assert.equal(getRoleNavigationContract('SUPERVISOR').required.some((item) => item.id === 'approvals'), true);
+  assert.equal(getRoleNavigationContract('SUPERVISOR').forbidden.some((item) => item.id === 'attendanceReport'), true);
+  assert.equal(getRoleNavigationContract('MANAGER').required.some((item) => item.id === 'approvals'), false);
+  assert.equal(getRoleActionMatrix('MANAGER').length, 0);
+  assert.deepEqual(getRoleActionMatrix('VIEWER'), []);
+  assert.deepEqual(getRoleActionMatrix('SUPERVISOR').map(({ method, path }) => [method, path]), [
+    ['POST', '/api/v1/schedule/approve-month'],
+    ['PUT', '/api/v1/schedule-approvals/:id'],
+    ['POST', '/api/v1/schedules/approve']
+  ]);
+  assert.match(getRoleActionMatrix('SUPERVISOR')[1].guard, /status APPROVED only/);
 });
 test('scanner preserves secret patterns and includes SUPERVISOR credential values', () => {
   const synthetic = env();
