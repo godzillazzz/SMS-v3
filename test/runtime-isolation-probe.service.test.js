@@ -30,7 +30,7 @@ function environment(overrides = {}) {
     VERCEL_GIT_COMMIT_REF: EXPECTED.integrationRef,
     VERCEL_GIT_REPO_OWNER: 'godzillazzz',
     VERCEL_GIT_REPO_SLUG: 'SMS-v3',
-    RUNTIME_ISOLATION_PROBE_HMAC_SECRET: HMAC_FIXTURE,
+    UAT_V3_RUNTIME_PROBE_HMAC_SECRET: HMAC_FIXTURE,
     RUNTIME_PRISMA_EXPECTED_ROLE: 'postgres',
     DATABASE_URL: 'postgresql://postgres.ezxanpfagitckpfsnflp:TEST_ONLY_PASSWORD@aws-0-ap-northeast-1.pooler.supabase.com:6543/postgres',
     DIRECT_URL: 'postgresql://postgres:TEST_ONLY_PASSWORD@db.ezxanpfagitckpfsnflp.supabase.co:5432/postgres',
@@ -60,7 +60,7 @@ function requestFor(env, updates = {}) {
     ...(updates.headers || {})
   };
   headers['x-smsv3-probe-signature'] = signChallenge(
-    env.RUNTIME_ISOLATION_PROBE_HMAC_SECRET,
+    env.UAT_V3_RUNTIME_PROBE_HMAC_SECRET,
     {
       host: headers.host,
       deploymentId: query.deploymentId,
@@ -234,7 +234,7 @@ test('rejects unauthenticated, expired, wrong-SHA, wrong-deployment and non-Prev
 });
 
 test('does not accept the Vercel deployment bypass secret as the probe HMAC key', async () => {
-  const env = environment({ RUNTIME_ISOLATION_PROBE_HMAC_SECRET: '' });
+  const env = environment({ UAT_V3_RUNTIME_PROBE_HMAC_SECRET: '' });
   env.VERCEL_AUTOMATION_BYPASS_SECRET = 'TEST_ONLY_VERCEL_BYPASS_VALUE_0123456789';
   const { prisma, calls: dbCalls } = databaseFixture();
   const { fetchImpl, calls: storageCalls } = storageFixture();
