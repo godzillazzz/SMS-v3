@@ -87,21 +87,24 @@ test('control evidence binds verified GitHub SHA/CI and avoids a self-referentia
   assert.equal(Object.hasOwn(d, 'release_control_sha'), false);
 });
 
-test('R5-B draft remains rejected and R7 Owner-approved control still requires protected manual Production dispatch', () => {
+test('R5-B draft remains rejected and current R7.1 control still requires separate Owner Production authorization', () => {
   const d = release('r5-b-production-manifest-draft.json');
   assert.equal(d.manifest_state, 'DRAFT_SEPARATE_PRODUCTION_APPROVAL_REQUIRED');
   assert.equal(d.owner_action, 'PENDING_SEPARATE_PRODUCTION_APPROVAL');
   assert.equal(d.production_dispatch_authorized, false);
   assert.equal(d.owner_batch_frozen_sha_approval, 'PENDING_NOT_AUTHORIZED');
   assert.throws(() => validateReleaseManifest(d), /manifest_state is not approved/);
+
   const official = release('approved-production.json');
   const parsed = validateReleaseManifest(official);
-  assert.equal(official.release_batch_id, 'R7');
-  assert.equal(parsed.commitSha, '3cde5a61581c6239697dfb0cfb2fa5510ec8a239');
-  assert.equal(parsed.rollbackDeploymentId, 'dpl_HbzTEkJnDsyVrRSvMpmVxSQfRCEV');
-  assert.equal(official.production_dispatch_authorized, true);
-  assert.equal(official.owner_batch_frozen_sha_approval, 'APPROVED_OWNER_R7_NEW_FROZEN_SHA_3CDE5A61581C_20261014');
-  assert.equal(official.release_control_transition_owner_scope, 'R7_NEW_APP_SHA_OWNER_APPROVED_MANUAL_PROTECTED_DISPATCH_ONLY');
+  assert.equal(official.release_batch_id, 'R7.1');
+  assert.equal(parsed.commitSha, 'd126f9bbe08486370f8841c7863676f909a3af4a');
+  assert.equal(parsed.currentProductionSourceSha, '3cde5a61581c6239697dfb0cfb2fa5510ec8a239');
+  assert.equal(parsed.rollbackDeploymentId, 'dpl_A4BhvDDmshskt75VK36wY5oi33N3');
+  assert.equal(official.production_dispatch_authorized, false);
+  assert.equal(official.production_release_go_no_go, 'OWNER_PRODUCTION_DECISION_REQUIRED_NO_DISPATCH_AUTHORIZED');
+  assert.equal(official.release_control_integration_merge_sha, parsed.commitSha);
+
   const previous = release('r6-production-manifest-archive-20261014.json');
   assert.equal(previous.release_batch_id, 'R6');
   assert.equal(previous.commit_sha, '09486d684f2af89a1589ebf8dd11cbeb9f79050b');
