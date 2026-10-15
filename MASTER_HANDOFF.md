@@ -1,6 +1,25 @@
 # MASTER HANDOFF
 
-## ACTIVE — R7.1 PRODUCTION CLOSED / LIVE — 15 October 2026 (Asia/Bangkok)
+## ACTIVE — R7.1 LEAVE-EMPLOYEE HOTFIX LIVE / VERIFIED — 15 October 2026 (Asia/Bangkok)
+
+**Hotfix `SMSV3-BUG-LEAVE-EMP20-003` (leave-request employee picker truncated the roster at 20 rows) is CLOSED and LIVE in Production.** This section is the authoritative current Production identity and supersedes the R7.1 closeout section below for application SHA, deployment id and rollback checkpoint. All facts below were re-read from primary sources (GitHub API, the governed run log, and the live bundle) when this record was written.
+
+- **Defect / fix:** `/app/leave` employee combobox fetched `pageSize:20` and sliced to 20 rows; now `pageSize:100` with `slice(0,100)` plus a Thai "type to narrow" warning. No schedule/approval behaviour changed.
+- **Application SHA/tree (manifest source):** `2e43619957ff4f1fb9bc88da5597a8e68e3eacee` / `c8e4d42b66c300fb5ffbdc6117b5f419363956ca`, ref `fix/serverless-database-reliability`.
+- **Release-control (control-plane) SHA:** `bd1d18c63dcba91d02b84a8d8f2e03426929f30e` — manifest-only/contract-test change on top of the application SHA.
+- **Exact-SHA CI:** application `38671261677` SUCCESS; control-plane `38673207351` SUCCESS (steps 1–31 incl. `npm test`, integration, Attendance PostgreSQL, physical-acceptance SQL, frontend, `tsc --noEmit`, production bundle, repository hygiene). Step 32 `Verify integration PR Preview health, readiness, and CORS` = **SKIPPED → NOT VERIFIED**.
+- **Governed Production workflow:** `Deploy Approved Production Manifest V2`, run `38674181363`, `head_sha bd1d18c6…` — **completed / SUCCESS**; both jobs (`Prepare exact approved release manifest`, `Approve Production`) success. `prepare` passed environment governance contract, manifest guard, source identity/ancestry/tree, `NO_DATABASE_CHANGES`, and exact-SHA CI evidence for both `2e436199…` and `bd1d18c6…`.
+- **Production deployment:** `dpl_GWCVv4MvfKvsm6zS8pmEswwCwiim` (governed candidate, explicitly promoted — log: `Success! sms-v3-staging was promoted to … (dpl_GWCVv4MvfKvsm6zS8pmEswwCwiim)`), READY, target `production`. GitHub deployment record: id `7082767751`, sha `2e436199…`, `2026-10-15T03:06:04Z`. Canonical URL `https://sms-v3-staging-ten.vercel.app` now serves this deployment instead of the previous `dpl_4NX1LSXgikNXs2jeWoGBN4RscvzF` (`d126f9bb…`).
+- **Rollback checkpoint retained:** `dpl_4NX1LSXgikNXs2jeWoGBN4RscvzF`; run log shows `ROLLBACK_CHECKPOINT_CURRENT=PASS`, `CANONICAL_ROLLBACK_ALIAS_STILL_CURRENT=PASS`, `CANONICAL_ROLLBACK_NATIVE_PROVENANCE=PASS`. Automatic rollback was not invoked.
+- **Post-deploy runtime verification (governed run):** `CANONICAL_PRODUCTION_RUNTIME_VERIFY=PASS`, `CANONICAL_PRODUCTION_CORS_VERIFY=PASS`, `RUNTIME_ASSETS=43`, `RUNTIME_BYTES=1613258`, `SENTINELS=23`.
+- **Independent live-bundle evidence (read-only, ATLAS):** `/assets/index-g25PAYrN.js` HTTP 200, 373,111 bytes, `pageSize:100` ×1 / `pageSize:20` ×0; `/assets/SearchableEmployeeCombobox-C9AF2bYb.js` HTTP 200, 3,868 bytes, sha256 `0e199f62a5d036c6fbc266791490cb1003655869d60f9dfc77ec14c3ef8535af`, `slice(0,100)` ×1 with the Thai narrowing warning present.
+- **Environment approval:** `production-sms-v3-staging`, `state: approved`, reviewer `godzillazzz` (sole required reviewer, `can_admins_bypass=false`). **Whether the Owner personally performed that click is NOT VERIFIED** — the API only attributes it to the account.
+- **Change policy:** `run_migrations=false`, `NO_DATABASE_CHANGES`, `secret_changes=NONE`, `production_cors_config_changed=NO`. Release-control diff from the application SHA touches only `.github/releases/approved-production.json`, `.github/releases/r7.1-production-manifest-archive-20261015.json` (byte-identical archive of the previous manifest) and 3 contract tests — no application, Prisma, environment or secret change.
+- **Owner acceptance:** Production smoke test of the "ยื่นคำขอลา" page with real ADMIN and MANAGER sessions = **PASS** (>20 employees listed; ≥2-character filtering works), stated by the Owner directly.
+- **NOT VERIFIED / OPEN:** CI step 32 Preview health/readiness/CORS skipped; the logged-in UI behaviour rests on the Owner's stated smoke rather than on a machine-collected trace; the manifest field `release_control_ci_status` still reads the documentation-only value `PENDING_EXACT_HOTFIX_CONTROL_HEAD_CI` (verified: no workflow or script reads that field, so it was deliberately left unchanged rather than triggering a pointless CI cycle); recording this handoff advances the branch HEAD, so **any future Production dispatch requires a fresh exact-SHA CI at the then-current HEAD**.
+- **Next action:** no further release action for this hotfix. Reopen only on a verified Production defect, in which case roll back to `dpl_4NX1LSXgikNXs2jeWoGBN4RscvzF`.
+
+## HISTORICAL — R7.1 PRODUCTION CLOSED / LIVE (superseded for Production identity by the leave-hotfix section above) — 15 October 2026 (Asia/Bangkok)
 
 **R7.1 release is CLOSED and LIVE in Production.** This checkpoint supersedes all older R7/R7.1 release-pending statements below. Remaining T/P/security/UAT work is post-release backlog and does not reopen R7.1 unless a verified Production defect is found.
 
