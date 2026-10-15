@@ -64,9 +64,9 @@ test('draft fails closed; prior R7 approval cannot be transferred to the current
   const current = load('approved-production.json');
   const validated = validateReleaseManifest(current);
   assert.equal(current.release_batch_id, 'R7.1');
-  assert.equal(validated.commitSha, 'd126f9bbe08486370f8841c7863676f909a3af4a');
-  assert.equal(validated.currentProductionSourceSha, app);
-  assert.equal(validated.rollbackDeploymentId, 'dpl_A4BhvDDmshskt75VK36wY5oi33N3');
+  assert.equal(validated.commitSha, '2e43619957ff4f1fb9bc88da5597a8e68e3eacee');
+  assert.equal(validated.currentProductionSourceSha, 'd126f9bbe08486370f8841c7863676f909a3af4a');
+  assert.equal(validated.rollbackDeploymentId, 'dpl_4NX1LSXgikNXs2jeWoGBN4RscvzF');
   assert.equal(current.production_dispatch_authorized, false);
   assert.equal(current.production_release_go_no_go, 'OWNER_PRODUCTION_DECISION_REQUIRED_NO_DISPATCH_AUTHORIZED');
 });

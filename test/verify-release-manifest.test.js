@@ -210,7 +210,7 @@ test('superseded R7 Production manifest preserves failed-run source and legacy a
 test('R7.1 hotfix manifest preserves exact target, current Production rollback, and manual-only Production controls', () => {
   const d = JSON.parse(fs.readFileSync('.github/releases/approved-production.json', 'utf8'));
   const v = validateReleaseManifest(d);
-  assert.equal(d.release_batch_id, 'R7.1-HOTFIX');
+  assert.equal(d.release_batch_id, 'R7.1');
   assert.equal(v.releaseId, 'sms-v3-prod-2e43619-20261015');
   assert.equal(v.commitSha, '2e43619957ff4f1fb9bc88da5597a8e68e3eacee');
   assert.equal(v.treeSha, 'c8e4d42b66c300fb5ffbdc6117b5f419363956ca');

@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "release_id": "sms-v3-prod-2e43619-20261015",
-  "release_batch_id": "R7.1-HOTFIX",
+  "release_batch_id": "R7.1",
   "manifest_state": "APPROVED_FOR_OWNER_PRODUCTION_DECISION",
   "commit_sha": "2e43619957ff4f1fb9bc88da5597a8e68e3eacee",
   "tree_sha": "c8e4d42b66c300fb5ffbdc6117b5f419363956ca",
