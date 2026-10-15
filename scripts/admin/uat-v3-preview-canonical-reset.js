@@ -12,6 +12,11 @@ const MARKER = (role) => `UAT-V3-PREVIEW-${role}`;
 const EMAIL = (role) => `uat-v3-${role.toLowerCase()}@preview.invalid`;
 const NAME = (role) => `UAT V3 ${role.charAt(0)}${role.slice(1).toLowerCase()}`;
 const CONFIRMATION = 'RECONCILE_ONLY_PREVIEW_UAT_V3';
+const LEGACY_NAMES = Object.freeze([
+  'AWV1 UAT Admin', 'AWV1 UAT Manager', 'AWV1 UAT Manager 2',
+  'AWV1 UAT Viewer', 'G06 Preview UAT', 'Preview UAT Admin',
+  'UAT Automation Admin', 'UAT Automation Manager', 'UAT Automation Viewer'
+]);
 
 function assert(condition, code) {
   if (!condition) throw new Error(code);
@@ -44,7 +49,7 @@ function canonicalSpecs(env) {
 }
 
 function isLegacyUat(user) {
-  if (!/uat/i.test(String(user.displayName || ''))) return false;
+  if (!LEGACY_NAMES.includes(String(user.displayName || ''))) return false;
   if (ROLES.some((role) => user.legacyUserId === MARKER(role))) return false;
   if (String(user.displayName).startsWith('[ARCHIVED UAT]')) return false;
   return true;
@@ -74,7 +79,7 @@ async function reconcile({ apply = false, env = process.env, prismaClient } = {}
     if (!apply) {
       await verifyProvider(prisma);
       const users = await prisma.user.findMany({
-        where: { displayName: { contains: 'UAT', mode: 'insensitive' } },
+        where: { displayName: { in: LEGACY_NAMES } },
         select: { displayName: true, legacyUserId: true, role: true, isActive: true }
       });
       return {
@@ -90,12 +95,12 @@ async function reconcile({ apply = false, env = process.env, prismaClient } = {}
     const now = new Date();
 
     return await prisma.$transaction(async (tx) => {
-      await tx.$executeRaw`SELECT pg_advisory_xact_lock(746281903)`;
+      await tx.$queryRaw`SELECT pg_advisory_xact_lock(746281903)`;
       await verifyProvider(tx); // Recheck inside the mutation transaction.
 
       const matches = await tx.user.findMany({
         where: { OR: [
-          { displayName: { contains: 'UAT', mode: 'insensitive' } },
+          { displayName: { in: LEGACY_NAMES } },
           { email: { in: specs.map((spec) => spec.email) } },
           { legacyUserId: { in: specs.map((spec) => spec.legacyUserId) } }
         ] },
