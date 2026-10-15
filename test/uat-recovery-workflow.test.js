@@ -101,6 +101,7 @@ test('missing Vercel target requires existing authoritative GitHub Preview envir
   async function fetcher(url, options) {
     assert.equal(options.redirect, 'error');
     if (String(url).includes('/api/v1/ready')) return { status: 200, json: async () => ({ status: 'ready', database: 'ok' }) };
+    if (String(url).includes('/api/v1/ops/preview-isolation-attestation')) return { status: 200, json: async () => mockSignedReceipt(url, expected) };
     if (String(url).startsWith('https://api.vercel.com/')) return { status: 200, json: async () => ({ ...raw(), target: null, url: new URL(expected.UAT_BASE_URL).host }) };
     return { status: 200, json: async () => String(url).includes('/statuses?') ? [{ ...status, environment_url: expected.UAT_BASE_URL }] : [deployment] };
   }
