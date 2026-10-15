@@ -41,6 +41,29 @@ function assertCompleteCredentialEnvironment(workflowPath) {
   }
   return workflow;
 }
+function credentialStep(workflow) {
+  const lines = workflow.split(/\r?\n/);
+  const nameIndex = lines.findIndex((line) => /^\s*- name: Require all authenticated UAT credentials\s*$/.test(line));
+  assert.notEqual(nameIndex, -1, 'credential loop contract: required step not found');
+  const stepIndent = lines[nameIndex].search(/\S/);
+  const end = lines.findIndex((line, index) => index > nameIndex && line.trim() && line.search(/\S/) <= stepIndent);
+  const step = lines.slice(nameIndex, end === -1 ? lines.length : end).join('\n');
+  const runIndex = step.indexOf('        run: |');
+  assert.notEqual(runIndex, -1, 'credential loop contract: required step has no run block');
+  return step.slice(runIndex);
+}
+function assertCredentialLoopContract(workflowPath) {
+  const workflow = fs.readFileSync(workflowPath, 'utf8');
+  const step = credentialStep(workflow);
+  const loop = /for role in ([A-Z ]+); do/.exec(step);
+  assert.ok(loop, 'credential loop contract: role loop not found in required step');
+  assert.deepEqual(loop[1].trim().split(/\s+/), roles, 'credential loop contract: role order does not match roles');
+  assert.match(step, /email_key=\"UAT_\$\{role\}_EMAIL\"/, 'credential loop contract: email key template missing');
+  assert.match(step, /password_key=\"UAT_\$\{role\}_PASSWORD\"/, 'credential loop contract: password key template missing');
+  assert.match(step, /-z \"\$email_value\".*-z \"\$password_value\"/, 'credential loop contract: empty credential check missing');
+  assert.match(step, /echo ['\"]UAT_CREDENTIALS_REQUIRED['\"]/,'credential loop contract: failure marker missing');
+  assert.match(step, /exit 1/, 'credential loop contract: fail-closed exit missing');
+}
 function env() { return Object.fromEntries([['UAT_BASE_URL', preview], ...roles.flatMap((role) => [[`UAT_${role}_EMAIL`, `${role.toLowerCase()}@example.test`], [`UAT_${role}_PASSWORD`, `${role.toLowerCase()}-synthetic-only`]])]); }
 function payload(role) { return { user: { id: `synthetic-${role}`, role }, accessToken: `synthetic-session-${role}` }; }
 test('every authenticated workflow env block declares all eight role credentials', () => {
@@ -52,6 +75,23 @@ test('every authenticated workflow env block declares all eight role credentials
   assert.throws(() => assertCompleteCredentialEnvironment(fixture), /incomplete credential env/);
   fs.rmSync(fixture, { force: true });
 });
+test('credential loop is step-scoped, ordered, and checks every role', () => {
+  assertCredentialLoopContract('.github/workflows/automated-uat-sms-v3-staging.yml');
+  const source = fs.readFileSync('.github/workflows/automated-uat-sms-v3-staging.yml', 'utf8');
+  const mutations = [
+    ['M1 missing SUPERVISOR', 'for role in ADMIN MANAGER SUPERVISOR VIEWER; do', 'for role in ADMIN MANAGER VIEWER; do'],
+    ['M2 missing VIEWER', 'for role in ADMIN MANAGER SUPERVISOR VIEWER; do', 'for role in ADMIN MANAGER SUPERVISOR; do'],
+    ['M3 unauthorized role', 'for role in ADMIN MANAGER SUPERVISOR VIEWER; do', 'for role in ADMIN MANAGER SUPERVISOR VIEWER AUDITOR; do'],
+    ['M4 loop skips credential validation', 'email_key="UAT_${role}_EMAIL"', 'email_key="UAT_${role}_BROKEN"']
+  ];
+  for (const [label, original, replacement] of mutations) {
+    const fixture = path.join(os.tmpdir(), `uat-loop-${process.pid}-${label.slice(0, 2)}.yml`);
+    fs.writeFileSync(fixture, source.replace(original, replacement));
+    assert.throws(() => assertCredentialLoopContract(fixture), /credential loop contract/);
+    fs.rmSync(fixture, { force: true });
+  }
+});
+
 test('four distinct roles require all eight credentials without leaking values', () => {
   assert.deepEqual(roles, ['ADMIN', 'MANAGER', 'SUPERVISOR', 'VIEWER']);
   assert.equal(Object.keys(readConfig(env()).accounts).length, 4);
