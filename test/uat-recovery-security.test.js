@@ -8,6 +8,10 @@ const { getRoleApiMatrix, getRoleActionMatrix, getRoleNavigationContract } = req
 const { authorize } = require('../src/middlewares/authenticate');
 const { scanArtifact, sensitiveUatValues, rolePreflightSummary } = require('../e2e/uat-v3/security');
 const { normalizeDeploymentIdentity } = require('../e2e/uat-v3/vercel-identity');
+const { validateApplicationSourceContract } = require('../e2e/uat-v3/application-source-contract');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
 const preview = 'https://sms-v3-staging-uatfixture-godzillazz.vercel.app';
 function env() { return Object.fromEntries([['UAT_BASE_URL', preview], ...roles.flatMap((role) => [[`UAT_${role}_EMAIL`, `${role.toLowerCase()}@example.test`], [`UAT_${role}_PASSWORD`, `${role.toLowerCase()}-synthetic-only`]])]); }
 function payload(role) { return { user: { id: `synthetic-${role}`, role }, accessToken: `synthetic-session-${role}` }; }
@@ -75,6 +79,18 @@ test('browser guard blocks writes and cross-origin credentials while bootstrappi
   assert.equal(await invoke('GET', '/api/v1/employees'), 'allowed');
   assert.equal(await invoke('GET', '/api/v1/employees', { cookie: 'synthetic_session=fixture-only' }), 'allowed');
   assert.equal(attempts.length, 6);
+});
+test('application source contract rejects missing or drifted guards and navigation', () => {
+  assert.throws(() => validateApplicationSourceContract('/nonexistent/application'), { code: 'UAT_APPLICATION_SOURCE_REQUIRED' });
+  if (process.env.UAT_APPLICATION_ROOT) {
+    assert.doesNotThrow(() => validateApplicationSourceContract(process.env.UAT_APPLICATION_ROOT));
+    const fixture = fs.mkdtempSync(path.join(os.tmpdir(), 'uat-source-contract-'));
+    fs.cpSync(process.env.UAT_APPLICATION_ROOT, fixture, { recursive: true });
+    const route = path.join(fixture, 'src/routes/schedules.routes.js');
+    fs.writeFileSync(route, fs.readFileSync(route, 'utf8').replace("authorize('ADMIN', 'SUPERVISOR')", "authorize('ADMIN')"));
+    assert.throws(() => validateApplicationSourceContract(fixture), { code: 'UAT_APPLICATION_SOURCE_CONTRACT_INVALID' });
+    fs.rmSync(fixture, { recursive: true, force: true });
+  }
 });
 test('four-role approval contracts match actual authorization middleware', () => {
   const approvalRoles = ['ADMIN', 'MANAGER', 'SUPERVISOR'];

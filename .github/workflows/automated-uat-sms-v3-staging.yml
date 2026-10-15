@@ -469,6 +469,11 @@ jobs:
             fi
           done
           echo 'UAT_CREDENTIAL_CONTRACT=VALID'
+      - name: Validate UAT matrix against exact application source
+        shell: bash
+        env:
+          UAT_APPLICATION_ROOT: ${{ github.workspace }}/application-under-test
+        run: node --test test/uat-recovery-security.test.js --test-name-pattern='application source contract'
       - uses: actions/setup-node@v4
         with:
           node-version: 22
