@@ -22,7 +22,7 @@
   "pre_applied_migration_manifest_path": null,
   "pre_applied_migration_evidence_run_id": null,
   "owner_action": "APPROVE_PRODUCTION_ONLY",
-  "production_dispatch_authorized": true,
+  "production_dispatch_authorized": false,
   "rollback_policy": "AUTO_ROLLBACK_ON_POST_DEPLOY_VERIFY_FAILURE",
   "production_environment_change_policy": "NO_ENVIRONMENT_CHANGES",
   "secret_changes": "NONE",
@@ -38,11 +38,9 @@
   "application_exact_sha_ci_run_id": 38658624447,
   "application_exact_sha_ci_status": "SUCCESS",
   "current_production_ready_metadata": "VERIFIED_CURRENT_CANONICAL_READY_PRE_R7_1",
-  "production_release_go_no_go": "GO_OWNER_APPROVED_R7_1_PRODUCTION_MANUAL_DISPATCH_AUTHORIZED",
+  "production_release_go_no_go": "OWNER_PRODUCTION_DECISION_REQUIRED_NO_DISPATCH_AUTHORIZED",
   "release_control_integration_merge_sha": "d126f9bbe08486370f8841c7863676f909a3af4a",
   "release_control_ci_status": "SUCCESS_EXACT_R7_1_POST_MERGE_CI",
   "application_exact_sha_ci_reference": "https://github.com/godzillazzz/SMS-v3/actions/runs/38658624447",
-  "immutable_production_manifest_path": ".github/releases/approved-production.json",
-  "owner_batch_frozen_sha_approval": "APPROVED_OWNER_R7_1_PRODUCTION_20261015",
-  "release_control_review_status": "OWNER_R7_1_PRODUCTION_APPROVED_MANUAL_DISPATCH_ONLY"
+  "immutable_production_manifest_path": ".github/releases/approved-production.json"
 }
