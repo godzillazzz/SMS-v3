@@ -19,6 +19,23 @@
 - **NOT VERIFIED / OPEN:** CI step 32 Preview health/readiness/CORS skipped; the logged-in UI behaviour rests on the Owner's stated smoke rather than on a machine-collected trace; the manifest field `release_control_ci_status` still reads the documentation-only value `PENDING_EXACT_HOTFIX_CONTROL_HEAD_CI` (verified: no workflow or script reads that field, so it was deliberately left unchanged rather than triggering a pointless CI cycle); recording this handoff advances the branch HEAD, so **any future Production dispatch requires a fresh exact-SHA CI at the then-current HEAD**.
 - **Next action:** no further release action for this hotfix. Reopen only on a verified Production defect, in which case roll back to `dpl_4NX1LSXgikNXs2jeWoGBN4RscvzF`.
 
+## ACTIVE SECURITY CLOSEOUT — T39 PREVIEW ISOLATION / RLS / DATA API HARDENING VERIFIED — 15 October 2026 (Asia/Bangkok)
+
+**T39 is CLOSED for the approved Preview-only security scope.** This section supersedes older handoff statements that Preview DB/Storage isolation or T39 RLS hardening remain unverified/open. Production release identity is still governed by the leave-hotfix section above; T39 did not promote or modify Production.
+
+- **Exact runtime isolation attestation:** GitHub Actions run `38678253409` completed successfully after Hosted UAT Environment approval. The verifier reported `EXACT_DEPLOYMENT_ISOLATION=VERIFIED`, `DATABASE_ISOLATION=PASS`, `STORAGE_ISOLATION=PASS`, `PRODUCTION_SEPARATION=PASS`, and `PRODUCTION_UNCHANGED=PASS`.
+- **Attested application/deployment:** Integration application SHA `2eb09e3bb53bd4a52ea56cb8eb5f79156d4d5f83`, exact Preview deployment `dpl_9qPrbQi38PoUopJGm6MHaP3cHLox`. The protected attestation used signed GET/read-only runtime evidence only; no migration, schema/data mutation, RLS/grant mutation, Production deployment/alias mutation, or secret disclosure occurred in that attestation.
+- **Provider separation evidence:** Preview Supabase project `ezxanpfagitckpfsnflp` and Production-side project `jkexwnlxnxbemwavsebv` have distinct provider cluster fingerprints; Preview runtime/storage binding was proven against the Preview project and private Preview license bucket. Production remained on its separate provider target.
+- **Preview hardening implementation:** PR #635, head `56a52173b9f5f01cd14aa00bce36e87d84fa9466`, merged into Integration as `2a3107fa4282106800f8b265bb877825d258a8ac`. The hardening SQL is intentionally outside `prisma/migrations`, is guarded by the exact Preview cluster fingerprint, and keeps `service_role` available for server-side Supabase operations.
+- **Preview database post-state:** all 56 current `public` tables have RLS enabled; RLS-disabled tables changed `35 -> 0`; current `anon/authenticated` table-grant exposure changed `35 -> 0`; `anon/authenticated` sequence grants are `0`; public/anon/authenticated function EXECUTE exposure in `public` is `0`; unsafe `postgres`-owned future default ACL entries are `0`.
+- **Intentional advisor state:** Supabase Security Advisor no longer reports `rls_disabled_in_public` ERROR findings. It reports 56 `rls_enabled_no_policy` INFO findings; this is intentional deny-by-default for the server-authoritative Prisma architecture rather than a missing browser Data API policy set.
+- **Server/runtime regression evidence:** after hardening, Preview `/api/v1/health` returned HTTP 200 and `/api/v1/ready` returned HTTP 200 with `database=ok`. `service_role` retained schema usage and grants on all 56 current public tables.
+- **Production preservation:** T39 did not change Production DB, Storage, schema, data, RLS, grants, environment, secrets, deployment or canonical aliases. A read-only Production audit remained on the distinct Production cluster and retained its pre-existing security posture.
+- **CI closeout:** post-merge Integration CI run `38683512887` on `2a3107fa4282106800f8b265bb877825d258a8ac` finished SUCCESS on attempt 2. Attempt 1 hit an isolated Playwright mobile-dark `.app-shell` readiness timeout after the dedicated R7.1 gate had already passed; the failed job was rerun without source changes and then passed T29/T09 browser regression, root tests, integration, frontend tests, TypeScript and production build.
+- **Evidence archive:** Issue #614 was closed completed after the final evidence was recorded. Draft PR #618 was closed as superseded by the completed exact-runtime attestation plus PR #635 hardening path.
+- **Known residual:** Supabase-managed `supabase_admin` default ACL remains a provider-owned residual; no privilege escalation was attempted merely to alter that platform role. Current application tables are `postgres`-owned and the `postgres` future defaults used by the app migration path are hardened.
+- **Next application gate:** proceed to Authenticated UAT V3 / four-role protected read-only UAT recovery. Reuse T39 isolation evidence rather than re-classifying Preview from names or mutable configuration. Any new exact application deployment used for Hosted UAT must still satisfy its own source/deployment identity guards and exact CI requirements.
+
 ## HISTORICAL — R7.1 PRODUCTION CLOSED / LIVE (superseded for Production identity by the leave-hotfix section above) — 15 October 2026 (Asia/Bangkok)
 
 **R7.1 release is CLOSED and LIVE in Production.** This checkpoint supersedes all older R7/R7.1 release-pending statements below. Remaining T/P/security/UAT work is post-release backlog and does not reopen R7.1 unless a verified Production defect is found.
@@ -34,7 +51,7 @@
 - Automatic rollback was **not invoked** because post-deploy verification passed.
 - R7/R7.1 delivered scope includes T34–T38 and the R7.1 corrective work for theme contrast, routing isolation, Approval Center request dedupe/invalidation/performance instrumentation, and release-sentinel fail-closed validation.
 
-**R7.1 closeout disposition:** no further R7.1 implementation or release action is required. Final authenticated/business/physical UAT, T08, T18/T22/T24 performance evidence, T20, T39/RLS/Preview isolation and legacy PR/branch cleanup remain separate post-release workstreams.
+**R7.1 closeout disposition:** no further R7.1 implementation or release action is required. T39/RLS/Preview isolation is now closed by the active T39 security closeout above. Final authenticated/business/physical UAT, T08, T18/T22/T24 performance evidence, T20 and legacy PR/branch cleanup remain separate post-release workstreams.
 
 ## ACTIVE — R7.1 corrective cycle at frozen review HEAD (14 October 2026)
 
