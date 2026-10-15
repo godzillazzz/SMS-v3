@@ -10,9 +10,24 @@ const { scanArtifact, sensitiveUatValues, rolePreflightSummary } = require('../e
 const { normalizeDeploymentIdentity } = require('../e2e/uat-v3/vercel-identity');
 const { validateApplicationSourceContract } = require('../e2e/uat-v3/application-source-contract');
 const fs = require('node:fs');
+const crypto = require('node:crypto');
 const os = require('node:os');
 const path = require('node:path');
 const preview = 'https://sms-v3-staging-uatfixture-godzillazz.vercel.app';
+test('runtime guard pins cover existing files and match their SHA-256 digests', () => {
+  const repoRoot = path.resolve(__dirname, '..');
+  const manifest = JSON.parse(fs.readFileSync(path.join(repoRoot, '.github/uat/authenticated-readonly-target.json'), 'utf8'));
+  const { paths: runtimeGuardPaths } = require('../scripts/ci/verify-uat-v3-trust');
+  const pins = manifest.runtime_guard_file_sha256;
+  assert.deepEqual(Object.keys(pins).sort(), [...runtimeGuardPaths].sort(), 'runtime guard path list and manifest pins must match exactly');
+  for (const runtimePath of runtimeGuardPaths) {
+    const absolutePath = path.join(repoRoot, runtimePath);
+    assert.equal(fs.statSync(absolutePath).isFile(), true, `runtime guard path must be a file: ${runtimePath}`);
+    assert.match(pins[runtimePath], /^[a-f0-9]{64}$/, `runtime guard pin must be 64 lowercase hex characters: ${runtimePath}`);
+    const digest = crypto.createHash('sha256').update(fs.readFileSync(absolutePath)).digest('hex');
+    assert.equal(digest, pins[runtimePath], `runtime guard pin mismatch: ${runtimePath}`);
+  }
+});
 function workflowEnvBlocks(workflow) {
   const lines = workflow.split(/\r?\n/);
   const blocks = [];
@@ -132,9 +147,9 @@ test('hosted targets reject Production, aliases, credentials, query and external
 });
 test('approved target rejects missing isolation, literal strings and identity mismatch', () => {
   const expected = { source_sha: 'a'.repeat(40), source_branch: 'fix/serverless-database-reliability', deployment_id: 'dpl_Fixture123', url: preview };
-  const target = { production_database_identity_evidence: 'https://github.com/godzillazzz/SMS-v3/actions/runs/123', production_database_target_fingerprint: 'c'.repeat(64), preview_database_cluster_fingerprint_sha256: 'a'.repeat(64), production_database_cluster_fingerprint_sha256: 'b'.repeat(64), preview_runtime_principal: 'postgres', runtime_guard_file_sha256: Object.fromEntries(['src/app.js', 'src/config/prisma.js', 'src/services/runtime-database-target-guard.service.js', 'src/utils/database-target-identity.js', 'src/services/runtime-isolation-probe.service.js', 'src/routes/runtime-isolation-probe.routes.js', 'frontend/src/main.tsx', 'frontend/src/theme.ts'].map(path => [path, 'd'.repeat(64)])), ...expected, authorized: true, database_isolation_verified: true, database_isolation_evidence: 'https://github.com/godzillazzz/SMS-v3/actions/runs/123', database_target_fingerprint: 'b'.repeat(64), project_id: PROJECT_ID, team_id: TEAM_ID, target_mode: 'preview' };
+  const target = { production_database_identity_evidence: 'https://github.com/godzillazzz/SMS-v3/actions/runs/123', production_database_target_fingerprint: 'c'.repeat(64), preview_database_cluster_fingerprint_sha256: 'a'.repeat(64), production_database_cluster_fingerprint_sha256: 'b'.repeat(64), preview_runtime_principal: 'postgres', runtime_guard_file_sha256: Object.fromEntries(['src/app.js', 'src/config/prisma.js', 'src/services/runtime-database-target-guard.service.js', 'src/utils/database-target-identity.js', 'src/services/runtime-isolation-probe.service.js', 'src/routes/runtime-isolation-probe.routes.js', 'frontend/src/main.tsx'].map(path => [path, 'd'.repeat(64)])), ...expected, authorized: true, database_isolation_verified: true, database_isolation_evidence: 'https://github.com/godzillazzz/SMS-v3/actions/runs/123', database_target_fingerprint: 'b'.repeat(64), project_id: PROJECT_ID, team_id: TEAM_ID, target_mode: 'preview' };
   assert.equal(validateApprovedTarget(target, expected), true);
-  for (const path of ['frontend/src/main.tsx', 'frontend/src/theme.ts']) {
+  for (const path of ['frontend/src/main.tsx']) {
     const pins = { ...target.runtime_guard_file_sha256 }; delete pins[path];
     assert.throws(() => validateApprovedTarget({ ...target, runtime_guard_file_sha256: pins }, expected));
   }

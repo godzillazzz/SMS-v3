@@ -36,7 +36,7 @@ function validateApprovedTarget(target, expected) {
     || !/^[a-f0-9]{64}$/.test(target.production_database_cluster_fingerprint_sha256 || '')
     || target.preview_database_cluster_fingerprint_sha256 === target.production_database_cluster_fingerprint_sha256
     || !/^[a-z_][a-z0-9_]{0,62}$/.test(target.preview_runtime_principal || '')) fail('UAT_PROVIDER_CLUSTER_WITNESS_REQUIRED');
-  for (const path of ['src/app.js', 'src/config/prisma.js', 'src/services/runtime-database-target-guard.service.js', 'src/utils/database-target-identity.js', 'src/services/runtime-isolation-probe.service.js', 'src/routes/runtime-isolation-probe.routes.js', 'frontend/src/main.tsx', 'frontend/src/theme.ts']) {
+  for (const path of ['src/app.js', 'src/config/prisma.js', 'src/services/runtime-database-target-guard.service.js', 'src/utils/database-target-identity.js', 'src/services/runtime-isolation-probe.service.js', 'src/routes/runtime-isolation-probe.routes.js', 'frontend/src/main.tsx']) {
     if (!/^[a-f0-9]{64}$/.test(target.runtime_guard_file_sha256?.[path] || '')) fail('UAT_RUNTIME_GUARD_SOURCE_REQUIRED');
   }
   previewUrl(expected.url);
