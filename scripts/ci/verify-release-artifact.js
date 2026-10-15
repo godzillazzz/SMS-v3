@@ -3,16 +3,10 @@
 const fs = require('node:fs');
 const path = require('node:path');
 
-const DEFAULT_SENTINELS = [
-  'เข้าสู่ระบบด้วย Passkey',
-  'ลงเวลา',
-  'อุปกรณ์ลงเวลา',
-  'Security Site',
-  'ศูนย์ควบคุมการลงเวลา',
-  'ตารางผู้มีอำนาจอนุมัติและกรอบเวลา',
-  'เกณฑ์ SLA',
-  'การเปลี่ยนแปลงสำคัญ',
-];
+const DEFAULT_SENTINELS = require('../../frontend/src/release-runtime-sentinels.json').artifact;
+if (!Array.isArray(DEFAULT_SENTINELS) || DEFAULT_SENTINELS.length !== 8 || new Set(DEFAULT_SENTINELS).size !== 8 || DEFAULT_SENTINELS.some(value => typeof value !== 'string' || !value.trim())) {
+  throw new Error('release artifact guard: invalid sentinel manifest');
+}
 
 function collectFiles(targets) {
   const files = [];

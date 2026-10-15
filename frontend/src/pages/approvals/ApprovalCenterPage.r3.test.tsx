@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ApprovalCenterPage } from './ApprovalCenterPage';
 
@@ -51,4 +51,20 @@ describe('ApprovalCenterPage R3 queue display', () => {
     expect(container.textContent).not.toContain(requestUuid);
     expect(container.querySelectorAll('.nexus-approval-select svg')).toHaveLength(2);
   });
+});
+
+it('manual refresh bypasses summary cache, keeps list fetching and notifies global counts', async () => {
+  mocks.getApprovalCenter.mockResolvedValue({ data: [], summary: { total: 0 } });
+  mocks.getApprovalCenterSummary.mockResolvedValue({ summary: { total: 0, byType: {} } });
+  const onChanged = vi.fn();
+  const onSummaryLoaded = vi.fn();
+  render(<ApprovalCenterPage token="test-token" role="ADMIN" onChanged={onChanged} onSummaryLoaded={onSummaryLoaded}
+    onOpenEmployeeChange={vi.fn()} onNavigate={vi.fn()} onLeaveDecision={vi.fn()} />);
+  await waitFor(() => expect(mocks.getApprovalCenterSummary).toHaveBeenCalledTimes(1));
+  await waitFor(() => expect((screen.getByRole('button', { name: 'รีเฟรชข้อมูล' }) as HTMLButtonElement).disabled).toBe(false));
+  fireEvent.click(screen.getByRole('button', { name: 'รีเฟรชข้อมูล' }));
+  await waitFor(() => expect(onSummaryLoaded).toHaveBeenCalledTimes(2));
+  expect(onChanged).not.toHaveBeenCalled();
+  expect(mocks.getApprovalCenterSummary).toHaveBeenLastCalledWith('test-token', { forceRefresh: true });
+  expect(mocks.getApprovalCenter).toHaveBeenCalledTimes(2);
 });

@@ -60,10 +60,18 @@ export function settingsSectionPath(section: SettingsSectionId): string {
   return `${SETTINGS_BASE_PATH}/${definition.path}`;
 }
 
+function preserveNavigationQuery(current: URL, next: URL): void {
+  const keys = next.pathname === PAGE_PATHS.approvalCenter ? ['month', 'year', 'type'] : ['month', 'year'];
+  for (const key of keys) {
+    const value = current.searchParams.get(key);
+    if (value !== null) next.searchParams.set(key, value);
+  }
+}
+
 export function navigateSettingsSection(section: SettingsSectionId, options: { replace?: boolean; preserveQuery?: boolean } = {}): URL {
   const current = new URL(window.location.href);
   const next = new URL(settingsSectionPath(section), current.origin);
-  if (options.preserveQuery !== false) next.search = current.search;
+  if (options.preserveQuery !== false) preserveNavigationQuery(current, next);
   next.hash = current.hash;
   const target = `${next.pathname}${next.search}${next.hash}`;
   const state = { ...(window.history.state ?? {}), smsPage: 'settings', smsSettingsSection: section };
@@ -150,7 +158,7 @@ export function updateDocumentTitle(page: RoutePage | null, kind: 'page' | 'not-
 export function navigate(page: RoutePage, options: { replace?: boolean; preserveQuery?: boolean; query?: Record<string, string | undefined> } = {}): URL {
   const current = new URL(window.location.href);
   const next = new URL(PAGE_PATHS[page], current.origin);
-  if (options.preserveQuery !== false) next.search = current.search;
+  if (options.preserveQuery !== false) preserveNavigationQuery(current, next);
   next.hash = current.hash;
   for (const [key, value] of Object.entries(options.query ?? {})) {
     if (value === undefined || value === '') next.searchParams.delete(key);

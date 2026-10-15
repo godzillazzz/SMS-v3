@@ -45,6 +45,13 @@ describe('Leave Return for Correction V1 frontend', () => {
     expect(decisionModal).toContain('onConfirm');
   });
 
+  it('invalidates both Approval Center reads before scheduling leave-mutation refreshes', () => {
+    const decision = main.slice(main.indexOf('const executeLeaveDecision'), main.indexOf('const confirmLeaveDecision'));
+    expect(decision).toContain('invalidateApprovalCenter();');
+    expect(decision.indexOf('invalidateApprovalCenter();')).toBeLessThan(decision.indexOf('setOperationRefresh((value) => value + 1);'));
+    expect(decision.indexOf('invalidateApprovalCenter();')).toBeLessThan(decision.indexOf('setApprovalCenterRefresh((value) => value + 1);'));
+  });
+
   it('distinguishes returned request cancellation from approved Admin cancellation', () => {
     expect(main).toContain('ยกเลิกใบลาที่อนุมัติแล้ว');
     expect(main).toContain("row.status === 'APPROVED' && canCancelApprovedLeave");

@@ -73,7 +73,7 @@ describe('application History API routes', () => {
     const target = navigate('approvalCenter');
     expect(target.pathname).toBe('/app/approvals');
     expect(target.searchParams.get('month')).toBe('2026-10');
-    expect(target.searchParams.get('status')).toBe('PENDING');
+    expect(target.searchParams.get('status')).toBeNull();
     expect(window.history.state).toMatchObject({ fixture: true, smsPage: 'approvalCenter' });
     expect(onRouteChange).toHaveBeenCalledTimes(1);
 
@@ -103,7 +103,7 @@ describe('application History API routes', () => {
     const unsubscribe = subscribeToRouteChanges(onRouteChange);
     const target = navigateSettingsSection('notifications');
     expect(target.pathname).toBe('/app/settings/notifications');
-    expect(target.searchParams.get('source')).toBe('deep-link');
+    expect(target.searchParams.get('source')).toBeNull();
     expect(window.history.state).toMatchObject({ fixture: true, smsPage: 'settings', smsSettingsSection: 'notifications' });
     expect(onRouteChange).toHaveBeenCalledTimes(1);
     expect(settingsSectionFromPath(window.location.pathname)).toBe('notifications');
@@ -148,4 +148,15 @@ describe('application History API routes', () => {
     expect(new URLSearchParams(window.location.search).get('search')).toBe('S-100');
     window.removeEventListener(ROUTE_CHANGE_EVENT, listener);
   });
+});
+
+it('drops legacy approval type intent outside the center, preserving only month/year', () => {
+  window.history.replaceState({}, '', '/app/roster/approvals?type=SCHEDULE&month=10&year=2026&page=4');
+  navigate('approvalCenter');
+  expect(new URLSearchParams(window.location.search).get('type')).toBe('SCHEDULE');
+  const next = navigate('employees');
+  expect(next.search).toBe('?month=10&year=2026');
+  navigateSettingsSection('notifications');
+  expect(window.location.search).toBe('?month=10&year=2026');
+  expect(navigate('employees', { query: { department: 'AN1', page: '2' } }).searchParams.get('department')).toBe('AN1');
 });

@@ -1,0 +1,15 @@
+/* Final semantic cascade for the R7.1 contrast follow-up. */
+[data-theme="dark"] .dashboard-quick-actions__grid button small,
+[data-theme="dark"] .month-filter {
+  color: var(--color-text-secondary) !important;
+}
+[data-theme="dark"] .topbar-profile small {
+  color: var(--color-text) !important;
+}
+[data-theme="dark"] .rule-summary-grid strong {
+  color: var(--color-text) !important;
+}
+
+.roster-month-label {
+  color: var(--color-text-secondary);
+}

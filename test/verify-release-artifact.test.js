@@ -76,3 +76,43 @@ test('CI verifies the actual built frontend bundle with the full release artifac
   assert.ok(verifier.includes("verifyArtifact([path.join(root, 'frontend', 'dist')])"));
   assert.ok(verifier.includes('FRONTEND_RELEASE_ARTIFACT_GUARD=PASS'));
 });
+
+test('R7.1 manifest is the single artifact/runtime contract and every artifact sentinel fails closed', () => {
+  const manifest = require('../frontend/src/release-runtime-sentinels.json');
+  assert.deepEqual(DEFAULT_SENTINELS, manifest.artifact);
+  assert.equal(manifest.runtime.length, 20);
+  assert.equal(manifest.attendanceTimePolicy.length, 3);
+  const workflow = fs.readFileSync(path.join(__dirname, '../.github/workflows/deploy-approved-production-v2.yml'), 'utf8');
+  assert.ok(workflow.includes('release-runtime-sentinels.json'));
+  assert.ok(workflow.includes('manifest.runtime'));
+  assert.ok(workflow.includes('manifest.attendanceTimePolicy'));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sms-r71-sentinels-'));
+  try {
+    for (const absent of manifest.artifact) {
+      fs.writeFileSync(path.join(dir, 'index.js'), manifest.artifact.filter(x => !x.includes(absent)).join('\n'));
+      assert.throws(() => verifyArtifact([dir]), /missing required feature sentinels/);
+    }
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
+test('artifact guard rejects an incomplete manifest rather than reducing its checklist', () => {
+  const { runInNewContext } = require('node:vm');
+  const source = fs.readFileSync(path.join(__dirname, '../scripts/ci/verify-release-artifact.js'), 'utf8');
+  assert.throws(() => runInNewContext(source, {
+    require: name => name.endsWith('.json') ? { artifact: [] } : require(name), module: { exports: {} }
+  }), /invalid sentinel manifest/);
+});
+
+test('Production artifact attendance sentinels come from the shared manifest', () => {
+  const manifest = require('../frontend/src/release-runtime-sentinels.json');
+  const workflow = fs.readFileSync(path.join(__dirname, '../.github/workflows/deploy-approved-production-v2.yml'), 'utf8');
+  const buildStart = workflow.indexOf('node scripts/ci/verify-release-artifact.js frontend/dist .vercel/output/static');
+  const buildEnd = workflow.indexOf('node scripts/ci/verify-linux-artifact.js', buildStart);
+  assert.ok(buildStart >= 0 && buildEnd > buildStart, 'could not isolate Production artifact guard block');
+  const block = workflow.slice(buildStart, buildEnd);
+  assert.match(block, /require\('\.\/frontend\/src\/release-runtime-sentinels\.json'\)/);
+  assert.match(block, /\.\.\.manifest\.attendanceTimePolicy/);
+  for (const sentinel of manifest.attendanceTimePolicy) {
+    assert.equal(block.includes(`'${sentinel}'`), false, `workflow duplicated attendance sentinel: ${sentinel}`);
+  }
+});

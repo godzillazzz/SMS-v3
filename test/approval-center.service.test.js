@@ -363,3 +363,60 @@ test('Approval Center rejects Viewer even when the route guard is bypassed', asy
   const service = createApprovalCenterService({ prisma: {} });
   await assert.rejects(() => service.list({ actor: { role: 'VIEWER' } }), (error) => error?.statusCode === 403 || error?.status === 403);
 });
+
+test('R7.1 request-correlated summary/list measurements count proxied model and raw calls safely', async () => {
+  const records = [];
+  const prisma = adminPrisma();
+  prisma.$queryRaw = async () => [];
+  prisma.scheduleApproval = scheduleApprovalDelegate([{ id: 'schedule-r71', month: now, revision: 1, status: 'PENDING', submittedAt: now }]);
+  const service = createApprovalCenterService({ prisma, clock: () => now,
+    logger: { info: (event, fields) => records.push({ event, ...fields }) },
+    attendanceAdjustmentList: async (input, client) => {
+      await client.$queryRaw('fixture'); await client.$queryRaw('fixture');
+      return { data: [], meta: { total: 0 } };
+    }
+  });
+  await Promise.all(['summary', 'list'].map(operation => service[operation]({ actor: { role: 'ADMIN', sub: 'admin' }, requestId: 'r71-' + operation })));
+  assert.equal(records.length, 2);
+  for (const record of records) {
+    assert.equal(record.event, 'performance_stage');
+    assert.match(record.requestId, /^r71-(summary|list)$/);
+    assert.equal(record.role, 'ADMIN');
+    assert.equal(record.status, 'success');
+    assert.ok(record.durationMs >= 0);
+    assert.equal(record.queryCount, 12, 'policy + seven queues + schedule pair + attendance raw pair');
+    assert.deepEqual(Object.keys(record).sort(), ['durationMs','event','operation','queryCount','requestId','role','stage','status'].sort());
+  }
+  await assert.rejects(service.summary({ actor: { role: 'VIEWER' }, requestId: 'r71-denied' }));
+  assert.equal(records[2].status, 'error');
+  assert.equal(records[2].queryCount, 0);
+});
+
+test('R7.1 default attendance adjustment service contributes both raw queries', async () => {
+  const prisma = adminPrisma();
+  let rawCalls = 0;
+  prisma.$queryRaw = async () => ++rawCalls % 2 ? [] : [{ total: 0 }];
+  const records = [];
+  const service = createApprovalCenterService({ prisma, clock: () => now,
+    logger: { info: (event, fields) => records.push(fields) } });
+  await service.summary({ actor: { role: 'ADMIN' }, requestId: 'raw-summary' });
+  await service.list({ actor: { role: 'ADMIN' }, requestId: 'raw-list' });
+  assert.equal(rawCalls, 4);
+  assert.deepEqual(records.map(record => record.queryCount), [11, 11]);
+});
+
+test('R7.1 query counters saturate without changing results and retain failure status', async () => {
+  const prisma = adminPrisma();
+  prisma.$queryRaw = async () => [];
+  const records = [];
+  const service = createApprovalCenterService({ prisma, clock: () => now,
+    logger: { info: (event, fields) => records.push(fields) },
+    attendanceAdjustmentList: async (input, client) => {
+      for (let i = 0; i < 1001; i++) await client.$queryRaw('fixture');
+      throw new Error('fixture failure');
+    }
+  });
+  await assert.rejects(service.summary({ actor: { role: 'ADMIN' }, requestId: 'bounded-failure' }), /fixture failure/);
+  assert.equal(records[0].status, 'error');
+  assert.equal(records[0].queryCount, 1000);
+});

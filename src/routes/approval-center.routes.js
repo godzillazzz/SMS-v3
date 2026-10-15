@@ -14,7 +14,7 @@ router.use(authorize('ADMIN', 'MANAGER', 'SUPERVISOR'));
 router.get('/summary', async (req, res, next) => {
   try {
     res.set('Cache-Control', 'no-store');
-    res.json(await service.summary({ actor: req.user }));
+    res.json(await service.summary({ actor: req.user, requestId: req.requestId }));
   } catch (error) {
     next(error);
   }
@@ -23,7 +23,7 @@ router.get('/summary', async (req, res, next) => {
 router.get('/', async (req, res, next) => {
   try {
     res.set('Cache-Control', 'no-store');
-    res.json(await service.list({ actor: req.user, ...query.parse(req.query) }));
+    res.json(await service.list({ actor: req.user, requestId: req.requestId, ...query.parse(req.query) }));
   } catch (error) {
     next(error);
   }
