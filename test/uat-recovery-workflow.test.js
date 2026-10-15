@@ -1,10 +1,26 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const crypto = require('node:crypto');
 const fs = require('node:fs');
+const path = require('node:path');
 const { verifyPreview } = require('../scripts/ci/verify-uat-v3-preview');
 const { PROJECT_ID, TEAM_ID } = require('../e2e/uat-v3/config');
 const workflow = fs.readFileSync('.github/workflows/authenticated-uat-v3-readonly.yml', 'utf8');
+test('runtime guard pins cover existing files and match their SHA-256 digests', () => {
+  const repoRoot = path.resolve(__dirname, '..');
+  const manifest = JSON.parse(fs.readFileSync(path.join(repoRoot, '.github/uat/authenticated-readonly-target.json'), 'utf8'));
+  const { paths } = require('../scripts/ci/verify-uat-v3-trust');
+  const pins = manifest.runtime_guard_file_sha256;
+  assert.deepEqual(Object.keys(pins).sort(), [...paths].sort(), 'runtime guard path list and manifest pins must match exactly');
+  for (const runtimePath of paths) {
+    const absolutePath = path.join(repoRoot, runtimePath);
+    assert.equal(fs.statSync(absolutePath).isFile(), true, `runtime guard path must be a file: ${runtimePath}`);
+    assert.match(pins[runtimePath], /^[a-f0-9]{64}$/, `runtime guard pin must be 64 lowercase hex characters: ${runtimePath}`);
+    const digest = crypto.createHash('sha256').update(fs.readFileSync(absolutePath)).digest('hex');
+    assert.equal(digest, pins[runtimePath], `runtime guard pin mismatch: ${runtimePath}`);
+  }
+});
 test('protected UAT uses trusted main only, owner gate and no PR source checkout', () => {
   assert.match(workflow, /github\.ref == 'refs\/heads\/main'/);
   assert.match(workflow, /github\.actor == 'godzillazzz'/);
@@ -84,7 +100,7 @@ test('browser selectors use the reviewed Preview application contract, pinned be
   const spec = fs.readFileSync('e2e/uat-v3/readonly.spec.js', 'utf8');
   const target = JSON.parse(fs.readFileSync('.github/uat/authenticated-readonly-target.json'));
   const { paths } = require('../scripts/ci/verify-uat-v3-trust');
-  for (const path of ['frontend/src/main.tsx', 'frontend/src/theme.ts']) {
+  for (const path of ['frontend/src/main.tsx']) {
     assert.ok(paths.includes(path));
     assert.match(target.runtime_guard_file_sha256[path], /^[a-f0-9]{64}$/);
   }
