@@ -5,7 +5,7 @@ const assert = require('node:assert/strict');
 const crypto = require('node:crypto');
 const {
   EXPECTED, projectIsExpected, assertOwnerEvent, verifyEnvironment,
-  verifyDeployment, verifyProduction, verifyCi, verifyRuntimeReceipt,
+  verifyDeployment, verifyProduction, resolveCanonicalProduction, verifyCi, verifyRuntimeReceipt,
   signRuntimeChallenge, safeUrl, verifyPlan, verify, client
 } = require('../scripts/ci/r6b-exact-deployment-isolation.cjs');
 
@@ -13,6 +13,8 @@ const MAIN_SHA = 'a'.repeat(40);
 const NONCE = 'f'.repeat(32);
 const INTEGRATION_SHA = 'a'.repeat(40);
 const DEPLOYMENT_ID = 'dpl_TestPreviewV3';
+const PRODUCTION_DEPLOYMENT_ID = 'dpl_TestProductionV7';
+const PRODUCTION_SHA = 'b'.repeat(40);
 const CI_RUN_ID = 12345678901;
 const command = EXPECTED.command + ' sha=' + INTEGRATION_SHA
   + ' deployment=' + DEPLOYMENT_ID;
@@ -53,6 +55,16 @@ function deployment() {
       githubOrg: 'godzillazzz', githubRepo: 'SMS-v3'
     }
   };
+}
+function productionDeployment() {
+  const d = deployment();
+  d.id = PRODUCTION_DEPLOYMENT_ID;
+  d.target = 'production';
+  d.meta.githubCommitSha = PRODUCTION_SHA;
+  return d;
+}
+function alias(aliasName, deploymentId = PRODUCTION_DEPLOYMENT_ID) {
+  return { alias: aliasName, deploymentId, projectId: EXPECTED.projectId };
 }
 function receipt() {
   return {
@@ -166,14 +178,51 @@ test('Preview pinned deployment requires READY, preview, host, ref and project',
     assert.throws(()=>verifyDeployment(x,d.url,plan()),/EXACT_PREVIEW_DEPLOYMENT_REQUIRED/);
   }
 });
-test('frozen Production deployment rejects target or SHA changes',()=>{
-  const d=deployment();d.id=EXPECTED.productionDeploymentId;d.target='production';
-  d.meta.githubCommitSha=EXPECTED.productionSha;
-  assert.doesNotThrow(()=>verifyProduction(d));
-  d.target='preview';
-  assert.throws(()=>verifyProduction(d),/FROZEN_PRODUCTION_CHANGED/);
-  d.target='production';d.meta.githubCommitSha=INTEGRATION_SHA;
-  assert.throws(()=>verifyProduction(d),/FROZEN_PRODUCTION_CHANGED/);
+test('canonical Production deployment requires READY production source provenance',()=>{
+  const d=productionDeployment();
+  assert.deepEqual(verifyProduction(d,PRODUCTION_DEPLOYMENT_ID),{
+    deploymentId:PRODUCTION_DEPLOYMENT_ID,applicationSha:PRODUCTION_SHA
+  });
+  for (const mutation of [
+    x=>x.target='preview',
+    x=>x.readyState='ERROR',
+    x=>x.project.id='wrong',
+    x=>x.meta.githubCommitSha='not-a-sha',
+    x=>x.meta.githubCommitRef='main',
+    x=>x.meta.githubRepo='other'
+  ]) {
+    const x=copy(d);mutation(x);
+    assert.throws(()=>verifyProduction(x,PRODUCTION_DEPLOYMENT_ID),
+      /CANONICAL_PRODUCTION_UNVERIFIED/);
+  }
+  assert.throws(()=>verifyProduction(d,'not-a-deployment'),
+    /CANONICAL_PRODUCTION_UNVERIFIED/);
+});
+test('canonical Production aliases must converge on one expected project deployment',async()=>{
+  const api={vercel:async path=>{
+    for (const name of EXPECTED.aliases) if(path.endsWith('/v4/aliases/'+name)) return alias(name);
+    if(path.endsWith('/v13/deployments/'+PRODUCTION_DEPLOYMENT_ID)) return productionDeployment();
+    throw Error('unexpected '+path);
+  }};
+  const out=await resolveCanonicalProduction(api);
+  assert.equal(out.deploymentId,PRODUCTION_DEPLOYMENT_ID);
+  assert.equal(out.applicationSha,PRODUCTION_SHA);
+
+  const divergent={vercel:async path=>{
+    if(path.endsWith('/v4/aliases/'+EXPECTED.aliases[0])) return alias(EXPECTED.aliases[0]);
+    if(path.endsWith('/v4/aliases/'+EXPECTED.aliases[1])) return alias(EXPECTED.aliases[1],'dpl_OtherProduction');
+    throw Error('unexpected '+path);
+  }};
+  await assert.rejects(()=>resolveCanonicalProduction(divergent),/PRODUCTION_ALIAS_DIVERGENCE/);
+
+  const wrongProject={vercel:async path=>{
+    if(path.includes('/v4/aliases/')) {
+      const name=path.split('/').at(-1);
+      return {...alias(name),projectId:'prj_wrong'};
+    }
+    throw Error('unexpected '+path);
+  }};
+  await assert.rejects(()=>resolveCanonicalProduction(wrongProject),/PRODUCTION_ALIAS_UNVERIFIED/);
 });
 test('CI must be exact-head success, not older success',()=>{
   const r={id:CI_RUN_ID,name:'CI',head_sha:INTEGRATION_SHA,
@@ -184,13 +233,13 @@ test('CI must be exact-head success, not older success',()=>{
     assert.throws(()=>verifyCi({workflow_runs:[{...r,...x}]}, INTEGRATION_SHA, EXPECTED.integrationBranch),/EXACT_INTEGRATION_CI_REQUIRED/);
   }
 });
-test('receipt v3 accepts runtime principal/cluster evidence but never labels release PASS',()=>{
+test('receipt v3 returns PASS only when independent DB/Storage separation evidence is complete',()=>{
   const x=verifyRuntimeReceipt(receipt(),NONCE,proof());
   assert.deepEqual(x,{
     deploymentIdentity:'PASS',configuredDatabaseTarget:'MATCH',databaseReadOnlyCheck:'PASS',
-    runtimePrincipal:'MATCH',runtimeClusterFingerprint:'MATCH_CANDIDATE',
+    runtimePrincipal:'MATCH',runtimeClusterFingerprint:'MATCH',
     configuredStorageEndpoint:'MATCH',privateBucketMetadataGet:'PASS',
-    database:'UNVERIFIED',storage:'UNVERIFIED',productionSeparation:'UNVERIFIED'
+    database:'PASS',storage:'PASS',productionSeparation:'PASS'
   });
 });
 test('runtime principal and provider cluster binding are mandatory and fail closed',()=>{
@@ -219,12 +268,13 @@ test('runtime principal and provider cluster binding are mandatory and fail clos
   }
 });
 
-test('no Production refs also stays UNVERIFIED',()=>{
-  const p = proof();
-  delete p.approvedProductionDatabaseRef;
-  delete p.approvedProductionStorageRef;
-  const x=verifyRuntimeReceipt(receipt(),NONCE,p);
-  assert.equal(x.productionSeparation,'UNVERIFIED');
+test('missing Production DB or Storage ref fails closed',()=>{
+  for (const key of ['approvedProductionDatabaseRef','approvedProductionStorageRef']) {
+    const p = proof();
+    delete p[key];
+    assert.throws(()=>verifyRuntimeReceipt(receipt(),NONCE,p),
+      /PRODUCTION_SEPARATION_UNVERIFIED/);
+  }
 });
 test('receipt v1, unknown fields and Preview-supplied Production IDs rejected',()=>{
   const old=receipt();old.contract='sms-v3-preview-isolation/v1';
@@ -260,6 +310,11 @@ test('DB read-only and configured target match are mandatory',()=>{
     const x=receipt();update(x);
     assert.throws(()=>verifyRuntimeReceipt(x,NONCE,proof()),/RUNTIME_DATABASE_TARGET_UNVERIFIED/);
   }
+});
+test('signed challenge identity must be verified by runtime',()=>{
+  const x=receipt();x.signedChallengeIdentity.signatureVerified=false;
+  assert.throws(()=>verifyRuntimeReceipt(x,NONCE,proof()),
+    /SIGNED_CHALLENGE_IDENTITY_UNVERIFIED/);
 });
 test('Storage metadata GET and private bucket flags must agree',()=>{
   for(const update of [
@@ -331,7 +386,7 @@ test('GET-only client rejects methods, credentials in URL and redirects',async()
   await assert.rejects(()=>api.request('https://preview.example.com'),/REDIRECT_REJECTED/);
 });
 
-test('mocked exact-host signed GET is v3 and isolation remains UNVERIFIED', async()=>{
+test('mocked exact-host signed GET is v3 and isolation becomes VERIFIED only with complete proof', async()=>{
   const secret='unit-test-only-matching-hmac-key-32bytes';
   const e={...env(), GH_TOKEN:'unit-gh',
     VERCEL_TOKEN:'unit-vercel',
@@ -340,7 +395,9 @@ test('mocked exact-host signed GET is v3 and isolation remains UNVERIFIED', asyn
     RUNTIME_PROBE_SOURCE_REVIEW_APPROVED:INTEGRATION_SHA,
     APPROVED_PREVIEW_RUNTIME_PRINCIPAL:'postgres',
     APPROVED_PREVIEW_DB_CLUSTER_FINGERPRINT:'a'.repeat(64),
-    APPROVED_PRODUCTION_DB_CLUSTER_FINGERPRINT:'b'.repeat(64)
+    APPROVED_PRODUCTION_DB_CLUSTER_FINGERPRINT:'b'.repeat(64),
+    APPROVED_PRODUCTION_DB_REF:'x'.repeat(20),
+    APPROVED_PRODUCTION_STORAGE_REF:'y'.repeat(20)
   };
   const host=deployment().url;
   let probes=0, calls=0;
@@ -367,13 +424,12 @@ test('mocked exact-host signed GET is v3 and isolation remains UNVERIFIED', asyn
     } else if(u.hostname==='api.vercel.com') {
       if(u.pathname.endsWith('/v13/deployments/'+DEPLOYMENT_ID)
         ||u.pathname.endsWith('/v13/deployments/'+host)) result=deployment();
-      else if(u.pathname.endsWith('/v13/deployments/'+EXPECTED.productionDeploymentId)) {
-        const p=deployment();p.id=EXPECTED.productionDeploymentId;p.target='production';
-        p.meta.githubCommitSha=EXPECTED.productionSha;result=p;
+      else if(u.pathname.endsWith('/v13/deployments/'+PRODUCTION_DEPLOYMENT_ID)) {
+        result=productionDeployment();
       } else if(u.pathname.includes('/v4/aliases/')) {
-        const alias=u.pathname.split('/').at(-1);
-        assert.ok(EXPECTED.aliases.includes(alias));
-        result={alias,deploymentId:EXPECTED.productionDeploymentId};
+        const aliasName=u.pathname.split('/').at(-1);
+        assert.ok(EXPECTED.aliases.includes(aliasName));
+        result=alias(aliasName);
       } else throw Error('unexpected vercel endpoint '+u.pathname);
     } else if(u.hostname===host) {
       assert.equal(options.headers['x-vercel-protection-bypass'],'unit-bypass');
@@ -396,13 +452,15 @@ test('mocked exact-host signed GET is v3 and isolation remains UNVERIFIED', asyn
     return {status:200,ok:true,json:async()=>result};
   };
   const out=await verify(plan(),event(),e,mock);
-  assert.equal(out.result,'UNVERIFIED');
-  assert.equal(out.database,'UNVERIFIED');
-  assert.equal(out.storage,'UNVERIFIED');
-  assert.equal(out.productionSeparation,'UNVERIFIED');
+  assert.equal(out.result,'VERIFIED');
+  assert.equal(out.database,'PASS');
+  assert.equal(out.storage,'PASS');
+  assert.equal(out.productionSeparation,'PASS');
+  assert.equal(out.productionDeploymentId,PRODUCTION_DEPLOYMENT_ID);
+  assert.equal(out.productionApplicationSha,PRODUCTION_SHA);
   assert.equal(out.productionUnchanged,true);
   assert.equal(probes,1);
-  assert.ok(calls>=10);
+  assert.ok(calls>=14);
 });
 test('protected workflow cannot be dispatched by pull_request or push',()=>{
   const fs=require('node:fs');
