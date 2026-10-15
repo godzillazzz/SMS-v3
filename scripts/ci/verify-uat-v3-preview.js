@@ -1,5 +1,7 @@
 'use strict';
+const crypto = require('node:crypto');
 const { PROJECT_ID, TEAM_ID, previewUrl, fail } = require('../../e2e/uat-v3/config');
+const { signChallenge } = require('../../src/services/runtime-isolation-probe.service');
 const approvedTarget = require('../../.github/uat/authenticated-readonly-target.json');
 const { verifyRuntimeIsolation } = require('../../e2e/uat-v3/database-isolation');
 const { automationRequestOptions } = require('../../e2e/helpers/technical-smoke');
@@ -24,7 +26,30 @@ async function verifyPreview(fetcher = fetch, env = process.env, resolve = resol
   if (!env.VERCEL_AUTOMATION_BYPASS_SECRET) fail('UAT_PROTECTED_READINESS_ACCESS_REQUIRED');
   const ready = await fetcher(origin + '/api/v1/ready', automationRequestOptions({ method: 'GET', redirect: 'error', signal: AbortSignal.timeout(15000) }, env, origin, origin));
   if (ready.status !== 200) fail('UAT_RUNTIME_DATABASE_READINESS_FAILED');
-  verifyRuntimeIsolation(target, raw, await ready.json());
+  const readiness = await ready.json();
+  if (readiness?.status !== 'ready' || readiness?.database !== 'ok') fail('UAT_RUNTIME_DATABASE_READINESS_FAILED');
+  const key = env.RUNTIME_ISOLATION_PROBE_HMAC_SECRET;
+  if (typeof key !== 'string' || Buffer.byteLength(key, 'utf8') < 32) fail('UAT_RUNTIME_PROBE_KEY_REQUIRED');
+  const nonce = crypto.randomBytes(16).toString('hex');
+  const issuedAt = Date.now();
+  const host = new URL(origin).hostname;
+  const query = new URLSearchParams({
+    nonce, sha, deploymentId: identity.id, issuedAt: String(issuedAt)
+  });
+  const signature = signChallenge(key, {
+    host, deploymentId: identity.id, sha, nonce, issuedAt
+  });
+  const proofUrl = origin + '/api/v1/ops/preview-isolation-attestation?' + query.toString();
+  const proof = await fetcher(proofUrl, automationRequestOptions({
+    method: 'GET', redirect: 'error',
+    headers: { 'x-smsv3-probe-signature': signature },
+    signal: AbortSignal.timeout(15000)
+  }, env, origin, proofUrl));
+  if (proof.status !== 200) fail('UAT_RUNTIME_PROBE_UNVERIFIED');
+  const receipt = await proof.json();
+  verifyRuntimeIsolation(target, receipt, {
+    host, nonce, sha, deploymentId: identity.id, ref, issuedAt
+  });
   return { deployment: identity.id, project: PROJECT_ID, sha, ref, state: 'READY', environment: 'preview' };
 }
 if (require.main === module) verifyPreview().then((evidence) => process.stdout.write(JSON.stringify(evidence) + '\n')).catch(() => { process.stderr.write('UAT_PREVIEW_IDENTITY_FAILED\n'); process.exitCode = 1; });
