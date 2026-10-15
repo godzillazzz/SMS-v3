@@ -27,7 +27,7 @@ function env(overrides = {}) {
     VERCEL_GIT_COMMIT_REF: EXPECTED.integrationRef,
     VERCEL_GIT_REPO_OWNER: 'godzillazzz',
     VERCEL_GIT_REPO_SLUG: 'SMS-v3',
-    RUNTIME_ISOLATION_PROBE_HMAC_SECRET: HMAC_FIXTURE,
+    UAT_V3_RUNTIME_PROBE_HMAC_SECRET: HMAC_FIXTURE,
     ...overrides
   };
 }
@@ -62,7 +62,7 @@ function challenge(runtime, overrides = {}) {
     nonce,
     issuedAt: Number(issuedAt)
   };
-  const signature = signChallenge(runtime.RUNTIME_ISOLATION_PROBE_HMAC_SECRET, fields);
+  const signature = signChallenge(runtime.UAT_V3_RUNTIME_PROBE_HMAC_SECRET, fields);
   return { nonce, issuedAt, signature };
 }
 
