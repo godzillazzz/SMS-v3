@@ -28,7 +28,7 @@ async function verifyPreview(fetcher = fetch, env = process.env, resolve = resol
   if (ready.status !== 200) fail('UAT_RUNTIME_DATABASE_READINESS_FAILED');
   const readiness = await ready.json();
   if (readiness?.status !== 'ready' || readiness?.database !== 'ok') fail('UAT_RUNTIME_DATABASE_READINESS_FAILED');
-  const key = env.RUNTIME_ISOLATION_PROBE_HMAC_SECRET;
+  const key = env.UAT_V3_RUNTIME_PROBE_HMAC_SECRET;
   if (typeof key !== 'string' || Buffer.byteLength(key, 'utf8') < 32) fail('UAT_RUNTIME_PROBE_KEY_REQUIRED');
   const nonce = crypto.randomBytes(16).toString('hex');
   const issuedAt = Date.now();
