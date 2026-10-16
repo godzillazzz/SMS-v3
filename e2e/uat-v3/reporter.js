@@ -8,7 +8,7 @@ const BROWSER_CHECKS = Object.freeze(['BROWSER_PAGE_READY', 'BROWSER_CREDENTIAL_
   'BROWSER_LOGIN_REQUEST', 'BROWSER_LOGIN_IDENTITY', 'BROWSER_AUTH_TRANSITION',
   'BROWSER_READONLY_GUARD']);
 const SAFE_CHECKS = Object.freeze([...BROWSER_CHECKS, ...API_CHECKS]);
-const ERROR_CATEGORIES = Object.freeze(['TEST_TIMEOUT', 'ROUTE_AFTER_CLOSE', 'UNHANDLED_ERROR', 'OTHER']);
+const ERROR_CATEGORIES = Object.freeze(['NONE', 'TEST_TIMEOUT', 'ROUTE_AFTER_CLOSE', 'UNHANDLED_ERROR', 'OTHER']);
 function classifyResultErrors(errors) {
   if (!Array.isArray(errors) || errors.length === 0) return 'OTHER';
   const text = errors.map((error) => typeof error?.message === 'string' ? error.message : '').join(' ');
@@ -105,7 +105,8 @@ function makeSafeSummary(results, preflight = {}, meta = {}) {
     const details = preflight?.[role] && typeof preflight[role] === 'object' ? preflight[role] : {};
     return [role, { preflight: preflightCode, login: preflightCode === 'READY',
       role_match: details.roleMatch === true, active: details.active === true,
-      distinct: details.distinct === true, employee_linked: details.employeeLinked === true,
+      distinct: details.distinct === true, employee_linked: details.employeeLinked === 'UNVERIFIED' ? 'UNVERIFIED' : false,
+      error_category: own.length ? own.find((entry) => entry.status !== 'passed')?.error_category || 'NONE' : 'NONE',
       state, passed, failed: failed.length,
       skipped, failed_phase: failed.length ? failed[0].phase : 'NONE',
       failed_check: failed.length ? failed[0].failure_check : 'NONE',
@@ -135,7 +136,8 @@ function diagnosticLines(summary) {
     lines.push('UAT_PREFLIGHT_' + role + '_ROLE_MATCH=' + (value.role_match === true ? 'true' : 'false'));
     lines.push('UAT_PREFLIGHT_' + role + '_ACTIVE=' + (value.active === true ? 'true' : 'false'));
     lines.push('UAT_PREFLIGHT_' + role + '_DISTINCT=' + (value.distinct === true ? 'true' : 'false'));
-    lines.push('UAT_PREFLIGHT_' + role + '_EMPLOYEE_LINKED=' + (value.employee_linked === true ? 'true' : 'false'));
+    lines.push('UAT_PREFLIGHT_' + role + '_EMPLOYEE_LINKED=' + (value.employee_linked === 'UNVERIFIED' ? 'UNVERIFIED' : 'false'));
+    lines.push('UAT_ERROR_CATEGORY_' + role + '=' + (ERROR_CATEGORIES.includes(value.error_category) ? value.error_category : 'OTHER'));
     lines.push('UAT_ROLE_' + role + '=' + state);
     lines.push('UAT_FAILED_PHASE_' + role + '=' + phase);
     const check = [...SAFE_CHECKS, 'NONE'].includes(value.failed_check) ? value.failed_check : 'UNCLASSIFIED';

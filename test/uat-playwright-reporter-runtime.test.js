@@ -49,6 +49,6 @@ test('after fix: unrouteAll plus a swallowed close error leaves the next test cl
   await new Promise((resolve) => setImmediate(resolve));
   fixture.finish();
   assert.deepEqual(fixture.unhandled, []);
-  assert.deepEqual(ERROR_CATEGORIES, ['TEST_TIMEOUT', 'ROUTE_AFTER_CLOSE', 'UNHANDLED_ERROR', 'OTHER']);
+  assert.deepEqual(ERROR_CATEGORIES, ['NONE', 'TEST_TIMEOUT', 'ROUTE_AFTER_CLOSE', 'UNHANDLED_ERROR', 'OTHER']);
   assert.equal(classifyResultErrors([{ message: 'unhandled rejection from unrelated test' }]), 'UNHANDLED_ERROR');
 });

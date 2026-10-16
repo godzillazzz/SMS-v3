@@ -211,6 +211,25 @@ test('four-role approval contracts match actual authorization middleware', () =>
     if (role !== 'ADMIN') assert.ok(getRoleApiMatrix(role).some((route) => route.expectedStatus === 403));
   }
 });
+test('navigation catalog matches the reviewed 20-item snapshot', () => {
+  const { navigationCatalog, rolePageChecks, roleNavigation } = require('../e2e/uat-v3/role-matrix');
+  // Reference snapshot from ffba53f90b1787a071657c21ee162609c8f80254 (fix/serverless-database-reliability): frontend/src/main.tsx
+  const SNAPSHOT_NAVIGATION_IDS_FFBA53F = Object.freeze([
+    'dashboard', 'approvalCenter', 'employees', 'licenses',
+    'attendance', 'attendanceSupervisor', 'attendanceDevice',
+    'schedule', 'shiftSetup', 'rules', 'leave', 'leaveHistory',
+    'quota', 'reportCenter', 'users', 'securitySite', 'settings',
+    'audit', 'dataQuality', 'systemHealth'
+  ]);
+  assert.deepEqual(Object.keys(navigationCatalog), SNAPSHOT_NAVIGATION_IDS_FFBA53F);
+  assert.equal(rolePageChecks.ADMIN.length, 20);
+  assert.equal(rolePageChecks.MANAGER.length, 14);
+  assert.equal(rolePageChecks.SUPERVISOR.length, 14);
+  assert.equal(rolePageChecks.VIEWER.length, 9);
+  assert.equal(roleNavigation.MANAGER.required.length, 14);
+  assert.equal(roleNavigation.SUPERVISOR.required.length, 14);
+  assert.equal(roleNavigation.VIEWER.forbidden.length, 11);
+});
 test('SUPERVISOR matrix is explicit and preserves role-specific approval boundaries', () => {
   const source = require('node:fs').readFileSync(require('node:path').join(__dirname, '../e2e/uat-v3/role-matrix.js'), 'utf8');
   assert.equal(source.includes('roleApiMatrix.SUPERVISOR = roleApiMatrix.MANAGER.map'), false);

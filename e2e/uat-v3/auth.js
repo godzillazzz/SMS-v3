@@ -54,7 +54,10 @@ async function preflightAccounts(createContext, config, onStatus = () => {}) {
         if (context) await context.dispose();
       }
       // Only a fixed role name and coarse outcome are ever reported.
-      onStatus({ role, code: 'READY', employeeLinked: Boolean(sessions.get(role).user?.employeeId), roleMatch: true, active: true, distinct: true });
+      // roleMatch is guaranteed by RoleSessions.put asserting payload.user.role === role
+      // active is guaranteed by isLoginEligible check in auth service
+      // distinct is guaranteed by RoleSessions.put rejecting duplicate user.id across roles
+      onStatus({ role, code: 'READY', employeeLinked: 'UNVERIFIED', roleMatch: true, active: true, distinct: true });
       activeRole = null;
     }
     return sessions;

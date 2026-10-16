@@ -23,7 +23,7 @@ test('preflight reports a fixed role and HTTP code, never raw login response or 
   await assert.rejects(() => preflightAccounts(createContext, configured(), (entry) => status.push(entry)),
     { code: 'UAT_ACCOUNT_PREFLIGHT_FAILED' });
   assert.deepEqual(status, [
-    { role: 'ADMIN', code: 'READY', employeeLinked: false, roleMatch: true, active: true, distinct: true },
+    { role: 'ADMIN', code: 'READY', employeeLinked: 'UNVERIFIED', roleMatch: true, active: true, distinct: true },
     { role: 'MANAGER', code: 'HTTP_401' }
   ]);
   const log = JSON.stringify(status);
@@ -47,7 +47,7 @@ test('preflight reports all four existing accounts when successful', async () =>
       dispose: async () => {} };
   }, configured(), (entry) => entries.push(entry));
   assert.equal(s.summary().length, 4);
-  assert.deepEqual(entries, roles.map((role) => ({ role, code: 'READY', employeeLinked: false, roleMatch: true, active: true, distinct: true })));
+  assert.deepEqual(entries, roles.map((role) => ({ role, code: 'READY', employeeLinked: 'UNVERIFIED', roleMatch: true, active: true, distinct: true })));
   s.clear();
 });
 test('diagnostic summary classifies preflight and test phases using only allowlisted values', () => {

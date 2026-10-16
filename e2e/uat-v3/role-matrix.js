@@ -113,28 +113,25 @@ roleApiMatrix.VIEWER = roleApiMatrix.VIEWER.filter(([label]) => label !== 'Leave
 
 const navigationCatalog = {
   dashboard: { id: 'dashboard', label: 'ภาพรวม' },
+  approvalCenter: { id: 'approvalCenter', label: 'ศูนย์อนุมัติ' },
   employees: { id: 'employees', label: 'ข้อมูลพนักงาน' },
-
+  licenses: { id: 'licenses', label: 'ใบอนุญาต รปภ.' },
   attendance: { id: 'attendance', label: 'ลงเวลา' },
   attendanceSupervisor: { id: 'attendanceSupervisor', label: 'ศูนย์ควบคุมการลงเวลา' },
   attendanceDevice: { id: 'attendanceDevice', label: 'อุปกรณ์ลงเวลา' },
   schedule: { id: 'schedule', label: 'ตารางกะรายเดือน' },
-
   shiftSetup: { id: 'shiftSetup', label: 'รหัสกะและเวลา' },
+  rules: { id: 'rules', label: 'ตรวจสอบกฎการทำงาน' },
   leave: { id: 'leave', label: 'คำขอลา' },
-
   leaveHistory: { id: 'leaveHistory', label: 'ประวัติการลาทั้งหมด' },
   quota: { id: 'quota', label: 'โควต้าวันลา' },
-  approvalCenter: { id: 'approvalCenter', label: 'ศูนย์อนุมัติ' },
-  rules: { id: 'rules', label: 'ตรวจสอบกฎการทำงาน' },
+  reportCenter: { id: 'reportCenter', label: 'รายงานและวิเคราะห์' },
+  users: { id: 'users', label: 'ผู้ใช้และสิทธิ์' },
+  securitySite: { id: 'securitySite', label: 'จุดรักษาความปลอดภัยและ QR' },
+  settings: { id: 'settings', label: 'ตั้งค่าระบบ' },
   audit: { id: 'audit', label: 'บันทึกการใช้งานระบบ' },
   dataQuality: { id: 'dataQuality', label: 'คุณภาพข้อมูล' },
-  systemHealth: { id: 'systemHealth', label: 'ประสิทธิภาพและสถานะระบบ' },
-  users: { id: 'users', label: 'ผู้ใช้และสิทธิ์' },
-  reportCenter: { id: 'reportCenter', label: 'รายงานและวิเคราะห์' },
-
-  securitySite: { id: 'securitySite', label: 'จุดรักษาความปลอดภัยและ QR' },
-  settings: { id: 'settings', label: 'ตั้งค่าระบบ' }
+  systemHealth: { id: 'systemHealth', label: 'ประสิทธิภาพและสถานะระบบ' }
 };
 
 const legacyPageTargets = {
@@ -143,18 +140,18 @@ const legacyPageTargets = {
 };
 
 const rolePageChecks = {
-  ADMIN: ['dashboard', 'approvalCenter', 'employees', 'attendance', 'attendanceSupervisor', 'attendanceDevice', 'schedule', 'shiftSetup', 'rules', 'leave', 'leaveHistory', 'quota', 'reportCenter', 'users', 'securitySite', 'settings', 'audit', 'dataQuality', 'systemHealth'],
-  MANAGER: ['dashboard', 'approvalCenter', 'employees', 'attendance', 'attendanceSupervisor', 'attendanceDevice', 'schedule', 'shiftSetup', 'rules', 'leave', 'leaveHistory', 'reportCenter', 'users'],
-  SUPERVISOR: ['dashboard', 'approvalCenter', 'employees', 'attendance', 'attendanceSupervisor', 'attendanceDevice', 'schedule', 'shiftSetup', 'rules', 'leave', 'leaveHistory', 'reportCenter', 'users'],
+  ADMIN: ['dashboard', 'approvalCenter', 'employees', 'licenses', 'attendance', 'attendanceSupervisor', 'attendanceDevice', 'schedule', 'shiftSetup', 'rules', 'leave', 'leaveHistory', 'quota', 'reportCenter', 'users', 'securitySite', 'settings', 'audit', 'dataQuality', 'systemHealth'],
+  MANAGER: ['dashboard', 'approvalCenter', 'employees', 'licenses', 'attendance', 'attendanceSupervisor', 'attendanceDevice', 'schedule', 'shiftSetup', 'rules', 'leave', 'leaveHistory', 'reportCenter', 'users'],
+  SUPERVISOR: ['dashboard', 'approvalCenter', 'employees', 'licenses', 'attendance', 'attendanceSupervisor', 'attendanceDevice', 'schedule', 'shiftSetup', 'rules', 'leave', 'leaveHistory', 'reportCenter', 'users'],
   VIEWER: ['dashboard', 'employees', 'attendance', 'attendanceDevice', 'schedule', 'shiftSetup', 'rules', 'leave', 'leaveHistory']
 };
 
 // Keep navigation contracts explicit so SUPERVISOR cannot silently inherit MANAGER pages.
 const roleNavigation = {
   ADMIN: { required: Object.keys(navigationCatalog), forbidden: [] },
-  MANAGER: { required: ['dashboard', 'approvalCenter', 'employees', 'attendance', 'attendanceSupervisor', 'attendanceDevice', 'schedule', 'shiftSetup', 'rules', 'leave', 'leaveHistory', 'reportCenter', 'users'], forbidden: ['quota', 'securitySite', 'settings', 'audit', 'dataQuality', 'systemHealth'] },
-  SUPERVISOR: { required: ['dashboard', 'approvalCenter', 'employees', 'attendance', 'attendanceSupervisor', 'attendanceDevice', 'schedule', 'shiftSetup', 'rules', 'leave', 'leaveHistory', 'reportCenter', 'users'], forbidden: ['quota', 'securitySite', 'settings', 'audit', 'dataQuality', 'systemHealth'] },
-  VIEWER: { required: ['dashboard', 'employees', 'attendance', 'attendanceDevice', 'schedule', 'shiftSetup', 'rules', 'leave', 'leaveHistory'], forbidden: ['approvalCenter', 'attendanceSupervisor', 'quota', 'reportCenter', 'users', 'securitySite', 'settings', 'audit', 'dataQuality', 'systemHealth'] }
+  MANAGER: { required: ['dashboard', 'approvalCenter', 'employees', 'licenses', 'attendance', 'attendanceSupervisor', 'attendanceDevice', 'schedule', 'shiftSetup', 'rules', 'leave', 'leaveHistory', 'reportCenter', 'users'], forbidden: ['quota', 'securitySite', 'settings', 'audit', 'dataQuality', 'systemHealth'] },
+  SUPERVISOR: { required: ['dashboard', 'approvalCenter', 'employees', 'licenses', 'attendance', 'attendanceSupervisor', 'attendanceDevice', 'schedule', 'shiftSetup', 'rules', 'leave', 'leaveHistory', 'reportCenter', 'users'], forbidden: ['quota', 'securitySite', 'settings', 'audit', 'dataQuality', 'systemHealth'] },
+  VIEWER: { required: ['dashboard', 'employees', 'attendance', 'attendanceDevice', 'schedule', 'shiftSetup', 'rules', 'leave', 'leaveHistory'], forbidden: ['approvalCenter', 'licenses', 'attendanceSupervisor', 'quota', 'reportCenter', 'users', 'securitySite', 'settings', 'audit', 'dataQuality', 'systemHealth'] }
 };
 
 function currentUatMonth(date = new Date()) {
