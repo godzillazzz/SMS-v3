@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "buildCommand": "npm run vercel-build",
+  "buildCommand": "node --version && npx prisma generate && npm --prefix frontend run build",
   "outputDirectory": "frontend/dist",
   "functions": {
     "api/[...path].js": { "maxDuration": 60 }
@@ -23,7 +23,7 @@
   ],
   "git": {
     "deploymentEnabled": {
-      "test/automated-uat-v3-authenticated": false
+      "test/uat-v3-authenticated-readonly-20261015": false
     }
   }
 }

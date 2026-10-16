@@ -61,14 +61,12 @@ function supabaseProjectRef(url, mode) {
 
 function parseTarget(name, rawUrl) {
   if (!rawUrl) throw new Error(`${name} is missing`);
-
   let url;
   try {
     url = new URL(rawUrl);
   } catch {
     throw new Error(`${name} is malformed`);
   }
-
   if (!['postgres:', 'postgresql:'].includes(url.protocol)) throw new Error(`${name} must use PostgreSQL`);
   const hostname = url.hostname.toLowerCase();
   let database;
@@ -80,7 +78,6 @@ function parseTarget(name, rawUrl) {
   }
   if (!hostname || !database) throw new Error(`${name} must include a host and database`);
   if (blockedHosts.has(hostname) || blockedDatabases.has(database)) throw new Error(`${name} points to a local or test database`);
-
   const provider = isSupabaseHost(hostname) ? 'supabase' : 'postgresql';
   const mode = detectConnectionMode(url, provider);
   let projectRef = null;
@@ -89,14 +86,7 @@ function parseTarget(name, rawUrl) {
   } catch {
     throw new Error(`${name} is malformed`);
   }
-  return {
-    provider,
-    hostname,
-    port: url.port || '5432',
-    database,
-    mode,
-    projectRef
-  };
+  return { provider, hostname, port: url.port || '5432', database, mode, projectRef };
 }
 
 function assertDirectMigrationTarget(target) {
@@ -110,14 +100,12 @@ function normalizeLogicalTarget(databaseUrl, directUrl) {
   assertDirectMigrationTarget(directUrl);
   if (databaseUrl.provider !== directUrl.provider) throw new Error('Deployment target provider identities differ');
   if (databaseUrl.database !== directUrl.database) throw new Error('Deployment target database identities differ');
-
   if (databaseUrl.provider === 'supabase') {
     if (!databaseUrl.projectRef || !directUrl.projectRef) throw new Error('Deployment target project identity could not be verified');
     if (databaseUrl.projectRef !== directUrl.projectRef) throw new Error('Deployment target project identities differ');
     return { provider: 'supabase', projectRef: directUrl.projectRef, database: directUrl.database };
   }
-
-  if (databaseUrl.hostname !== directUrl.hostname) throw new Error('Deployment target endpoint identity could not be verified');
+  if (databaseUrl.hostname !== directUrl.hostname) throw new Error('Deployment target endpoint identity differs');
   return { provider: databaseUrl.provider, endpoint: databaseUrl.hostname, database: databaseUrl.database };
 }
 
@@ -152,7 +140,6 @@ function generateFingerprint({ env = process.env, log = console.log, error = con
 function verifyDeploymentTarget({ env = process.env, log = console.log, error = console.error } = {}) {
   log(`DATABASE_URL_PRESENT=${Boolean(env.DATABASE_URL)}`);
   log(`DIRECT_URL_PRESENT=${Boolean(env.DIRECT_URL)}`);
-
   let databaseUrl;
   let directUrl;
   try {
@@ -161,7 +148,6 @@ function verifyDeploymentTarget({ env = process.env, log = console.log, error = 
     error(`Deployment target guard failed: ${reason.message}`);
     return 1;
   }
-
   const fingerprint = targetFingerprint(databaseUrl, directUrl);
   const approved = env.APPROVED_DATABASE_TARGET_FINGERPRINT;
   const match = Boolean(approved) && approved === fingerprint;
@@ -172,20 +158,9 @@ function verifyDeploymentTarget({ env = process.env, log = console.log, error = 
     error('Deployment target guard failed: approved fingerprint mismatch');
     return 1;
   }
-
   return 0;
 }
 
-if (require.main === module) {
-  process.exitCode = process.argv.includes('--generate-fingerprint') ? generateFingerprint() : verifyDeploymentTarget();
-}
+if (require.main === module) process.exitCode = process.argv.includes('--generate-fingerprint') ? generateFingerprint() : verifyDeploymentTarget();
 
-module.exports = {
-  assertDirectMigrationTarget,
-  detectConnectionMode,
-  generateFingerprint,
-  normalizeLogicalTarget,
-  parseTarget,
-  targetFingerprint,
-  verifyDeploymentTarget
-};
+module.exports = { assertDirectMigrationTarget, detectConnectionMode, generateFingerprint, normalizeLogicalTarget, parseTarget, targetFingerprint, verifyDeploymentTarget };

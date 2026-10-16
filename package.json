@@ -5,7 +5,7 @@
   "description": "smsv3 backend foundation",
   "main": "src/server.js",
   "scripts": {
-    "dev": "nodemon src/server.js",
+    "dev": "node --watch --watch-preserve-output src/server.js",
     "start": "node src/server.js",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
@@ -17,12 +17,11 @@
     "migration:legacy:apply": "node scripts/migrate-legacy-data.js --apply",
     "test": "node --test test/*.test.js",
     "test:integration": "node --test --test-concurrency=1 test/integration/*.test.js",
-    "test:uat": "playwright test",
-    "test:uat:check": "node --test test/uat-config.test.js && playwright test --list",
     "db:test:migrate": "prisma migrate deploy",
-    "vercel-build": "node scripts/vercel-production-build.js",
     "prisma:format:check": "prisma format --check",
-    "audit:dependencies": "npm audit --audit-level=high"
+    "audit:dependencies": "npm audit --audit-level=high",
+    "test:uat:v3:check": "node test/uat-recovery-security.test.js && node test/uat-recovery-workflow.test.js && node test/uat-recovery-isolation.test.js && playwright test --config playwright.uat-v3.config.js --list",
+    "test:uat:v3:fixture": "playwright test --config playwright.uat-v3-fixture.config.js"
   },
   "prisma": {
     "seed": "node prisma/seed.js"
@@ -41,14 +40,20 @@
     "helmet": "^8.1.0",
     "jsonwebtoken": "^9.0.2",
     "morgan": "^1.10.0",
-    "multer": "^2.2.0",
-    "nodemailer": "^9.0.3",
+    "multer": "^2.4.0",
+    "nodemailer": "^10.0.13",
+    "pg": "^8.22.0",
     "zod": "^3.25.76"
   },
   "devDependencies": {
-    "@playwright/test": "1.62.1",
-    "nodemon": "^3.1.10",
     "prisma": "^6.11.1",
-    "supertest": "^7.1.1"
+    "supertest": "^7.1.1",
+    "@playwright/test": "1.62.1"
+  },
+  "overrides": {
+    "qs": "6.16.0",
+    "@prisma/config": {
+      "deepmerge-ts": "8.0.2"
+    }
   }
 }

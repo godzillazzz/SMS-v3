@@ -1,0 +1,252 @@
+name: Recover Vercel Deployment Source Snapshot
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  recover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment:
+      name: production-sms-v3-staging
+    env:
+      DEPLOYMENT_ID: dpl_9Uieit6FfrV5N4ahgHmFHVak42gL
+      EXPECTED_PROJECT_NAME: sms-v3-staging
+      EXPECTED_PROJECT_ID: prj_XwhNUOB2zLSPZ6UgQcfyOKBYJ75s
+      EXPECTED_TEAM_ID: team_nemCExHbZ8EAhSgsvefHPAEz
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+    steps:
+      - name: Mask token
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$VERCEL_TOKEN"
+          echo "::add-mask::$VERCEL_TOKEN"
+
+      - name: Recover deployment files read-only
+        id: recover
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs = require('node:fs');
+          const path = require('node:path');
+          const crypto = require('node:crypto');
+
+          const deploymentId = process.env.DEPLOYMENT_ID;
+          const expectedProjectName = process.env.EXPECTED_PROJECT_NAME;
+          const expectedProjectId = process.env.EXPECTED_PROJECT_ID;
+          const expectedTeamId = process.env.EXPECTED_TEAM_ID;
+          const token = process.env.VERCEL_TOKEN;
+          const outputFile = process.env.GITHUB_OUTPUT;
+          const summaryFile = process.env.GITHUB_STEP_SUMMARY;
+          const root = path.resolve('recovered-dpl-9Uie-source');
+          const apiRoot = 'https://api.vercel.com';
+          const reportPath = path.resolve('recovery-report.md');
+          const manifestPath = path.resolve('deployment-file-manifest.json');
+          const hashesPath = path.resolve('sha256-manifest.txt');
+          const blockedNames = /(^|\/)(\.env(?:\..*)?|id_rsa|.*\.(?:pem|key|p12|pfx))$/i;
+          const secretPatterns = [
+            /-----BEGIN [^-]+ PRIVATE KEY-----/i,
+            /(?:postgres(?:ql)?|mysql|mongodb(?:\+srv)?):\/\/[^\s"']+/i,
+            /(?:authorization\s*:\s*bearer|(?:api|access|refresh)?[_-]?token\s*[:=])/i,
+            /(?:password|passwd|secret|private[_-]?key|smtp[_-]?(?:pass|password))\s*[:=]/i,
+            /(?:DATABASE_URL|DIRECT_URL|JWT_SECRET|VERCEL_TOKEN)\s*[:=]/i
+          ];
+
+          const output = {};
+          const writeOutput = (key, value) => {
+            output[key] = String(value);
+            if (outputFile) fs.appendFileSync(outputFile, `${key}=${String(value).replace(/%/g, '%25').replace(/\r/g, '%0D').replace(/\n/g, '%0A')}\n`);
+          };
+          const safeText = (value) => String(value || '')
+            .replace(/https?:\/\/[^\s"']+/gi, '[URL_REDACTED]')
+            .replace(/\b(?:[A-Za-z0-9_-]{20,})\b/g, '[REDACTED]')
+            .slice(0, 240);
+          const writeReport = (content) => fs.writeFileSync(reportPath, `${content.trim()}\n`, { mode: 0o600 });
+          const finish = (classification, report, exitCode = 0) => {
+            writeOutput('classification', classification);
+            writeOutput('secret_scan_pass', 'false');
+            writeReport(report);
+            if (summaryFile) fs.appendFileSync(summaryFile, `${report.trim()}\n`);
+            process.exitCode = exitCode;
+          };
+          const request = async (pathname, { raw = false } = {}) => {
+            const response = await fetch(`${apiRoot}${pathname}`, {
+              headers: {
+                authorization: `Bearer ${token}`,
+                accept: 'application/json'
+              }
+            });
+            const bodyBuffer = Buffer.from(await response.arrayBuffer());
+            const body = bodyBuffer.toString('utf8');
+            if (!response.ok) {
+              const error = new Error(`HTTP ${response.status}: ${safeText(body)}`);
+              error.status = response.status;
+              throw error;
+            }
+            if (raw) return { buffer: bodyBuffer, contentType: response.headers.get('content-type') || '' };
+            try { return JSON.parse(body); } catch { throw new Error('Invalid JSON response'); }
+          };
+          const validRelativePath = (value) => {
+            if (typeof value !== 'string' || !value || value.includes('\\') || path.posix.isAbsolute(value)) return false;
+            const normalized = path.posix.normalize(value);
+            return normalized === value && normalized !== '..' && !normalized.startsWith('../') && !blockedNames.test(normalized);
+          };
+          const safeDestination = (relative) => {
+            const destination = path.resolve(root, relative);
+            if (destination !== root && !destination.startsWith(`${root}${path.sep}`)) throw new Error('Path traversal rejected');
+            return destination;
+          };
+          const sha256 = (file) => crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
+          const isSecret = (file) => {
+            if (blockedNames.test(file)) return true;
+            const stat = fs.statSync(file);
+            if (stat.size > 2 * 1024 * 1024) return false;
+            const data = fs.readFileSync(file);
+            if (data.includes(0)) return false;
+            const text = data.toString('utf8');
+            return secretPatterns.some((pattern) => pattern.test(text));
+          };
+
+          (async () => {
+            try {
+              const metadata = await request(`/v13/deployments/${encodeURIComponent(deploymentId)}?teamId=${encodeURIComponent(expectedTeamId)}`);
+              const projectOk = metadata.name === expectedProjectName && metadata.projectId === expectedProjectId;
+              const stateOk = metadata.readyState === 'READY' && metadata.target === 'production';
+              if (!projectOk || !stateOk) {
+                finish('DEPLOYMENT_METADATA_MISMATCH', `# Recovery report\n\n- Classification: DEPLOYMENT_METADATA_MISMATCH\n- Project identity: ${projectOk ? 'PASS' : 'FAIL'}\n- Deployment state/target: ${stateOk ? 'PASS' : 'FAIL'}\n- No files were downloaded.`);
+                return;
+              }
+
+              const listed = await request(`/v6/deployments/${encodeURIComponent(deploymentId)}/files?teamId=${encodeURIComponent(expectedTeamId)}`);
+              const files = Array.isArray(listed) ? listed : (Array.isArray(listed.files) ? listed.files : []);
+              fs.mkdirSync(root, { recursive: true, mode: 0o700 });
+              const manifest = [];
+              const unreadable = [];
+              let recoveredBytes = 0;
+              for (const entry of files) {
+                const relative = entry.file || entry.path || entry.name;
+                if (!validRelativePath(relative)) { unreadable.push({ file: String(relative || '[missing]'), reason: 'unsafe-or-blocked-path' }); continue; }
+                const fileId = entry.uid || entry.id || relative;
+                try {
+                  const content = await request(`/v6/deployments/${encodeURIComponent(deploymentId)}/files/${encodeURIComponent(fileId)}?teamId=${encodeURIComponent(expectedTeamId)}`, { raw: true });
+                  let raw = content.buffer;
+                  if (content.contentType.includes('application/json')) {
+                    try {
+                      const parsed = JSON.parse(raw.toString('utf8'));
+                      const encoded = parsed.content || parsed.data;
+                      if (typeof encoded === 'string') raw = Buffer.from(encoded, 'base64');
+                    } catch { /* Preserve non-JSON content returned with an incorrect content type. */ }
+                  }
+                  const destination = safeDestination(relative);
+                  fs.mkdirSync(path.dirname(destination), { recursive: true, mode: 0o700 });
+                  fs.writeFileSync(destination, raw, { mode: 0o600 });
+                  recoveredBytes += raw.length;
+                  manifest.push({ file: relative, size: raw.length, sha256: sha256(destination), type: entry.type || null });
+                } catch (error) {
+                  unreadable.push({ file: relative, reason: error.status ? `HTTP_${error.status}` : 'read-failed' });
+                }
+              }
+
+              fs.writeFileSync(manifestPath, JSON.stringify({ deploymentId, projectName: metadata.name, projectId: metadata.projectId, target: metadata.target, files: manifest, unreadable }, null, 2) + '\n', { mode: 0o600 });
+              fs.writeFileSync(hashesPath, manifest.map((item) => `${item.sha256}  ${item.file}`).join('\n') + (manifest.length ? '\n' : ''), { mode: 0o600 });
+              const secretFiles = [];
+              for (const item of manifest) {
+                const file = safeDestination(item.file);
+                if (isSecret(file)) secretFiles.push(item.file);
+              }
+              if (secretFiles.length) {
+                fs.rmSync(root, { recursive: true, force: true });
+                finish('SECRET_SCAN_FAILED', `# Recovery report\n\n- Classification: SECRET_SCAN_FAILED\n- Recovered file count: ${manifest.length}\n- Source archive: NOT CREATED\n- Sensitive file count: ${secretFiles.length}\n- No sensitive paths or values are listed.`);
+                return;
+              }
+
+              const names = new Set(manifest.map((item) => item.file));
+              const has = (pattern) => [...names].some((name) => pattern.test(name));
+              const sourceChecks = {
+                packageJson: names.has('package.json'),
+                frontendSource: has(/^frontend\/src\//),
+                frontendMain: names.has('frontend/src/main.tsx'),
+                backendSource: has(/^(src|backend)\//),
+                prisma: names.has('prisma/schema.prisma'),
+                buildConfig: names.has('vercel.json') || names.has('scripts/vercel-production-build.js')
+              };
+              const editable = Object.values(sourceChecks).every(Boolean);
+              const builtOnly = !editable && manifest.some((item) => /(^|\/)(frontend\/dist|\.vercel\/output|assets\/|static\/)/.test(item.file));
+              const sourceFiles = manifest.filter((item) => /^(frontend\/src|src|backend|prisma|scripts)\//.test(item.file) || /^(package\.json|vercel\.json)$/.test(item.file));
+              const sourceText = sourceFiles.map((item) => {
+                const file = safeDestination(item.file);
+                try { return fs.readFileSync(file, 'utf8'); } catch { return ''; }
+              }).join('\n');
+              const licenseMarkers = {
+                upload: /upload|แนบใบอนุญาตใหม่/i.test(sourceText),
+                view: /viewer|ดูไฟล์|fileAvailable/i.test(sourceText),
+                approve: /approve|อนุมัติ/i.test(sourceText),
+                reject: /reject|ไม่อนุมัติ/i.test(sourceText),
+                returnForCorrection: /RETURNED_FOR_CORRECTION|ส่งกลับแก้ไข/i.test(sourceText),
+                resubmit: /resubmit|ส่งตรวจสอบใหม่/i.test(sourceText),
+                history: /HistoryModal|ประวัติการดำเนินการ/i.test(sourceText),
+                activeCorrection: /activeReturned|RETURNED_FOR_CORRECTION/i.test(sourceText),
+                twoMb: /2\s*\*\s*1024\s*\*\s*1024|2\s*MB/i.test(sourceText),
+                adminHardDelete: /permanentlyDelete|permanent|ลบถาวร/i.test(sourceText),
+                historyModalDelete: /HistoryModal[\s\S]{0,3000}(?:permanent|ลบถาวร)/i.test(sourceText),
+                buildOnly: /build-only/i.test(sourceText) && !/prisma\s+migrate\s+deploy/i.test(sourceText)
+              };
+              const licenseComplete = Object.values(licenseMarkers).every(Boolean);
+              const classification = editable && licenseComplete ? 'ORIGINAL_EDITABLE_SOURCE' : (builtOnly ? 'BUILT_ARTIFACT_ONLY' : 'PARTIAL_SOURCE');
+              writeOutput('classification', classification);
+              writeOutput('secret_scan_pass', 'true');
+              writeOutput('artifact_ready', editable && licenseComplete ? 'true' : 'false');
+              const markerSummary = Object.entries(licenseMarkers).map(([key, value]) => `  - ${key}: ${value ? 'PASS' : 'FAIL'}`).join('\n');
+              const report = `# Recovery report\n\n- Deployment: ${deploymentId}\n- Project: ${metadata.name}\n- Project ID: ${metadata.projectId}\n- Target: ${metadata.target}\n- State: ${metadata.readyState}\n- Classification: ${classification}\n- Directory count: ${new Set(manifest.map((item) => path.posix.dirname(item.file))).size}\n- File count: ${manifest.length}\n- Unreadable/blocked count: ${unreadable.length}\n- Total recovered size: ${recoveredBytes} bytes\n- Secret scan: PASS\n- License marker review:\n${markerSummary}`;
+              writeReport(report);
+              if (summaryFile) fs.appendFileSync(summaryFile, `${report}\n`);
+            } catch (error) {
+              const status = error.status || 'unknown';
+              const classification = status === 401 || status === 403 ? 'BLOCKED_ENVIRONMENT_TOKEN_LACKS_DEPLOYMENT_FILE_ACCESS' : 'RECOVERY_API_ERROR';
+              finish(classification, `# Recovery report\n\n- Classification: ${classification}\n- HTTP status: ${status}\n- Safe error: ${safeText(error.message)}\n- No source archive was created.`);
+            }
+          })();
+          NODE
+
+      - name: Write final status
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -f recovery-report.md ]]; then cat recovery-report.md >> "$GITHUB_STEP_SUMMARY"; fi
+          classification="${{ steps.recover.outputs.classification }}"
+          if [[ "$classification" == "BLOCKED_ENVIRONMENT_TOKEN_LACKS_DEPLOYMENT_FILE_ACCESS" ]]; then
+            echo "BLOCKED — ENVIRONMENT TOKEN LACKS DEPLOYMENT FILE ACCESS"
+          elif [[ "$classification" == "ORIGINAL_EDITABLE_SOURCE" ]]; then
+            echo "EXACT EDITABLE SOURCE SNAPSHOT RECOVERED — NOT MODIFIED"
+          elif [[ "$classification" == "BUILT_ARTIFACT_ONLY" ]]; then
+            echo "BUILT ARTIFACT ONLY — ORIGINAL SOURCE NOT RETAINED"
+          else
+            echo "PARTIAL SOURCE RECOVERED — REVIEW REQUIRED"
+          fi
+
+      - name: Upload recovery metadata
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dpl-9Uie-source-recovery
+          retention-days: 7
+          if-no-files-found: warn
+          path: |
+            deployment-file-manifest.json
+            sha256-manifest.txt
+            recovery-report.md
+
+      - name: Upload recovered source only after secret scan
+        if: ${{ always() && steps.recover.outputs.secret_scan_pass == 'true' && steps.recover.outputs.artifact_ready == 'true' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: dpl-9Uie-exact-source-snapshot
+          retention-days: 7
+          if-no-files-found: error
+          path: recovered-dpl-9Uie-source

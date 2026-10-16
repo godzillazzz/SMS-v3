@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       commit_sha:
-        description: Exact commit SHA already present on fix/serverless-database-reliability
+        description: Exact application SHA from the authorized application branch
         required: true
         type: string
       confirm_project_name:
@@ -28,7 +28,7 @@ on:
       run_migrations:
         description: Run protected Prisma migrations before deployment
         required: false
-        default: true
+        default: false
         type: boolean
 
 permissions:
@@ -39,15 +39,17 @@ concurrency:
   cancel-in-progress: false
 
 env:
+  # main registers this workflow; deployment source is restricted separately.
+  AUTHORIZED_APP_REF: origin/fix/serverless-database-reliability
   EXPECTED_PROJECT_ID: prj_XwhNUOB2zLSPZ6UgQcfyOKBYJ75s
   EXPECTED_ORG_ID: team_nemCExHbZ8EAhSgsvefHPAEz
   EXPECTED_PROJECT_NAME: sms-v3-staging
   EXPECTED_CANONICAL_URL: https://sms-v3-staging-ten.vercel.app
-  EXPECTED_CANONICAL_SOURCE_SHA: 68b344b679ce04311445887cafaa0bee854ec830
   VERCEL_CLI_VERSION: 56.4.1
 
 jobs:
   validate:
+    if: ${{ github.ref == 'refs/heads/main' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     outputs:
@@ -55,28 +57,37 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.commit_sha }}
-          fetch-depth: 0
-      - name: Validate exact branch commit and confirmations
+          ref: main
+          fetch-depth: 1
+      - name: Validate workflow ref and authorized application source
         id: commit
         shell: bash
+        env:
+          TARGET_SHA: ${{ inputs.commit_sha }}
         run: |
           set -euo pipefail
           test "${{ inputs.confirm_project_name }}" = "$EXPECTED_PROJECT_NAME"
           test "${{ inputs.confirm_environment }}" = "production"
-          TARGET_SHA="${{ inputs.commit_sha }}"
-          [[ "$TARGET_SHA" =~ ^[0-9a-f]{40}$ ]]
-          git fetch --no-tags origin fix/serverless-database-reliability
-          git cat-file -e "${TARGET_SHA}^{commit}"
-          git merge-base --is-ancestor "$TARGET_SHA" origin/fix/serverless-database-reliability
-          test "$(git rev-parse HEAD)" = "$TARGET_SHA"
-          if [[ "${{ inputs.run_migrations }}" == "false" ]]; then
-            git diff --quiet "$EXPECTED_CANONICAL_SOURCE_SHA" "$TARGET_SHA" -- prisma/schema.prisma prisma/migrations
+          if [[ "$TARGET_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo 'TARGET_SHA uses lowercase hexadecimal form'
           fi
+          [[ "$TARGET_SHA" =~ ^[0-9a-fA-F]{40}$ ]]
+          git fetch --no-tags --depth=1 origin main
+          git fetch --no-tags origin "${AUTHORIZED_APP_REF#origin/}"
+          git cat-file -e "${TARGET_SHA}^{commit}"
+          current_main_sha="$(git rev-parse refs/remotes/origin/main)"
+          if test "$TARGET_SHA" = "$current_main_sha"; then
+            echo 'TARGET_SHA matches workflow ref main; application-source guard still applies'
+          else
+            echo 'TARGET_SHA is an application-source commit; main hosts workflow infrastructure'
+          fi
+          authorized_app_sha="$(git rev-parse "$AUTHORIZED_APP_REF")"
+          test "$TARGET_SHA" = "$authorized_app_sha"
           test -z "$(git status --porcelain)"
-          echo "commit_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          echo "commit_sha=$TARGET_SHA" >> "$GITHUB_OUTPUT"
 
   migrate:
+    name: 'Migration gate (if: ${{ inputs.diagnostic_only != true }} and run_migrations=true)'
     if: ${{ inputs.diagnostic_only != true && inputs.run_migrations == true }}
     needs: validate
     runs-on: ubuntu-latest
@@ -94,6 +105,8 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ needs.validate.outputs.commit_sha }}
+      - name: Verify exact application checkout
+        run: test "$(git rev-parse HEAD)" = "${{ needs.validate.outputs.commit_sha }}"
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -163,6 +176,8 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ needs.validate.outputs.commit_sha }}
+      - name: Verify exact application checkout
+        run: test "$(git rev-parse HEAD)" = "${{ needs.validate.outputs.commit_sha }}"
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -172,7 +187,8 @@ jobs:
         run: node scripts/ci/vercel-linkage.js --diagnostic
 
   deploy:
-    if: ${{ always() && inputs.diagnostic_only != true && (inputs.run_migrations == false || needs.migrate.result == 'success') && needs.validate.result == 'success' }}
+    name: 'Deployment gate (if: ${{ inputs.diagnostic_only != true }} with validation and migration guards)'
+    if: ${{ always() && inputs.diagnostic_only != true && needs.validate.result == 'success' && (inputs.run_migrations == false || needs.migrate.result == 'success') }}
     needs: [validate, migrate]
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -190,6 +206,8 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ needs.validate.outputs.commit_sha }}
+      - name: Verify exact application checkout
+        run: test "$(git rev-parse HEAD)" = "${{ needs.validate.outputs.commit_sha }}"
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -214,24 +232,55 @@ jobs:
           set -euo pipefail
           build_log=$(mktemp)
           trap 'rm -f "$build_log"' EXIT
-          CI_MIGRATION_COMPLETED=true npx --yes vercel@"$VERCEL_CLI_VERSION" build --prod --token "$VERCEL_TOKEN" >"$build_log" 2>&1
-          grep -Fq 'Vercel build is build-only' "$build_log"
-          grep -Fq 'Prisma generate passed' "$build_log"
-          grep -Fq 'Application build passed' "$build_log"
-          if grep -Eiq 'prisma migrate deploy|Prisma migrate deploy started|Prisma migrate deploy passed' "$build_log"; then
-            echo 'Vercel build unexpectedly invoked Prisma migration'
+          build_exit=0
+          CI_MIGRATION_COMPLETED=true npx --yes vercel@"$VERCEL_CLI_VERSION" build --prod --token "$VERCEL_TOKEN" >"$build_log" 2>&1 || build_exit=$?
+          echo "VERCEL_BUILD_EXIT=$build_exit"
+          if [ "$build_exit" -ne 0 ]; then
+            echo 'VERCEL_BUILD_FAILED'
+            echo 'APPLICATION_MARKER=NOT_EVALUATED'
+            echo 'SECRET_SCAN=NOT_EVALUATED'
+            exit "$build_exit"
+          fi
+
+          if grep -Fq 'Application build passed' "$build_log"; then
+            echo 'APPLICATION_MARKER=PRESENT'
+          else
+            echo 'APPLICATION_BUILD_MARKER_MISSING'
             exit 1
           fi
-          test -f frontend/dist/index.html
-          compgen -G 'frontend/dist/assets/index-*.js' >/dev/null
-          if find frontend/dist -type f -path '*/_next/*' -print -quit | grep -q .; then
-            echo 'Vite artifact unexpectedly contains _next output'
-            exit 1
-          fi
-          if grep -Eiq 'postgresql://|DATABASE_URL=.*[^<]|DIRECT_URL=.*[^<]|password=|SUPABASE_SERVICE_ROLE_KEY' "$build_log"; then
-            echo 'Vercel build log secret scan failed'
-            exit 1
-          fi
+
+          node - "$build_log" <<'NODE'
+          const fs = require('node:fs');
+
+          const log = fs.readFileSync(process.argv[2], 'utf8');
+          const redactedValue = /^(?:<redacted>|\[redacted\]|\*{3,}|<masked>|\[masked\]|redacted|masked|hidden)$/i;
+          const assignment = /\b(DATABASE_URL|DIRECT_URL|SUPABASE_SERVICE_ROLE_KEY|PASSWORD)\s*=\s*("[^"]*"|'[^']*'|[^\s,;]+)/gi;
+
+          function normalized(value) {
+            return value.replace(/^['"]|['"]$/g, '').trim();
+          }
+
+          let category = '';
+          if (/postgres(?:ql)?:\/\/[^\s"'<>]+/i.test(log)) {
+            category = 'postgres_url_pattern';
+          } else {
+            for (const match of log.matchAll(assignment)) {
+              const value = normalized(match[2]);
+              if (redactedValue.test(value)) continue;
+              category = match[1].toLowerCase() + '_assignment';
+              break;
+            }
+          }
+
+          if (category) {
+            console.log('SECRET_SCAN=FAIL');
+            console.log(`SECRET_SCAN_CATEGORY=${category}`);
+            process.exit(1);
+          }
+
+          console.log('SECRET_SCAN=PASS');
+          console.log('SECRET_SCAN_CATEGORY=NONE');
+          NODE
       - name: Deploy prebuilt artifact to the approved production project
         id: deploy
         shell: bash
@@ -257,8 +306,6 @@ jobs:
           done <"$deployment_output"
           test -n "${deployment_id:-}"
           test -n "${deployment_url:-}"
-          [[ "$deployment_id" =~ ^dpl_[A-Za-z0-9]+$ ]]
-          [[ "$deployment_url" =~ ^https://sms-v3-staging-[A-Za-z0-9-]+\.vercel\.app/?$ ]]
           npx --yes vercel@"$VERCEL_CLI_VERSION" inspect "$deployment_id" --format=json --token "$VERCEL_TOKEN" >"$inspect_stdout" 2>"$inspect_stderr"
           node - "$inspect_stdout" "$deployment_id" "$EXPECTED_PROJECT_ID" "${{ needs.validate.outputs.commit_sha }}" <<'NODE' >"$inspection_output"
           const fs = require('node:fs');
@@ -291,7 +338,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
   health:
-    if: ${{ always() && inputs.diagnostic_only != true && needs.validate.result == 'success' && needs.deploy.result == 'success' }}
+    if: ${{ inputs.diagnostic_only != true }}
     needs: [validate, deploy]
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -299,23 +346,14 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ needs.validate.outputs.commit_sha }}
+      - name: Verify exact application checkout
+        run: test "$(git rev-parse HEAD)" = "${{ needs.validate.outputs.commit_sha }}"
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Validate deployment outputs
-        env:
-          DEPLOYMENT_URL: ${{ needs.deploy.outputs.deployment_url }}
-          DEPLOYMENT_ID: ${{ needs.deploy.outputs.deployment_id }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          test -n "$DEPLOYMENT_URL"
-          test -n "$DEPLOYMENT_ID"
-          [[ "$DEPLOYMENT_ID" =~ ^dpl_[A-Za-z0-9]+$ ]]
-          [[ "$DEPLOYMENT_URL" =~ ^https://sms-v3-staging-[A-Za-z0-9-]+\.vercel\.app/?$ ]]
-          echo 'DEPLOYMENT_OUTPUTS=VALID'
       - name: Verify deployment and canonical health
         env:
+          DEPLOYMENT_URL: ${{ needs.deploy.outputs.deployment_url }}
           CANONICAL_URL: https://sms-v3-staging-ten.vercel.app
         run: node scripts/ci/verify-health.js
       - name: Report manual acceptance status

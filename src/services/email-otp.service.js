@@ -21,11 +21,11 @@ const publicEmployee = (employee) => ({
   jobTitle: employee.jobTitle
 });
 
-function createMailer(configuration = env) {
+function createMailer(configuration = env, transportFactory = nodemailer.createTransport) {
   if (configuration.otpDeliveryProvider !== 'gmail_smtp') {
     return { send: async () => { throw new HttpError(503, 'Verification email delivery is unavailable.'); } };
   }
-  const transporter = nodemailer.createTransport({
+  const transporter = transportFactory({
     host: configuration.smtpHost,
     port: configuration.smtpPort,
     secure: configuration.smtpSecure,

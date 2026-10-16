@@ -48,7 +48,6 @@ on:
           - full
           - report-center-diagnostic
           - admin-rbac-targeted-retry
-          - g03-readonly-targeted
 
 permissions:
   contents: read
@@ -103,7 +102,6 @@ jobs:
           fi
           if ! git fetch --no-tags origin \
             "refs/heads/$SOURCE_BRANCH:refs/remotes/origin/$SOURCE_BRANCH" \
-            refs/heads/test/automated-uat-v2-regression-guards:refs/remotes/origin/test/automated-uat-v2-regression-guards \
             refs/heads/test/automated-uat-v3-authenticated:refs/remotes/origin/test/automated-uat-v3-authenticated; then
             echo 'UAT_SOURCE_BRANCH_FETCH_FAILED'
             exit 1
@@ -133,6 +131,8 @@ jobs:
           test ! -e "$target_identity"
           test ! -e "$expected_identity"
           TARGET_HOST="${TARGET_URL#https://}"
+          # URL contract permits one trailing slash; Vercel REST expects a bare hostname.
+          TARGET_HOST="${TARGET_HOST%/}"
           EXPECTED_GIT_REF=''
           if [[ "$TARGET_MODE" == candidate || "$TARGET_MODE" == preview ]]; then EXPECTED_GIT_REF="$SOURCE_BRANCH"; fi
           fetch_deployment() {
@@ -303,6 +303,9 @@ jobs:
     if: ${{ inputs.uat_mode == 'authenticated' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    concurrency:
+      group: sms-v3-staging-authenticated-uat
+      cancel-in-progress: false
     environment: production-sms-v3-staging
     env:
       UAT_BASE_URL: ${{ inputs.target_url }}
@@ -320,6 +323,8 @@ jobs:
       UAT_ADMIN_PASSWORD: ${{ secrets.UAT_ADMIN_PASSWORD }}
       UAT_MANAGER_EMAIL: ${{ secrets.UAT_MANAGER_EMAIL }}
       UAT_MANAGER_PASSWORD: ${{ secrets.UAT_MANAGER_PASSWORD }}
+      UAT_SUPERVISOR_EMAIL: ${{ secrets.UAT_SUPERVISOR_EMAIL }}
+      UAT_SUPERVISOR_PASSWORD: ${{ secrets.UAT_SUPERVISOR_PASSWORD }}
       UAT_VIEWER_EMAIL: ${{ secrets.UAT_VIEWER_EMAIL }}
       UAT_VIEWER_PASSWORD: ${{ secrets.UAT_VIEWER_PASSWORD }}
       VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
@@ -355,7 +360,6 @@ jobs:
           fi
           if ! git fetch --no-tags origin \
             "refs/heads/$SOURCE_BRANCH:refs/remotes/origin/$SOURCE_BRANCH" \
-            refs/heads/test/automated-uat-v2-regression-guards:refs/remotes/origin/test/automated-uat-v2-regression-guards \
             refs/heads/test/automated-uat-v3-authenticated:refs/remotes/origin/test/automated-uat-v3-authenticated; then
             echo 'UAT_SOURCE_BRANCH_FETCH_FAILED'
             exit 1
@@ -385,6 +389,8 @@ jobs:
           test ! -e "$target_identity"
           test ! -e "$expected_identity"
           TARGET_HOST="${TARGET_URL#https://}"
+          # URL contract permits one trailing slash; Vercel REST expects a bare hostname.
+          TARGET_HOST="${TARGET_HOST%/}"
           EXPECTED_GIT_REF=''
           if [[ "$TARGET_MODE" == candidate || "$TARGET_MODE" == preview ]]; then EXPECTED_GIT_REF="$SOURCE_BRANCH"; fi
           fetch_deployment() {
@@ -450,11 +456,13 @@ jobs:
           UAT_ADMIN_PASSWORD: ${{ secrets.UAT_ADMIN_PASSWORD }}
           UAT_MANAGER_EMAIL: ${{ secrets.UAT_MANAGER_EMAIL }}
           UAT_MANAGER_PASSWORD: ${{ secrets.UAT_MANAGER_PASSWORD }}
+          UAT_SUPERVISOR_EMAIL: ${{ secrets.UAT_SUPERVISOR_EMAIL }}
+          UAT_SUPERVISOR_PASSWORD: ${{ secrets.UAT_SUPERVISOR_PASSWORD }}
           UAT_VIEWER_EMAIL: ${{ secrets.UAT_VIEWER_EMAIL }}
           UAT_VIEWER_PASSWORD: ${{ secrets.UAT_VIEWER_PASSWORD }}
         run: |
           set -euo pipefail
-          for role in ADMIN MANAGER VIEWER; do
+          for role in ADMIN MANAGER SUPERVISOR VIEWER; do
             email_key="UAT_${role}_EMAIL"
             password_key="UAT_${role}_PASSWORD"
             email_value="${!email_key-}"
@@ -470,19 +478,11 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - name: Verify G03.1 Auth personas have existing 2026 annual authority
+      - name: Validate UAT matrix against exact application source
         shell: bash
         env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          DIRECT_URL: ${{ secrets.DIRECT_URL }}
-          APPROVED_DATABASE_TARGET_FINGERPRINT: ${{ vars.APPROVED_DATABASE_TARGET_FINGERPRINT }}
-          UAT_ADMIN_EMAIL: ${{ secrets.UAT_ADMIN_EMAIL }}
-          UAT_MANAGER_EMAIL: ${{ secrets.UAT_MANAGER_EMAIL }}
-          UAT_VIEWER_EMAIL: ${{ secrets.UAT_VIEWER_EMAIL }}
-        run: |
-          set -euo pipefail
-          node application-under-test/scripts/ci/verify-deployment-target.js --verify
-          node scripts/ci/g03-1-auth-persona-preflight.js
+          UAT_APPLICATION_ROOT: ${{ github.workspace }}/application-under-test
+        run: node --test test/uat-recovery-security.test.js --test-name-pattern='application source contract'
       - name: Install Playwright Chromium
         run: npx playwright install --with-deps chromium
       - name: Run authenticated UAT V3
@@ -498,6 +498,8 @@ jobs:
           UAT_ADMIN_PASSWORD: ${{ secrets.UAT_ADMIN_PASSWORD }}
           UAT_MANAGER_EMAIL: ${{ secrets.UAT_MANAGER_EMAIL }}
           UAT_MANAGER_PASSWORD: ${{ secrets.UAT_MANAGER_PASSWORD }}
+          UAT_SUPERVISOR_EMAIL: ${{ secrets.UAT_SUPERVISOR_EMAIL }}
+          UAT_SUPERVISOR_PASSWORD: ${{ secrets.UAT_SUPERVISOR_PASSWORD }}
           UAT_VIEWER_EMAIL: ${{ secrets.UAT_VIEWER_EMAIL }}
           UAT_VIEWER_PASSWORD: ${{ secrets.UAT_VIEWER_PASSWORD }}
         with:
@@ -517,11 +519,13 @@ jobs:
             const passwordValues = [
               process.env.UAT_ADMIN_PASSWORD,
               process.env.UAT_MANAGER_PASSWORD,
+              process.env.UAT_SUPERVISOR_PASSWORD,
               process.env.UAT_VIEWER_PASSWORD
             ].filter(Boolean);
             const emailValues = [
               process.env.UAT_ADMIN_EMAIL,
               process.env.UAT_MANAGER_EMAIL,
+              process.env.UAT_SUPERVISOR_EMAIL,
               process.env.UAT_VIEWER_EMAIL
             ].filter(Boolean);
             for (const secret of [bypassSecret, ...passwordValues, ...emailValues].filter(Boolean)) core.setSecret(secret);

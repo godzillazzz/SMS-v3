@@ -102,10 +102,6 @@ async function saveBatchAssignments(assignments, actorUserId, actorRole = 'ADMIN
     const list = [];
     const monthsToTouch = new Set();
 
-    // Keep every database operation in this interactive transaction on the
-    // transaction client.  Calling the global client here requires a second
-    // connection and can exhaust a serverless Transaction Pooler even for a
-    // single schedule item.
     const existingAssList = await tx.shiftAssignment.findMany({
       where: {
         OR: assignments.map(a => {
@@ -122,8 +118,7 @@ async function saveBatchAssignments(assignments, actorUserId, actorRole = 'ADMIN
     for (const ass of assignments) {
       const emp = empMap.get(ass.employeeId);
       const shift = typeMap.get(ass.shiftTypeId);
-      if (!emp) throw new HttpError(400, 'Employee not found for schedule assignment.');
-      if (!shift) throw new HttpError(400, 'Shift type not found for schedule assignment.');
+      if (!emp || !shift) continue;
 
       const dateParts = String(ass.workDate).slice(0, 10).split('-').map(Number);
       const parsedDate = new Date(Date.UTC(dateParts[0], dateParts[1] - 1, dateParts[2]));

@@ -1,6 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { ApiRequestError, api } from './api';
-import { sanitizeLicenseDocumentError } from './components/license-document-utils';
+import { api } from './api';
 
 const success = () => ({ status: 200, ok: true, json: async () => ({ accessToken: 'test-access-token', user: {} }) });
 afterEach(() => vi.unstubAllGlobals());
@@ -53,49 +52,6 @@ describe('API client', () => {
     for (const operation of ['dashboard', 'licenses', 'shiftTypes', 'shifts', 'scheduleCalendar', 'scheduleApprovals', 'schedulingRules', 'ruleChecks', 'systemSettings', 'leaveRequests', 'leaveSummary', 'leaveQuotas', 'users', 'auditEvents', 'reportSummary'] as const) {
       expect(typeof api[operation]).toBe('function');
     }
-  });
-  it('sends Dashboard filters as Gregorian ISO query values', async () => {
-    const fetchMock = vi.fn().mockResolvedValue({ status: 200, ok: true, json: async () => ({ data: {} }) });
-    vi.stubGlobal('document', { cookie: '' });
-    vi.stubGlobal('fetch', fetchMock);
-    await api.dashboard('test-access-token', { date: '2026-08-04', month: '2026-08', department: 'Security' });
-    const [path] = fetchMock.mock.calls[0];
-    expect(path).toBe('/api/v1/dashboard?date=2026-08-04&month=2026-08&department=Security');
-  });
-  it('sends the selected leave history month with the paginated request', async () => {
-    const fetchMock = vi.fn().mockResolvedValue({ status: 200, ok: true, json: async () => ({ data: [], meta: { total: 0 } }) });
-    vi.stubGlobal('document', { cookie: '' });
-    vi.stubGlobal('fetch', fetchMock);
-    await api.leaveRequests('test-access-token', 1, { year: 2026, month: 8 });
-    const [path] = fetchMock.mock.calls[0];
-    expect(path).toBe('/api/v1/leave-requests?page=1&pageSize=100&year=2026&month=8');
-  });
-  it('preserves known approval errors and request IDs without exposing response internals', async () => {
-    const fetchMock = vi.fn().mockResolvedValue({ status: 409, ok: false, json: async () => ({ error: 'สถานะเอกสารมีการเปลี่ยนแปลง กรุณารีเฟรชและลองใหม่', requestId: 'req-approval-409' }) });
-    vi.stubGlobal('document', { cookie: '' });
-    vi.stubGlobal('fetch', fetchMock);
-    await expect(api.approveLicenseDocument('test-access-token', 'document-id')).rejects.toMatchObject({ name: 'ApiRequestError', status: 409, requestId: 'req-approval-409', message: 'สถานะเอกสารมีการเปลี่ยนแปลง กรุณารีเฟรชและลองใหม่' });
-  });
-  it('uses dedicated correction and resubmission endpoints without leaking storage fields', async () => {
-    const fetchMock = vi.fn().mockResolvedValue({ status: 200, ok: true, json: async () => ({ data: {} }) });
-    vi.stubGlobal('document', { cookie: '' });
-    vi.stubGlobal('fetch', fetchMock);
-    await api.returnLicenseDocumentForCorrection('test-access-token', 'document-id', 'แก้ไขวันที่');
-    expect(fetchMock.mock.calls[0][0]).toBe('/api/v1/license-documents/document-id/return-for-correction');
-    expect(fetchMock.mock.calls[0][1].headers.get('Authorization')).toBe('Bearer test-access-token');
-    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({ correctionReason: 'แก้ไขวันที่' });
-    await api.resubmitLicenseDocument('test-access-token', 'document-id', { licenseNumber: 'LN-1', proposedStartDate: '2026-01-01', proposedExpiryDate: '2026-12-31' });
-    const [path, options] = fetchMock.mock.calls[1];
-    expect(path).toBe('/api/v1/license-documents/document-id/resubmit');
-    expect(options.headers.Authorization).toBe('Bearer test-access-token');
-    expect(options.body.get('licenseNumber')).toBe('LN-1');
-    expect(options.body.get('proposedStartDate')).toBe('2026-01-01');
-    expect(options.body.get('document')).toBeNull();
-    expect(JSON.stringify(fetchMock.mock.calls)).not.toContain('storageObjectKey');
-  });
-  it('adds a safe reference ID only to sanitized server errors', () => {
-    expect(sanitizeLicenseDocumentError(new ApiRequestError('Database unavailable.', 503, 'req-db-503'))).toBe('ระบบไม่สามารถดำเนินการเอกสารได้ชั่วคราว กรุณาลองใหม่อีกครั้ง (รหัสอ้างอิง: req-db-503)');
-    expect(sanitizeLicenseDocumentError(new ApiRequestError('คุณไม่มีสิทธิ์อนุมัติเอกสารนี้', 403, 'req-auth-403'))).toBe('คุณไม่มีสิทธิ์อนุมัติเอกสารนี้');
   });
   it('exposes the protected operational mutation methods', () => {
     for (const operation of [

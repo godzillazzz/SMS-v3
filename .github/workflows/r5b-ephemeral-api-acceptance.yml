@@ -1,0 +1,163 @@
+name: R5-B Ephemeral Local API Acceptance (No Supabase)
+
+# API/integration evidence ONLY, not authenticated Preview Browser UAT.
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/r5b-ephemeral-api-acceptance.yml
+      - test/acceptance/r5b-ephemeral-license-api.integration.test.js
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: r5b-ephemeral-local-api
+  cancel-in-progress: false
+
+jobs:
+  ephemeral-api:
+    if: github.repository == 'godzillazzz/SMS-v3'
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: ci_user
+          POSTGRES_PASSWORD: ci_test_only
+          POSTGRES_DB: sms_v3_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ci_user -d sms_v3_test"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    env:
+      NODE_ENV: test
+      RUN_INTEGRATION_TESTS: "true"
+      DATABASE_URL: postgresql://ci_user:ci_test_only@127.0.0.1:5432/sms_v3_test?schema=public
+      DIRECT_URL: postgresql://ci_user:ci_test_only@127.0.0.1:5432/sms_v3_test?schema=public
+      TEST_DATABASE_RUNNER: docker-container-network
+      JWT_SECRET: ci-test-secret-at-least-thirty-two-characters
+      DISABLE_EMAIL_NOTIFICATIONS: "true"
+      OTP_DELIVERY_PROVIDER: disabled
+      ALERTING_ENABLED: "false"
+      RATE_LIMIT_STORE: memory
+      SEED_ADMIN_EMAIL: ci-admin@example.test
+      SEED_ADMIN_PASSWORD: ci-seed-password-only-for-ephemeral-db
+    steps:
+      - name: Checkout acceptance controls from event commit
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Checkout immutable R5-B application
+        uses: actions/checkout@v4
+        with:
+          ref: 77641a2657aa4fd05276afe645dd32648f5cc56b
+          path: frozen-app
+          persist-credentials: false
+      - name: Fail closed on any nonlocal database or remote credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C frozen-app rev-parse HEAD)" = "77641a2657aa4fd05276afe645dd32648f5cc56b"
+          test "$NODE_ENV" = test
+          test "$TEST_DATABASE_RUNNER" = docker-container-network
+          test "$RUN_INTEGRATION_TESTS" = true
+          node - <<'NODE'
+          const expected = 'postgresql://ci_user:ci_test_only@127.0.0.1:5432/sms_v3_test?schema=public';
+          if (process.env.DATABASE_URL !== expected || process.env.DIRECT_URL !== expected ||
+              process.env.VERCEL_ENV || process.env.SUPABASE_SERVICE_ROLE_KEY ||
+              process.env.SUPABASE_URL || process.env.VERCEL_TOKEN || process.env.CRON_SECRET) {
+            console.error('R5B_FAIL_CLOSED_DB_TARGET_OR_EXTERNAL_SECRET');
+            process.exit(1);
+          }
+          const script = require('node:fs').readFileSync('test/acceptance/r5b-ephemeral-license-api.integration.test.js', 'utf8');
+          if (!script.includes('R5B_LOCAL_DISPOSABLE_DB_GUARD_FAILED')) process.exit(1);
+          NODE
+          echo 'R5B_FROZEN_APP_IDENTITY=PASS'
+          echo 'R5B_POSTGRES_TARGET=DISPOSABLE_LOCAL_ONLY'
+          echo 'R5B_REAL_SUPABASE_CREDENTIALS=ABSENT'
+          echo 'R5B_PREVIEW_BROWSER_UAT=NOT_EXECUTED'
+      - name: Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frozen-app/package-lock.json
+      - name: Install frozen app dependencies
+        run: npm ci
+        working-directory: frozen-app
+      - name: Migrate only disposable PostgreSQL service and seed synthetic fixtures
+        working-directory: frozen-app
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx prisma generate
+          npm run db:test:migrate
+          npm run db:seed
+          echo 'R5B_LOCAL_MIGRATION_SEED=PASS'
+      - name: Run local Q13-related API integration and license acceptance
+        shell: bash
+        working-directory: frozen-app
+        run: |
+          set -euo pipefail
+          cp ../test/acceptance/r5b-ephemeral-license-api.integration.test.js test/integration/r5b-ephemeral-license-api.integration.test.js
+          node --check test/integration/r5b-ephemeral-license-api.integration.test.js
+          node --test --test-concurrency=1 --test-reporter=tap \
+            test/integration/cfg01-system-settings.integration.test.js \
+            test/integration/cfg02-leave-policy.integration.test.js \
+            test/integration/cfg03-leave-type-master.integration.test.js \
+            test/integration/cfg05-auto-schedule-pattern-manager.integration.test.js \
+            test/integration/employee-master-governed-edit.integration.test.js \
+            test/integration/leave-approval-transaction-reliability.integration.test.js \
+            test/integration/security-site-department-authority.integration.test.js \
+            test/integration/license-document-workflow.integration.test.js \
+            test/integration/license-schedule-isolation.integration.test.js \
+            test/integration/r5b-ephemeral-license-api.integration.test.js \
+            > /tmp/r5b-ephemeral-api.tap 2>&1 || {
+              echo 'R5B_EPHEMERAL_API_ACCEPTANCE=FAIL'
+              tail -n 60 /tmp/r5b-ephemeral-api.tap
+              exit 1
+            }
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const tap = fs.readFileSync('/tmp/r5b-ephemeral-api.tap', 'utf8');
+          const metric = name => {
+            const m = tap.match(new RegExp('^# ' + name + ' ([0-9]+)$', 'm'));
+            if (!m) throw new Error('R5B_MISSING_TAP_SUMMARY');
+            return Number(m[1]);
+          };
+          const result = {tests: metric('tests'), pass: metric('pass'),
+            fail: metric('fail'), skipped: metric('skipped')};
+          if (result.pass < 10 || result.fail !== 0 || result.skipped !== 0 ||
+              result.tests !== result.pass) throw new Error('R5B_INCOMPLETE_LOCAL_API_ACCEPTANCE');
+          fs.mkdirSync('../safe-evidence', {recursive: true});
+          const summary = {
+            gate: 'R5B_DISPOSABLE_LOCAL_API_INTEGRATION_ONLY',
+            applicationSha: '77641a2657aa4fd05276afe645dd32648f5cc56b',
+            source: 'immutable GitHub checkout',
+            database: 'local ephemeral GitHub PostgreSQL 16 service',
+            integrationSuites: 10,
+            ...result,
+            previewBrowserAcceptance: 'NOT_EXECUTED',
+            sharedPreviewDatabaseAccess: false,
+            productionDatabaseAccess: false,
+            externalDatabaseSecrets: false,
+            productionPromotion: false,
+            artifactsContainRawTestLogs: false
+          };
+          fs.writeFileSync('../safe-evidence/r5b-ephemeral-api.json', JSON.stringify(summary,null,2) + '\n');
+          console.log('R5B_EPHEMERAL_LOCAL_API_TESTS=' + result.pass);
+          console.log('R5B_EPHEMERAL_API_ACCEPTANCE=PASS');
+          console.log('R5B_PREVIEW_BROWSER_UAT=NOT_EXECUTED');
+          NODE
+      - name: Upload safe metadata only, no raw logs or credentials
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: r5b-ephemeral-local-api-${{ github.run_id }}
+          path: safe-evidence/r5b-ephemeral-api.json
+          retention-days: 7
+          if-no-files-found: error

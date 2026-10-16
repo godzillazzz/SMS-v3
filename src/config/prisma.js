@@ -1,3 +1,9 @@
+const { verifyPreviewDatabaseTarget } = require('../services/runtime-database-target-guard.service');
+
+// Prove the Preview database identity before constructing a client or issuing a query.
+// The guard is a no-op outside Vercel Preview, so Production behavior is unchanged.
+verifyPreviewDatabaseTarget();
+
 const { PrismaClient } = require('@prisma/client');
 const { logger } = require('../utils/logger');
 

@@ -6,7 +6,6 @@ const path = require('node:path');
 
 const operations = fs.readFileSync(path.join(process.cwd(), 'src/routes/operations.routes.js'), 'utf8');
 const frontend = fs.readFileSync(path.join(process.cwd(), 'frontend/src/main.tsx'), 'utf8');
-const monthPicker = fs.readFileSync(path.join(process.cwd(), 'frontend/src/components/MonthGridPicker.tsx'), 'utf8');
 const batchSchedules = fs.readFileSync(path.join(process.cwd(), 'src/routes/schedules.routes.js'), 'utf8');
 const scheduleService = fs.readFileSync(path.join(process.cwd(), 'src/services/schedule.service.js'), 'utf8');
 const userAccessService = fs.readFileSync(path.join(process.cwd(), 'src/services/user-access.service.js'), 'utf8');
@@ -17,8 +16,8 @@ test('legacy protected shift codes and Admin-only schedule approval remain enfor
 });
 
 test('legacy license permissions and date validation remain enforced', () => {
-  assert.match(operations, /router\.post\('\/licenses', authorize\('ADMIN'\)/);
-  assert.match(operations, /router\.put\('\/licenses\/:id', authorize\('ADMIN', 'MANAGER'\)/);
+  assert.match(operations, /router\.post\('\/licenses', authorize\('ADMIN', 'MANAGER'\)/);
+  assert.match(operations, /router\.put\('\/licenses\/:id', authorize\('ADMIN'\)/);
   assert.match(operations, /router\.delete\('\/licenses\/:id', authorize\('ADMIN'\)/);
   assert.match(operations, /Issue date must not be after expiry date/);
   assert.match(operations, /License number already exists/);
@@ -38,7 +37,7 @@ test('Manager account approval is constrained to Viewer and sensitive settings s
 
 test('legacy navigation and three-role model are represented in the frontend', () => {
   const navigationBlock = frontend.match(/const navigation:[\s\S]*?function AuthProvider/)?.[0] || '';
-  for (const label of ['Dashboard', 'ข้อมูลพนักงาน', 'ใบอนุญาต รปภ.', 'ตารางกะรายเดือน', 'รหัสกะและเวลา', 'คำขอลา', 'โควต้าวันลา', 'กฎการทำงาน', 'บันทึกการใช้งานระบบ', 'ผู้ใช้และสิทธิ์', 'รายงานและ Export', 'ตั้งค่าระบบ']) {
+  for (const label of ['Dashboard', 'ข้อมูลพนักงาน', 'ใบอนุญาต รปภ.', 'ตารางกะรายเดือน', 'รหัสกะและเวลา', 'คำขอลา', 'โควต้าวันลา', 'กฎการทำงาน', 'Audit Log', 'ผู้ใช้และสิทธิ์', 'รายงานและ Export', 'ตั้งค่าระบบ']) {
     assert.ok(navigationBlock.includes(`label: '${label}'`), label);
   }
   assert.doesNotMatch(navigationBlock, /label: 'อนุมัติตารางกะ'/);
@@ -51,7 +50,7 @@ test('legacy navigation and three-role model are represented in the frontend', (
 });
 
 test('schedule month picker and license search match legacy usability expectations', () => {
-  assert.match(monthPicker, /export function MonthGridPicker/);
+  assert.match(frontend, /function MonthGridPicker/);
   assert.match(frontend, /<MonthGridPicker value=\{scheduleMonth\} onChange=\{setScheduleMonth\} \/>/);
   assert.match(frontend, /page === 'licenses' && <div className="toolbar">/);
   assert.match(frontend, /ค้นหารหัสพนักงาน ชื่อ เลขที่ใบอนุญาต หรือสถานะ/);

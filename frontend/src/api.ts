@@ -1,18 +1,6 @@
 const baseUrl = import.meta.env.VITE_API_BASE_URL || '/api/v1';
 const csrf = () => document.cookie.split('; ').find((item) => item.startsWith('smsv3_csrf='))?.split('=')[1];
 
-export class ApiRequestError extends Error {
-  status: number;
-  requestId?: string;
-
-  constructor(message: string, status: number, requestId?: unknown) {
-    super(message);
-    this.name = 'ApiRequestError';
-    this.status = status;
-    this.requestId = typeof requestId === 'string' ? requestId : undefined;
-  }
-}
-
 let isRefreshing = false;
 let refreshPromise: Promise<any> | null = null;
 let onTokenRefreshed: ((token: string, user: any) => void) | null = null;
@@ -52,7 +40,7 @@ async function call(path: string, init: RequestInit = {}, isRetry = false): Prom
       }
     }
     const errMessage = payload.error || (response.status === 401 ? 'เซสชันหมดอายุ กรุณาเข้าสู่ระบบอีกครั้ง' : 'เกิดข้อผิดพลาดในการเชื่อมต่อระบบ');
-    throw new ApiRequestError(errMessage, response.status, payload.requestId);
+    throw new Error(errMessage);
   }
   return payload;
 }
@@ -84,7 +72,7 @@ async function binaryCall(path: string, init: RequestInit = {}, isRetry = false)
       }
     }
     const payload = await response.json().catch(() => ({}));
-    throw new ApiRequestError(payload.error || 'เกิดข้อผิดพลาดในการดาวน์โหลดเอกสาร', response.status, payload.requestId);
+    throw new Error(payload.error || 'เกิดข้อผิดพลาดในการดาวน์โหลดเอกสาร');
   }
   const disposition = response.headers.get('content-disposition') || '';
   const encodedName = disposition.match(/filename\*=UTF-8''([^;]+)/i)?.[1];
@@ -100,22 +88,7 @@ export const api = {
   refresh: () => call('/auth/refresh', { method: 'POST', body: JSON.stringify({ clientType: 'browser' }) }),
   logout: () => call('/auth/logout', { method: 'POST', body: JSON.stringify({ clientType: 'browser' }) }),
   logoutAll: (accessToken: string) => call('/auth/logout-all', { method: 'POST', body: JSON.stringify({ clientType: 'browser' }), headers: { Authorization: `Bearer ${accessToken}` } }),
-  dashboard: (token: string, filters: { date?: string; month?: string; department?: string } = {}) => {
-    const params = new URLSearchParams();
-    if (filters.date) params.set('date', filters.date);
-    if (filters.month) params.set('month', filters.month);
-    if (filters.department) params.set('department', filters.department);
-    const query = params.toString();
-    return call(`/dashboard${query ? `?${query}` : ''}`, { headers: { Authorization: `Bearer ${token}` } });
-  },
-  executiveReport: (token: string, filters: { year?: number; month?: number; department?: string } = {}) => {
-    const params = new URLSearchParams();
-    if (filters.year) params.set('year', String(filters.year));
-    if (filters.month) params.set('month', String(filters.month));
-    if (filters.department) params.set('department', filters.department);
-    const query = params.toString();
-    return call(`/executive-report${query ? `?${query}` : ''}`, { headers: { Authorization: `Bearer ${token}` } });
-  },
+  dashboard: (token: string) => call('/dashboard', { headers: { Authorization: `Bearer ${token}` } }),
   employees: (token: string) => call('/employees?page=1&pageSize=100', { headers: { Authorization: `Bearer ${token}` } }),
   licenses: (token: string, page = 1) => call(`/licenses?page=${page}&pageSize=500`, { headers: { Authorization: `Bearer ${token}` } }),
   shiftTypes: (token: string) => call('/shift-types', { headers: { Authorization: `Bearer ${token}` } }),
@@ -133,31 +106,18 @@ export const api = {
   ruleChecks: (token: string, month: string) => call(`/rule-checks?month=${encodeURIComponent(month)}`, { headers: { Authorization: `Bearer ${token}` } }),
   systemSettings: (token: string) => call('/system-settings', { headers: { Authorization: `Bearer ${token}` } }),
   updateSystemSetting: (token: string, key: string, data: unknown) => call(`/system-settings/${encodeURIComponent(key)}`, { method: 'PUT', body: JSON.stringify(data), headers: { Authorization: `Bearer ${token}` } }),
-  leaveRequests: (token: string, page = 1, filters: { year?: number; month?: number; status?: string; employeeId?: string; department?: string; search?: string } = {}) => { const params = new URLSearchParams({ page: String(page), pageSize: '100' }); Object.entries(filters).forEach(([key, value]) => { if (value !== undefined && value !== '') params.set(key, String(value)); }); return call(`/leave-requests?${params.toString()}`, { headers: { Authorization: `Bearer ${token}` } }); },
+  leaveRequests: (token: string, page = 1) => call(`/leave-requests?page=${page}&pageSize=100`, { headers: { Authorization: `Bearer ${token}` } }),
   leaveSummary: (token: string) => call('/leave-summary', { headers: { Authorization: `Bearer ${token}` } }),
   leaveQuotas: (token: string, page = 1) => call(`/leave-quotas?page=${page}&pageSize=100`, { headers: { Authorization: `Bearer ${token}` } }),
   users: (token: string) => call('/users', { headers: { Authorization: `Bearer ${token}` } }),
-  auditEvents: (token: string, page = 1, pageSize = 25, filters: { dateFrom?: string; dateTo?: string; actor?: string; entityType?: string; action?: string; search?: string; category?: string } = {}) => { const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) }); Object.entries(filters).forEach(([key, value]) => { if (value) params.set(key, value); }); return call(`/audit-events?${params.toString()}`, { headers: { Authorization: `Bearer ${token}` } }); },
-  dataQualityIssues: (token: string, page = 1, pageSize = 25, filters: { severity?: string; module?: string; rule?: string; department?: string; search?: string } = {}) => { const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) }); Object.entries(filters).forEach(([key, value]) => { if (value) params.set(key, value); }); return call(`/data-quality/issues?${params.toString()}`, { headers: { Authorization: `Bearer ${token}` } }); },
+  auditEvents: (token: string, page = 1, pageSize = 100) => call(`/audit-events?page=${page}&pageSize=${pageSize}`, { headers: { Authorization: `Bearer ${token}` } }),
   reportSummary: (token: string) => call('/reports/summary', { headers: { Authorization: `Bearer ${token}` } }),
   createEmployee: (token: string, data: unknown) => call('/employees', { method: 'POST', body: JSON.stringify(data), headers: { Authorization: `Bearer ${token}` } }),
   updateEmployee: (token: string, id: string, data: unknown) => call(`/employees/${id}`, { method: 'PUT', body: JSON.stringify(data), headers: { Authorization: `Bearer ${token}` } }),
   deleteEmployee: (token: string, id: string) => call(`/employees/${id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } }),
-  employeeLifecycleHistory: (token: string, id: string, page = 1) => call(`/employees/${id}/lifecycle?page=${page}&pageSize=50`, { headers: { Authorization: `Bearer ${token}` } }),
-  employeeLifecycleState: (token: string, id: string, date: string) => call(`/employees/${id}/lifecycle/state?date=${encodeURIComponent(date)}`, { headers: { Authorization: `Bearer ${token}` } }),
-  preflightEmployeeLifecycle: (token: string, id: string, data: unknown) => call(`/employees/${id}/lifecycle/preflight`, { method: 'POST', body: JSON.stringify(data), headers: { Authorization: `Bearer ${token}` } }),
-  createEmployeeLifecycleEvent: (token: string, id: string, data: unknown) => call(`/employees/${id}/lifecycle`, { method: 'POST', body: JSON.stringify(data), headers: { Authorization: `Bearer ${token}` } }),
   createLicense: (token: string, data: unknown) => call('/licenses', { method: 'POST', body: JSON.stringify(data), headers: { Authorization: `Bearer ${token}` } }),
   updateLicense: (token: string, id: string, data: unknown) => call(`/licenses/${id}`, { method: 'PUT', body: JSON.stringify(data), headers: { Authorization: `Bearer ${token}` } }),
   deleteLicense: (token: string, id: string) => call(`/licenses/${id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } }),
-  licenseDocuments: (token: string, licenseId: string) => call(`/licenses/${licenseId}/documents`, { headers: { Authorization: `Bearer ${token}` } }),
-  uploadLicenseDocument: (token: string, licenseId: string, data: { licenseNumber: string; proposedStartDate: string; proposedExpiryDate: string; note?: string }, document: File) => { const body = new FormData(); body.append('licenseNumber', data.licenseNumber); body.append('proposedStartDate', data.proposedStartDate); body.append('proposedExpiryDate', data.proposedExpiryDate); if (data.note) body.append('note', data.note); body.append('document', document); return callMultipart(`/licenses/${licenseId}/documents`, token, body); },
-  viewLicenseDocument: (token: string, documentId: string) => call(`/license-documents/${documentId}/view`, { headers: { Authorization: `Bearer ${token}` } }),
-  approveLicenseDocument: (token: string, documentId: string) => call(`/license-documents/${documentId}/approve`, { method: 'POST', headers: { Authorization: `Bearer ${token}` } }),
-  returnLicenseDocumentForCorrection: (token: string, documentId: string, correctionReason: string) => call(`/license-documents/${documentId}/return-for-correction`, { method: 'POST', body: JSON.stringify({ correctionReason }), headers: { Authorization: `Bearer ${token}` } }),
-  resubmitLicenseDocument: (token: string, documentId: string, data: { licenseNumber: string; proposedStartDate: string; proposedExpiryDate: string; note?: string }, document?: File) => { const body = new FormData(); body.append('licenseNumber', data.licenseNumber); body.append('proposedStartDate', data.proposedStartDate); body.append('proposedExpiryDate', data.proposedExpiryDate); if (data.note) body.append('note', data.note); if (document) body.append('document', document); return callMultipart(`/license-documents/${documentId}/resubmit`, token, body); },
-  rejectLicenseDocument: (token: string, documentId: string, rejectionReason: string) => call(`/license-documents/${documentId}/reject`, { method: 'POST', body: JSON.stringify({ rejectionReason }), headers: { Authorization: `Bearer ${token}` } }),
-  permanentlyDeleteLicenseDocument: (token: string, documentId: string) => call(`/license-documents/${documentId}/permanent`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } }),
   createShift: (token: string, data: unknown) => call('/shifts', { method: 'POST', body: JSON.stringify(data), headers: { Authorization: `Bearer ${token}` } }),
   updateShift: (token: string, id: string, data: unknown) => call(`/shifts/${id}`, { method: 'PUT', body: JSON.stringify(data), headers: { Authorization: `Bearer ${token}` } }),
   batchSaveShifts: (token: string, changes: Array<{ action: 'create' | 'update' | 'delete'; id?: string; payload?: unknown }>) => {
@@ -201,7 +161,6 @@ export const api = {
   updateLeaveRequest: (token: string, id: string, data: unknown) => call(`/leave-requests/${id}`, { method: 'PUT', body: JSON.stringify(data), headers: { Authorization: `Bearer ${token}` } }),
   cancelLeaveRequest: (token: string, id: string, reason?: string) => call(`/leave-requests/${id}/cancel`, { method: 'POST', body: JSON.stringify({ reason }), headers: { Authorization: `Bearer ${token}` } }),
   updateLeaveQuota: (token: string, id: string, data: unknown) => call(`/leave-quotas/${id}`, { method: 'PUT', body: JSON.stringify(data), headers: { Authorization: `Bearer ${token}` } }),
-  linkLeaveQuota: (token: string, id: string, employeeId: string) => call(`/leave-quotas/${id}/link`, { method: 'PUT', body: JSON.stringify({ employeeId }), headers: { Authorization: `Bearer ${token}` } }),
   updateUser: (token: string, id: string, data: unknown) => call(`/users/${id}`, { method: 'PUT', body: JSON.stringify(data), headers: { Authorization: `Bearer ${token}` } }),
   resetUserPassword: (token: string, id: string, newPassword: string) => call(`/users/${id}/reset-password`, { method: 'POST', body: JSON.stringify({ newPassword }), headers: { Authorization: `Bearer ${token}` } }),
   viewAsUser: (token: string, id: string) => call(`/users/${id}/view-as`, { method: 'POST', body: '{}', headers: { Authorization: `Bearer ${token}` } }),

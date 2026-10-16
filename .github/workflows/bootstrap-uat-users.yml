@@ -1,0 +1,190 @@
+name: Bootstrap sms-v3-staging UAT Users
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_sha:
+        description: Exact pushed UAT bootstrap source commit SHA
+        required: true
+        type: string
+      confirmation:
+        description: Type BOOTSTRAP_SMS_V3_STAGING_UAT_USERS to confirm UAT user provisioning
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  bootstrap:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment:
+      name: production-sms-v3-staging
+    env:
+      SOURCE_SHA: ${{ inputs.source_sha }}
+      INPUT_CONFIRMATION: ${{ inputs.confirmation }}
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      UAT_ADMIN_EMAIL: ${{ secrets.UAT_ADMIN_EMAIL }}
+      UAT_ADMIN_PASSWORD: ${{ secrets.UAT_ADMIN_PASSWORD }}
+      UAT_MANAGER_EMAIL: ${{ secrets.UAT_MANAGER_EMAIL }}
+      UAT_MANAGER_PASSWORD: ${{ secrets.UAT_MANAGER_PASSWORD }}
+      UAT_VIEWER_EMAIL: ${{ secrets.UAT_VIEWER_EMAIL }}
+      UAT_VIEWER_PASSWORD: ${{ secrets.UAT_VIEWER_PASSWORD }}
+    steps:
+      - name: Validate dispatch confirmation
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$INPUT_CONFIRMATION" = 'BOOTSTRAP_SMS_V3_STAGING_UAT_USERS'
+          [[ "$SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]]
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source_sha }}
+          fetch-depth: 0
+
+      - name: Verify exact approved UAT source
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+          git fetch --no-tags origin test/automated-uat-smoke:refs/remotes/origin/test/automated-uat-smoke
+          git merge-base --is-ancestor "$SOURCE_SHA" origin/test/automated-uat-smoke
+          test -f scripts/admin/bootstrap-uat-users.js
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Verify required UAT credential secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          missing=0
+          for name in \
+            UAT_ADMIN_EMAIL UAT_ADMIN_PASSWORD \
+            UAT_MANAGER_EMAIL UAT_MANAGER_PASSWORD \
+            UAT_VIEWER_EMAIL UAT_VIEWER_PASSWORD; do
+            if [ -z "${!name:-}" ]; then
+              echo "$name ........ MISSING"
+              missing=1
+            else
+              echo "$name ........ PRESENT"
+            fi
+          done
+          if [ "$missing" -ne 0 ]; then
+            echo 'UAT_CREDENTIAL_SECRETS_MISSING' >&2
+            exit 1
+          fi
+          if [ -z "${DATABASE_URL:-}" ]; then
+            echo 'DATABASE_URL_MISSING' >&2
+            exit 1
+          fi
+
+      - name: Install deterministic dependencies
+        run: npm ci
+
+      - name: Generate Prisma client without migration
+        run: npx prisma generate
+
+      - name: Dry-run exact UAT user bootstrap
+        shell: bash
+        env:
+          UAT_BOOTSTRAP_CONFIRM: CREATE_SMS_V3_STAGING_UAT_USERS
+        run: |
+          set -euo pipefail
+          node scripts/admin/bootstrap-uat-users.js --dry-run
+          echo 'UAT_BOOTSTRAP_CONFLICT_COUNT=0'
+
+      - name: Provision exact UAT users once
+        shell: bash
+        env:
+          UAT_BOOTSTRAP_CONFIRM: CREATE_SMS_V3_STAGING_UAT_USERS
+        run: |
+          set -euo pipefail
+          node scripts/admin/bootstrap-uat-users.js
+
+      - name: Verify provisioned UAT identities read-only
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const { PrismaClient } = require('@prisma/client');
+
+          const expected = [
+            ['UAT_ADMIN', process.env.UAT_ADMIN_EMAIL, 'ADMIN'],
+            ['UAT_MANAGER', process.env.UAT_MANAGER_EMAIL, 'MANAGER'],
+            ['UAT_VIEWER', process.env.UAT_VIEWER_EMAIL, 'VIEWER']
+          ];
+
+          const prisma = new PrismaClient({ datasources: { db: { url: process.env.DATABASE_URL } } });
+          const main = async () => {
+            const users = await prisma.user.findMany({
+              where: { email: { in: expected.map(([, email]) => email.toLowerCase()) } },
+              select: { email: true, role: true, isActive: true, accountStatus: true, passwordResetRequired: true, employeeId: true }
+            });
+            if (users.length !== expected.length) throw new Error('UAT_BOOTSTRAP_VERIFY_COUNT_FAILED');
+            for (const [label, email, role] of expected) {
+              const user = users.find((entry) => entry.email === email.toLowerCase());
+              if (!user || user.role !== role || user.isActive !== true || user.accountStatus !== 'ACTIVE' || user.passwordResetRequired !== false || user.employeeId !== null) {
+                throw new Error('UAT_BOOTSTRAP_VERIFY_FAILED');
+              }
+              console.log(`${label} .... VERIFIED`);
+            }
+          };
+
+          main()
+            .catch(() => {
+              console.error('UAT_BOOTSTRAP_VERIFY_FAILED');
+              process.exitCode = 1;
+            })
+            .finally(() => prisma.$disconnect());
+          NODE
+
+      - name: Verify role login smoke
+        shell: bash
+        env:
+          UAT_BASE_URL: https://sms-v3-staging-ten.vercel.app
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const accounts = [
+            ['UAT_ADMIN', process.env.UAT_ADMIN_EMAIL, process.env.UAT_ADMIN_PASSWORD, 'ADMIN'],
+            ['UAT_MANAGER', process.env.UAT_MANAGER_EMAIL, process.env.UAT_MANAGER_PASSWORD, 'MANAGER'],
+            ['UAT_VIEWER', process.env.UAT_VIEWER_EMAIL, process.env.UAT_VIEWER_PASSWORD, 'VIEWER']
+          ];
+
+          const main = async () => {
+            for (const [label, email, password, role] of accounts) {
+              const response = await fetch(`${process.env.UAT_BASE_URL}/api/v1/auth/login`, {
+                method: 'POST',
+                headers: { 'content-type': 'application/json' },
+                body: JSON.stringify({ email, password })
+              });
+              if (!response.ok) throw new Error('UAT_LOGIN_FAILED');
+              const payload = await response.json();
+              if (payload?.user?.role !== role || typeof payload?.accessToken !== 'string') throw new Error('UAT_LOGIN_ROLE_MISMATCH');
+              console.log(`${label} LOGIN=PASS`);
+            }
+          };
+
+          main().catch(() => {
+            console.error('UAT_LOGIN_SMOKE_FAILED');
+            process.exitCode = 1;
+          });
+          NODE
+
+      - name: Publish safe bootstrap summary
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo '### UAT user bootstrap'
+            echo "- Target source SHA: $SOURCE_SHA"
+            echo '- Prisma bootstrap: guarded by dry-run and exact confirmation'
+            echo '- Business mutation: NONE'
+            echo '- Migration: NONE'
+            echo '- Deployment: NONE'
+          } >> "$GITHUB_STEP_SUMMARY"

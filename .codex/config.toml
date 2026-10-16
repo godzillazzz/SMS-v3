@@ -1,0 +1,37 @@
+# SMS V3 project-local Codex permissions.
+# This project is already trusted in the user-level Codex config.
+# The personal Khai-Hub Codex plugin currently points at an expired DNS endpoint;
+# disable it only here so it cannot make otherwise-successful Codex runs exit non-zero.
+approval_policy = "on-request"
+approvals_reviewer = "auto_review"
+sandbox_mode = "workspace-write"
+
+[sandbox_workspace_write]
+# workspace-write already bounds writes to the active repository/worktree; keep network crossings reviewable.
+network_access = false
+
+[auto_review]
+policy = """
+For this trusted SMS V3 repository, approve routine low-risk actions needed to complete an explicitly requested engineering task: editing project files, creating isolated worktrees or branches under the repository, installing or using already-declared project dependencies, running tests/builds/dev servers, browser checks, git status/diff/commit, non-force pushes to task branches, exact-SHA CI dispatch/status checks, GitHub/Vercel read-only provenance/health checks, Vercel Preview operations, and guarded release staging described by AGENTS.md.
+
+Approve network or elevation requests for the existing GitHub CLI, Vercel CLI, npm/node tooling, localhost browser/dev-server checks, and the configured production/preview domains when the command is scoped to this repository and does not expose secrets.
+
+A normal official GitHub Environment approval may be approved only when the user's current task explicitly authorizes deploying or finishing Production and the authenticated identity matches the configured required reviewer. Never approve changing or bypassing Environment protection, required reviewers, branch protections, secrets, auth policy, or provenance checks.
+
+Do not auto-approve destructive filesystem cleanup, force-push, deleting branches or tags with unclear ownership, Production database/data mutation, migrations against Production, secret/env edits, credential export, disabling security controls, or commands whose target/scope cannot be verified. Escalate those to the user.
+"""
+
+[plugins."khai-hub@personal"]
+enabled = false
+
+[browser_use.origins."https://github.com"]
+access = "allow"
+downloads = "allow"
+
+[browser_use.origins."https://vercel.com"]
+access = "allow"
+downloads = "allow"
+
+[browser_use.origins."https://**.vercel.app"]
+access = "allow"
+downloads = "allow"

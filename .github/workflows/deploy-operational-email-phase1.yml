@@ -1,0 +1,222 @@
+name: Deploy operational email Phase 1
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_sha:
+        description: Full commit SHA to inspect or deploy
+        required: true
+        type: string
+        default: e15d76ad1907a6fae0c28f1859f64e506ca2841a
+      target_project:
+        description: Type sms-v3-staging to confirm the target
+        required: true
+        type: string
+        default: sms-v3-staging
+      allow_deploy:
+        description: Allow migration and source deploy only after no matching deployment is found
+        required: true
+        type: boolean
+        default: false
+
+concurrency:
+  group: sms-v3-staging-operational-email-phase1
+  cancel-in-progress: false
+
+env:
+  EXPECTED_PROJECT_NAME: sms-v3-staging
+  EXPECTED_PROJECT_ID: prj_XwhNUOB2zLSPZ6UgQcfyOKBYJ75s
+  EXPECTED_ORG_ID: team_nemCExHbZ8EAhSgsvefHPAEz
+  CANONICAL_URL: https://sms-v3-staging-ten.vercel.app
+  MIGRATION_NAME: 202608030001_email_delivery_reservations
+
+jobs:
+  deploy:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment:
+      name: production-sms-v3-staging
+      url: https://sms-v3-staging-ten.vercel.app
+    permissions:
+      contents: read
+    env:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+    steps:
+      - name: Checkout exact source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.target_sha }}
+          fetch-depth: 1
+
+      - name: Validate branch, SHA, and target
+        shell: bash
+        env:
+          TARGET_SHA: ${{ inputs.target_sha }}
+          TARGET_PROJECT: ${{ inputs.target_project }}
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_REF" == "refs/heads/main" ]]
+          [[ "$TARGET_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$TARGET_PROJECT" == "$EXPECTED_PROJECT_NAME" ]]
+          [[ "$VERCEL_PROJECT_ID" == "$EXPECTED_PROJECT_ID" ]]
+          [[ "$VERCEL_ORG_ID" == "$EXPECTED_ORG_ID" ]]
+          [[ "$(git rev-parse HEAD)" == "$TARGET_SHA" ]]
+          [[ -f prisma/migrations/$MIGRATION_NAME/migration.sql ]]
+          echo "TARGET_PROJECT=$EXPECTED_PROJECT_NAME"
+          echo "TARGET_PROJECT_ID_MATCH=true"
+          echo "TARGET_ORG_ID_MATCH=true"
+          echo "TARGET_SHA_VALID=true"
+
+      - name: Check Vercel credentials presence
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in VERCEL_TOKEN VERCEL_ORG_ID VERCEL_PROJECT_ID; do
+            if [[ -n "${!name:-}" ]]; then echo "$name=PRESENT"; else echo "$name=MISSING"; fi
+          done
+          [[ -n "${VERCEL_TOKEN:-}" && -n "${VERCEL_ORG_ID:-}" && -n "${VERCEL_PROJECT_ID:-}" ]]
+
+      - name: Link exact Vercel project temporarily
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p .vercel
+          chmod 700 .vercel
+          printf '%s\n' '{"projectId":"'"$EXPECTED_PROJECT_ID"'","orgId":"'"$EXPECTED_ORG_ID"'"}' > .vercel/project.json
+          test "$(node -e "const p=require('./.vercel/project.json'); process.stdout.write(p.projectId)" )" = "$EXPECTED_PROJECT_ID"
+          test "$(node -e "const p=require('./.vercel/project.json'); process.stdout.write(p.orgId)" )" = "$EXPECTED_ORG_ID"
+
+      - name: Inspect Vercel Production environment metadata
+        id: env_metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx --yes vercel@56.4.1 env ls production --scope "$VERCEL_ORG_ID" --token "$VERCEL_TOKEN" > /tmp/phase1-vercel-env.log 2>/tmp/phase1-vercel-env.err
+          node <<'NODE'
+          const fs = require('fs');
+          const output = fs.readFileSync('/tmp/phase1-vercel-env.log', 'utf8');
+          const names = ['DATABASE_URL', 'DIRECT_URL', 'DISABLE_EMAIL_NOTIFICATIONS', 'OTP_DELIVERY_PROVIDER', 'OTP_HASH_SECRET', 'OTP_FROM_EMAIL', 'SMTP_HOST', 'SMTP_PORT', 'SMTP_SECURE', 'SMTP_USERNAME', 'SMTP_PASSWORD'];
+          const present = name => new RegExp(`(^|[^A-Z0-9_])${name}([^A-Z0-9_]|$)`, 'm').test(output);
+          for (const name of names) console.log(`${name}_PRESENT_IN_VERCEL_PRODUCTION=${present(name)}`);
+          const emailKeys = names.slice(2);
+          const complete = emailKeys.every(present);
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, `email_complete=${complete}\n`);
+          NODE
+
+      - name: Find existing Production deployment by exact SHA
+        id: existing
+        shell: bash
+        env:
+          TARGET_SHA: ${{ inputs.target_sha }}
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error \
+            -H "Authorization: Bearer $VERCEL_TOKEN" \
+            "https://api.vercel.com/v6/deployments?projectId=$EXPECTED_PROJECT_ID&limit=100" \
+            > /tmp/phase1-deployments.json
+          node <<'NODE'
+          const fs = require('fs');
+          const targetSha = process.env.TARGET_SHA;
+          const payload = JSON.parse(fs.readFileSync('/tmp/phase1-deployments.json', 'utf8'));
+          const deployments = Array.isArray(payload.deployments) ? payload.deployments : [];
+          const match = deployments.find(item => {
+            const sha = item.meta?.githubCommitSha || item.gitSource?.sha || item.source?.sha;
+            return sha === targetSha && item.target === 'production' && (!item.projectId || item.projectId === process.env.EXPECTED_PROJECT_ID);
+          });
+          if (!match) {
+            console.log('EXISTING_DEPLOYMENT_FOUND=false');
+            fs.appendFileSync(process.env.GITHUB_OUTPUT, 'found=false\n');
+            process.exit(0);
+          }
+          const rawUrl = String(match.url || '').trim();
+          const fullUrl = /^https?:\/\//i.test(rawUrl) ? rawUrl : `https://${rawUrl}`;
+          const parsed = new URL(fullUrl);
+          if (!['http:', 'https:'].includes(parsed.protocol) || parsed.username || parsed.password || parsed.search || parsed.hash) process.exit(1);
+          console.log('EXISTING_DEPLOYMENT_FOUND=true');
+          console.log(`DEPLOYMENT_ID=${match.uid || match.id}`);
+          console.log(`DEPLOYMENT_URL=${fullUrl}`);
+          console.log('DEPLOYMENT_TARGET=production');
+          console.log('SOURCE_SHA_MATCH=true');
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, `found=true\ndeployment_id=${match.uid || match.id}\ndeployment_url=${fullUrl}\n`);
+          NODE
+
+      - name: Verify existing deployment readiness
+        if: steps.existing.outputs.found == 'true'
+        shell: bash
+        env:
+          DEPLOYMENT_ID: ${{ steps.existing.outputs.deployment_id }}
+          DEPLOYMENT_URL: ${{ steps.existing.outputs.deployment_url }}
+        run: |
+          set -euo pipefail
+          for attempt in {1..30}; do
+            state="$(npx --yes vercel@56.4.1 inspect "$DEPLOYMENT_ID" --scope "$VERCEL_ORG_ID" --token "$VERCEL_TOKEN" --format=json 2>/dev/null | node -e "let s=''; process.stdin.on('data',d=>s+=d).on('end',()=>{try{const v=JSON.parse(s); process.stdout.write(String(v.readyState||v.state||v.status||''))}catch{process.stdout.write('')}})")"
+            if [[ "$state" == "READY" ]]; then echo "DEPLOYMENT_READY=true"; break; fi
+            if [[ "$state" == "ERROR" || "$state" == "CANCELED" ]]; then echo "DEPLOYMENT_READY=false"; exit 1; fi
+            sleep 10
+          done
+          test "${state:-}" = READY
+          test "$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' "$CANONICAL_URL/")" = 200
+          test "$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' "$CANONICAL_URL/login")" = 200
+          test "$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' "$CANONICAL_URL/api/v1/health")" = 200
+          for attempt in 1 2 3; do
+            body="$(curl --silent --show-error --fail "$CANONICAL_URL/api/v1/ready")"
+            node -e 'const v=JSON.parse(process.argv[1]); if(v.status!=="ready" || v.database!=="ok") process.exit(1)' "$body"
+            echo "READINESS_$attempt=200,status=ready,database=ok"
+          done
+          if [[ "${{ steps.env_metadata.outputs.email_complete }}" != true ]]; then echo "EMAIL_CONFIGURATION_REQUIRED=true"; fi
+
+      - name: Stop when deployment is missing
+        if: steps.existing.outputs.found != 'true' && inputs.allow_deploy != true
+        run: |
+          echo "DEPLOYMENT_NOT_FOUND=true"
+          echo "NO_MIGRATION_OR_DEPLOYMENT_STARTED=true"
+
+      - name: Check deploy prerequisites
+        if: steps.existing.outputs.found != 'true' && inputs.allow_deploy == true
+        shell: bash
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DIRECT_URL: ${{ secrets.DIRECT_URL }}
+        run: |
+          set -euo pipefail
+          [[ "${{ steps.env_metadata.outputs.email_complete }}" == true ]]
+          [[ -n "${DATABASE_URL:-}" && -n "${DIRECT_URL:-}" ]]
+          npm ci --ignore-scripts
+
+      - name: Apply additive migration only when deploy is explicitly allowed
+        if: steps.existing.outputs.found != 'true' && inputs.allow_deploy == true
+        shell: bash
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DIRECT_URL: ${{ secrets.DIRECT_URL }}
+        run: |
+          set -euo pipefail
+          npx prisma migrate deploy
+          npx prisma migrate status
+          echo "MIGRATION=$MIGRATION_NAME"
+          echo "PENDING_MIGRATIONS=0"
+
+      - name: Deploy source only when explicitly allowed
+        if: steps.existing.outputs.found != 'true' && inputs.allow_deploy == true
+        id: deploy
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx --yes vercel@56.4.1 deploy --prod --yes --scope "$VERCEL_ORG_ID" --token "$VERCEL_TOKEN" --format=json > /tmp/phase1-deploy.json 2>/tmp/phase1-deploy.err
+          node <<'NODE'
+          const fs = require('fs');
+          const value = JSON.parse(fs.readFileSync('/tmp/phase1-deploy.json', 'utf8'));
+          const id = value.id || value.deployment?.id;
+          const rawUrl = String(value.url || value.deployment?.url || '').trim();
+          const fullUrl = /^https?:\/\//i.test(rawUrl) ? rawUrl : `https://${rawUrl}`;
+          const parsed = new URL(fullUrl);
+          if (!id || !['http:', 'https:'].includes(parsed.protocol) || parsed.username || parsed.password || parsed.search || parsed.hash) process.exit(1);
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, `deployment_id=${id}\ndeployment_url=${fullUrl}\n`);
+          NODE
+
+      - name: Cleanup temporary files
+        if: always()
+        shell: bash
+        run: rm -rf .vercel .env.production.local .env*.local /tmp/phase1-vercel-env.log /tmp/phase1-vercel-env.err /tmp/phase1-deployments.json /tmp/phase1-deploy.json /tmp/phase1-deploy.err

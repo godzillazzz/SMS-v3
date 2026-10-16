@@ -1,0 +1,207 @@
+name: Correct sms-v3-staging Vite production artifact
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_sha:
+        description: Full source commit SHA
+        required: true
+        type: string
+        default: e15d76ad1907a6fae0c28f1859f64e506ca2841a
+      target_project:
+        description: Type sms-v3-staging to confirm the target
+        required: true
+        type: string
+        default: sms-v3-staging
+
+concurrency:
+  group: sms-v3-staging-vite-artifact-correction
+  cancel-in-progress: false
+
+env:
+  EXPECTED_PROJECT_NAME: sms-v3-staging
+  EXPECTED_PROJECT_ID: prj_XwhNUOB2zLSPZ6UgQcfyOKBYJ75s
+  EXPECTED_ORG_ID: team_nemCExHbZ8EAhSgsvefHPAEz
+  CANONICAL_URL: https://sms-v3-staging-ten.vercel.app
+  ROLLBACK_TARGET: dpl_BJR3sPwckPjx1kJ25ocA1AwLWKN7
+
+jobs:
+  deploy:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment:
+      name: production-sms-v3-staging
+      url: https://sms-v3-staging-ten.vercel.app
+    permissions:
+      contents: read
+    env:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+    steps:
+      - name: Checkout exact source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.target_sha }}
+          fetch-depth: 1
+
+      - name: Validate repository root and target
+        shell: bash
+        env:
+          TARGET_SHA: ${{ inputs.target_sha }}
+          TARGET_PROJECT: ${{ inputs.target_project }}
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_REF" == "refs/heads/main" ]]
+          [[ "$TARGET_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$TARGET_PROJECT" == "$EXPECTED_PROJECT_NAME" ]]
+          [[ "$(git rev-parse HEAD)" == "$TARGET_SHA" ]]
+          [[ "$VERCEL_PROJECT_ID" == "$EXPECTED_PROJECT_ID" ]]
+          [[ "$VERCEL_ORG_ID" == "$EXPECTED_ORG_ID" ]]
+          [[ "$(pwd)" == "$GITHUB_WORKSPACE" ]]
+          test -f package.json
+          test -f vercel.json
+          test -d frontend
+          test -f frontend/package.json
+          test -d src
+          test ! -f next.config.js
+          test ! -f next.config.mjs
+          test ! -d .next
+          echo "WORKING_DIRECTORY=$GITHUB_WORKSPACE"
+          echo "TARGET_PROJECT=sms-v3-staging"
+          echo "TARGET_SHA_VALID=true"
+          echo "PROJECT_ID_MATCH=true"
+          echo "ORG_ID_MATCH=true"
+
+      - name: Check Vercel credentials presence
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in VERCEL_TOKEN VERCEL_ORG_ID VERCEL_PROJECT_ID; do
+            if [[ -n "${!name:-}" ]]; then echo "$name=PRESENT"; else echo "$name=MISSING"; fi
+          done
+          [[ -n "${VERCEL_TOKEN:-}" && -n "${VERCEL_ORG_ID:-}" && -n "${VERCEL_PROJECT_ID:-}" ]]
+
+      - name: Install exact root and frontend dependencies
+        run: |
+          npm ci --ignore-scripts
+          npm ci --prefix frontend --ignore-scripts
+
+      - name: Build from repository root
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(pwd)" = "$GITHUB_WORKSPACE"
+          npm run vercel-build
+
+      - name: Verify local Vite artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f frontend/dist/index.html
+          test -n "$(find frontend/dist/assets -maxdepth 1 -type f -name 'index-*.js' -print -quit)"
+          test -z "$(find frontend/dist -type d -name '_next' -print -quit)"
+          for marker in 'แนบใบอนุญาตใหม่' 'ขนาดไม่เกิน 2 MB' '/licenses/' '/documents' 'ลบถาวร'; do
+            grep -R -F --quiet "$marker" frontend/dist
+          done
+          echo "LOCAL_ARTIFACT=VITE"
+          echo "LOCAL_MARKERS=PASS"
+
+      - name: Link repository root to exact Vercel project
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(pwd)" = "$GITHUB_WORKSPACE"
+          mkdir -p .vercel
+          chmod 700 .vercel
+          printf '%s\n' '{"projectId":"'"$EXPECTED_PROJECT_ID"'","orgId":"'"$EXPECTED_ORG_ID"'"}' > .vercel/project.json
+          test "$(node -e "const p=require('./.vercel/project.json'); process.stdout.write(p.projectId)" )" = "$EXPECTED_PROJECT_ID"
+          test "$(node -e "const p=require('./.vercel/project.json'); process.stdout.write(p.orgId)" )" = "$EXPECTED_ORG_ID"
+          echo "PROJECT_JSON_VALID=true"
+
+      - name: Verify Vercel project settings metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error \
+            -H "Authorization: Bearer $VERCEL_TOKEN" \
+            "https://api.vercel.com/v9/projects/$EXPECTED_PROJECT_ID" > /tmp/vite-project-settings.json
+          node <<'NODE'
+          const fs = require('fs');
+          const value = JSON.parse(fs.readFileSync('/tmp/vite-project-settings.json', 'utf8'));
+          const root = value.rootDirectory || '.';
+          const framework = value.framework || 'none';
+          if (root !== '.') process.exit(1);
+          if (String(framework).toLowerCase().includes('next')) process.exit(1);
+          console.log(`VERCEL_ROOT_DIRECTORY=${root}`);
+          console.log(`VERCEL_FRAMEWORK=${framework}`);
+          console.log('VERCEL_BUILD_COMMAND=vercel.json:npm run vercel-build');
+          console.log('VERCEL_OUTPUT_DIRECTORY=vercel.json:frontend/dist');
+          NODE
+          node -e "const p=require('./vercel.json'); if(p.buildCommand!=='npm run vercel-build'||p.outputDirectory!=='frontend/dist') process.exit(1); console.log('VERCEL_JSON_SETTINGS=PASS')"
+
+      - name: Deploy source from repository root
+        id: deploy
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(pwd)" = "$GITHUB_WORKSPACE"
+          npx --yes vercel@56.4.1 deploy --prod --yes --scope "$VERCEL_ORG_ID" --token "$VERCEL_TOKEN" --format=json > /tmp/vite-deploy.json 2>/tmp/vite-deploy.err
+          node <<'NODE'
+          const fs = require('fs');
+          const value = JSON.parse(fs.readFileSync('/tmp/vite-deploy.json', 'utf8'));
+          const id = value.id || value.deployment?.id;
+          const rawUrl = String(value.url || value.deployment?.url || '').trim();
+          const fullUrl = /^https?:\/\//i.test(rawUrl) ? rawUrl : `https://${rawUrl}`;
+          const parsed = new URL(fullUrl);
+          if (!id || !['http:', 'https:'].includes(parsed.protocol) || parsed.username || parsed.password || parsed.search || parsed.hash) process.exit(1);
+          console.log(`DEPLOYMENT_ID=${id}`);
+          console.log(`DEPLOYMENT_URL=${fullUrl}`);
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, `deployment_id=${id}\ndeployment_url=${fullUrl}\n`);
+          NODE
+
+      - name: Verify deployed artifact and rollback wrong context
+        id: artifact
+        shell: bash
+        env:
+          DEPLOYMENT_URL: ${{ steps.deploy.outputs.deployment_url }}
+        run: |
+          set -euo pipefail
+          html="$(curl --fail --silent --show-error "$DEPLOYMENT_URL/")"
+          asset="$(grep -oE '/assets/index-[^" ]+\.js' <<<"$html" | head -n 1 || true)"
+          if [[ -z "$asset" || "$html" == *"/_next/"* ]]; then
+            echo "DEPLOYED_ARTIFACT=NEXT_OR_WRONG_CONTEXT"
+            npx --yes vercel@56.4.1 promote "$ROLLBACK_TARGET" --scope "$VERCEL_ORG_ID" --token "$VERCEL_TOKEN" --yes
+            echo "ROLLED_BACK_TO=$ROLLBACK_TARGET"
+            exit 1
+          fi
+          js="$(curl --fail --silent --show-error "${DEPLOYMENT_URL}${asset}")"
+          for marker in 'แนบใบอนุญาตใหม่' 'ขนาดไม่เกิน 2 MB' '/licenses/' '/documents' 'ลบถาวร'; do
+            grep -F --quiet "$marker" <<<"$js"
+          done
+          echo "DEPLOYED_ARTIFACT=VITE"
+          echo "DEPLOYED_MARKERS=PASS"
+
+      - name: Verify canonical health and upload route
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' "$CANONICAL_URL/")" = 200
+          test "$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' "$CANONICAL_URL/login")" = 200
+          test "$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' "$CANONICAL_URL/api/v1/health")" = 200
+          for attempt in 1 2 3; do
+            body="$(curl --silent --show-error --fail "$CANONICAL_URL/api/v1/ready")"
+            node -e 'const v=JSON.parse(process.argv[1]); if(v.status!=="ready" || v.database!=="ok") process.exit(1)' "$body"
+            echo "READINESS_$attempt=200,status=ready,database=ok"
+          done
+          fixture=/tmp/license-route-fixture.pdf
+          printf '%%PDF-1.4\nfixture\n%%%%EOF\n' > "$fixture"
+          status="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' -X POST -F 'licenseNumber=ROUTE-CHECK' -F 'proposedStartDate=2026-01-01' -F 'proposedExpiryDate=2026-12-31' -F "document=@$fixture;type=application/pdf" "$CANONICAL_URL/api/v1/licenses/00000000-0000-4000-8000-000000000000/documents")"
+          rm -f "$fixture"
+          [[ "$status" == 401 || "$status" == 403 ]]
+          echo "UPLOAD_ROUTE_REACHED=true"
+
+      - name: Cleanup temporary files
+        if: always()
+        shell: bash
+        run: rm -rf .vercel frontend/dist /tmp/vite-project-settings.json /tmp/vite-deploy.json /tmp/vite-deploy.err

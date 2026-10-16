@@ -1,6 +1,5 @@
 generator client {
-  provider      = "prisma-client-js"
-  binaryTargets = ["native", "rhel-openssl-3.0.x"]
+  provider = "prisma-client-js"
 }
 
 datasource db {
@@ -22,19 +21,6 @@ enum AccountStatus {
   REJECTED
 }
 
-enum EmployeeLifecycleEventType {
-  DEPARTMENT_TRANSFER
-  NAME_CHANGE
-  POSITION_CHANGE
-  EMPLOYMENT_TERMINATION
-  REHIRE
-}
-
-enum EmployeeLifecycleEventStatus {
-  PENDING
-  APPLIED
-}
-
 enum AuditAction {
   CREATE
   UPDATE
@@ -53,38 +39,32 @@ enum AuthOtpPurpose {
 }
 
 model User {
-  id                       String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  email                    String                    @unique @db.VarChar(255)
-  passwordHash             String                    @map("password_hash") @db.VarChar(255)
-  displayName              String                    @map("display_name") @db.VarChar(150)
-  role                     UserRole                  @default(VIEWER)
-  isActive                 Boolean                   @default(true) @map("is_active")
-  tokenVersion             Int                       @default(0) @map("token_version")
-  lastLoginAt              DateTime?                 @map("last_login_at")
-  failedLoginCount         Int                       @default(0) @map("failed_login_count")
-  legacyUserId             String?                   @unique @map("legacy_user_id") @db.VarChar(100)
-  employeeId               String?                   @unique @map("employee_id") @db.Uuid
-  legacyRole               String?                   @map("legacy_role") @db.VarChar(50)
-  accountStatus            AccountStatus             @default(ACTIVE) @map("account_status")
-  passwordResetRequired    Boolean                   @default(false) @map("password_reset_required")
-  employmentSuspendedAt    DateTime?                 @map("employment_suspended_at")
-  department               String?                   @db.VarChar(100)
-  requestedAt              DateTime?                 @map("requested_at")
-  approvedByLegacyRef      String?                   @map("approved_by_legacy_ref") @db.VarChar(255)
-  approvedAt               DateTime?                 @map("approved_at")
-  rejectionReason          String?                   @map("rejection_reason") @db.VarChar(2000)
-  legacyUpdatedAt          DateTime?                 @map("legacy_updated_at")
-  createdAt                DateTime                  @default(now()) @map("created_at")
-  updatedAt                DateTime                  @updatedAt @map("updated_at")
-  auditLogs                AuditLog[]                @relation("ActorAuditLogs")
-  sessions                 RefreshSession[]
-  otpChallenges            AuthOtpChallenge[]
-  uploadedLicenseDocuments EmployeeLicenseDocument[] @relation("UploadedLicenseDocuments")
-  reviewedLicenseDocuments EmployeeLicenseDocument[] @relation("ReviewedLicenseDocuments")
-  returnedLicenseDocuments EmployeeLicenseDocument[] @relation("ReturnedLicenseDocuments")
-  employee                 Employee?                 @relation(fields: [employeeId], references: [id], onDelete: SetNull)
-  createdLeaveRequests     LeaveRequest[]            @relation("LeaveRequestCreatedBy")
-  lifecycleEventsChanged   EmployeeLifecycleEvent[]  @relation("LifecycleChangedBy")
+  id                    String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email                 String             @unique @db.VarChar(255)
+  passwordHash          String             @map("password_hash") @db.VarChar(255)
+  displayName           String             @map("display_name") @db.VarChar(150)
+  role                  UserRole           @default(VIEWER)
+  isActive              Boolean            @default(true) @map("is_active")
+  tokenVersion          Int                @default(0) @map("token_version")
+  lastLoginAt           DateTime?          @map("last_login_at")
+  failedLoginCount      Int                @default(0) @map("failed_login_count")
+  legacyUserId          String?            @unique @map("legacy_user_id") @db.VarChar(100)
+  employeeId            String?            @unique @map("employee_id") @db.Uuid
+  legacyRole            String?            @map("legacy_role") @db.VarChar(50)
+  accountStatus         AccountStatus      @default(ACTIVE) @map("account_status")
+  passwordResetRequired Boolean            @default(false) @map("password_reset_required")
+  department            String?            @db.VarChar(100)
+  requestedAt           DateTime?          @map("requested_at")
+  approvedByLegacyRef   String?            @map("approved_by_legacy_ref") @db.VarChar(255)
+  approvedAt            DateTime?          @map("approved_at")
+  rejectionReason       String?            @map("rejection_reason") @db.VarChar(2000)
+  legacyUpdatedAt       DateTime?          @map("legacy_updated_at")
+  createdAt             DateTime           @default(now()) @map("created_at")
+  updatedAt             DateTime           @updatedAt @map("updated_at")
+  auditLogs             AuditLog[]         @relation("ActorAuditLogs")
+  sessions              RefreshSession[]
+  otpChallenges         AuthOtpChallenge[]
+  employee              Employee?          @relation(fields: [employeeId], references: [id], onDelete: SetNull)
 
   @@map("users")
 }
@@ -127,60 +107,32 @@ model RefreshSession {
 }
 
 model Employee {
-  id               String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  employeeCode     String                    @unique @map("employee_code") @db.VarChar(50)
-  firstName        String                    @map("first_name") @db.VarChar(100)
-  lastName         String                    @map("last_name") @db.VarChar(100)
-  email            String?                   @unique @db.VarChar(255)
-  phone            String?                   @db.VarChar(50)
-  department       String?                   @db.VarChar(100)
-  jobTitle         String?                   @map("job_title") @db.VarChar(100)
-  hiredAt          DateTime?                 @map("hired_at") @db.Date
-  isActive         Boolean                   @default(true) @map("is_active")
-  deletedAt        DateTime?                 @map("deleted_at")
-  deletedByUserId  String?                   @map("deleted_by_user_id") @db.Uuid
-  legacyEmployeeId String?                   @unique @map("legacy_employee_id") @db.VarChar(100)
-  displayName      String?                   @map("display_name") @db.VarChar(255)
-  skill            String?                   @db.VarChar(255)
-  createdAt        DateTime                  @default(now()) @map("created_at")
-  updatedAt        DateTime                  @updatedAt @map("updated_at")
+  id               String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  employeeCode     String            @unique @map("employee_code") @db.VarChar(50)
+  firstName        String            @map("first_name") @db.VarChar(100)
+  lastName         String            @map("last_name") @db.VarChar(100)
+  email            String?           @unique @db.VarChar(255)
+  phone            String?           @db.VarChar(50)
+  department       String?           @db.VarChar(100)
+  jobTitle         String?           @map("job_title") @db.VarChar(100)
+  hiredAt          DateTime?         @map("hired_at") @db.Date
+  isActive         Boolean           @default(true) @map("is_active")
+  deletedAt        DateTime?         @map("deleted_at")
+  deletedByUserId  String?           @map("deleted_by_user_id") @db.Uuid
+  legacyEmployeeId String?           @unique @map("legacy_employee_id") @db.VarChar(100)
+  displayName      String?           @map("display_name") @db.VarChar(255)
+  skill            String?           @db.VarChar(255)
+  createdAt        DateTime          @default(now()) @map("created_at")
+  updatedAt        DateTime          @updatedAt @map("updated_at")
   user             User?
   licenses         EmployeeLicense[]
-  licenseDocuments EmployeeLicenseDocument[]
   shiftAssignments ShiftAssignment[]
   leaveRequests    LeaveRequest[]
   leaveQuotas      LeaveQuota[]
-  lifecycleEvents  EmployeeLifecycleEvent[]
 
   @@index([isActive, deletedAt])
   @@index([department])
   @@map("employees")
-}
-
-model EmployeeLifecycleEvent {
-  id                        String                       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  employeeId                String                       @map("employee_id") @db.Uuid
-  sequence                  Int
-  type                      EmployeeLifecycleEventType
-  status                    EmployeeLifecycleEventStatus @default(PENDING)
-  effectiveDate             DateTime                     @map("effective_date") @db.Date
-  oldValue                  Json                         @map("old_value")
-  newValue                  Json                         @map("new_value")
-  reason                    String                       @db.VarChar(1000)
-  changedByUserId           String                       @map("changed_by_user_id") @db.Uuid
-  idempotencyKey            String                       @unique @map("idempotency_key") @db.Uuid
-  expectedEmployeeUpdatedAt DateTime                     @map("expected_employee_updated_at")
-  appliedAt                 DateTime?                    @map("applied_at")
-  createdAt                 DateTime                     @default(now()) @map("created_at")
-  updatedAt                 DateTime                     @updatedAt @map("updated_at")
-  employee                  Employee                     @relation(fields: [employeeId], references: [id], onDelete: Restrict)
-  changedBy                 User                         @relation("LifecycleChangedBy", fields: [changedByUserId], references: [id], onDelete: Restrict)
-
-  @@unique([employeeId, sequence])
-  @@index([employeeId, effectiveDate, sequence])
-  @@index([status, effectiveDate])
-  @@index([changedByUserId, createdAt])
-  @@map("employee_lifecycle_events")
 }
 
 model ShiftType {
@@ -234,89 +186,26 @@ model ShiftAssignment {
 }
 
 model EmployeeLicense {
-  id                      String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  legacyLicenseId         String                    @unique @map("legacy_license_id") @db.VarChar(100)
-  employeeId              String                    @map("employee_id") @db.Uuid
-  licenseType             String                    @map("license_type") @db.VarChar(150)
-  licenseNumber           String?                   @map("license_number") @db.VarChar(255)
-  issueDate               DateTime?                 @map("issue_date") @db.Date
-  expiryDate              DateTime?                 @map("expiry_date") @db.Date
-  status                  String?                   @db.VarChar(100)
-  documentUrl             String?                   @map("document_url") @db.VarChar(2000)
-  documentMigrationStatus String                    @default("NONE") @map("document_migration_status") @db.VarChar(40)
-  remark                  String?                   @db.VarChar(2000)
-  updatedByLegacyRef      String?                   @map("updated_by_legacy_ref") @db.VarChar(255)
-  legacyUpdatedAt         DateTime?                 @map("legacy_updated_at")
-  createdAt               DateTime                  @default(now()) @map("created_at")
-  updatedAt               DateTime                  @updatedAt @map("updated_at")
-  employee                Employee                  @relation(fields: [employeeId], references: [id], onDelete: Restrict)
-  documents               EmployeeLicenseDocument[]
+  id                      String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  legacyLicenseId         String    @unique @map("legacy_license_id") @db.VarChar(100)
+  employeeId              String    @map("employee_id") @db.Uuid
+  licenseType             String    @map("license_type") @db.VarChar(150)
+  licenseNumber           String?   @map("license_number") @db.VarChar(255)
+  issueDate               DateTime? @map("issue_date") @db.Date
+  expiryDate              DateTime? @map("expiry_date") @db.Date
+  status                  String?   @db.VarChar(100)
+  documentUrl             String?   @map("document_url") @db.VarChar(2000)
+  documentMigrationStatus String    @default("NONE") @map("document_migration_status") @db.VarChar(40)
+  remark                  String?   @db.VarChar(2000)
+  updatedByLegacyRef      String?   @map("updated_by_legacy_ref") @db.VarChar(255)
+  legacyUpdatedAt         DateTime? @map("legacy_updated_at")
+  createdAt               DateTime  @default(now()) @map("created_at")
+  updatedAt               DateTime  @updatedAt @map("updated_at")
+  employee                Employee  @relation(fields: [employeeId], references: [id], onDelete: Restrict)
 
   @@index([employeeId])
   @@index([expiryDate])
   @@map("employee_licenses")
-}
-
-enum LicenseDocumentStatus {
-  PENDING
-  RETURNED_FOR_CORRECTION
-  APPROVED
-  REJECTED
-  SUPERSEDED
-  EXPIRED
-}
-
-model EmployeeLicenseDocument {
-  id                           String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  employeeId                   String                @map("employee_id") @db.Uuid
-  licenseId                    String                @map("license_id") @db.Uuid
-  storageProvider              String                @map("storage_provider") @db.VarChar(50)
-  storageBucket                String                @map("storage_bucket") @db.VarChar(255)
-  storageObjectKey             String                @unique @map("storage_object_key") @db.VarChar(500)
-  originalFileName             String                @map("original_file_name") @db.VarChar(255)
-  safeDisplayFileName          String                @map("safe_display_file_name") @db.VarChar(255)
-  mimeType                     String                @map("mime_type") @db.VarChar(100)
-  fileSize                     Int                   @map("file_size")
-  checksum                     String?               @db.Char(64)
-  proposedStartDate            DateTime              @map("proposed_start_date") @db.Date
-  proposedExpiryDate           DateTime              @map("proposed_expiry_date") @db.Date
-  proposedLicenseNumber        String?               @map("proposed_license_number") @db.VarChar(100)
-  status                       LicenseDocumentStatus @default(PENDING)
-  isCurrent                    Boolean               @default(false) @map("is_current")
-  uploadedById                 String                @map("uploaded_by_id") @db.Uuid
-  uploadedAt                   DateTime              @default(now()) @map("uploaded_at")
-  reviewedById                 String?               @map("reviewed_by_id") @db.Uuid
-  reviewedAt                   DateTime?             @map("reviewed_at")
-  rejectionReason              String?               @map("rejection_reason") @db.VarChar(2000)
-  correctionReason             String?               @map("correction_reason") @db.VarChar(1000)
-  returnedById                 String?               @map("returned_by_id") @db.Uuid
-  returnedAt                   DateTime?             @map("returned_at")
-  resubmittedAt                DateTime?             @map("resubmitted_at")
-  version                      Int
-  note                         String?               @db.VarChar(2000)
-  storageDeleteAfter           DateTime?             @map("storage_delete_after")
-  storageDeletedAt             DateTime?             @map("storage_deleted_at")
-  storageDeleteObjectKey       String?               @map("storage_delete_object_key") @db.VarChar(500)
-  storageDeleteAttempts        Int                   @default(0) @map("storage_delete_attempts")
-  storageDeleteLastErrorAt     DateTime?             @map("storage_delete_last_error_at")
-  storageDeleteLastErrorCode   String?               @map("storage_delete_last_error_code") @db.VarChar(80)
-  immediateDeletionRequestedAt DateTime?             @map("immediate_deletion_requested_at")
-  expirationProcessedAt        DateTime?             @map("expiration_processed_at")
-  createdAt                    DateTime              @default(now()) @map("created_at")
-  updatedAt                    DateTime              @updatedAt @map("updated_at")
-  employee                     Employee              @relation(fields: [employeeId], references: [id], onDelete: Restrict)
-  license                      EmployeeLicense       @relation(fields: [licenseId], references: [id], onDelete: Restrict)
-  uploadedBy                   User                  @relation("UploadedLicenseDocuments", fields: [uploadedById], references: [id], onDelete: Restrict)
-  reviewedBy                   User?                 @relation("ReviewedLicenseDocuments", fields: [reviewedById], references: [id], onDelete: Restrict)
-  returnedBy                   User?                 @relation("ReturnedLicenseDocuments", fields: [returnedById], references: [id], onDelete: Restrict)
-
-  @@unique([licenseId, version])
-  @@index([employeeId, status])
-  @@index([licenseId, isCurrent])
-  @@index([proposedExpiryDate])
-  @@index([status, isCurrent, expirationProcessedAt])
-  @@index([storageDeleteObjectKey])
-  @@map("employee_license_documents")
 }
 
 model LeaveRequest {
@@ -338,14 +227,11 @@ model LeaveRequest {
   approvedAt                DateTime?        @map("approved_at")
   createdAt                 DateTime         @default(now()) @map("created_at")
   updatedAt                 DateTime         @updatedAt @map("updated_at")
-  createdByUserId           String?          @map("created_by_user_id") @db.Uuid
   employee                  Employee         @relation(fields: [employeeId], references: [id], onDelete: Restrict)
-  createdByUser             User?            @relation("LeaveRequestCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
   attachment                LeaveAttachment?
 
   @@index([employeeId, startDate])
   @@index([status])
-  @@index([createdByUserId])
   @@map("leave_requests")
 }
 
@@ -535,22 +421,4 @@ model AlertDeduplicationState {
   @@unique([eventCategory, dedupKeyHash, windowStart], map: "alert_deduplication_states_event_hash_window_key")
   @@index([expiresAt], map: "alert_deduplication_states_expires_at_idx")
   @@map("alert_deduplication_states")
-}
-
-model EmailDeliveryReservation {
-  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  eventKey          String    @unique @map("event_key") @db.VarChar(255)
-  status            String    @default("RESERVED") @db.VarChar(16)
-  attemptCount      Int       @default(1) @map("attempt_count")
-  reservedAt        DateTime  @default(now()) @map("reserved_at")
-  sentAt            DateTime? @map("sent_at")
-  failedAt          DateTime? @map("failed_at")
-  retryAfter        DateTime? @map("retry_after")
-  lastErrorCategory String?   @map("last_error_category") @db.VarChar(64)
-  lastErrorSafe     String?   @map("last_error_safe") @db.VarChar(255)
-  createdAt         DateTime  @default(now()) @map("created_at")
-  updatedAt         DateTime  @updatedAt @map("updated_at")
-
-  @@index([status, retryAfter])
-  @@map("email_delivery_reservations")
 }

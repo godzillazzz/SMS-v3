@@ -1,0 +1,90 @@
+name: R5-B Owner-only Preview CORS Verification (Read Only)
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions: {}
+
+concurrency:
+  group: r5b-preview-cors-readonly-20261009
+  cancel-in-progress: false
+
+jobs:
+  owner-guard:
+    if: >-
+      github.repository == 'godzillazzz/SMS-v3' &&
+      github.ref == 'refs/heads/main' &&
+      github.event_name == 'issue_comment' &&
+      github.event.action == 'created' &&
+      github.event.issue.number == 551 &&
+      github.event.issue.pull_request == null &&
+      github.event.comment.user.login == 'godzillazzz' &&
+      github.event.sender.login == 'godzillazzz' &&
+      github.event.comment.author_association == 'OWNER' &&
+      github.event.comment.body == '/sms-v3-r5b-preview-cors-20261009'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      - name: Require exact authenticated Owner request
+        shell: bash
+        env:
+          EXPECTED_COMMAND: '/sms-v3-r5b-preview-cors-20261009'
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          'use strict';
+          const fs = require('node:fs');
+          const ev = JSON.parse(fs.readFileSync(process.env.GITHUB_EVENT_PATH, 'utf8'));
+          const ownerId = 279642101;
+          const ok =
+            process.env.GITHUB_REPOSITORY === 'godzillazzz/SMS-v3' &&
+            process.env.GITHUB_REF === 'refs/heads/main' &&
+            ev.action === 'created' &&
+            ev.issue?.number === 551 &&
+            ev.issue?.state === 'open' &&
+            !ev.issue?.pull_request &&
+            ev.sender?.id === ownerId &&
+            ev.sender?.login === 'godzillazzz' &&
+            ev.comment?.user?.id === ownerId &&
+            ev.comment?.user?.login === 'godzillazzz' &&
+            ev.comment?.author_association === 'OWNER' &&
+            ev.comment?.body === process.env.EXPECTED_COMMAND;
+          if (!ok) {
+            console.error('R5B_PREVIEW_CORS_REQUEST=REJECTED');
+            process.exit(1);
+          }
+          console.log('R5B_PREVIEW_CORS_REQUEST=PASS');
+          console.log('PRODUCTION_ACTION=NOT_AUTHORIZED');
+          NODE
+
+  preview-readonly:
+    needs: owner-guard
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: production-sms-v3-staging
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout trusted default-branch code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Verify exact R5-B Preview identity, health, readiness and CORS
+        shell: bash
+        env:
+          PREVIEW_URL: https://sms-v3-staging-cdudcqwl5-godzillazz.vercel.app
+          EXPECTED_DEPLOYMENT_ID: dpl_CrAgeJxHdqaq2FBziFTPGuBB3w9v
+          CONTROL_SHA: e3ff848f0b5aa0e8f15887bef02ce81e6a9b165b
+          SOURCE_BRANCH: fix/serverless-database-reliability
+          FROZEN_APPLICATION_SHA: 77641a2657aa4fd05276afe645dd32648f5cc56b
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+        run: node scripts/ci/r5b-preview-cors-check.js

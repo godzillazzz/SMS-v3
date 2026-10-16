@@ -1,0 +1,28 @@
+{
+  "authorized": true,
+  "database_isolation_verified": true,
+  "database_isolation_evidence": "https://github.com/godzillazzz/SMS-v3/actions/runs/38833567905",
+  "database_target_fingerprint": "fe001305fa0031e9572949cac8544dfc9c8d8aca9e4fc2749f565952e65c282c",
+  "project_id": "prj_XwhNUOB2zLSPZ6UgQcfyOKBYJ75s",
+  "team_id": "team_nemCExHbZ8EAhSgsvefHPAEz",
+  "target_mode": "preview",
+  "source_sha": "ffba53f90b1787a071657c21ee162609c8f80254",
+  "source_branch": "fix/serverless-database-reliability",
+  "deployment_id": "dpl_G7yzbgCE1457aV6zgft47hS99BNf",
+  "url": "https://sms-v3-staging-fi0985zy2-godzillazz.vercel.app",
+  "note": "OWNER APPROVED for the immutable existing Integration Preview only, as staged on Draft PR #637. Signed GET/read-only exact Isolation run #38833567905 verified Preview DB/Storage, Production separation and Production unchanged. Fingerprints identify expected Preview and distinct Production Supabase targets; source pins identify exact immutable application SHA. GitHub trusted-main protections, exact-source CI, fresh signed receipt, exact Preview identity, four existing UAT roles and Hosted UAT Owner Environment approval remain mandatory at execution. Manifest approval in this Draft PR is NOT a merge, workflow dispatch, Production deployment, credential update or evidence of completed four-role UAT.",
+  "production_database_target_fingerprint": "87dd67b4630d3e1fbdd639b318681a044a81d7755dfdc8d98c08f6943d5ac1db",
+  "production_database_identity_evidence": "https://github.com/godzillazzz/SMS-v3/actions/runs/38833567905",
+  "runtime_guard_file_sha256": {
+    "src/app.js": "84f550cf098235c70e0dc0647d668a9a7feb6214d720bcf16ceec316a113eb04",
+    "src/config/prisma.js": "516648ca43a9b1c9f2dc03e70edc2ee3e4ec000fb30c21bd5bfeb51458495614",
+    "src/services/runtime-database-target-guard.service.js": "011ec22787a0efe456bf35fbb99d88f0e03ac9047876882896c3cc02c18aa647",
+    "src/utils/database-target-identity.js": "6f3b961c5affc78284f24ac68f1db1a4e79f1f40549d42b76613d582b53e1067",
+    "frontend/src/main.tsx": "fb1f75c4ad0121ac5f41c40858d1bef8881dd9bf542126883b680ca9b3ffc698",
+    "src/services/runtime-isolation-probe.service.js": "f734567127864026f8f491781398dcef9cb5d57da0b768c2c954832bc6fd3004",
+    "src/routes/runtime-isolation-probe.routes.js": "d900ef0710fb580ca7115bf1e4cf5c43042decbabcda5053ca83506518b8b9f6"
+  },
+  "preview_database_cluster_fingerprint_sha256": "a96200459370c855ff978934689acb140b1c8573e623696cd854c76afa72fc76",
+  "production_database_cluster_fingerprint_sha256": "7d71885605b8dc006c0c379b0b8d50d2011647707c4820d0fd33839a37cfa06f",
+  "preview_runtime_principal": "postgres"
+}

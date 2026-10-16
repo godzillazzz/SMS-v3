@@ -2,7 +2,8 @@ process.env.NODE_ENV = 'test';
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const bcrypt = require('bcryptjs');
-const { createOtpService } = require('../src/services/email-otp.service');
+const nodemailer = require('nodemailer');
+const { createOtpService, createMailer } = require('../src/services/email-otp.service');
 
 function fakePrisma(initialUsers = [], initialEmployees = []) {
   const users = initialUsers.map((user) => ({ ...user }));
@@ -32,6 +33,102 @@ function fakePrisma(initialUsers = [], initialEmployees = []) {
 
 const config = { otpDeliveryProvider: 'gmail_smtp', otpHashSecret: 'otp-test-secret-that-is-at-least-thirty-two-characters', otpCodeExpiresMinutes: 10, otpMaxAttempts: 5, otpRequestLimitPerHour: 5 };
 const auditService = { log: async () => undefined };
+
+test('SMTP OTP mailer preserves transporter auth and text/HTML sendMail contract without network I/O', async () => {
+  const smtpConfiguration = {
+    ...config,
+    smtpHost: 'smtp.example.test',
+    smtpPort: 465,
+    smtpSecure: true,
+    smtpUsername: 'smtp-user-test',
+    smtpPassword: 'smtp-password-test',
+    otpFromEmail: 'no-reply@example.test'
+  };
+  let transportOptions;
+  let message;
+  const mailer = createMailer(smtpConfiguration, (options) => {
+    transportOptions = options;
+    return { sendMail: async (value) => { message = value; return { accepted: [value.to] }; } };
+  });
+
+  const result = await mailer.send({ to: 'employee@example.test', code: '123456', purpose: 'REGISTRATION' });
+
+  assert.deepEqual(transportOptions, {
+    host: 'smtp.example.test',
+    port: 465,
+    secure: true,
+    auth: { user: 'smtp-user-test', pass: 'smtp-password-test' }
+  });
+  assert.equal(message.from, 'no-reply@example.test');
+  assert.equal(message.to, 'employee@example.test');
+  assert.match(message.subject, /ลงทะเบียน/);
+  assert.match(message.text, /123456/);
+  assert.match(message.html, /123456/);
+  assert.deepEqual(result.accepted, ['employee@example.test']);
+});
+
+test('SMTP OTP mailer keeps provider-disabled delivery closed', async () => {
+  let transportCreated = false;
+  const mailer = createMailer({ ...config, otpDeliveryProvider: 'disabled' }, () => {
+    transportCreated = true;
+    throw new Error('transport must not be created');
+  });
+
+  await assert.rejects(() => mailer.send({ to: 'employee@example.test', code: '123456', purpose: 'PASSWORD_RESET' }), {
+    statusCode: 503,
+    message: 'Verification email delivery is unavailable.'
+  });
+  assert.equal(transportCreated, false);
+});
+
+test('Nodemailer CommonJS stream transport renders OTP text and HTML without SMTP network access', async () => {
+  const smtpConfiguration = {
+    ...config,
+    smtpHost: 'smtp.example.test',
+    smtpPort: 465,
+    smtpSecure: true,
+    smtpUsername: 'smtp-user-test',
+    smtpPassword: 'smtp-password-test',
+    otpFromEmail: 'no-reply@example.test'
+  };
+  const mailer = createMailer(smtpConfiguration, () => nodemailer.createTransport({
+    streamTransport: true,
+    buffer: true,
+    newline: 'unix'
+  }));
+
+  const result = await mailer.send({ to: 'employee@example.test', code: '654321', purpose: 'PASSWORD_RESET' });
+  const rendered = result.message.toString('utf8');
+  const decodedBodies = [...rendered.matchAll(/Content-Transfer-Encoding: base64\r?\n\r?\n([A-Za-z0-9+/=\r\n]+)/g)]
+    .map((match) => Buffer.from(match[1].replace(/\s/g, ''), 'base64').toString('utf8'));
+
+  assert.deepEqual(result.envelope, { from: 'no-reply@example.test', to: ['employee@example.test'] });
+  assert.match(rendered, /text\/plain/);
+  assert.match(rendered, /text\/html/);
+  assert.equal(decodedBodies.length, 2);
+  assert.ok(decodedBodies.every((body) => body.includes('654321')));
+});
+
+test('OTP delivery errors are returned as a generic message without SMTP details', async () => {
+  const prisma = fakePrisma([], [{ id: 'employee-1', employeeCode: 'EMP001', displayName: 'New Employee', department: 'Operations', deletedAt: null, isActive: true }]);
+  const service = createOtpService({
+    prismaClient: prisma,
+    auditService,
+    configuration: config,
+    mailer: { send: async () => { throw new Error('smtp-password-test'); } }
+  });
+
+  await assert.rejects(() => service.requestRegistration({
+    employeeId: 'employee-1',
+    email: 'employee@example.test',
+    password: 'long-password-for-test'
+  }), (error) => {
+    assert.equal(error.statusCode, 503);
+    assert.equal(error.message, 'Verification email delivery is unavailable.');
+    assert.doesNotMatch(error.message, /smtp-password-test/);
+    return true;
+  });
+});
 
 test('registration sends a one-time email code and leaves the account pending after verification', async () => {
   const prisma = fakePrisma([], [{ id: 'employee-1', employeeCode: 'EMP001', displayName: 'New Employee', department: 'Operations', deletedAt: null, isActive: true }]); let delivered;

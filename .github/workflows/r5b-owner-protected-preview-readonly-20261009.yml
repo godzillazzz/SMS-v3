@@ -1,0 +1,157 @@
+name: R5-B Protected Preview Read-only Verification (No Deploy)
+
+# Trusted MAIN-only workflow. Never executes pull request code with protected secrets.
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  issues: read
+  actions: read
+  pull-requests: read
+
+concurrency:
+  group: r5b-pr578-owner-protected-readonly-20261009
+  cancel-in-progress: false
+
+jobs:
+  owner-guard:
+    if: >-
+      github.repository == 'godzillazzz/SMS-v3' &&
+      github.event.issue.number == 551 &&
+      github.event.issue.pull_request == null &&
+      github.event.comment.user.login == 'godzillazzz' &&
+      github.event.sender.login == 'godzillazzz' &&
+      startsWith(github.event.comment.body, '/sms-v3-r5b-protected-preview-20261009 ')
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    env:
+      GH_TOKEN: ${{ github.token }}
+      EXPECTED_APP_SHA: 77641a2657aa4fd05276afe645dd32648f5cc56b
+      EXPECTED_PR_SHA: eddc5903c6e1ccdbcd9d559176ca17368e758dfc
+      EXPECTED_DEPLOY: dpl_DW76MRuxtWujdUaF73YBQwcERhvU
+      EXPECTED_COMMAND: /sms-v3-r5b-protected-preview-20261009 eddc5903c6e1ccdbcd9d559176ca17368e758dfc dpl_DW76MRuxtWujdUaF73YBQwcERhvU
+    steps:
+      - name: Require exact verified Owner command and immutable source identities
+        shell: bash
+        run: |
+          set -euo pipefail
+          jq -e --arg command "$EXPECTED_COMMAND" '
+            .action == "created" and .issue.number == 551 and .issue.state == "open" and
+            .issue.pull_request == null and
+            .sender.login == "godzillazzz" and
+            .comment.user.login == "godzillazzz" and
+            .comment.author_association == "OWNER" and
+            .comment.body == $command
+          ' "$GITHUB_EVENT_PATH" > /dev/null
+          test "$(gh api repos/godzillazzz/SMS-v3/git/ref/heads/fix/serverless-database-reliability --jq '.object.sha')" = "$EXPECTED_APP_SHA"
+          test "$(gh api repos/godzillazzz/SMS-v3/pulls/578 --jq '.head.sha')" = "$EXPECTED_PR_SHA"
+          test "$(gh api repos/godzillazzz/SMS-v3/pulls/578 --jq '.state')" = open
+          test "$(gh api repos/godzillazzz/SMS-v3/pulls/578 --jq '.draft')" = true
+          test "$(gh api repos/godzillazzz/SMS-v3/actions/runs/37888045410 --jq '.conclusion')" = success
+          test "$(gh api repos/godzillazzz/SMS-v3/actions/runs/37888045410 --jq '.head_sha')" = "$EXPECTED_PR_SHA"
+          echo 'R5B_OWNER_GUARD=PASS'
+          echo 'R5B_PRODUCTION_DEPLOY=NOT_AUTHORIZED'
+
+  protected-preview-readonly:
+    needs: owner-guard
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    environment: production-sms-v3-staging
+    permissions:
+      contents: read
+    env:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+      TEAM_ID: team_nemCExHbZ8EAhSgsvefHPAEz
+      PROJECT_ID: prj_XwhNUOB2zLSPZ6UgQcfyOKBYJ75s
+      DEPLOYMENT_ID: dpl_DW76MRuxtWujdUaF73YBQwcERhvU
+      EXPECTED_SHA: eddc5903c6e1ccdbcd9d559176ca17368e758dfc
+      EXPECTED_REF: release/r5b-alternate-acceptance-draft-control-20261009
+      DEPLOYMENT_URL: https://sms-v3-staging-j3etf5rth-godzillazz.vercel.app
+      UNTRUSTED_ORIGIN: https://r5b-untrusted.invalid
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Prove immutable Preview identity, Health, DB Readiness and strict CORS, GET/OPTIONS only
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const e = process.env;
+          const valid = (condition, code) => { if (!condition) throw new Error(code); };
+          const allowed = new Set([
+            'MISSING_PROTECTED_READONLY_CREDENTIAL',
+            'IMMUTABLE_PREVIEW_IDENTITY_FAILED',
+            'PROTECTED_HEALTH_FAILED',
+            'PROTECTED_DATABASE_READY_FAILED',
+            'PROTECTED_TRUSTED_CORS_FAILED',
+            'PROTECTED_UNTRUSTED_CORS_FAILED'
+          ]);
+          async function request(url, headers, method='GET') {
+            valid(['GET','OPTIONS'].includes(method),'UNSAFE_METHOD_REJECTED');
+            return fetch(url, {method,headers,redirect:'manual',signal:AbortSignal.timeout(15000)});
+          }
+          async function main() {
+            valid(Boolean(e.VERCEL_TOKEN && e.VERCEL_AUTOMATION_BYPASS_SECRET),
+              'MISSING_PROTECTED_READONLY_CREDENTIAL');
+            valid(!e.DATABASE_URL && !e.DIRECT_URL && !e.SUPABASE_SERVICE_ROLE_KEY,
+              'IMMUTABLE_PREVIEW_IDENTITY_FAILED');
+            const idUrl = 'https://api.vercel.com/v13/deployments/' + e.DEPLOYMENT_ID
+              + '?teamId=' + e.TEAM_ID + '&withGitRepoInfo=true';
+            const host = new URL(e.DEPLOYMENT_URL).hostname;
+            const hostUrl = 'https://api.vercel.com/v13/deployments/' + host
+              + '?teamId=' + e.TEAM_ID + '&withGitRepoInfo=true';
+            const apiHeaders = {authorization:'Bearer '+e.VERCEL_TOKEN};
+            const [byId, byHost] = await Promise.all([
+              request(idUrl,apiHeaders),request(hostUrl,apiHeaders)
+            ]);
+            valid(byId.status===200 && byHost.status===200,
+              'IMMUTABLE_PREVIEW_IDENTITY_FAILED');
+            const [a,b]=await Promise.all([byId.json(),byHost.json()]);
+            valid(a.id===e.DEPLOYMENT_ID && b.id===e.DEPLOYMENT_ID
+              && a.readyState==='READY' && a.target!=='production'
+              && a.meta?.githubCommitSha===e.EXPECTED_SHA
+              && a.meta?.githubCommitRef===e.EXPECTED_REF
+              && a.project?.id===e.PROJECT_ID
+              && a.url===host, 'IMMUTABLE_PREVIEW_IDENTITY_FAILED');
+            console.log('R5B_PROTECTED_PREVIEW_IDENTITY=PASS');
+            const bypass={'x-vercel-protection-bypass': e.VERCEL_AUTOMATION_BYPASS_SECRET};
+            const [health,ready]=await Promise.all([
+              request(e.DEPLOYMENT_URL+'/api/v1/health',bypass),
+              request(e.DEPLOYMENT_URL+'/api/v1/ready',bypass)
+            ]);
+            const h=health.status===200?await health.json().catch(()=>null):null;
+            const r=ready.status===200?await ready.json().catch(()=>null):null;
+            valid(health.status===200 && h?.status==='ok','PROTECTED_HEALTH_FAILED');
+            console.log('R5B_PROTECTED_PREVIEW_HEALTH=PASS');
+            valid(ready.status===200 && r?.status==='ready' && r?.database==='ok',
+              'PROTECTED_DATABASE_READY_FAILED');
+            console.log('R5B_PROTECTED_PREVIEW_DATABASE_READY=PASS');
+            const preflight=(origin)=>request(e.DEPLOYMENT_URL+'/api/v1/health',{
+              ...bypass,Origin:origin,'Access-Control-Request-Method':'GET',
+              'Access-Control-Request-Headers':'authorization,content-type'
+            },'OPTIONS');
+            const [trusted,untrusted]=await Promise.all([
+              preflight(e.DEPLOYMENT_URL),preflight(e.UNTRUSTED_ORIGIN)
+            ]);
+            valid(trusted.status===204
+              && trusted.headers.get('access-control-allow-origin')===e.DEPLOYMENT_URL
+              && trusted.headers.get('access-control-allow-credentials')==='true',
+              'PROTECTED_TRUSTED_CORS_FAILED');
+            console.log('R5B_PROTECTED_PREVIEW_TRUSTED_CORS=PASS');
+            valid(untrusted.status===403
+              && !untrusted.headers.get('access-control-allow-origin'),
+              'PROTECTED_UNTRUSTED_CORS_FAILED');
+            console.log('R5B_PROTECTED_PREVIEW_UNTRUSTED_CORS=PASS');
+            console.log('R5B_PROTECTED_PREVIEW_READONLY=PASS');
+            console.log('R5B_PRODUCTION_DEPLOYMENT=NOT_EXECUTED');
+          }
+          main().catch(error=>{
+            console.error('R5B_PROTECTED_PREVIEW_READONLY='
+              +(allowed.has(error.message)?error.message:'FAIL_CLOSED'));
+            process.exitCode=1;
+          });
+          NODE
