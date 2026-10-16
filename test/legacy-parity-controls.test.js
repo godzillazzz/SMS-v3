@@ -39,13 +39,12 @@ test('Manager account approval is constrained to Viewer and sensitive settings s
 
 test('legacy navigation and four-role model are represented in the frontend', () => {
   const navigationBlock = frontend.match(/const navigation:[\s\S]*?function AuthProvider/)?.[0] || '';
-  for (const label of ['ภาพรวม', 'ศูนย์อนุมัติ', 'ข้อมูลพนักงาน', 'ใบอนุญาต รปภ.', 'ลงเวลา', 'ศูนย์ควบคุมการลงเวลา', 'อุปกรณ์ลงเวลา', 'ตารางกะรายเดือน', 'รหัสกะและเวลา', 'ตรวจสอบกฎการทำงาน', 'คำขอลา', 'ประวัติการลาทั้งหมด', 'โควต้าวันลา', 'รายงานและวิเคราะห์', 'ผู้ใช้และสิทธิ์', 'จุดรักษาความปลอดภัยและ QR', 'ตั้งค่าระบบ', 'บันทึกการใช้งานระบบ', 'คุณภาพข้อมูล', 'ประสิทธิภาพและสถานะระบบ']) {
+  for (const label of ['ภาพรวม', 'ศูนย์อนุมัติ', 'ข้อมูลพนักงาน', 'ใบอนุญาต รปภ.', 'ลงเวลา', 'ศูนย์ควบคุมการลงเวลา', 'อุปกรณ์ลงเวลา', 'ตารางกะรายเดือน', 'อนุมัติตารางกะ', 'รหัสกะและเวลา', 'ตรวจสอบกฎการทำงาน', 'คำขอลา', 'อนุมัติคำขอลา', 'ประวัติการลาทั้งหมด', 'โควต้าวันลา', 'รายงานและวิเคราะห์', 'ผู้ใช้และสิทธิ์', 'จุดรักษาความปลอดภัยและ QR', 'ตั้งค่าระบบ', 'บันทึกการใช้งานระบบ', 'คุณภาพข้อมูล', 'ประสิทธิภาพและสถานะระบบ']) {
     assert.ok(navigationBlock.includes(`label: '${label}'`), label);
   }
   assert.doesNotMatch(navigationBlock, /label: 'รายงานและ Export'/);
   assert.doesNotMatch(navigationBlock, /label: 'รายงานผู้บริหาร'/);
-  assert.doesNotMatch(navigationBlock, /label: 'อนุมัติตารางกะ'/);
-  assert.doesNotMatch(navigationBlock, /label: 'อนุมัติคำขอลา'/);
+
   assert.match(navigationBlock, /id: 'approvalCenter', icon: 'bell', label: 'ศูนย์อนุมัติ'/);
   assert.match(frontend, /<aside id="app-navigation-drawer"[\s\S]*?<nav className="nav-menu"[\s\S]*?visibleNavigation\.map/);
   assert.match(frontend, /className="mobile-menu-button"[\s\S]*?aria-controls="app-navigation-drawer"[\s\S]*?setMobileMenuOpen\(true\)/);
