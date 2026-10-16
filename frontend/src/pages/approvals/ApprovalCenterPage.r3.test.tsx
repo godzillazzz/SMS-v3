@@ -1,11 +1,19 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { ApprovalCenterPage } from './ApprovalCenterPage';
+import { ApprovalCenterPage, type ApprovalCenterItem } from './ApprovalCenterPage';
 
-const mocks = vi.hoisted(() => ({ getApprovalCenter: vi.fn(), getApprovalCenterSummary: vi.fn() }));
+const mocks = vi.hoisted(() => ({
+  getApprovalCenter: vi.fn(),
+  getApprovalCenterSummary: vi.fn(),
+  getApprovalCenterItem: vi.fn()
+}));
 
-vi.mock('../../approval-center-client', () => ({ getApprovalCenter: mocks.getApprovalCenter, getApprovalCenterSummary: mocks.getApprovalCenterSummary }));
+vi.mock('../../approval-center-client', () => ({
+  getApprovalCenter: mocks.getApprovalCenter,
+  getApprovalCenterSummary: mocks.getApprovalCenterSummary,
+  getApprovalCenterItem: mocks.getApprovalCenterItem
+}));
 vi.mock('../../pages/attendance-supervisor/attendance-adjustment-client', () => ({
   approveAttendanceAdjustment: vi.fn(),
   rejectAttendanceAdjustment: vi.fn()
@@ -67,4 +75,106 @@ it('manual refresh bypasses summary cache, keeps list fetching and notifies glob
   expect(onChanged).not.toHaveBeenCalled();
   expect(mocks.getApprovalCenterSummary).toHaveBeenLastCalledWith('test-token', { forceRefresh: true });
   expect(mocks.getApprovalCenter).toHaveBeenCalledTimes(2);
+});
+
+const targetCases: Array<{
+  type: ApprovalCenterItem['type'];
+  requestId: string;
+  metadata?: Record<string, unknown>;
+  employeeId?: string;
+  destination: 'employee' | 'navigate' | 'schedule';
+}> = [
+  { type: 'EMPLOYEE_REFERENCE_PHOTO', requestId: 'photo-1', employeeId: 'employee-1', destination: 'navigate' },
+  { type: 'EMPLOYEE_MASTER_CHANGE', requestId: 'change-1', employeeId: 'employee-2', destination: 'employee' },
+  { type: 'USER_ACCESS', requestId: 'account-1', metadata: { accountId: 'account-1' }, destination: 'navigate' },
+  { type: 'LICENSE_DOCUMENT', requestId: 'license-request-1', metadata: { licenseId: 'license-1', documentId: 'document-1' }, destination: 'navigate' },
+  { type: 'ATTENDANCE_DEVICE_REQUEST', requestId: 'device-1', destination: 'navigate' },
+  { type: 'ATTENDANCE_ADJUSTMENT_REQUEST', requestId: 'adjustment-1', destination: 'navigate' },
+  { type: 'LEAVE_REQUEST', requestId: 'leave-1', destination: 'navigate' },
+  { type: 'SCHEDULE_APPROVAL', requestId: 'schedule-1', destination: 'schedule' },
+  { type: 'REGISTRATION_REQUEST', requestId: 'registration-1', destination: 'navigate' }
+];
+
+function approvalItem(testCase: typeof targetCases[number], id = `row-${testCase.requestId}`): ApprovalCenterItem {
+  return {
+    id, requestId: testCase.requestId, type: testCase.type, title: `Target ${testCase.type}`,
+    status: 'PENDING', sourcePage: testCase.type === 'USER_ACCESS' ? 'users' : 'approvals',
+    submittedAt: '2026-10-07T00:00:00.000Z', ageHours: 1, urgency: 'NEW',
+    employee: testCase.employeeId ? { id: testCase.employeeId, displayName: 'Target employee' } : undefined,
+    metadata: testCase.metadata
+  };
+}
+
+function renderApprovalPage(item: ApprovalCenterItem, callbacks?: { onNavigate?: (item: ApprovalCenterItem) => void; onOpenEmployeeChange?: (requestId: string) => void }) {
+  mocks.getApprovalCenter.mockResolvedValue({ data: [item], summary: { total: 1 } });
+  mocks.getApprovalCenterSummary.mockResolvedValue({ summary: { total: 1, byType: { [item.type]: 1 } } });
+  return render(<ApprovalCenterPage token="test-token" role="ADMIN" onChanged={vi.fn()}
+    onOpenEmployeeChange={callbacks?.onOpenEmployeeChange || (() => undefined)}
+    onNavigate={callbacks?.onNavigate || (() => undefined)} onLeaveDecision={vi.fn()} />);
+}
+
+describe('FE-VERIFY-003 approval target contracts', () => {
+  it.each(targetCases)('opens the exact target for $type', async (testCase) => {
+    const item = approvalItem(testCase);
+    const onNavigate = vi.fn();
+    const onOpenEmployeeChange = vi.fn();
+    renderApprovalPage(item, { onNavigate, onOpenEmployeeChange });
+    await screen.findAllByText(`Target ${testCase.type}`);
+    mocks.getApprovalCenterItem.mockResolvedValue({ data: item });
+    fireEvent.click(screen.getAllByRole('button', { name: /ดูรายละเอียด|เปิดตรวจสอบ/ })[0]);
+    await waitFor(() => expect(mocks.getApprovalCenterItem).toHaveBeenCalledWith('test-token', testCase.type, testCase.requestId));
+    if (testCase.destination === 'employee') {
+      expect(onOpenEmployeeChange).toHaveBeenCalledWith(testCase.requestId);
+      expect(onNavigate).not.toHaveBeenCalled();
+    } else if (testCase.destination === 'navigate') {
+      expect(onNavigate).toHaveBeenCalledWith(item);
+    } else {
+      expect(onNavigate).not.toHaveBeenCalled();
+      expect(screen.getAllByText(item.title).length).toBeGreaterThan(0);
+    }
+  });
+
+  it.each([
+    ['loading', undefined, 'กำลังโหลดรายละเอียดคำขอ…'],
+    ['404', Object.assign(new Error('missing'), { status: 404 }), 'ไม่พบคำขอที่ต้องการเปิดรายละเอียด (404)'],
+    ['403', Object.assign(new Error('denied'), { status: 403 }), 'คุณไม่มีสิทธิ์ดูรายละเอียดคำขอนี้ (403)'],
+    ['generic load-error', Object.assign(new Error('failed'), { status: 500 }), 'โหลดรายละเอียดคำขอไม่สำเร็จ กรุณาลองใหม่ (โหลดผิดพลาด)']
+  ] as const)('exposes detail %s as role alert', async (_label, failure, message) => {
+    const item = approvalItem(targetCases[0]);
+    renderApprovalPage(item);
+    await screen.findAllByText(item.title);
+    let resolve!: (value: unknown) => void;
+    mocks.getApprovalCenterItem.mockImplementation(() => failure ? Promise.reject(failure) : new Promise((res) => { resolve = res; }));
+    fireEvent.click(screen.getAllByRole('button', { name: /ดูรายละเอียด/ })[0]);
+    expect((await screen.findByRole('alert')).textContent).toContain(message);
+    if (!failure) resolve({ data: item });
+  });
+
+  it('does not navigate when the detail response mismatches the requested target', async () => {
+    const item = approvalItem(targetCases[0]);
+    const other = approvalItem(targetCases[1], 'other-row');
+    const onNavigate = vi.fn();
+    renderApprovalPage(item, { onNavigate });
+    await screen.findAllByText(item.title);
+    mocks.getApprovalCenterItem.mockResolvedValue({ data: other });
+    fireEvent.click(screen.getAllByRole('button', { name: /ดูรายละเอียด/ })[0]);
+    expect((await screen.findByRole('alert')).textContent).toContain('(404)');
+    expect(onNavigate).not.toHaveBeenCalled();
+  });
+
+  it('retains the target during a slow detail load and consumes it once after callback', async () => {
+    const item = approvalItem(targetCases[0]);
+    const onNavigate = vi.fn();
+    renderApprovalPage(item, { onNavigate });
+    await screen.findAllByText(item.title);
+    let resolve!: (value: unknown) => void;
+    mocks.getApprovalCenterItem.mockImplementation(() => new Promise((res) => { resolve = res; }));
+    fireEvent.click(screen.getAllByRole('button', { name: /ดูรายละเอียด/ })[0]);
+    expect((await screen.findByRole('alert')).textContent).toContain('กำลังโหลดรายละเอียดคำขอ…');
+    expect(screen.getAllByText(item.title).length).toBeGreaterThan(0);
+    resolve({ data: item });
+    await waitFor(() => expect(onNavigate).toHaveBeenCalledTimes(1));
+    expect(mocks.getApprovalCenterItem).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
 });
