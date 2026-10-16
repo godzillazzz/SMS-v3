@@ -33,6 +33,7 @@ type Props = {
   department?: string;
   userId?: string;
   onOpenAttendanceReport?: () => void;
+  initialRequestId?: string;
   onApprovalQueueChanged?: () => void;
 };
 
@@ -429,7 +430,7 @@ function AttendanceMobileCard({
   </article>;
 }
 
-export function AttendanceSupervisorPage({ token, role, department, userId, onOpenAttendanceReport, onApprovalQueueChanged }: Props) {
+export function AttendanceSupervisorPage({ token, role, department, userId, onOpenAttendanceReport, initialRequestId, onApprovalQueueChanged }: Props) {
   const today = bangkokDateText();
   const manager = ['MANAGER', 'SUPERVISOR'].includes(role);
   const admin = role === 'ADMIN';
@@ -600,6 +601,16 @@ export function AttendanceSupervisorPage({ token, role, department, userId, onOp
   useEffect(() => {
     setRequestPage(1);
   }, [requestStatus]);
+
+  useEffect(() => {
+    if (!initialRequestId || mode !== 'requests') return;
+    const request = requests.find((row) => String(row.id) === String(initialRequestId));
+    if (request) setReviewDialog({ request, action: 'approve', comment: '' });
+  }, [initialRequestId, mode, requests]);
+
+  useEffect(() => {
+    if (initialRequestId) setMode('requests');
+  }, [initialRequestId]);
 
   const data = mode === 'daily' ? daily : history;
   const rows = mode === 'requests' ? [] : data?.rows || [];

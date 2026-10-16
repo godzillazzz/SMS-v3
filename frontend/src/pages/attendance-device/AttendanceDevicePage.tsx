@@ -85,7 +85,7 @@ type AttendanceDeviceAdminEmployee = {
   recentAudit: AttendanceDeviceAudit[];
 };
 
-type Props = { token: string; role: string; readOnly?: boolean; onApprovalQueueChanged?: () => void };
+type Props = { token: string; role: string; readOnly?: boolean; initialRequestId?: string; onApprovalQueueChanged?: () => void };
 
 type ReviewAction = 'RETURN' | 'REJECT';
 type ReviewTarget = { row: AttendanceDeviceRequest; action: ReviewAction } | null;
@@ -181,7 +181,7 @@ function localKeyReadinessState(inspection: AttendanceDeviceKeyInspection | null
   return 'LOCAL_KEY_UNAVAILABLE';
 }
 
-export function AttendanceDevicePage({ token, role, readOnly = false, onApprovalQueueChanged }: Props) {
+export function AttendanceDevicePage({ token, role, readOnly = false, initialRequestId, onApprovalQueueChanged }: Props) {
   const actionDialog = useActionDialog();
   const capability = useMemo(() => attendanceDeviceCapability(), []);
   const [selfState, setSelfState] = useState<SelfState | null>(null);
@@ -264,6 +264,12 @@ export function AttendanceDevicePage({ token, role, readOnly = false, onApproval
   const refresh = async () => { await Promise.allSettled([loadSelf(), loadQueue(), loadAdminOverview()]); };
 
   useEffect(() => { void refresh(); }, [token, role]);
+
+  useEffect(() => {
+    if (!initialRequestId || role !== 'ADMIN' || !queue.length) return;
+    const request = queue.find((row) => String(row.id) === String(initialRequestId));
+    if (request) setReviewTarget({ row: request, action: 'RETURN' });
+  }, [initialRequestId, queue, role]);
 
   const proveRequest = async (request: AttendanceDeviceRequest) => {
     const candidateId = request.candidateDeviceEnrollmentId;
