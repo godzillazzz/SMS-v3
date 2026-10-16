@@ -32,6 +32,11 @@ test.afterEach(async ({ page }) => {
 });
 for (const role of roles) {
   test.describe.serial(role, () => {
+    test.beforeAll(async () => {
+      const cooldownMs = Number(process.env.UAT_ROLE_COOLDOWN_MS || 5000);
+      if (cooldownMs > 0) await new Promise((resolve) => setTimeout(resolve, cooldownMs));
+    });
+
   test(`${role}: real browser login and exact identity`, async ({ page }) => {
     const attempts = await installReadonlyBrowser(page, undefined, config.baseURL, { realLogin: true });
     await test.step('BROWSER_PAGE_READY', async () => {
