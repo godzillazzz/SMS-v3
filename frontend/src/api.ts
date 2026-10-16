@@ -239,17 +239,7 @@ export const api = {
     return call(`/executive-report${query ? `?${query}` : ''}`, { headers: { Authorization: `Bearer ${token}` } });
   },
   employees: (token: string, options: { page?: number; pageSize?: number; search?: string; isActive?: boolean; department?: string; directoryMeta?: boolean } = {}) => { const params = new URLSearchParams({ page: String(options.page || 1), pageSize: String(options.pageSize || 100) }); if (options.search?.trim()) params.set('search', options.search.trim()); if (typeof options.isActive === 'boolean') params.set('isActive', options.isActive ? 'true' : 'false'); if (options.department?.trim()) params.set('department', options.department.trim()); if (options.directoryMeta) params.set('directoryMeta', 'true'); return call(`/employees?${params.toString()}`, { headers: { Authorization: `Bearer ${token}` } }); },
-  employee: (token: string, id: string) => call(`/employees/${encodeURIComponent(id)}`, { headers: { Authorization: `Bearer ${token}` } }),
   licenses: (token: string, page = 1, employeeStatus: 'ACTIVE' | 'INACTIVE' | 'ALL' = 'ACTIVE') => call(`/licenses?page=${page}&pageSize=500&employeeStatus=${employeeStatus}`, { headers: { Authorization: `Bearer ${token}` } }),
-  license: async (token: string, id: string, employeeStatus: 'ACTIVE' | 'INACTIVE' | 'ALL' = 'ALL') => {
-    for (let page = 1; page <= 100; page += 1) {
-      const response = await api.licenses(token, page, employeeStatus);
-      const row = (Array.isArray(response?.data) ? response.data : []).find((item: { id?: string }) => String(item.id) === String(id));
-      if (row) return { data: row };
-      if (page >= Number(response?.meta?.totalPages || 1)) break;
-    }
-    throw new ApiRequestError('License not found.', 404);
-  },
   shiftTypes: (token: string) => call('/shift-types', { headers: { Authorization: `Bearer ${token}` } }),
   createShiftType: (token: string, data: unknown) => call('/shift-types', { method: 'POST', body: JSON.stringify(data), headers: { Authorization: `Bearer ${token}` } }),
   updateShiftType: (token: string, id: string, data: unknown) => call(`/shift-types/${id}`, { method: 'PUT', body: JSON.stringify(data), headers: { Authorization: `Bearer ${token}` } }),
@@ -268,21 +258,11 @@ export const api = {
   systemSettings: (token: string) => call('/system-settings', { headers: { Authorization: `Bearer ${token}` } }),
   updateSystemSetting: (token: string, key: string, data: unknown) => call(`/system-settings/${encodeURIComponent(key)}`, { method: 'PUT', body: JSON.stringify(data), headers: { Authorization: `Bearer ${token}` } }),
   leaveRequests: (token: string, page = 1, filters: { year?: number; month?: number; status?: string; employeeId?: string; department?: string; search?: string } = {}) => { const params = new URLSearchParams({ page: String(page), pageSize: '100' }); Object.entries(filters).forEach(([key, value]) => { if (value !== undefined && value !== '') params.set(key, String(value)); }); return call(`/leave-requests?${params.toString()}`, { headers: { Authorization: `Bearer ${token}` } }); },
-  leaveRequest: async (token: string, id: string) => {
-    for (let page = 1; page <= 100; page += 1) {
-      const response = await api.leaveRequests(token, page);
-      const row = (Array.isArray(response?.data) ? response.data : []).find((item: { id?: string }) => String(item.id) === String(id));
-      if (row) return { data: row };
-      if (page >= Number(response?.meta?.totalPages || 1)) break;
-    }
-    throw new ApiRequestError('Leave request not found.', 404);
-  },
   leavePendingCount: (token: string) => call('/leave-requests/pending-count', { headers: { Authorization: `Bearer ${token}` } }),
   leaveSummary: (token: string, year?: number) => call(`/leave-summary${year ? `?year=${year}` : ''}`, { headers: { Authorization: `Bearer ${token}` } }),
   leaveQuotas: (token: string, page = 1, filters: { year?: number; legacy?: boolean } = {}) => { const params = new URLSearchParams({ page: String(page), pageSize: '100' }); if (filters.year) params.set('year', String(filters.year)); if (filters.legacy) params.set('legacy', 'true'); return call(`/leave-quotas?${params.toString()}`, { headers: { Authorization: `Bearer ${token}` } }); },
   createLeaveQuota: (token: string, data: { employeeId: string; quotaYear: number; sickLeave: number; personalLeave: number; vacationLeave: number }) => call('/leave-quotas', { method: 'POST', body: JSON.stringify(data), headers: { Authorization: `Bearer ${token}` } }),
   users: (token: string) => call('/users', { headers: { Authorization: `Bearer ${token}` } }),
-
   provisionG06Uat: (token: string) => call('/admin/g06-uat/provision', { method: 'POST', body: '{}', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` } }),
   registrationRequests: (token: string, options: string | { page?: number; pageSize?: number; status?: string } = {}) => { const normalized = typeof options === 'string' ? { status: options } : options; const params = new URLSearchParams({ page: String(normalized.page || 1), pageSize: String(normalized.pageSize || 50) }); if (normalized.status) params.set('status', normalized.status); return call(`/registration-requests?${params.toString()}`, { headers: { Authorization: `Bearer ${token}` } }); },
   registrationRequest: (token: string, id: string) => call(`/registration-requests/${encodeURIComponent(id)}`, { headers: { Authorization: `Bearer ${token}` } }),

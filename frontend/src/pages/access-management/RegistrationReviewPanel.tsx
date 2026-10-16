@@ -105,10 +105,8 @@ export function RegistrationReviewPanel({ token, role, refreshSignal, initialReq
         try {
           const response = await api.registrationRequest(token, focusedRequestId);
           focusedRequest = response?.data as RequestRow | undefined;
-        } catch (reason) {
-          setSelectedId('');
-          const status = Number((reason as { status?: number })?.status);
-          setError(status === 404 ? 'ไม่พบคำขอลงทะเบียนที่ต้องการเปิดรายละเอียด (404)' : status === 403 ? 'ไม่มีสิทธิ์เปิดรายละเอียดคำขอลงทะเบียนนี้ (403)' : 'โหลดรายละเอียดคำขอลงทะเบียนไม่สำเร็จ');
+        } catch {
+          // Keep the existing request list usable if a pending item changed while navigating.
         }
       }
       const rowsWithFocus = focusedRequest && !next.some((row) => row.id === focusedRequest?.id)
@@ -124,6 +122,8 @@ export function RegistrationReviewPanel({ token, role, refreshSignal, initialReq
         setMobileDetail(true);
         initialRequestRef.current = '';
         onInitialRequestHandled?.();
+      } else if (focusedRequestId) {
+        setError('ไม่พบคำขอลงทะเบียนที่ต้องการเปิดรายละเอียด (404)');
       }
     } catch (reason) { setError(formatRequestErrorMessage(reason, 'โหลดคำขอลงทะเบียนไม่สำเร็จ')); }
     finally { setLoading(false); }

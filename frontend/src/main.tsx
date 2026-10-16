@@ -1383,15 +1383,11 @@ function LeaveManagementPage({ rows, loading, error, linked, remaining, quotaSum
   const [requestQuotaState, setRequestQuotaState] = useState<'idle' | 'loading' | 'ready' | 'missing' | 'error'>('idle');
   const pendingRows = rows.filter((row) => row.status === 'PENDING');
   useEffect(() => {
-    if (!initialPendingId) return;
-    let active = true;
-    setSelectedPendingId(undefined);
-    const listed = pendingRows.find((row) => String(row.id) === initialPendingId);
-    const resolve = listed ? Promise.resolve({ data: listed }) : auth.token ? api.leaveRequest(auth.token, initialPendingId) : Promise.reject(Object.assign(new Error('Unauthorized'), { status: 403 }));
-    resolve.then((response) => { if (!active) return; const row = response?.data as DataRow | undefined; if (!row) throw Object.assign(new Error('Leave request not found'), { status: 404 }); setSelectedPendingId(String(row.id)); onInitialPendingHandled?.(); })
-      .catch((reason) => { if (!active) return; const status = Number((reason as { status?: number })?.status); setSelectedPendingId(undefined); setSubmitError(status === 404 ? 'ไม่พบคำขอลาที่ต้องการเปิดรายละเอียด (404)' : status === 403 ? 'ไม่มีสิทธิ์เปิดคำขอลานี้ (403)' : 'โหลดรายละเอียดคำขอลาไม่สำเร็จ'); });
-    return () => { active = false; };
-  }, [auth.token, initialPendingId, pendingRows, onInitialPendingHandled]);
+    if (initialPendingId && pendingRows.some((row) => String(row.id) === initialPendingId)) {
+      setSelectedPendingId(initialPendingId);
+      onInitialPendingHandled?.();
+    }
+  }, [initialPendingId, pendingRows, onInitialPendingHandled]);
   const historyRows = historyScope === 'all' ? rows : rows.filter((row) => String(row.employeeId || '') === String(employeeId || ''));
   const latestOwnRequest = [...historyRows].filter(row => String(row.employeeId || '') === String(employeeId || '') && Number.isFinite(Date.parse(String(row.createdAt || '')))).sort((a,b)=>(Date.parse(String(b.createdAt || '')) || 0)-(Date.parse(String(a.createdAt || '')) || 0))[0];
   const days = form.startDate && form.endDate ? Math.max(0, Math.floor((Date.parse(`${form.endDate}T00:00:00Z`) - Date.parse(`${form.startDate}T00:00:00Z`)) / 86400000) + 1) : 0;
@@ -1591,7 +1587,7 @@ function LeaveManagementPage({ rows, loading, error, linked, remaining, quotaSum
     return <ResponsiveDataTable ariaLabel={mode === 'history' ? 'ประวัติการลาพนักงานทั้งหมด' : 'ประวัติคำขอลาของฉัน'} hasRows={items.length > 0} className="leave-history-responsive-table" desktop={desktop} mobile={mobile} />;
   };
   const quotaCards: Array<[SmsIconName, string, unknown, string]> = [['attendance', 'ลาป่วยคงเหลือ', remaining.sickLeave, 'green'], ['leave', 'ลากิจคงเหลือ', remaining.personalLeave, 'blue'], ['calendar', 'ลาพักร้อนคงเหลือ', remaining.vacationLeave, 'amber']];
-  const selectedPending = pendingRows.find((row) => String(row.id) === selectedPendingId);
+  const selectedPending = pendingRows.find((row) => String(row.id) === selectedPendingId) || pendingRows[0];
   const selectedPendingIsSelf = Boolean(selectedPending && String(selectedPending.employeeId || '') === String(employeeId || ''));
   if (mode === 'pending') {
     return <section className="view-pane leave-page leave-mode-pending leave-decision-page data-surface-page layout-roster-page layout-page-surface" aria-label="พื้นที่อนุมัติคำขอลา" aria-busy={loading}>
@@ -2365,11 +2361,9 @@ function Dashboard() {
 
   useEffect(() => {
     if (activePage !== 'licenses' || !nativeApprovalLicenseId || licenseEditTarget) return;
-    const listed = (Array.isArray(operationResponse.data) ? operationResponse.data : []).find((item) => String(item.id) === nativeApprovalLicenseId);
-    const resolve = listed ? Promise.resolve({ data: listed }) : auth.token ? api.license(auth.token, nativeApprovalLicenseId) : Promise.reject(Object.assign(new Error('Unauthorized'), { status: 403 }));
-    resolve.then((response) => { const row = response?.data as DataRow | undefined; if (!row) throw Object.assign(new Error('License not found'), { status: 404 }); setLicenseEditTarget(row); })
-      .catch((reason) => setOperationError(toRequestErrorState(reason, 'ไม่สามารถเปิดใบอนุญาตที่ต้องการได้')));
-  }, [activePage, auth.token, nativeApprovalLicenseId, operationResponse.data, licenseEditTarget]);
+    const row = (Array.isArray(operationResponse.data) ? operationResponse.data : []).find((item) => String(item.id) === nativeApprovalLicenseId);
+    if (row) setLicenseEditTarget(row);
+  }, [activePage, nativeApprovalLicenseId, operationResponse.data, licenseEditTarget]);
 
   const openEmployeeEditor = async (employee?: Employee) => {
     if (!auth.token) return;
@@ -3314,7 +3308,6 @@ function Dashboard() {
       const users = Array.isArray(operationResponse.data) ? operationResponse.data : [];
       return <div className="users-access-workspace layout-personnel-page layout-page-surface">
         <AccessManagementPage
-          token={auth.token!}
           rows={users as Array<{ id: string; displayName?: string; role?: string; department?: string | null; accountStatus?: string; isActive?: boolean; passwordResetRequired?: boolean; createdAt?: string; updatedAt?: string }>}
           loading={operationLoading}
           error={typeof operationError === 'string' ? operationError : operationError?.message}

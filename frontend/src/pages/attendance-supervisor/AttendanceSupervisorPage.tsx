@@ -21,7 +21,6 @@ import {
   returnAttendanceAdjustment,
   reviseAttendanceAdjustment,
   submitAttendanceAdjustment,
-  getAttendanceAdjustment,
   type AttendanceAdjustmentRequest,
   type AttendanceAdjustmentStatus
 } from './attendance-adjustment-client';
@@ -606,24 +605,12 @@ export function AttendanceSupervisorPage({ token, role, department, userId, onOp
 
   useEffect(() => {
     if (!initialRequestId || mode !== 'requests') return;
-    let active = true;
-    setRequestLoading(true);
-    setRequestError(undefined);
-    const listed = requests.find((row) => String(row.id) === String(initialRequestId));
-    const resolve = listed ? Promise.resolve({ data: listed }) : getAttendanceAdjustment(token, initialRequestId);
-    resolve.then((response) => {
-      if (!active) return;
-      const request = response?.data as AttendanceAdjustmentRequest | undefined;
-      if (!request) throw Object.assign(new Error('Attendance adjustment request not found'), { status: 404 });
+    const request = requests.find((row) => String(row.id) === String(initialRequestId));
+    if (request) {
       setReviewDialog({ request, action: 'approve', comment: '' });
       onInitialRequestHandled?.();
-    }).catch((reason) => {
-      if (!active) return;
-      const status = Number((reason as { status?: number })?.status);
-      setRequestError(status === 404 ? 'ไม่พบคำขอ Attendance ที่ต้องการเปิดรายละเอียด (404)' : status === 403 ? 'ไม่มีสิทธิ์เปิดคำขอ Attendance นี้ (403)' : 'โหลดรายละเอียดคำขอ Attendance ไม่สำเร็จ');
-    }).finally(() => { if (active) setRequestLoading(false); });
-    return () => { active = false; };
-  }, [initialRequestId, mode, requests, token]);
+    }
+  }, [initialRequestId, mode, requests]);
 
   useEffect(() => {
     if (initialRequestId) setMode('requests');
