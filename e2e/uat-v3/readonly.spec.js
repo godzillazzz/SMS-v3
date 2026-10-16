@@ -2,12 +2,11 @@
 const fs = require('node:fs');
 const { test, expect, request } = require('@playwright/test');
 const { readConfig, roles } = require('./config');
-const { preflightAccounts, readRoleApi, installReadonlyBrowser } = require('./auth');
+const { preflightAccounts, readRoleApi, installReadonlyBrowser, loginPreflightRequestOptions } = require('./auth');
 const { getRoleApiMatrix, getRoleNavigationContract } = require('./role-matrix');
-const { automationBypassHeaders } = require('../helpers/technical-smoke');
 let config, sessions;
 function requestOptions() {
-  return { baseURL: config.baseURL, extraHTTPHeaders: automationBypassHeaders(process.env, config.baseURL, config.baseURL + '/api/v1/auth/login', { setBypassCookie: true }) };
+  return loginPreflightRequestOptions(process.env, config.baseURL);
 }
 test.beforeAll(async () => {
   const preflight = Object.fromEntries(roles.map((role) => [role, 'NOT_RUN']));

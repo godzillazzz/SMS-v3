@@ -13,6 +13,14 @@ class RoleSessions {
   clear() { this.#sessions.clear(); }
   summary() { return roles.map((role) => ({ role, status: this.#sessions.has(role) ? 'READY' : 'BLOCKED' })); }
 }
+function loginPreflightRequestOptions(environment, baseURL) {
+  const loginUrl = new URL('/api/v1/auth/login', baseURL).toString();
+  // Keep the one-shot POST stateless; setting the bypass cookie requires a redirect.
+  return {
+    baseURL,
+    extraHTTPHeaders: automationBypassHeaders(environment, baseURL, loginUrl)
+  };
+}
 async function preflightAccounts(createContext, config, onStatus = () => {}) {
   const sessions = new RoleSessions();
   let activeRole = null;
@@ -98,4 +106,4 @@ async function installReadonlyBrowser(page, session, baseURL, { realLogin = fals
   });
   return attempts;
 }
-module.exports = { RoleSessions, preflightAccounts, readRoleApi, installReadonlyBrowser };
+module.exports = { RoleSessions, loginPreflightRequestOptions, preflightAccounts, readRoleApi, installReadonlyBrowser };
