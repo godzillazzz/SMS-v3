@@ -4,6 +4,7 @@ const { test, expect, request } = require('@playwright/test');
 const { readConfig, roles } = require('./config');
 const { preflightAccounts, readRoleApi, installReadonlyBrowser, loginPreflightRequestOptions } = require('./auth');
 const { getRoleApiMatrix, getRoleNavigationContract } = require('./role-matrix');
+const { apiCheckName, assertApiHttpStatus } = require('./api-diagnostics');
 let config, sessions;
 function requestOptions() {
   return loginPreflightRequestOptions(process.env, config.baseURL);
@@ -59,11 +60,31 @@ for (const role of roles) {
     const context = await request.newContext({ baseURL: config.baseURL, extraHTTPHeaders: requestOptions().extraHTTPHeaders });
     try {
       for (const route of getRoleApiMatrix(role)) {
-        const response = await readRoleApi(context, role, sessions.get(role), route.path);
-        expect(response.status(), `${role} ${route.label}`).toBe(route.expectedStatus);
+        await test.step(apiCheckName(route.label), async () => {
+          let response;
+          try {
+            response = await readRoleApi(context, role, sessions.get(role), route.path);
+          } catch {
+            // Never forward raw request failures, API payloads, URLs or credentials.
+            throw new Error('UAT_API_REQUEST_FAILED');
+          }
+          assertApiHttpStatus(response.status(), route.expectedStatus);
+        });
       }
-      expect((await context.get('/api/v1/approval-center/summary', { maxRedirects: 0 })).status()).toBe(401);
-      expect((await context.get('/api/v1/approval-center/summary', { maxRedirects: 0, headers: { Authorization: 'Bearer invalid-uat-boundary-token' } })).status()).toBe(401);
+      for (const [check, options] of [
+        ['API_DENY_NO_TOKEN', { maxRedirects: 0 }],
+        ['API_DENY_INVALID_TOKEN', { maxRedirects: 0, headers: { Authorization: 'Bearer invalid-uat-boundary-token' } }]
+      ]) {
+        await test.step(check, async () => {
+          let response;
+          try {
+            response = await context.get('/api/v1/approval-center/summary', options);
+          } catch {
+            throw new Error('UAT_API_REQUEST_FAILED');
+          }
+          assertApiHttpStatus(response.status(), 401);
+        });
+      }
     } finally { await context.dispose(); }
   });
   for (const [name, width, height] of [['desktop', 1366, 768], ['mobile', 375, 812]]) {
