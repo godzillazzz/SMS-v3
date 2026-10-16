@@ -6,12 +6,34 @@ process.env.NODE_ENV = 'test';
 process.env.DATABASE_URL ||= 'postgresql://test:test@127.0.0.1:5433/sms_v3_test';
 process.env.JWT_SECRET ||= 'test-only-jwt-secret-value-012345678901234567890123456789';
 const request = require('supertest');
+const express = require('express');
 const jwt = require('jsonwebtoken');
+const requestContext = require('../src/middlewares/request-context');
+const { errorHandler } = require('../src/middlewares/error-handler');
+const { createApprovalCenterRouter } = require('../src/routes/approval-center.routes');
 const env = require('../src/config/env');
 const prisma = require('../src/config/prisma');
 const lifecycle = require('../src/services/employee-lifecycle.service');
 lifecycle.synchronizeDueLifecycleEventsForRequest = async () => ({ skipped: true, reason: 'TEST' });
-const app = require('../src/app');
+const fixtureAuthenticate = async (req, _res, next) => {
+  if (!req.headers.authorization?.startsWith('Bearer ')) return next(Object.assign(new Error('Authentication required.'), { statusCode: 401 }));
+  try {
+    const claims = jwt.verify(req.headers.authorization.slice(7), env.jwtSecret, { algorithms: [env.jwtAlgorithm], issuer: env.jwtIssuer, audience: env.jwtAudience });
+    const user = await activeAuthFixture({ where: { id: claims.sub } });
+    req.user = { sub: user.id, email: user.email, role: user.role, tokenVersion: user.tokenVersion, impersonation: Boolean(claims.impersonation) };
+    if (claims.impersonation) {
+      const impersonator = await activeAuthFixture({ where: { id: claims.impersonatorSub } });
+      if (impersonator.role !== 'ADMIN') return next(new Error('invalid fixture impersonator'));
+    }
+    return next();
+  } catch (_) {
+    return next(Object.assign(new Error('Invalid or expired access token.'), { statusCode: 401 }));
+  }
+};
+const app = express();
+app.use(requestContext);
+app.use('/api/v1/approval-center', createApprovalCenterRouter({ authenticateMiddleware: fixtureAuthenticate }));
+app.use(errorHandler);
 const { createApprovalCenterService } = require('../src/services/approval-center.service');
 const { REQUEST_TYPE_DEFINITIONS, defaultPolicyFor } = require('../src/services/approval-policy.service');
 
@@ -80,29 +102,48 @@ function tokenFor(role, sub = `http-${role.toLowerCase()}`) {
   });
 }
 
+// This HTTP fixture uses its own router/auth middleware, so no process-global
+// Prisma method or environment state is replaced while other test files run.
+let authFixtureLock = Promise.resolve();
+let activeAuthFixture = null;
+
+async function withAuthFixture(configure, callback) {
+  const previous = authFixtureLock;
+  let release;
+  authFixtureLock = new Promise((resolve) => { release = resolve; });
+  await previous;
+  activeAuthFixture = configure;
+  try { return await callback(); } finally {
+    activeAuthFixture = null;
+    release();
+  }
+}
+
 async function withAuthenticatedPrismaUser(callback, role = 'MANAGER') {
-  const originalFindUnique = prisma.user.findUnique;
-  prisma.user.findUnique = async ({ where }) => ({ id: where?.id, email: `${role.toLowerCase()}@example.invalid`, role, employeeId: null, isActive: true, accountStatus: 'ACTIVE', passwordResetRequired: false, tokenVersion: 0, employee: null });
-  try { return await callback(); } finally { prisma.user.findUnique = originalFindUnique; }
+  return withAuthFixture(
+    async ({ where }) => ({ id: where?.id, email: `${role.toLowerCase()}@example.invalid`, role, employeeId: null, isActive: true, accountStatus: 'ACTIVE', passwordResetRequired: false, tokenVersion: 0, employee: null }),
+    callback
+  );
 }
 
 async function withAuthenticatedViewAsUser(callback, role) {
-  const originalFindUnique = prisma.user.findUnique;
-  prisma.user.findUnique = async ({ where }) => ({
-    id: where?.id,
-    email: `${role.toLowerCase()}@example.invalid`,
-    role: where?.id === 'view-as-admin' ? 'ADMIN' : role,
-    employeeId: null,
-    isActive: true,
-    accountStatus: 'ACTIVE',
-    passwordResetRequired: false,
-    tokenVersion: 0,
-    employee: null
-  });
   const token = jwt.sign({ sub: 'view-as-target', tokenVersion: 0, impersonation: true, impersonatorSub: 'view-as-admin', impersonatorTokenVersion: 0 }, env.jwtSecret, {
     algorithm: env.jwtAlgorithm, issuer: env.jwtIssuer, audience: env.jwtAudience, expiresIn: '1m'
   });
-  try { return await callback(token); } finally { prisma.user.findUnique = originalFindUnique; }
+  return withAuthFixture(
+    async ({ where }) => ({
+      id: where?.id,
+      email: `${role.toLowerCase()}@example.invalid`,
+      role: where?.id === 'view-as-admin' ? 'ADMIN' : role,
+      employeeId: null,
+      isActive: true,
+      accountStatus: 'ACTIVE',
+      passwordResetRequired: false,
+      tokenVersion: 0,
+      employee: null
+    }),
+    () => callback(token)
+  );
 }
 
 // HTTP boundary: auth is checked before the new exact-item handler can run.

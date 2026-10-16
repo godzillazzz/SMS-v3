@@ -5,8 +5,9 @@ const { z } = require('zod');
 const { authenticate, authorize } = require('../middlewares/authenticate');
 const { createApprovalCenterService } = require('../services/approval-center.service');
 
+function createApprovalCenterRouter({ authenticateMiddleware = authenticate, approvalService = createApprovalCenterService() } = {}) {
 const router = express.Router();
-const service = createApprovalCenterService();
+const service = approvalService;
 const query = z.object({ limit: z.coerce.number().int().min(1).max(100).default(100) }).strict();
 const approvalTypes = new Set([
   'EMPLOYEE_MASTER_CHANGE', 'EMPLOYEE_REFERENCE_PHOTO', 'LICENSE_DOCUMENT',
@@ -68,7 +69,7 @@ function validateItemParams(params) {
   return params;
 }
 
-router.use(authenticate);
+router.use(authenticateMiddleware);
 // Detail guards are exact-route middleware and precede role authorization.
 router.get('/items/:type/:requestId', rejectViewAsNativeApprovalDetail, authorize('ADMIN', 'MANAGER', 'SUPERVISOR'), getItem);
 router.get('/items/:type', rejectMissingNativeApprovalDetailId, authorize('ADMIN', 'MANAGER', 'SUPERVISOR'), (_req, _res, next) => next());
@@ -91,4 +92,9 @@ router.get('/', async (req, res, next) => {
   }
 });
 
+return router;
+}
+
+const router = createApprovalCenterRouter();
 module.exports = router;
+module.exports.createApprovalCenterRouter = createApprovalCenterRouter;
