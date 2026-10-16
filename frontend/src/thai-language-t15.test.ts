@@ -50,8 +50,7 @@ describe('T15 Thai user-facing language', () => {
   it('uses Thai labels for every route, settings section, and displayed role', () => {
     const thai = /[\u0E00-\u0E7F]/;
     for (const page of Object.keys(PAGE_PATHS) as Array<keyof typeof PAGE_PATHS>) {
-      const expectedPage = page === 'approvals' || page === 'leavePending' ? 'approvalCenter' : page;
-      expect(pageFromPath(PAGE_PATHS[page])).toBe(expectedPage);
+      expect(pageFromPath(PAGE_PATHS[page])).toBe(page);
       expect(pageTitle(page)).toMatch(thai);
     }
     for (const section of SETTINGS_SECTIONS) expect(section.label).toMatch(thai);

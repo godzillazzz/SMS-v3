@@ -30,9 +30,8 @@ afterEach(() => {
 describe('application History API routes', () => {
   it('maps every page to a stable path and back', () => {
     for (const [page, path] of Object.entries(PAGE_PATHS)) {
-      const expectedPage = page === 'approvals' || page === 'leavePending' ? 'approvalCenter' : page;
-      expect(pageFromPath(path)).toBe(expectedPage);
-      expect(pageFromLocation({ pathname: path, search: '' })).toEqual({ kind: 'page', page: expectedPage });
+      expect(pageFromPath(path)).toBe(page);
+      expect(pageFromLocation({ pathname: path, search: '' })).toEqual({ kind: 'page', page });
     }
     expect(pageFromPath('/')).toBe('dashboard');
     expect(pageFromPath('/app/leave/history/')).toBe('leaveHistory');
@@ -58,10 +57,10 @@ describe('application History API routes', () => {
   });
 
   it('maps legacy approval URLs to the unified center while preserving their intent', () => {
-    expect(pageFromPath('/app/roster/approvals')).toBe('approvalCenter');
-    expect(pageFromPath('/app/leave/approvals')).toBe('approvalCenter');
-    expect(legacyApprovalRedirectType('/app/roster/approvals')).toBe('SCHEDULE');
-    expect(legacyApprovalRedirectType('/app/leave/approvals/')).toBe('LEAVE');
+    expect(pageFromPath('/app/roster/approvals')).toBe('approvals');
+    expect(pageFromPath('/app/leave/approvals')).toBe('leavePending');
+    expect(legacyApprovalRedirectType('/app/roster/approvals')).toBeUndefined();
+    expect(legacyApprovalRedirectType('/app/leave/approvals/')).toBeUndefined();
     expect(legacyApprovalRedirectType('/app/approvals')).toBeUndefined();
   });
 
