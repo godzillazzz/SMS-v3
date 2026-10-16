@@ -1810,6 +1810,8 @@ function Dashboard() {
   const [dashboardSummary, setDashboardSummary] = useState<DataRow>({});
   const [dashboardLoading, setDashboardLoading] = useState(false);
   const [dashboardError, setDashboardError] = useState<RequestErrorInput>();
+  // The initial dashboard read is the source for the first badge render.
+  const dashboardReadyRef = useRef<Promise<boolean> | null>(null);
   const [dashboardFilters, setDashboardFilters] = useState<DashboardFilters>(() => {
     const params = new URLSearchParams(window.location.search);
     const requestedDate = params.get('date');
@@ -2068,11 +2070,13 @@ function Dashboard() {
 
   useEffect(() => {
     if (!auth.token || activePage !== 'dashboard') return;
+    let resolveDashboardReady!: (ready: boolean) => void;
+    dashboardReadyRef.current = new Promise<boolean>((resolve) => { resolveDashboardReady = resolve; });
     setDashboardLoading(true);
     setDashboardError(undefined);
     api.dashboard(auth.token, dashboardFilters)
-      .then((result) => setDashboardSummary(result?.data || {}))
-      .catch((reason) => setDashboardError(toRequestErrorState(reason, 'ไม่สามารถอ่านข้อมูลภาพรวมได้')))
+      .then((result) => { setDashboardSummary(result?.data || {}); resolveDashboardReady(true); })
+      .catch((reason) => { setDashboardError(toRequestErrorState(reason, 'ไม่สามารถอ่านข้อมูลภาพรวมได้')); resolveDashboardReady(false); })
       .finally(() => setDashboardLoading(false));
   }, [activePage, auth.token, operationRefresh, dashboardFilters.date, dashboardFilters.month, dashboardFilters.department]);
 
@@ -2114,7 +2118,13 @@ function Dashboard() {
     let active = true;
     setApprovalCountStatus('loading');
     let refreshApprovalCount: ReturnType<typeof import('./approval-count-refresh').createApprovalCountRefresh> | undefined;
-    void import('./approval-count-refresh').then(({ createApprovalCountRefresh }) => {
+    void (async () => {
+      if (activePage === 'dashboard') {
+        const dashboardReady = dashboardReadyRef.current;
+        if (dashboardReady && !(await dashboardReady)) return;
+        if (!active) return;
+      }
+      const { createApprovalCountRefresh } = await import('./approval-count-refresh');
       if (!active) return;
       refreshApprovalCount = createApprovalCountRefresh({
       read: () => getApprovalCenterSummary(auth.token!),
@@ -2126,13 +2136,13 @@ function Dashboard() {
       }
       });
       refreshApprovalCount.refresh();
-    }).catch(() => { if (active) setApprovalCountStatus('error'); });
+    })().catch(() => { if (active) setApprovalCountStatus('error'); });
     const timer = window.setInterval(() => refreshApprovalCount?.refresh(), 60000);
     const onVisibility = () => refreshApprovalCount?.refresh();
     document.addEventListener('visibilitychange', onVisibility);
     window.addEventListener('focus', onVisibility);
     return () => { active = false; refreshApprovalCount?.dispose(); window.clearInterval(timer); document.removeEventListener('visibilitychange', onVisibility); window.removeEventListener('focus', onVisibility); };
-  }, [auth.token, auth.user?.role, auth.isViewingAs, pwaShell, operationRefresh, employeeRefresh, approvalCenterRefresh]);
+  }, [activePage, auth.token, auth.user?.role, auth.isViewingAs, pwaShell, operationRefresh, employeeRefresh, approvalCenterRefresh]);
 
   useEffect(() => {
     if (!auth.token || activePage !== 'rules') return;

@@ -41,13 +41,13 @@ function json(route: Parameters<Parameters<Page['route']>[1]>[0], payload: unkno
 type RequestRecord = { path: string; lifecycle: string; started: number; responded?: number };
 const SUMMARY_DELAY_MS = 1500;
 const SUMMARY_TTL_MS = 2000;
-async function installFixture(page: Page) {
+async function installFixture(page: Page, role: 'ADMIN' | 'MANAGER' | 'SUPERVISOR' | 'VIEWER' = 'ADMIN') {
   const requests: RequestRecord[] = [];
   let lifecycle = 'dashboard';
   // Closure state belongs to this Playwright Page only. It models the browser
   // refresh-cookie contract without changing production authentication.
   let syntheticSession = false;
-  const user = { id: 'synthetic-r71-user', email: 'r71@example.test', displayName: 'R7.1 Fixture', role: 'ADMIN' };
+  const user = { id: 'synthetic-r71-user', email: 'r71@example.test', displayName: 'R7.1 Fixture', role };
   await page.route('**/api/v1/**', async (route) => {
     const path = new URL(route.request().url()).pathname;
     if (path === '/api/v1/auth/refresh') return syntheticSession
@@ -423,5 +423,24 @@ for (const mobile of [false, true]) {
     expect(errors).toEqual([]);
     // Mutation invalidation remains unverified: this read-only queue fixture has
     // no actionable request or mutation response contract.
+  });
+}
+
+for (const role of ['ADMIN', 'MANAGER', 'SUPERVISOR', 'VIEWER'] as const) {
+  test(`T42 initial Dashboard API sequencing ${role}`, async ({ page }) => {
+    await page.setViewportSize({ width: 1366, height: 768 });
+    const fixture = await installFixture(page, role);
+    await signIn(page);
+    await expect.poll(() => fixture.requests.filter(r => r.lifecycle === 'dashboard' && r.path === '/api/v1/dashboard' && r.responded !== undefined).length).toBe(1);
+    const dashboard = fixture.requests.filter(r => r.lifecycle === 'dashboard' && r.path === '/api/v1/dashboard');
+    expect(dashboard).toHaveLength(1);
+    if (role === 'VIEWER') {
+      expect(fixture.requests.filter(r => r.lifecycle === 'dashboard' && r.path === '/api/v1/approval-center/summary')).toHaveLength(0);
+    } else {
+      await expect.poll(() => fixture.requests.filter(r => r.lifecycle === 'dashboard' && r.path === '/api/v1/approval-center/summary' && r.responded !== undefined).length).toBe(1);
+      const approval = fixture.requests.filter(r => r.lifecycle === 'dashboard' && r.path === '/api/v1/approval-center/summary');
+      expect(approval).toHaveLength(1);
+      expect(approval[0].started).toBeGreaterThanOrEqual(dashboard[0].responded!);
+    }
   });
 }

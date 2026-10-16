@@ -1,5 +1,13 @@
 # R7.1 PRODUCTION CLOSEOUT — 2026-10-15 (Asia/Bangkok)
 
+## T41 Findings / T42 decision — 2026-10-16
+
+- T41 production Vercel Function region is `sin1`, confirmed by Production `requestId` values in the form `sin1::…`; the earlier `iad1` statement was incorrect.
+- Supabase Preview region is `ap-northeast-1` per #614. Production region remains pending Owner confirmation.
+- `P2024` is an inference from the source and error mapping; no raw Vercel log has directly confirmed that code.
+- T41 option ง (move Function region) is not being implemented.
+- OWNER selected option ข (T42): stagger Dashboard and Approval Center initial reads. OWNER will implement option ก (change the URL to port `6543`) separately.
+
 ## Release disposition
 
 - **R7.1 CLOSED / PRODUCTION LIVE.**
