@@ -16,6 +16,7 @@ import {
 import {
   approveAttendanceAdjustment,
   createAttendanceAdjustment,
+  getAttendanceAdjustment,
   listAttendanceAdjustments,
   rejectAttendanceAdjustment,
   returnAttendanceAdjustment,
@@ -605,12 +606,21 @@ export function AttendanceSupervisorPage({ token, role, department, userId, onOp
 
   useEffect(() => {
     if (!initialRequestId || mode !== 'requests') return;
-    const request = requests.find((row) => String(row.id) === String(initialRequestId));
-    if (request) {
+    let active = true;
+    setRequestLoading(true);
+    getAttendanceAdjustment(token, initialRequestId).then((response) => {
+      if (!active) return;
+      const request = response?.data as AttendanceAdjustmentRequest | undefined;
+      if (!request || String(request.id) !== String(initialRequestId)) { setRequestError('ไม่พบคำขอแก้ไขเวลาที่ต้องการเปิดรายละเอียด (404)'); return; }
       setReviewDialog({ request, action: 'approve', comment: '' });
       onInitialRequestHandled?.();
-    }
-  }, [initialRequestId, mode, requests]);
+    }).catch((reason) => {
+      if (!active) return;
+      const status = Number(reason?.status || 0);
+      setRequestError(status === 404 ? 'ไม่พบคำขอแก้ไขเวลาที่ต้องการเปิดรายละเอียด (404)' : status === 403 ? 'คุณไม่มีสิทธิ์ดูคำขอแก้ไขเวลานี้ (403)' : 'โหลดรายละเอียดคำขอแก้ไขเวลาไม่สำเร็จ');
+    }).finally(() => { if (active) setRequestLoading(false); });
+    return () => { active = false; };
+  }, [initialRequestId, mode, token, onInitialRequestHandled]);
 
   useEffect(() => {
     if (initialRequestId) setMode('requests');

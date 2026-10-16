@@ -2359,9 +2359,14 @@ function Dashboard() {
 
   useEffect(() => {
     if (activePage !== 'licenses' || !nativeApprovalLicenseId || licenseEditTarget) return;
-    const row = (Array.isArray(operationResponse.data) ? operationResponse.data : []).find((item) => String(item.id) === nativeApprovalLicenseId);
-    if (row) setLicenseEditTarget(row);
-  }, [activePage, nativeApprovalLicenseId, operationResponse.data, licenseEditTarget]);
+    let active = true;
+    api.licenses(auth.token!, 1, 'ALL', nativeApprovalEmployeeId).then((result) => {
+      if (!active) return;
+      const row = (Array.isArray(result?.data) ? result.data as DataRow[] : []).find((item: DataRow) => String(item.id) === nativeApprovalLicenseId);
+      if (row) setLicenseEditTarget(row);
+    }).catch(() => undefined);
+    return () => { active = false; };
+  }, [activePage, nativeApprovalLicenseId, nativeApprovalEmployeeId, licenseEditTarget, auth.token]);
 
   const openEmployeeEditor = async (employee?: Employee) => {
     if (!auth.token) return;
@@ -3306,6 +3311,7 @@ function Dashboard() {
       const users = Array.isArray(operationResponse.data) ? operationResponse.data : [];
       return <div className="users-access-workspace layout-personnel-page layout-page-surface">
         <AccessManagementPage
+          token={auth.token!}
           rows={users as Array<{ id: string; displayName?: string; role?: string; department?: string | null; accountStatus?: string; isActive?: boolean; passwordResetRequired?: boolean; createdAt?: string; updatedAt?: string }>}
           loading={operationLoading}
           error={typeof operationError === 'string' ? operationError : operationError?.message}

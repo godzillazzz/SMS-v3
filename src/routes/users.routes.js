@@ -19,6 +19,15 @@ router.get('/', authenticate, authorize('ADMIN', 'MANAGER', 'SUPERVISOR'), async
     res.json({ data: users.map((user) => withApprovalIdentity(user, 'approvedByLegacyRef', approvers)) });
   } catch (error) { next(error); }
 });
+router.get('/:id', authenticate, authorize('ADMIN', 'MANAGER', 'SUPERVISOR'), async (req, res, next) => {
+  try {
+    const id = z.string().uuid().parse(req.params.id);
+    const user = await prisma.user.findUnique({ where: { id }, select: { id: true, legacyUserId: true, email: true, displayName: true, role: true, department: true, accountStatus: true, isActive: true, passwordResetRequired: true, approvedAt: true, approvedByLegacyRef: true, createdAt: true, updatedAt: true } });
+    if (!user) throw new HttpError(404, 'User account was not found.');
+    if (['MANAGER', 'SUPERVISOR'].includes(req.user.role) && user.accountStatus !== 'PENDING') throw new HttpError(403, 'User account detail is forbidden.');
+    res.json({ data: user });
+  } catch (error) { next(error); }
+});
 router.post('/:id/view-as', authenticate, authorize('ADMIN'), async (req, res, next) => {
   try {
     const id = z.string().uuid().parse(req.params.id);

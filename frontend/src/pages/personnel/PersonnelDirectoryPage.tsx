@@ -59,6 +59,7 @@ export function PersonnelDirectoryPage({ token, refreshKey, canManage, role, sea
   const [localRefreshKey, setLocalRefreshKey] = useState(0);
   const [selected, setSelected] = useState<PersonnelRecord>();
   const [readinessSnapshot, setReadinessSnapshot] = useState<ReadinessSnapshot>({ state: 'error', byEmployeeId: {} });
+  const [initialTargetState, setInitialTargetState] = useState<'idle' | 'loading' | 'not-found' | 'forbidden' | 'error'>('idle');
   const lastSelectedId = useRef<string>();
 
   const canViewReadiness = role === 'ADMIN' || role === 'MANAGER' || role === 'SUPERVISOR';
@@ -84,13 +85,26 @@ export function PersonnelDirectoryPage({ token, refreshKey, canManage, role, sea
 
   useEffect(() => {
     if (!initialEmployeeId) return;
-    const employee = employees.find((row) => String(row.id) === String(initialEmployeeId));
-    if (employee) {
+    let active = true;
+    setInitialTargetState('loading');
+    api.employee(token || '', initialEmployeeId).then((result) => {
+      if (!active) return;
+      const employee = result?.data as PersonnelRecord | undefined;
+      if (!employee || String(employee.id) !== String(initialEmployeeId)) {
+        setInitialTargetState('not-found');
+        return;
+      }
       lastSelectedId.current = employee.id;
       setSelected(employee);
+      setInitialTargetState('idle');
       onInitialTargetHandled?.();
-    }
-  }, [employees, initialEmployeeId]);
+    }).catch((reason) => {
+      if (!active) return;
+      const status = Number(reason?.status || 0);
+      setInitialTargetState(status === 404 ? 'not-found' : status === 403 ? 'forbidden' : 'error');
+    });
+    return () => { active = false; };
+  }, [token, initialEmployeeId, onInitialTargetHandled]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => setDebouncedSearch(search.trim()), 250);
@@ -175,6 +189,10 @@ export function PersonnelDirectoryPage({ token, refreshKey, canManage, role, sea
   };
 
   return <section className="personnel-directory-page data-surface-page layout-personnel-page layout-page-surface" aria-label="Personnel Directory">
+    {initialTargetState === 'loading' && <p role="status">กำลังโหลดรายละเอียดพนักงาน…</p>}
+    {initialTargetState === 'not-found' && <p role="alert">ไม่พบพนักงานที่ต้องการเปิดรายละเอียด (404)</p>}
+    {initialTargetState === 'forbidden' && <p role="alert">คุณไม่มีสิทธิ์ดูรายละเอียดพนักงานนี้ (403)</p>}
+    {initialTargetState === 'error' && <p role="alert">โหลดรายละเอียดพนักงานไม่สำเร็จ</p>}
     <PersonnelDirectoryHeader canManage={canManage} canReviewChanges={role === 'ADMIN'} totalCount={loading ? undefined : totalCount} onAdd={onAdd} onReviewChanges={onReviewChanges} onRefresh={() => setLocalRefreshKey((value) => value + 1)} />
     <AttendanceReadinessCenter token={token} enabled={canViewReadiness} onReadinessChange={handleReadinessChange} />
     <PersonnelSearchToolbar search={search} department={department} status={status} departments={visibleMeta.departments || []} onSearch={changeFilter(setSearch)} onDepartment={changeFilter(setDepartment)} onStatus={changeFilter(setStatus)} onClear={clear} />

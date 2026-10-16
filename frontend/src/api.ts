@@ -204,6 +204,8 @@ export const api = {
   verifyAttendanceDeviceProof: (token: string, id: string, data: { challengeId: string; challenge: string; signatureBase64: string }) => call(`/attendance/devices/requests/${encodeURIComponent(id)}/proof/verify`, { method: 'POST', body: JSON.stringify(data), headers: { Authorization: `Bearer ${token}` } }),
   resubmitAttendanceDeviceRequest: (token: string, id: string, reason?: string | null) => call(`/attendance/devices/requests/${encodeURIComponent(id)}/resubmit`, { method: 'POST', body: JSON.stringify({ reason: reason || null }), headers: { Authorization: `Bearer ${token}` } }),
   cancelAttendanceDeviceRequest: (token: string, id: string, reason: string) => call(`/attendance/devices/requests/${encodeURIComponent(id)}/cancel`, { method: 'POST', body: JSON.stringify({ reason }), headers: { Authorization: `Bearer ${token}` } }),
+  attendanceDeviceRequest: (token: string, id: string) => call(`/attendance/devices/requests/${encodeURIComponent(id)}`, { headers: { Authorization: `Bearer ${token}` } }),
+
   attendanceDeviceRequests: (token: string, status = 'PENDING_APPROVAL') => call(`/attendance/devices/requests?status=${encodeURIComponent(status)}`, { headers: { Authorization: `Bearer ${token}` } }),
   approveAttendanceDeviceRequest: (token: string, id: string, comment?: string) => call(`/attendance/devices/requests/${encodeURIComponent(id)}/approve`, { method: 'POST', body: JSON.stringify({ comment: comment || null }), headers: { Authorization: `Bearer ${token}` } }),
   returnAttendanceDeviceRequest: (token: string, id: string, comment: string) => call(`/attendance/devices/requests/${encodeURIComponent(id)}/return-for-correction`, { method: 'POST', body: JSON.stringify({ comment }), headers: { Authorization: `Bearer ${token}` } }),
@@ -239,7 +241,9 @@ export const api = {
     return call(`/executive-report${query ? `?${query}` : ''}`, { headers: { Authorization: `Bearer ${token}` } });
   },
   employees: (token: string, options: { page?: number; pageSize?: number; search?: string; isActive?: boolean; department?: string; directoryMeta?: boolean } = {}) => { const params = new URLSearchParams({ page: String(options.page || 1), pageSize: String(options.pageSize || 100) }); if (options.search?.trim()) params.set('search', options.search.trim()); if (typeof options.isActive === 'boolean') params.set('isActive', options.isActive ? 'true' : 'false'); if (options.department?.trim()) params.set('department', options.department.trim()); if (options.directoryMeta) params.set('directoryMeta', 'true'); return call(`/employees?${params.toString()}`, { headers: { Authorization: `Bearer ${token}` } }); },
-  licenses: (token: string, page = 1, employeeStatus: 'ACTIVE' | 'INACTIVE' | 'ALL' = 'ACTIVE') => call(`/licenses?page=${page}&pageSize=500&employeeStatus=${employeeStatus}`, { headers: { Authorization: `Bearer ${token}` } }),
+  employee: (token: string, id: string) => call(`/employees/${encodeURIComponent(id)}`, { headers: { Authorization: `Bearer ${token}` } }),
+
+  licenses: (token: string, page = 1, employeeStatus: 'ACTIVE' | 'INACTIVE' | 'ALL' = 'ACTIVE', employeeId?: string) => call(`/licenses?page=${page}&pageSize=500&employeeStatus=${employeeStatus}${employeeId ? `&employeeId=${encodeURIComponent(employeeId)}` : ''}`, { headers: { Authorization: `Bearer ${token}` } }),
   shiftTypes: (token: string) => call('/shift-types', { headers: { Authorization: `Bearer ${token}` } }),
   createShiftType: (token: string, data: unknown) => call('/shift-types', { method: 'POST', body: JSON.stringify(data), headers: { Authorization: `Bearer ${token}` } }),
   updateShiftType: (token: string, id: string, data: unknown) => call(`/shift-types/${id}`, { method: 'PUT', body: JSON.stringify(data), headers: { Authorization: `Bearer ${token}` } }),
