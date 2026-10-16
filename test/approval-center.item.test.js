@@ -2,61 +2,152 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
+process.env.NODE_ENV = 'test';
+process.env.DATABASE_URL ||= 'postgresql://test:test@127.0.0.1:5433/sms_v3_test';
+process.env.JWT_SECRET ||= 'test-only-jwt-secret-value-012345678901234567890123456789';
+const request = require('supertest');
+const app = require('../src/app');
 const { createApprovalCenterService } = require('../src/services/approval-center.service');
+const { REQUEST_TYPE_DEFINITIONS, defaultPolicyFor } = require('../src/services/approval-policy.service');
 
-const TYPES = [
-  'EMPLOYEE_MASTER_CHANGE', 'EMPLOYEE_REFERENCE_PHOTO', 'LICENSE_DOCUMENT',
-  'ATTENDANCE_DEVICE_REQUEST', 'ATTENDANCE_ADJUSTMENT_REQUEST', 'SCHEDULE_APPROVAL',
-  'LEAVE_REQUEST', 'USER_ACCESS', 'REGISTRATION_REQUEST'
-];
+const ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+const ACTOR = { role: 'ADMIN', sub: 'admin-1' };
+const NOW = new Date('2026-08-28T01:00:00.000Z');
 
-function policies() {
-  const map = new Map(TYPES.map((type) => [type, { reviewerRoles: ['ADMIN'], dueSoonHours: 24, overdueHours: 48 }]));
+function policies(overrides = {}) {
+  const map = new Map(REQUEST_TYPE_DEFINITIONS.map((definition) => {
+    const base = defaultPolicyFor(definition);
+    return [definition.type, { ...base, ...(overrides[definition.type] || {}) }];
+  }));
   return { loadPolicies: async () => map };
 }
 
-function prisma() {
-  const delegate = (row) => ({
-    findFirst: async () => row,
-    findMany: async () => [],
-    count: async () => row ? 1 : 0
-  });
+function model(rows, { findMany, findFirst } = {}) {
   return {
-    systemSetting: { findMany: async () => [] },
-    employeeChangeRequest: delegate({ id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', status: 'PENDING_APPROVAL', createdAt: new Date('2026-08-28T00:00:00Z') }),
-    employeeReferencePhoto: delegate(null), employeeLicenseDocument: delegate(null),
-    attendanceDeviceChangeRequest: delegate(null), leaveRequest: delegate(null),
-    user: delegate(null), registrationRequest: delegate(null),
-    scheduleApproval: { ...delegate(null), groupBy: async () => [] }
+    findMany: findMany || (async ({ where } = {}) => rows.filter((row) => !where?.department || row.department === where.department)),
+    findFirst: findFirst || (async ({ where } = {}) => rows.find((row) => (!where?.id || row.id === where.id) && (!where?.department || row.department === where.department)) || null),
+    count: async () => rows.length
   };
 }
 
-test('getItem performs exact-ID lookup and returns the normalized envelope', async () => {
-  const service = createApprovalCenterService({ prisma: prisma(), approvalPolicyService: policies(), clock: () => new Date('2026-08-28T01:00:00Z') });
-  const result = await service.getItem({ actor: { role: 'ADMIN' }, type: 'EMPLOYEE_MASTER_CHANGE', requestId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' });
-  assert.equal(result.data.requestId, 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa');
-  assert.equal(result.data.type, 'EMPLOYEE_MASTER_CHANGE');
-  assert.equal(result.data.sourcePage, 'employees');
-  assert.equal(result.data.status, 'PENDING_APPROVAL');
-  assert.equal(result.data.sla.dueSoonHours, 24);
+function employee(id, code) {
+  return { id, employeeCode: code, firstName: code, lastName: 'Test', displayName: `${code} Test`, department: 'PN', jobTitle: 'Guard', user: { role: 'VIEWER' } };
+}
+
+function fixture({ scheduleRows = [], leaveRows = [], attendanceRows = [], actorEmployeeId = null, overrides = {}, failModel = null } = {}) {
+  const row = (id, extra = {}) => ({ id, status: 'PENDING_APPROVAL', createdAt: NOW, ...extra });
+  const models = {
+    employeeChangeRequest: model([row(ID, { employeeId: 'e1', currentRevision: 2, employee: employee('e1', 'E001'), requestOwner: { id: 'm1', displayName: 'Manager', role: 'MANAGER' }, revisions: [{ revision: 2, changedFields: ['department'], submittedAt: NOW }] })]),
+    employeeReferencePhoto: model([row(ID, { employeeId: 'e2', uploadedAt: NOW, safeDisplayFileName: 'photo.jpg', mimeType: 'image/jpeg', fileSize: 10, imageWidth: 10, imageHeight: 10, employee: employee('e2', 'E002'), uploadedBy: { id: 'm2', displayName: 'Manager', role: 'MANAGER' } })]),
+    employeeLicenseDocument: model([row(ID, { employeeId: 'e3', licenseId: 'l1', status: 'PENDING', uploadedAt: NOW, proposedStartDate: NOW, proposedExpiryDate: NOW, proposedLicenseNumber: 'LIC-NEW', version: 1, safeDisplayFileName: 'license.pdf', employee: employee('e3', 'E003'), uploadedBy: { id: 'm3', displayName: 'Manager', role: 'MANAGER' }, license: { licenseType: 'รปภ.', licenseNumber: 'LIC-OLD' } })]),
+    attendanceDeviceChangeRequest: model([row(ID, { requestType: 'REPLACEMENT', reason: 'replace', employee: employee('e4', 'E004'), requestedBy: { id: 'm4', displayName: 'Manager', role: 'MANAGER' }, candidateDevice: { displayName: 'Phone', platformHint: 'Android' } })]),
+    registrationRequest: model([row(ID, { submittedName: 'สมัครใหม่', email: 'new@example.invalid', departmentHint: 'PN', status: 'MATCHED', emailVerifiedAt: NOW, matchedEmployee: employee('e5', 'E005') })]),
+    user: { ...model([row(ID, { displayName: 'Pending User', email: 'pending@example.invalid', role: 'VIEWER', department: 'PN', accountStatus: 'PENDING', requestedAt: NOW })]), findUnique: async () => actorEmployeeId ? { employeeId: actorEmployeeId, employee: { jobTitle: 'Guard', isActive: true, deletedAt: null } } : null },
+    leaveRequest: model(leaveRows),
+    scheduleApproval: {
+      groupBy: async () => [...new Map(scheduleRows.map((r) => [new Date(r.month).toISOString(), r])).values()].map((r) => ({ month: r.month, _max: { revision: Math.max(...scheduleRows.filter((x) => new Date(x.month).getTime() === new Date(r.month).getTime()).map((x) => x.revision)) } })),
+      findMany: async ({ where } = {}) => scheduleRows.filter((r) => r.status === where?.status && where?.OR?.some((x) => new Date(x.month).getTime() === new Date(r.month).getTime() && x.revision === r.revision)),
+      findFirst: async ({ where } = {}) => scheduleRows.find((r) => r.id === where?.id && r.status === where?.status && where?.OR?.some((x) => new Date(x.month).getTime() === new Date(r.month).getTime() && x.revision === r.revision)) || null,
+      count: async ({ where } = {}) => scheduleRows.filter((r) => r.status === where?.status && where?.OR?.some((x) => new Date(x.month).getTime() === new Date(r.month).getTime() && x.revision === r.revision)).length
+    },
+    systemSetting: { findMany: async () => [] }
+  };
+  if (failModel) {
+    models[failModel].findMany = async () => { throw new Error('synthetic database failure'); };
+    models[failModel].findFirst = async () => { throw new Error('synthetic database failure'); };
+  }
+  return { ...models, attendanceAdjustment: attendanceRows };
+}
+
+function service(options = {}) {
+  const db = fixture(options);
+  return createApprovalCenterService({
+    prisma: db,
+    approvalPolicyService: policies(options.overrides),
+    clock: () => NOW,
+    attendanceAdjustmentList: async ({ requestId }) => ({ data: db.attendanceAdjustment.filter((r) => !requestId || r.id === requestId), meta: { total: db.attendanceAdjustment.length } })
+  });
+}
+
+// HTTP boundary: auth is checked before the new exact-item handler can run.
+test('HTTP endpoint requires authentication', async () => {
+  const response = await request(app).get(`/api/v1/approval-center/items/EMPLOYEE_MASTER_CHANGE/${ID}`);
+  assert.equal(response.status, 401);
+  assert.equal(response.body.error, 'Authentication required.');
 });
 
-test('getItem uses one uniform not-found error for missing eligible rows', async () => {
-  const service = createApprovalCenterService({ prisma: { ...prisma(), employeeChangeRequest: { findFirst: async () => null } }, approvalPolicyService: policies() });
-  await assert.rejects(() => service.getItem({ actor: { role: 'ADMIN' }, type: 'EMPLOYEE_MASTER_CHANGE', requestId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' }), (error) => error.statusCode === 404 && error.publicCode === 'APPROVAL_ITEM_NOT_FOUND');
+test('HTTP endpoint rejects malformed item targets after authentication boundary contract', () => {
+  const routeSource = require('node:fs').readFileSync(require('node:path').join(__dirname, '../src/routes/approval-center.routes.js'), 'utf8');
+  assert.match(routeSource, /validateItemParams\(req\.params\)/);
+  assert.match(routeSource, /APPROVAL_ITEM_TARGET_INVALID/);
 });
 
-test('getItem applies per-type policy before any record lookup', async () => {
-  let queried = false;
-  const db = prisma();
-  db.employeeChangeRequest.findFirst = async () => { queried = true; return null; };
-  const policyMap = new Map(TYPES.map((type) => [type, { reviewerRoles: type === 'EMPLOYEE_MASTER_CHANGE' ? ['ADMIN'] : ['ADMIN'], dueSoonHours: 24, overdueHours: 48 }]));
-  policyMap.get('EMPLOYEE_MASTER_CHANGE').reviewerRoles = ['SUPERVISOR'];
-  const service = createApprovalCenterService({ prisma: db, approvalPolicyService: { loadPolicies: async () => policyMap } });
-  await assert.rejects(() => service.getItem({ actor: { role: 'ADMIN' }, type: 'EMPLOYEE_MASTER_CHANGE', requestId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' }), (error) => error.statusCode === 403 && error.publicCode === 'APPROVAL_TYPE_REVIEW_FORBIDDEN');
-  assert.equal(queried, false);
+// This table obtains type names and the definitions used by the production policy service.
+test('table-driven exact item supports every production approval type', async (t) => {
+  const cases = REQUEST_TYPE_DEFINITIONS.map((definition) => ({ type: definition.type, definition }));
+  assert.equal(cases.length, 9);
+  for (const { type, definition } of cases) {
+    await t.test(type, async () => {
+      const options = {};
+      if (type === 'SCHEDULE_APPROVAL') options.scheduleRows = [{ id: ID, month: new Date('2026-08-01T00:00:00Z'), revision: 1, status: 'PENDING', changedAt: NOW }];
+      if (type === 'LEAVE_REQUEST') options.leaveRows = [{ id: ID, employeeId: 'e-leave', status: 'PENDING', requestedAt: NOW, createdAt: NOW, leaveType: 'SICK', startDate: NOW, endDate: NOW, dayCount: 1, employeeNameSnapshot: 'E-LEAVE', departmentSnapshot: 'PN', employee: employee('e-leave', 'E-LEAVE'), createdByUser: null }];
+      if (type === 'ATTENDANCE_ADJUSTMENT_REQUEST') options.attendanceRows = [{ id: ID, status: 'PENDING_APPROVAL', employeeId: 'e7', employeeCode: 'E007', employeeName: 'E007 Test', department: 'PN', makerUserId: 'm7', makerDisplayName: 'Maker', makerRoleSnapshot: 'MANAGER', currentRevision: 1, workDate: '2026-08-27', reason: 'correction', createdAt: NOW }];
+      const current = service(options);
+      const listed = await current.list({ actor: ACTOR, onlyType: type, limit: 100 });
+      assert.equal(listed.data.length, 1, `${type} list must contain fixture`);
+      const exact = await current.getItem({ actor: ACTOR, type, requestId: ID });
+      assert.deepStrictEqual(exact.data, listed.data[0], `${type} exact mapper must equal list mapper`);
+      assert.equal(exact.data.type, definition.type);
+      assert.equal(exact.data.requestId, ID);
+    });
+  }
 });
 
-test('all nine allowlisted types are explicit in the endpoint contract', () => {
-  assert.equal(new Set(TYPES).size, 9);
+test('old schedule revision is not eligible and returns the uniform not-found error', async () => {
+  const current = service({ scheduleRows: [
+    { id: 'old-schedule', month: new Date('2026-08-01Z'), revision: 1, status: 'PENDING', changedAt: NOW },
+    { id: 'latest-schedule', month: new Date('2026-08-01Z'), revision: 2, status: 'PENDING', changedAt: NOW }
+  ] });
+  await assert.rejects(() => current.getItem({ actor: ACTOR, type: 'SCHEDULE_APPROVAL', requestId: 'old-schedule' }), (error) => error.statusCode === 404 && error.publicCode === 'APPROVAL_ITEM_NOT_FOUND');
+});
+
+test('leave self and position-denied rows return not-found', async () => {
+  const current = service({ actorEmployeeId: 'self', leaveRows: [{ id: ID, employeeId: 'self', status: 'PENDING', requestedAt: NOW, createdAt: NOW, leaveType: 'SICK', startDate: NOW, endDate: NOW, dayCount: 1, employee: employee('self', 'SELF'), createdByUser: null }] });
+  await assert.rejects(() => current.getItem({ actor: { role: 'MANAGER', sub: 'manager' }, type: 'LEAVE_REQUEST', requestId: ID }), (error) => error.statusCode === 404 && error.publicCode === 'APPROVAL_ITEM_NOT_FOUND');
+});
+
+test('out-of-scope attendance adjustment returns not-found', async () => {
+  const current = service({ attendanceRows: [] });
+  await assert.rejects(() => current.getItem({ actor: ACTOR, type: 'ATTENDANCE_ADJUSTMENT_REQUEST', requestId: ID }), (error) => error.statusCode === 404 && error.publicCode === 'APPROVAL_ITEM_NOT_FOUND');
+});
+
+test('missing ID is indistinguishable from denied record', async () => {
+  const current = service();
+  const errors = [];
+  for (const requestId of ['bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'cccccccc-cccc-4ccc-8ccc-cccccccccccc']) {
+    try { await current.getItem({ actor: ACTOR, type: 'EMPLOYEE_MASTER_CHANGE', requestId }); } catch (error) { errors.push({ status: error.statusCode, code: error.publicCode, body: error.message }); }
+  }
+  assert.deepStrictEqual(errors[0], errors[1]);
+  assert.deepStrictEqual(errors[0], { status: 404, code: 'APPROVAL_ITEM_NOT_FOUND', body: 'Approval item was not found.' });
+});
+
+test('type-level policy denial is 403 and occurs before record lookup', async () => {
+  await assert.rejects(() => service({ overrides: { LICENSE_DOCUMENT: { reviewerRoles: ['ADMIN'] } } }).getItem({ actor: { role: 'MANAGER' }, type: 'LICENSE_DOCUMENT', requestId: ID }), (error) => error.statusCode === 403 && error.publicCode === 'APPROVAL_TYPE_REVIEW_FORBIDDEN');
+});
+
+test('database failure propagates instead of becoming not-found', async () => {
+  await assert.rejects(() => service({ failModel: 'employeeChangeRequest' }).getItem({ actor: ACTOR, type: 'EMPLOYEE_MASTER_CHANGE', requestId: ID }), (error) => error.message === 'synthetic database failure');
+});
+
+test('performance logging uses correlation ID and excludes target UUID, PII, and row payload', async () => {
+  const records = [];
+  const db = fixture();
+  const current = createApprovalCenterService({ prisma: db, approvalPolicyService: policies(), clock: () => NOW, logger: { info: (event, fields) => records.push({ event, fields }) }, attendanceAdjustmentList: async () => ({ data: [], meta: { total: 0 } }) });
+  await current.getItem({ actor: ACTOR, type: 'EMPLOYEE_MASTER_CHANGE', requestId: ID, correlationId: 'corr-safe-1' });
+  const record = records.at(-1);
+  assert.equal(record.event, 'performance_stage');
+  assert.equal(record.fields.requestId, 'corr-safe-1');
+  assert.equal(JSON.stringify(record).includes(ID), false);
+  assert.equal(JSON.stringify(record).includes('E001'), false);
+  assert.deepStrictEqual(Object.keys(record.fields).sort(), ['durationMs', 'operation', 'queryCount', 'requestId', 'role', 'stage', 'status'].sort());
 });
