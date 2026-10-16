@@ -1,6 +1,6 @@
 {
-  "authorized": false,
-  "database_isolation_verified": false,
+  "authorized": true,
+  "database_isolation_verified": true,
   "database_isolation_evidence": "https://github.com/godzillazzz/SMS-v3/actions/runs/38833567905",
   "database_target_fingerprint": "fe001305fa0031e9572949cac8544dfc9c8d8aca9e4fc2749f565952e65c282c",
   "project_id": "prj_XwhNUOB2zLSPZ6UgQcfyOKBYJ75s",
@@ -10,7 +10,7 @@
   "source_branch": "fix/serverless-database-reliability",
   "deployment_id": "dpl_G7yzbgCE1457aV6zgft47hS99BNf",
   "url": "https://sms-v3-staging-fi0985zy2-godzillazz.vercel.app",
-  "note": "STAGED, NOT AUTHORIZED. Exact read-only signed Isolation run #38833567905 VERIFIED database, storage, distinct Production and unchanged Production. Expected logical target fingerprints are deterministic SHA-256 of canonical Supabase project ref + postgres database identity (not standalone runtime proof). Runtime SHA-256 pins target immutable Integration application ffba53f9; protected source/receipt guards and Hosted UAT Owner review still mandatory. Do not dispatch until separate authorization via protected main governance.",
+  "note": "OWNER APPROVED for the immutable existing Integration Preview only, as staged on Draft PR #637. Signed GET/read-only exact Isolation run #38833567905 verified Preview DB/Storage, Production separation and Production unchanged. Fingerprints identify expected Preview and distinct Production Supabase targets; source pins identify exact immutable application SHA. GitHub trusted-main protections, exact-source CI, fresh signed receipt, exact Preview identity, four existing UAT roles and Hosted UAT Owner Environment approval remain mandatory at execution. Manifest approval in this Draft PR is NOT a merge, workflow dispatch, Production deployment, credential update or evidence of completed four-role UAT.",
   "production_database_target_fingerprint": "87dd67b4630d3e1fbdd639b318681a044a81d7755dfdc8d98c08f6943d5ac1db",
   "production_database_identity_evidence": "https://github.com/godzillazzz/SMS-v3/actions/runs/38833567905",
   "runtime_guard_file_sha256": {

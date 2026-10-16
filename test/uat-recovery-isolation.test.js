@@ -165,5 +165,8 @@ test('protected actions are immutable and additional trust guard remains before 
   assert.match(workflow.split('  authenticated-readonly:')[0], /verify-uat-v3-trust\.js/);
   assert.doesNotMatch(workflow.split('  authenticated-readonly:')[0], /secrets\./);
   const config = JSON.parse(fs.readFileSync('.github/uat/authenticated-readonly-target.json'));
-  assert.equal(config.authorized, false); assert.equal(config.database_isolation_verified, false);
+  assert.equal(config.authorized, true); assert.equal(config.database_isolation_verified, true);
+  assert.equal(config.database_isolation_evidence, 'https://github.com/godzillazzz/SMS-v3/actions/runs/38833567905');
+  assert.equal(config.source_sha, 'ffba53f90b1787a071657c21ee162609c8f80254');
+  assert.equal(config.deployment_id, 'dpl_G7yzbgCE1457aV6zgft47hS99BNf');
 });

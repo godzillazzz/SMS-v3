@@ -12,8 +12,10 @@ test('reviewed Integration runtime guard pins are well-formed and enforced again
   const manifest = JSON.parse(fs.readFileSync(path.join(repoRoot, '.github/uat/authenticated-readonly-target.json'), 'utf8'));
   const { paths } = require('../scripts/ci/verify-uat-v3-trust');
   const pins = manifest.runtime_guard_file_sha256;
-  assert.equal(manifest.authorized, false);
-  assert.equal(manifest.database_isolation_verified, false);
+  assert.equal(manifest.authorized, true);
+  assert.equal(manifest.database_isolation_verified, true);
+  assert.equal(manifest.source_sha, 'ffba53f90b1787a071657c21ee162609c8f80254');
+  assert.equal(manifest.database_isolation_evidence, 'https://github.com/godzillazzz/SMS-v3/actions/runs/38833567905');
   assert.equal(manifest.source_branch, 'fix/serverless-database-reliability');
   assert.deepEqual(Object.keys(pins).sort(), [...paths].sort(), 'runtime guard path list and manifest pins must match exactly');
   for (const runtimePath of paths) {
@@ -44,9 +46,13 @@ test('protected UAT uses trusted main only, owner gate and no PR source checkout
   assert.match(workflow, /UAT_SUPERVISOR_PASSWORD: \$\{\{ secrets.UAT_SUPERVISOR_PASSWORD \}\}/);
   assert.match(workflow, /success\(\) && steps.uat.outcome == 'success'/);
 });
-test('reviewed target is disabled, artifact capture is sanitized and no credentials persist', () => {
+test('reviewed target is explicitly approved for exact Preview; artifact capture is sanitized and no credentials persist', () => {
   const target = JSON.parse(fs.readFileSync('.github/uat/authenticated-readonly-target.json'));
-  assert.equal(target.authorized, false); assert.equal(target.database_isolation_verified, false);
+  assert.equal(target.authorized, true); assert.equal(target.database_isolation_verified, true);
+  assert.equal(target.source_branch, 'fix/serverless-database-reliability');
+  assert.equal(target.deployment_id, 'dpl_G7yzbgCE1457aV6zgft47hS99BNf');
+  assert.equal(target.project_id, PROJECT_ID);
+  assert.equal(target.team_id, TEAM_ID);
   const config = fs.readFileSync('playwright.uat-v3.config.js', 'utf8');
   for (const flag of ['trace', 'screenshot', 'video']) assert.match(config, new RegExp(flag + ": 'off'"));
   assert.doesNotMatch(config, /storageState/);
