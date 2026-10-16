@@ -1812,6 +1812,7 @@ function Dashboard() {
   const [dashboardError, setDashboardError] = useState<RequestErrorInput>();
   // The initial dashboard read is the source for the first badge render.
   const dashboardReadyRef = useRef<Promise<boolean> | null>(null);
+  const dashboardRequestRef = useRef<{ key: string; promise: Promise<unknown> } | null>(null);
   const [dashboardFilters, setDashboardFilters] = useState<DashboardFilters>(() => {
     const params = new URLSearchParams(window.location.search);
     const requestedDate = params.get('date');
@@ -2070,11 +2071,18 @@ function Dashboard() {
 
   useEffect(() => {
     if (!auth.token || activePage !== 'dashboard') return;
-    let resolveDashboardReady!: (ready: boolean) => void;
-    dashboardReadyRef.current = new Promise<boolean>((resolve) => { resolveDashboardReady = resolve; });
+    let resolveDashboardReady: (ready: boolean) => void = () => {};
+    const requestKey = [auth.token, operationRefresh, dashboardFilters.date, dashboardFilters.month, dashboardFilters.department].join('|');
+    if (dashboardRequestRef.current?.key !== requestKey) {
+      dashboardReadyRef.current = new Promise<boolean>((resolve) => { resolveDashboardReady = resolve; });
+    }
     setDashboardLoading(true);
     setDashboardError(undefined);
-    api.dashboard(auth.token, dashboardFilters)
+    const request = dashboardRequestRef.current?.key === requestKey
+      ? dashboardRequestRef.current.promise
+      : api.dashboard(auth.token, dashboardFilters);
+    dashboardRequestRef.current = { key: requestKey, promise: request };
+    request
       .then((result) => { setDashboardSummary(result?.data || {}); resolveDashboardReady(true); })
       .catch((reason) => { setDashboardError(toRequestErrorState(reason, 'ไม่สามารถอ่านข้อมูลภาพรวมได้')); resolveDashboardReady(false); })
       .finally(() => setDashboardLoading(false));
