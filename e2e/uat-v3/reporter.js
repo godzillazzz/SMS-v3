@@ -25,7 +25,7 @@ function safeApiFailureReason(steps) {
   if (!step || !API_CHECKS.includes(step.title)) return 'UNCLASSIFIED';
   // Parse only fixed error codes created by this test harness; discard all raw text.
   const message = typeof step.error?.message === 'string'
-    ? step.error.message.split(/\\r?\\n/, 1)[0].replace(/^Error:\\s*/, '').trim() : '';
+    ? step.error.message.split(/\r?\n/, 1)[0].replace(/^Error:\s*/, '').trim() : '';
   if (message === 'UAT_API_REQUEST_FAILED') return 'REQUEST_FAILED';
   if (message === 'UAT_API_STATUS_UNVERIFIED') return 'STATUS_UNVERIFIED';
   const status = /^UAT_API_HTTP_MISMATCH_EXPECTED_([1-5][0-9]{2})_ACTUAL_([1-5][0-9]{2})$/.exec(message);

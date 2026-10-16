@@ -20,14 +20,14 @@ test('only reviewed API contract checks can enter the report', () => {
 
 test('API suite still checks every protected status and both negative auth boundaries', () => {
   const source = fs.readFileSync('e2e/uat-v3/readonly.spec.js', 'utf8');
-  assert.match(source, /test\\.step\\(apiCheckName\\(route\\.label\\)/);
-  assert.match(source, /assertApiHttpStatus\\(response\\.status\\(\\), route\\.expectedStatus\\)/);
-  assert.match(source, /assertApiHttpStatus\\(response\\.status\\(\\), 401\\)/);
+  assert.match(source, /test\.step\(apiCheckName\(route\.label\)/);
+  assert.match(source, /assertApiHttpStatus\(response\.status\(\), route\.expectedStatus\)/);
+  assert.match(source, /assertApiHttpStatus\(response\.status\(\), 401\)/);
   assert.match(source, /API_DENY_NO_TOKEN/);
   assert.match(source, /API_DENY_INVALID_TOKEN/);
   const runner = fs.readFileSync('playwright.uat-v3.config.js', 'utf8');
-  assert.match(runner, /maxFailures:\\s*1/);
-  assert.match(runner, /retries:\\s*0/);
+  assert.match(runner, /maxFailures:\s*1/);
+  assert.match(runner, /retries:\s*0/);
 });
 
 test('HTTP mismatches and request failures provide only fixed categories', () => {
@@ -37,7 +37,7 @@ test('HTTP mismatches and request failures provide only fixed categories', () =>
 
   const secret = 'private-password@example.invalid raw-SECRET-or-token';
   const mismatch = { title: 'API_APPROVAL_CENTER', error: {
-    message: 'UAT_API_HTTP_MISMATCH_EXPECTED_200_ACTUAL_403\\n' + secret
+    message: 'UAT_API_HTTP_MISMATCH_EXPECTED_200_ACTUAL_403\n' + secret
   }};
   const bad = { title: 'API_THIS_CHECK_DOES_NOT_EXIST', error: { message: secret } };
   assert.equal(safeFailureCheck([{ title: 'outer', steps: [mismatch] }]), 'API_APPROVAL_CENTER');
@@ -53,10 +53,10 @@ test('HTTP mismatches and request failures provide only fixed categories', () =>
     harness_sha: 'b'.repeat(40), deployment_id: 'dpl_Synthetic' });
   assert.equal(summary.roles.ADMIN.failed_check, 'API_APPROVAL_CENTER');
   assert.equal(summary.roles.ADMIN.failed_reason, 'HTTP_403_EXPECTED_200');
-  const log = diagnosticLines(summary).join('\\n');
+  const log = diagnosticLines(summary).join('\n');
   assert.match(log, /UAT_FAILED_CHECK_ADMIN=API_APPROVAL_CENTER/);
   assert.match(log, /UAT_FAILED_REASON_ADMIN=HTTP_403_EXPECTED_200/);
-  assert.doesNotMatch(JSON.stringify(summary) + log, /private-password|example\\.invalid|raw-SECRET/);
+  assert.doesNotMatch(JSON.stringify(summary) + log, /private-password|example\.invalid|raw-SECRET/);
   assert.equal(summary.status, 'failed');
 });
 
@@ -64,8 +64,8 @@ test('untrusted failure inputs never become a leaked identifier or reason', () =
   const secret = 'this-is-a-raw-session-cookie-value@example.test';
   const summary = makeSafeSummary([{ role: 'ADMIN', phase: 'API_AUTHORIZATION', status: 'failed',
     failure_check: secret, failure_reason: secret }], { ADMIN: 'READY' }, { status: 'failed' });
-  const s = JSON.stringify(summary) + diagnosticLines(summary).join('\\n');
-  assert.doesNotMatch(s, /raw-session|cookie-value|example\\.test/);
+  const s = JSON.stringify(summary) + diagnosticLines(summary).join('\n');
+  assert.doesNotMatch(s, /raw-session|cookie-value|example\.test/);
   assert.equal(summary.roles.ADMIN.failed_check, 'UNCLASSIFIED');
   assert.equal(summary.roles.ADMIN.failed_reason, 'UNCLASSIFIED');
 });
