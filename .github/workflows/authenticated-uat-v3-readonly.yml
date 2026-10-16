@@ -90,8 +90,8 @@ jobs:
       - name: Verify native Preview identity with authenticated GET only
         env:
           GITHUB_TOKEN: ${{ github.token }}
-          RUNTIME_ISOLATION_PROBE_HMAC_SECRET: ${{ secrets.RUNTIME_ISOLATION_PROBE_HMAC_SECRET }}
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          UAT_V3_RUNTIME_PROBE_HMAC_SECRET: ${{ secrets.RUNTIME_ISOLATION_PROBE_HMAC_SECRET }}
           VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
           UAT_BASE_URL: ${{ inputs.target_url }}
           UAT_SOURCE_SHA: ${{ inputs.source_sha }}
@@ -104,7 +104,6 @@ jobs:
           UAT_BASE_URL: ${{ inputs.target_url }}
           UAT_SOURCE_SHA: ${{ inputs.source_sha }}
           UAT_EXPECTED_DEPLOYMENT_ID: ${{ inputs.expected_deployment_id }}
-          UAT_SOURCE_BRANCH: ${{ inputs.source_branch }}
           UAT_ADMIN_EMAIL: ${{ secrets.UAT_ADMIN_EMAIL }}
           UAT_ADMIN_PASSWORD: ${{ secrets.UAT_ADMIN_PASSWORD }}
           UAT_MANAGER_EMAIL: ${{ secrets.UAT_MANAGER_EMAIL }}

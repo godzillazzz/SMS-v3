@@ -1,8 +1,8 @@
 'use strict';
 const crypto = require('node:crypto');
 const target = require('../../.github/uat/authenticated-readonly-target.json');
-const { fail, runtimeGuardPaths } = require('../../e2e/uat-v3/config');
-const paths = runtimeGuardPaths;
+const { fail } = require('../../e2e/uat-v3/config');
+const paths = ['src/app.js', 'src/config/prisma.js', 'src/services/runtime-database-target-guard.service.js', 'src/utils/database-target-identity.js', 'src/services/runtime-isolation-probe.service.js', 'src/routes/runtime-isolation-probe.routes.js', 'frontend/src/main.tsx'];
 function verifyHostedGovernance(rules, environment, policies) {
   if (!Array.isArray(rules)) fail('UAT_EFFECTIVE_MAIN_RULES_REQUIRED');
   for (const type of ['deletion', 'non_fast_forward', 'pull_request']) {

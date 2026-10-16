@@ -323,6 +323,8 @@ jobs:
       UAT_ADMIN_PASSWORD: ${{ secrets.UAT_ADMIN_PASSWORD }}
       UAT_MANAGER_EMAIL: ${{ secrets.UAT_MANAGER_EMAIL }}
       UAT_MANAGER_PASSWORD: ${{ secrets.UAT_MANAGER_PASSWORD }}
+      UAT_SUPERVISOR_EMAIL: ${{ secrets.UAT_SUPERVISOR_EMAIL }}
+      UAT_SUPERVISOR_PASSWORD: ${{ secrets.UAT_SUPERVISOR_PASSWORD }}
       UAT_VIEWER_EMAIL: ${{ secrets.UAT_VIEWER_EMAIL }}
       UAT_VIEWER_PASSWORD: ${{ secrets.UAT_VIEWER_PASSWORD }}
       VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
@@ -454,11 +456,13 @@ jobs:
           UAT_ADMIN_PASSWORD: ${{ secrets.UAT_ADMIN_PASSWORD }}
           UAT_MANAGER_EMAIL: ${{ secrets.UAT_MANAGER_EMAIL }}
           UAT_MANAGER_PASSWORD: ${{ secrets.UAT_MANAGER_PASSWORD }}
+          UAT_SUPERVISOR_EMAIL: ${{ secrets.UAT_SUPERVISOR_EMAIL }}
+          UAT_SUPERVISOR_PASSWORD: ${{ secrets.UAT_SUPERVISOR_PASSWORD }}
           UAT_VIEWER_EMAIL: ${{ secrets.UAT_VIEWER_EMAIL }}
           UAT_VIEWER_PASSWORD: ${{ secrets.UAT_VIEWER_PASSWORD }}
         run: |
           set -euo pipefail
-          for role in ADMIN MANAGER VIEWER; do
+          for role in ADMIN MANAGER SUPERVISOR VIEWER; do
             email_key="UAT_${role}_EMAIL"
             password_key="UAT_${role}_PASSWORD"
             email_value="${!email_key-}"
@@ -474,6 +478,11 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - name: Validate UAT matrix against exact application source
+        shell: bash
+        env:
+          UAT_APPLICATION_ROOT: ${{ github.workspace }}/application-under-test
+        run: node --test test/uat-recovery-security.test.js --test-name-pattern='application source contract'
       - name: Install Playwright Chromium
         run: npx playwright install --with-deps chromium
       - name: Run authenticated UAT V3
@@ -489,6 +498,8 @@ jobs:
           UAT_ADMIN_PASSWORD: ${{ secrets.UAT_ADMIN_PASSWORD }}
           UAT_MANAGER_EMAIL: ${{ secrets.UAT_MANAGER_EMAIL }}
           UAT_MANAGER_PASSWORD: ${{ secrets.UAT_MANAGER_PASSWORD }}
+          UAT_SUPERVISOR_EMAIL: ${{ secrets.UAT_SUPERVISOR_EMAIL }}
+          UAT_SUPERVISOR_PASSWORD: ${{ secrets.UAT_SUPERVISOR_PASSWORD }}
           UAT_VIEWER_EMAIL: ${{ secrets.UAT_VIEWER_EMAIL }}
           UAT_VIEWER_PASSWORD: ${{ secrets.UAT_VIEWER_PASSWORD }}
         with:
@@ -508,11 +519,13 @@ jobs:
             const passwordValues = [
               process.env.UAT_ADMIN_PASSWORD,
               process.env.UAT_MANAGER_PASSWORD,
+              process.env.UAT_SUPERVISOR_PASSWORD,
               process.env.UAT_VIEWER_PASSWORD
             ].filter(Boolean);
             const emailValues = [
               process.env.UAT_ADMIN_EMAIL,
               process.env.UAT_MANAGER_EMAIL,
+              process.env.UAT_SUPERVISOR_EMAIL,
               process.env.UAT_VIEWER_EMAIL
             ].filter(Boolean);
             for (const secret of [bypassSecret, ...passwordValues, ...emailValues].filter(Boolean)) core.setSecret(secret);

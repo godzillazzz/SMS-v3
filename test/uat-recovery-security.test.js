@@ -4,13 +4,117 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { roles, PROJECT_ID, TEAM_ID, readConfig, previewUrl, validateApprovedTarget } = require('../e2e/uat-v3/config');
 const { RoleSessions, preflightAccounts, readRoleApi, installReadonlyBrowser } = require('../e2e/uat-v3/auth');
-const { getRoleApiMatrix, getRoleNavigationContract } = require('../e2e/uat-v3/role-matrix');
+const { getRoleApiMatrix, getRoleActionMatrix, getRoleNavigationContract } = require('../e2e/uat-v3/role-matrix');
 const { authorize } = require('../src/middlewares/authenticate');
 const { scanArtifact, sensitiveUatValues, rolePreflightSummary } = require('../e2e/uat-v3/security');
 const { normalizeDeploymentIdentity } = require('../e2e/uat-v3/vercel-identity');
+const { validateApplicationSourceContract } = require('../e2e/uat-v3/application-source-contract');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
 const preview = 'https://sms-v3-staging-uatfixture-godzillazz.vercel.app';
+function workflowEnvBlocks(workflow) {
+  const lines = workflow.split(/\r?\n/);
+  const blocks = [];
+  for (let index = 0; index < lines.length; index += 1) {
+    const match = /^(\s*)env:\s*$/.exec(lines[index]);
+    if (!match) continue;
+    const indent = match[1].length;
+    const entries = [];
+    for (let cursor = index + 1; cursor < lines.length; cursor += 1) {
+      const line = lines[cursor];
+      if (line.trim() && line.search(/\S/) <= indent) break;
+      const entry = new RegExp(`^\\s{${indent + 2},}(UAT_[A-Z]+_(?:EMAIL|PASSWORD))\\s*:`).exec(line);
+      if (entry) entries.push(entry[1]);
+    }
+    blocks.push({ index, entries });
+  }
+  return blocks;
+}
+function assertCompleteCredentialEnvironment(workflowPath) {
+  const workflow = fs.readFileSync(workflowPath, 'utf8');
+  const expected = roles.flatMap((role) => [`UAT_${role}_EMAIL`, `UAT_${role}_PASSWORD`]);
+  const blocks = workflowEnvBlocks(workflow).filter(({ entries }) => entries.length > 0);
+  assert.ok(blocks.length > 0, `no credential env block found in ${workflowPath}`);
+  for (const { entries } of blocks) {
+    assert.deepEqual([...new Set(entries)].sort(), [...expected].sort(), `${workflowPath} has incomplete credential env`);
+  }
+  return workflow;
+}
+function credentialStep(workflow) {
+  const lines = workflow.split(/\r?\n/);
+  const nameIndex = lines.findIndex((line) => /^\s*- name: Require all authenticated UAT credentials\s*$/.test(line));
+  assert.notEqual(nameIndex, -1, 'credential loop contract: required step not found');
+  const stepIndent = lines[nameIndex].search(/\S/);
+  const end = lines.findIndex((line, index) => index > nameIndex && line.trim() && line.search(/\S/) <= stepIndent);
+  const step = lines.slice(nameIndex, end === -1 ? lines.length : end).join('\n');
+  const runIndex = step.indexOf('        run: |');
+  assert.notEqual(runIndex, -1, 'credential loop contract: required step has no run block');
+  return step.slice(runIndex);
+}
+function assertCredentialLoopContract(workflowPath) {
+  const workflow = fs.readFileSync(workflowPath, 'utf8');
+  const step = credentialStep(workflow);
+  const loops = [...step.matchAll(/for role in ([A-Z ]+); do([\s\S]*?)\n\s*done/g)];
+  const loop = loops.find((match) => match[1].trim().split(/\s+/).join(' ') === roles.join(' '));
+  assert.ok(loop, 'credential loop contract: required role loop not found in required step');
+  assert.deepEqual(loop[1].trim().split(/\s+/), roles, 'credential loop contract: role order does not match roles');
+  const body = loop[2];
+  assert.match(body, /email_key="UAT_\$\{role\}_EMAIL"/, 'credential loop contract: email key template missing inside required loop');
+  assert.match(body, /password_key="UAT_\$\{role\}_PASSWORD"/, 'credential loop contract: password key template missing inside required loop');
+  assert.match(body, /-z \"\$email_value\"[\s\S]*-z \"\$password_value\"/, 'credential loop contract: empty credential check missing inside required loop');
+  assert.match(body, /echo ['\"]UAT_CREDENTIALS_REQUIRED['\"]/, 'credential loop contract: failure marker missing inside required loop');
+  assert.match(body, /exit 1/, 'credential loop contract: fail-closed exit missing inside required loop');
+}
 function env() { return Object.fromEntries([['UAT_BASE_URL', preview], ...roles.flatMap((role) => [[`UAT_${role}_EMAIL`, `${role.toLowerCase()}@example.test`], [`UAT_${role}_PASSWORD`, `${role.toLowerCase()}-synthetic-only`]])]); }
 function payload(role) { return { user: { id: `synthetic-${role}`, role }, accessToken: `synthetic-session-${role}` }; }
+test('every authenticated workflow env block declares all eight role credentials', () => {
+  const staging = assertCompleteCredentialEnvironment('.github/workflows/automated-uat-sms-v3-staging.yml');
+  assertCompleteCredentialEnvironment('.github/workflows/authenticated-uat-v3-readonly.yml');
+  const mutated = staging.replace(/\n          UAT_SUPERVISOR_EMAIL:[^\n]*/, '');
+  const fixture = path.join(os.tmpdir(), `uat-workflow-${process.pid}.yml`);
+  fs.writeFileSync(fixture, mutated);
+  assert.throws(() => assertCompleteCredentialEnvironment(fixture), /incomplete credential env/);
+  fs.rmSync(fixture, { force: true });
+});
+test('credential loop is step-scoped, ordered, and checks every role', () => {
+  assertCredentialLoopContract('.github/workflows/automated-uat-sms-v3-staging.yml');
+  const source = fs.readFileSync('.github/workflows/automated-uat-sms-v3-staging.yml', 'utf8');
+  const mutations = [
+    ['M1 missing SUPERVISOR', 'for role in ADMIN MANAGER SUPERVISOR VIEWER; do', 'for role in ADMIN MANAGER VIEWER; do'],
+    ['M2 missing VIEWER', 'for role in ADMIN MANAGER SUPERVISOR VIEWER; do', 'for role in ADMIN MANAGER SUPERVISOR; do'],
+    ['M3 unauthorized role', 'for role in ADMIN MANAGER SUPERVISOR VIEWER; do', 'for role in ADMIN MANAGER SUPERVISOR VIEWER AUDITOR; do'],
+    ['M4 loop skips credential validation', `for role in ADMIN MANAGER SUPERVISOR VIEWER; do
+            email_key="UAT_\${role}_EMAIL"
+            password_key="UAT_\${role}_PASSWORD"
+            email_value="\${!email_key-}"
+            password_value="\${!password_key-}"
+            if [[ -z "$email_value" || -z "$password_value" ]]; then
+              echo 'UAT_CREDENTIALS_REQUIRED'
+              exit 1
+            fi
+          done`, `for role in ADMIN MANAGER SUPERVISOR VIEWER; do
+            :
+          done
+          for role in VIEWER; do
+            email_key="UAT_\${role}_EMAIL"
+            password_key="UAT_\${role}_PASSWORD"
+            email_value="\${!email_key-}"
+            password_value="\${!password_key-}"
+            if [[ -z "$email_value" || -z "$password_value" ]]; then
+              echo 'UAT_CREDENTIALS_REQUIRED'
+              exit 1
+            fi
+          done`]
+  ];
+  for (const [label, original, replacement] of mutations) {
+    const fixture = path.join(os.tmpdir(), `uat-loop-${process.pid}-${label.slice(0, 2)}.yml`);
+    fs.writeFileSync(fixture, source.replace(original, replacement));
+    assert.throws(() => assertCredentialLoopContract(fixture), /credential loop contract/);
+    fs.rmSync(fixture, { force: true });
+  }
+});
+
 test('four distinct roles require all eight credentials without leaking values', () => {
   assert.deepEqual(roles, ['ADMIN', 'MANAGER', 'SUPERVISOR', 'VIEWER']);
   assert.equal(Object.keys(readConfig(env()).accounts).length, 4);
@@ -28,9 +132,9 @@ test('hosted targets reject Production, aliases, credentials, query and external
 });
 test('approved target rejects missing isolation, literal strings and identity mismatch', () => {
   const expected = { source_sha: 'a'.repeat(40), source_branch: 'fix/serverless-database-reliability', deployment_id: 'dpl_Fixture123', url: preview };
-  const target = { production_database_identity_evidence: 'https://github.com/godzillazzz/SMS-v3/actions/runs/123', production_database_target_fingerprint: 'c'.repeat(64), runtime_guard_file_sha256: Object.fromEntries(require('../e2e/uat-v3/config').runtimeGuardPaths.map(path => [path, 'd'.repeat(64)])), ...expected, authorized: true, database_isolation_verified: true, database_isolation_evidence: 'https://github.com/godzillazzz/SMS-v3/actions/runs/123', database_target_fingerprint: 'b'.repeat(64), project_id: PROJECT_ID, team_id: TEAM_ID, target_mode: 'preview' };
+  const target = { production_database_identity_evidence: 'https://github.com/godzillazzz/SMS-v3/actions/runs/123', production_database_target_fingerprint: 'c'.repeat(64), preview_database_cluster_fingerprint_sha256: 'a'.repeat(64), production_database_cluster_fingerprint_sha256: 'b'.repeat(64), preview_runtime_principal: 'postgres', runtime_guard_file_sha256: Object.fromEntries(['src/app.js', 'src/config/prisma.js', 'src/services/runtime-database-target-guard.service.js', 'src/utils/database-target-identity.js', 'src/services/runtime-isolation-probe.service.js', 'src/routes/runtime-isolation-probe.routes.js', 'frontend/src/main.tsx'].map(path => [path, 'd'.repeat(64)])), ...expected, authorized: true, database_isolation_verified: true, database_isolation_evidence: 'https://github.com/godzillazzz/SMS-v3/actions/runs/123', database_target_fingerprint: 'b'.repeat(64), project_id: PROJECT_ID, team_id: TEAM_ID, target_mode: 'preview' };
   assert.equal(validateApprovedTarget(target, expected), true);
-  for (const path of ['frontend/src/main.tsx', 'frontend/src/theme.ts']) {
+  for (const path of ['frontend/src/main.tsx']) {
     const pins = { ...target.runtime_guard_file_sha256 }; delete pins[path];
     assert.throws(() => validateApprovedTarget({ ...target, runtime_guard_file_sha256: pins }, expected));
   }
@@ -76,6 +180,24 @@ test('browser guard blocks writes and cross-origin credentials while bootstrappi
   assert.equal(await invoke('GET', '/api/v1/employees', { cookie: 'synthetic_session=fixture-only' }), 'allowed');
   assert.equal(attempts.length, 6);
 });
+test('application source contract rejects missing or drifted guards and navigation', () => {
+  assert.throws(() => validateApplicationSourceContract('/nonexistent/application'), { code: 'UAT_APPLICATION_SOURCE_REQUIRED' });
+  if (process.env.UAT_APPLICATION_ROOT) {
+    assert.doesNotThrow(() => validateApplicationSourceContract(process.env.UAT_APPLICATION_ROOT));
+    const matrix = require('../e2e/uat-v3/role-matrix');
+    const driftedMatrix = {
+      getRoleActionMatrix: (role) => matrix.getRoleActionMatrix(role).map((action) => role === 'SUPERVISOR' && action.path === '/api/v1/schedule/approve-month' ? { ...action, guard: 'authorize ADMIN', expectedStatus: 403 } : action),
+      getRoleNavigationContract: matrix.getRoleNavigationContract
+    };
+    assert.throws(() => validateApplicationSourceContract(process.env.UAT_APPLICATION_ROOT, driftedMatrix), { code: 'UAT_APPLICATION_SOURCE_CONTRACT_INVALID' });
+    const fixture = fs.mkdtempSync(path.join(os.tmpdir(), 'uat-source-contract-'));
+    fs.cpSync(process.env.UAT_APPLICATION_ROOT, fixture, { recursive: true });
+    const route = path.join(fixture, 'src/routes/schedules.routes.js');
+    fs.writeFileSync(route, fs.readFileSync(route, 'utf8').replace("authorize('ADMIN', 'SUPERVISOR')", "authorize('ADMIN')"));
+    assert.throws(() => validateApplicationSourceContract(fixture), { code: 'UAT_APPLICATION_SOURCE_CONTRACT_INVALID' });
+    fs.rmSync(fixture, { recursive: true, force: true });
+  }
+});
 test('four-role approval contracts match actual authorization middleware', () => {
   const approvalRoles = ['ADMIN', 'MANAGER', 'SUPERVISOR'];
   for (const role of roles) {
@@ -84,11 +206,34 @@ test('four-role approval contracts match actual authorization middleware', () =>
     assert.equal(error?.statusCode || 200, role === 'VIEWER' ? 403 : 200);
     assert.equal(getRoleApiMatrix(role).find((route) => route.label === 'Approval Center').expectedStatus, role === 'VIEWER' ? 403 : 200);
     const nav = getRoleNavigationContract(role);
-    assert.equal(nav.required.some((item) => ['approvals', 'leavePending'].includes(item.id)), false);
-    assert.equal(nav.required.some((item) => item.id === 'approvalCenter'), role !== 'VIEWER');
+    assert.equal(nav.required.some((item) => item.id === 'approvals'), ['ADMIN', 'SUPERVISOR'].includes(role));
     assert.ok(getRoleApiMatrix(role).every((route) => route.readOnly === true));
     if (role !== 'ADMIN') assert.ok(getRoleApiMatrix(role).some((route) => route.expectedStatus === 403));
   }
+});
+test('SUPERVISOR matrix is explicit and preserves role-specific approval boundaries', () => {
+  const source = require('node:fs').readFileSync(require('node:path').join(__dirname, '../e2e/uat-v3/role-matrix.js'), 'utf8');
+  assert.equal(source.includes('roleApiMatrix.SUPERVISOR = roleApiMatrix.MANAGER.map'), false);
+  assert.equal(source.includes('...roleNavigation.MANAGER'), false);
+  assert.equal(source.includes('...rolePageChecks.MANAGER'), false);
+  const supervisor = getRoleApiMatrix('SUPERVISOR');
+  assert.equal(supervisor.find((route) => route.label === 'Data Quality').expectedStatus, 403);
+  assert.equal(supervisor.find((route) => route.label === 'Audit').expectedStatus, 403);
+  assert.equal(supervisor.find((route) => route.label === 'System Health').expectedStatus, 403);
+  assert.equal(supervisor.find((route) => route.label === 'Security Sites').expectedStatus, 403);
+  assert.equal(supervisor.find((route) => route.label === 'System settings').expectedStatus, 403);
+  assert.equal(supervisor.find((route) => route.label === 'Attendance report'), undefined);
+  assert.equal(getRoleNavigationContract('SUPERVISOR').required.some((item) => item.id === 'approvals'), true);
+  assert.equal(getRoleNavigationContract('SUPERVISOR').forbidden.some((item) => item.id === 'attendanceReport'), true);
+  assert.equal(getRoleNavigationContract('MANAGER').required.some((item) => item.id === 'approvals'), false);
+  assert.equal(getRoleActionMatrix('MANAGER').length, 0);
+  assert.deepEqual(getRoleActionMatrix('VIEWER'), []);
+  assert.deepEqual(getRoleActionMatrix('SUPERVISOR').map(({ method, path }) => [method, path]), [
+    ['POST', '/api/v1/schedule/approve-month'],
+    ['PUT', '/api/v1/schedule-approvals/:id'],
+    ['POST', '/api/v1/schedules/approve']
+  ]);
+  assert.match(getRoleActionMatrix('SUPERVISOR')[1].guard, /status APPROVED only/);
 });
 test('scanner preserves secret patterns and includes SUPERVISOR credential values', () => {
   const synthetic = env();

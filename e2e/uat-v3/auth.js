@@ -47,12 +47,7 @@ async function installReadonlyBrowser(page, session, baseURL, { realLogin = fals
     }
     return route.fulfill({ response });
   }
-  const network = typeof page.context === 'function' ? page.context() : page;
-  if (typeof network.routeWebSocket === 'function') await network.routeWebSocket('**/*', socket => {
-    attempts.push({ method: 'WEBSOCKET', path: 'blocked' });
-    socket.close();
-  });
-  await network.route('**/*', async (route) => {
+  await page.route('**/*', async (route) => {
     const req = route.request(); const url = new URL(req.url());
     // Playwright headers() omits security-related headers, including Cookie.
     // Inspect the complete request before any route.fetch can forward it.

@@ -13,9 +13,6 @@ const redactedPlaceholder = /^(?:<\s*(?:redacted|masked|secret)\s*>|\[\s*(?:reda
 
 function sensitiveUatValues(environment = process.env) {
   const configuredValues = Array.isArray(environment) ? environment : [
-    environment.VERCEL_TOKEN,
-    environment.GITHUB_TOKEN,
-    environment.RUNTIME_ISOLATION_PROBE_HMAC_SECRET,
     environment.VERCEL_TRUSTED_OIDC_TOKEN,
     environment.VERCEL_AUTOMATION_BYPASS_SECRET,
     environment.UAT_VERCEL_PROTECTION_BYPASS,

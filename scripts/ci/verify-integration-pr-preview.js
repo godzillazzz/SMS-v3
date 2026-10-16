@@ -1,5 +1,6 @@
 'use strict';
 
+const { verifyPreviewRuntime } = require('./verify-preview-runtime');
 
 const REPOSITORY = 'godzillazzz/SMS-v3';
 const COMMIT_PREVIEW_HOST = /^sms-v3-staging-[a-z0-9]{9}-godzillazz\.vercel\.app$/;
@@ -47,4 +48,19 @@ async function resolvePreview({ sha, branch, repository, token, fetchImpl = glob
   throw new Error('EXACT_HEAD_VERCEL_PREVIEW_NOT_READY');
 }
 
-module.exports = { COMMIT_PREVIEW_HOST, commitPreviewOrigin, resolvePreview };
+async function main({ env = process.env, fetchImpl = globalThis.fetch, log = console.log, error = console.error } = {}) {
+  try {
+    const preview = await resolvePreview({ sha: env.EXPECTED_PR_HEAD_SHA, branch: env.EXPECTED_PR_HEAD_REF,
+      repository: env.GITHUB_REPOSITORY, token: env.GITHUB_TOKEN, fetchImpl });
+    log(`PREVIEW_EXACT_HEAD_SHA=${preview.sha}`);
+    log(`PREVIEW_GITHUB_DEPLOYMENT_ID=${preview.deploymentId}`);
+    await verifyPreviewRuntime({ baseUrl: preview.origin, verifiedCommitOrigin: preview.origin, env, fetchImpl, log });
+    return 0;
+  } catch (reason) {
+    error(`PREVIEW_RUNTIME_FAILED=${reason.message}`);
+    return 1;
+  }
+}
+
+if (require.main === module) main().then(status => { process.exitCode = status; });
+module.exports = { COMMIT_PREVIEW_HOST, commitPreviewOrigin, resolvePreview, main };

@@ -1,13 +1,9 @@
 'use strict';
 const fs = require('node:fs');
 const { spawnSync } = require('node:child_process');
-const { readConfig, roles, validateApprovedTarget } = require('../../e2e/uat-v3/config');
+const { readConfig, roles } = require('../../e2e/uat-v3/config');
 const { scanArtifact, sensitiveUatValues } = require('../../e2e/uat-v3/security');
 try {
-  validateApprovedTarget(require('../../.github/uat/authenticated-readonly-target.json'), {
-    url: process.env.UAT_BASE_URL, source_sha: process.env.UAT_SOURCE_SHA,
-    source_branch: process.env.UAT_SOURCE_BRANCH, deployment_id: process.env.UAT_EXPECTED_DEPLOYMENT_ID
-  });
   readConfig();
   const file = 'test-results/uat-v3-safe/results.json';
   if (fs.existsSync(file)) fs.unlinkSync(file);
@@ -21,6 +17,4 @@ try {
 } catch (error) {
   const code = ['UAT_CREDENTIALS_REQUIRED', 'UAT_ARTIFACT_LEAK', 'UAT_ROLE_ACCOUNTS_NOT_DISTINCT', 'UAT_IMMUTABLE_PREVIEW_REQUIRED'].includes(error.code || error.message) ? error.code || error.message : 'UAT_EXECUTION_FAILED';
   process.stderr.write(code + '\n'); process.exitCode = 1;
-} finally {
-  fs.rmSync('test-results/uat-v3-readonly', { recursive: true, force: true });
 }

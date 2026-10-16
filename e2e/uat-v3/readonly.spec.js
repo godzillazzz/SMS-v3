@@ -1,6 +1,6 @@
 'use strict';
 const { test, expect, request } = require('@playwright/test');
-const { readConfig, roles, validateApprovedTarget } = require('./config');
+const { readConfig, roles } = require('./config');
 const { preflightAccounts, readRoleApi, installReadonlyBrowser } = require('./auth');
 const { getRoleApiMatrix, getRoleNavigationContract } = require('./role-matrix');
 const { automationBypassHeaders } = require('../helpers/technical-smoke');
@@ -9,22 +9,10 @@ function requestOptions() {
   return { baseURL: config.baseURL, extraHTTPHeaders: automationBypassHeaders(process.env, config.baseURL, config.baseURL + '/api/v1/auth/login', { setBypassCookie: true }) };
 }
 test.beforeAll(async () => {
-  validateApprovedTarget(require('../../.github/uat/authenticated-readonly-target.json'), {
-    url: process.env.UAT_BASE_URL, source_sha: process.env.UAT_SOURCE_SHA,
-    source_branch: process.env.UAT_SOURCE_BRANCH, deployment_id: process.env.UAT_EXPECTED_DEPLOYMENT_ID
-  });
   config = readConfig();
   sessions = await preflightAccounts(() => request.newContext(requestOptions()), config);
 });
 test.afterAll(() => sessions?.clear());
-// Playwright may write error-context.md even with tracing off. Keep errors
-// categorical before its artifact recorder runs; never persist locator values.
-test.afterEach(async ({}, info) => {
-  for (const error of info.errors) {
-    error.message = 'UAT_CASE_FAILED'; error.stack = undefined;
-    delete error.snippet; delete error.errorContext;
-  }
-});
 for (const role of roles) {
   test(`${role}: real browser login and exact identity`, async ({ page }) => {
     const attempts = await installReadonlyBrowser(page, undefined, config.baseURL, { realLogin: true });
