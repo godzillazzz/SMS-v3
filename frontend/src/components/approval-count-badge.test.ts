@@ -50,7 +50,7 @@ describe('approval count badge presentation', () => {
     expect(approvalMenuCount('approvalCenter', summary)).toBe(100);
     expect(approvalMenuCount('employees', summary)).toBe(5);
     expect(approvalMenuCount('licenses', summary)).toBe(5);
-    expect(approvalMenuCount('approvals', summary)).toBe(7);
+    expect(approvalMenuCount('approvals', summary)).toBe(null);
     expect(approvalMenuCount('attendanceDevice', summary)).toBe(11);
     expect(approvalMenuCount('attendanceSupervisor', summary)).toBe(13);
     expect(approvalMenuCount('users', summary)).toBe(36);

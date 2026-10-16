@@ -55,8 +55,10 @@ describe('Approval Center Command Nexus frontend contracts', () => {
     expect(client).toContain('export function invalidateApprovalCenter(): void');
   });
 
-  it('keeps native review entry points for every currently actionable approval source', () => {
-    expect(main).toContain("{ id: 'approvals', icon: 'approval', label: 'อนุมัติตารางกะ' }");
+  it('keeps schedule approval reachable from Approval Center without a sidebar shortcut', () => {
+    expect(main).not.toContain("{ id: 'approvals', icon: 'approval', label: 'อนุมัติตารางกะ' }");
+    expect(main).not.toContain("approvals: ['ADMIN', 'SUPERVISOR']");
+    expect(main).toContain("{ id: 'approvalCenter', icon: 'bell', label: 'ศูนย์อนุมัติ' }");
     expect(main).toContain("{ id: 'leavePending', icon: 'approval', label: 'อนุมัติคำขอลา' }");
     expect(routing).toContain("if (page === 'approvals') return ['ADMIN', 'SUPERVISOR'].includes(auth.user?.role || '') && !auth.isViewingAs");
     expect(routing).toContain("if (page === 'leavePending') return ['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(auth.user?.role || '') && !auth.isViewingAs");

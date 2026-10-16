@@ -19,7 +19,6 @@ export type ApprovalCountSummary = {
 const APPROVAL_MENU_TYPES: Readonly<Record<string, readonly ApprovalCountType[]>> = Object.freeze({
   employees: ['EMPLOYEE_MASTER_CHANGE', 'EMPLOYEE_REFERENCE_PHOTO'],
   licenses: ['LICENSE_DOCUMENT'],
-  approvals: ['SCHEDULE_APPROVAL'],
   attendanceDevice: ['ATTENDANCE_DEVICE_REQUEST'],
   attendanceSupervisor: ['ATTENDANCE_ADJUSTMENT_REQUEST'],
   users: ['REGISTRATION_REQUEST', 'USER_ACCESS'],

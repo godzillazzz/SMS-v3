@@ -128,7 +128,6 @@ const APPROVAL_COUNT_MENU_ROLES: Readonly<Record<string, readonly string[]>> = O
   approvalCenter: APPROVAL_REVIEWER_ROLES,
   employees: ['ADMIN'],
   licenses: ['ADMIN'],
-  approvals: ['ADMIN', 'SUPERVISOR'],
   attendanceDevice: ['ADMIN'],
   attendanceSupervisor: ['ADMIN'],
   users: APPROVAL_REVIEWER_ROLES,
@@ -195,7 +194,6 @@ const navigation: Array<{ label: string; items: Array<{ id: Page; icon: SmsIconN
   ] },
   { label: 'ตารางกะ', items: [
     { id: 'schedule', icon: 'calendar', label: 'ตารางกะรายเดือน' },
-    { id: 'approvals', icon: 'approval', label: 'อนุมัติตารางกะ' },
     { id: 'shiftSetup', icon: 'clock', label: 'รหัสกะและเวลา' },
     { id: 'rules', icon: 'shield', label: 'ตรวจสอบกฎการทำงาน' }
   ] },

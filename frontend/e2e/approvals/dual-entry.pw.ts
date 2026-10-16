@@ -33,27 +33,24 @@ async function signIn(page: Page, target: string, role: 'ADMIN' | 'MANAGER' | 'S
   expect((await loginResponse).status()).toBe(200);
 }
 
-test('Admin can open schedule approvals from the native sidebar on desktop and reload it', async ({ page }, testInfo: TestInfo) => {
+test('Admin sees no schedule-approval sidebar shortcut and can use Approval Center on desktop', async ({ page }, testInfo: TestInfo) => {
   await page.setViewportSize({ width: 1366, height: 768 });
   await signIn(page, '/app', 'ADMIN');
-  await expect(page.locator('[data-navigation-id="approvals"]')).toBeVisible();
-  await page.locator('[data-navigation-id="approvals"]').click();
-  await expect(page.getByRole('heading', { name: 'อนุมัติตารางกะ' })).toBeVisible();
-  await expect(page).toHaveURL('/app/roster/approvals');
-  await page.reload();
-  await expect(page).toHaveURL('/app/roster/approvals');
-  await expect(page.getByRole('heading', { name: 'อนุมัติตารางกะ' })).toBeVisible();
+  await expect(page.locator('[data-navigation-id="approvals"]')).toHaveCount(0);
+  await page.locator('[data-navigation-id="approvalCenter"]').click();
+  await expect(page.getByRole('heading', { name: 'ศูนย์อนุมัติคำขอ' })).toBeVisible();
+  await expect(page.locator('.approval-center-page')).toBeVisible();
   await page.screenshot({ path: testInfo.outputPath('approval-native-schedule-desktop.png'), fullPage: true });
 });
 
-test('Supervisor can open both native approval queues from the mobile drawer and direct URLs', async ({ page }, testInfo: TestInfo) => {
+test('Supervisor sees no schedule-approval sidebar shortcut on mobile and can use Approval Center', async ({ page }, testInfo: TestInfo) => {
   await page.setViewportSize({ width: 375, height: 812 });
   await signIn(page, '/app', 'SUPERVISOR');
   await page.getByRole('button', { name: 'เปิดเมนูหลัก' }).click();
-  await expect(page.locator('[data-navigation-id="approvals"]')).toBeVisible();
-  await page.locator('[data-navigation-id="approvals"]').click();
-  await expect(page.getByRole('heading', { name: 'อนุมัติตารางกะ' })).toBeVisible();
-  await expect(page).toHaveURL('/app/roster/approvals');
+  await expect(page.locator('[data-navigation-id="approvals"]')).toHaveCount(0);
+  await page.locator('[data-navigation-id="approvalCenter"]').click();
+  await expect(page.getByRole('heading', { name: 'ศูนย์อนุมัติคำขอ' })).toBeVisible();
+  await expect(page.locator('.approval-center-page')).toBeVisible();
   await page.goto('/app/leave/approvals');
   await expect(page).toHaveURL('/app/leave/approvals');
   await expect(page.getByRole('heading', { name: 'อนุมัติคำขอลา' })).toBeVisible();
