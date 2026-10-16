@@ -16,8 +16,12 @@ describe('G04.2 UX-05 Registration Review workbench contract', () => {
     expect(panel).toContain('DataTablePagination');
     expect(panel).toContain('const focusedRequestId = initialRequestRef.current;');
     expect(panel).toContain('api.registrationRequest(token, focusedRequestId)');
-    expect(panel).toContain('const preferredId = focusedRequest?.id || focusedRequestId;');
-    expect(panel).toContain('rowsWithFocus.some((row) => row.id === preferredId)');
+    // An exact deep-link is accepted only when the fetched detail has the requested id; no current/first-row fallback is allowed.
+    expect(panel).toContain('const exactTargetFound = Boolean(focusedRequest && focusedRequest.id === focusedRequestId)');
+    expect(panel).toContain("focusedRequestId\n        ? exactTargetFound ? String(focusedRequestId) : ''");
+    // A 404/403/5xx exact-target failure is surfaced as an alert while leaving every row unselected.
+    expect(panel).toContain("setError('ไม่พบคำขอลงทะเบียนที่ต้องการเปิดรายละเอียด (404)')");
+    expect(panel).toContain('role="alert" aria-live="assertive"');
     expect(panel).toContain('const selectRequest = (id: string) => { setSelectedId(id); setMobileDetail(true); };');
     expect(panel).toContain('aria-pressed={row.id === selectedId}');
     expect(panel).toContain("onClick={() => selectRequest(row.id)}");

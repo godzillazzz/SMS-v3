@@ -42,7 +42,12 @@ describe('Q12-A data scale and export correctness contracts', () => {
     expect(employeeChange).toContain('pageMeta.totalPages');
     expect(employeeChange).toContain('DataTablePagination');
     expect(employeeChange).toContain('api.employeeChangeRequest(token, initialRequestId)');
-    expect(employeeChange).toContain("requested?.status === 'PENDING_APPROVAL'");
+    // The deep-linked target is selected only after its exact id and actionable status are verified; this guards against selecting an unrelated queue row.
+    expect(employeeChange).toContain("requested?.id === initialRequestId && requested.status === 'PENDING_APPROVAL'");
+    // A failed exact-target lookup must leave the selection empty rather than falling back to the first queue item.
+    expect(employeeChange).toContain("initialRequestId ? '' : data.some((row) => row.id === current) ? current : data[0]?.id || ''");
+    // The target-load failure remains observable to assistive technology through the modal error alert.
+    expect(employeeChange).toContain('<div role="alert" className="employee-governed-alert employee-governed-alert--error">');
   });
 
   it('makes current-page CSV scope explicit instead of implying a full result export', () => {
