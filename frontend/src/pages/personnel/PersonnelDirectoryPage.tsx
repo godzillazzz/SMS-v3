@@ -34,6 +34,7 @@ type Props = {
   onReviewChanges?(): void;
   onEdit(employee: PersonnelRecord): void;
   initialEmployeeId?: string;
+  onInitialTargetHandled?(): void;
 };
 
 const pageSize = 10;
@@ -44,7 +45,7 @@ type ReadinessSnapshot = {
   byEmployeeId: Record<string, EmployeeReadinessStatus>;
 };
 
-export function PersonnelDirectoryPage({ token, refreshKey, canManage, role, searchValue, onSearchValueChange, onAdd, onReviewChanges, onEdit, initialEmployeeId }: Props) {
+export function PersonnelDirectoryPage({ token, refreshKey, canManage, role, searchValue, onSearchValueChange, onAdd, onReviewChanges, onEdit, initialEmployeeId, onInitialTargetHandled }: Props) {
   const [employees, setEmployees] = useState<PersonnelRecord[]>([]);
   const [meta, setMeta] = useState<DirectoryMeta>({ page: 1, pageSize, total: 0, totalPages: 1, departments: [], summary: { total: 0, active: 0, incomplete: 0 } });
   const [requestLoading, setRequestLoading] = useState(false);
@@ -87,6 +88,7 @@ export function PersonnelDirectoryPage({ token, refreshKey, canManage, role, sea
     if (employee) {
       lastSelectedId.current = employee.id;
       setSelected(employee);
+      onInitialTargetHandled?.();
     }
   }, [employees, initialEmployeeId]);
 

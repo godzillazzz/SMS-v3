@@ -317,7 +317,7 @@ function CorrectionModal({ document, services, onClose, onChanged }: { document:
   </ModalFrame>;
 }
 
-export function LicenseEditModal({ license, isAdmin, currentUserId, services, initialDocumentId, onUpload, onChanged, onClose }: { license: LicenseIdentity; isAdmin: boolean; currentUserId: string; services: Services; initialDocumentId?: string; onUpload: (data: UploadData, file: File) => Promise<void>; onChanged: (message: string) => void; onClose: () => void }) {
+export function LicenseEditModal({ license, isAdmin, currentUserId, services, initialDocumentId, onInitialDocumentHandled, onUpload, onChanged, onClose }: { license: LicenseIdentity; isAdmin: boolean; currentUserId: string; services: Services; initialDocumentId?: string; onInitialDocumentHandled?(): void; onUpload: (data: UploadData, file: File) => Promise<void>; onChanged: (message: string) => void; onClose: () => void }) {
   const [tab, setTab] = useState<'details' | 'documents'>('details');
   const [documents, setDocuments] = useState<LicenseDocument[]>([]);
   const [file, setFile] = useState<File>();
@@ -336,7 +336,11 @@ export function LicenseEditModal({ license, isAdmin, currentUserId, services, in
   useEffect(() => {
     if (!initialDocumentId) return;
     setTab('documents');
-    if (documents.some((document) => document.id === initialDocumentId)) setReviewDocument(documents.find((document) => document.id === initialDocumentId));
+    const target = documents.find((document) => document.id === initialDocumentId);
+    if (target) {
+      setReviewDocument(target);
+      onInitialDocumentHandled?.();
+    }
   }, [documents, initialDocumentId]);
   const summary = selectLicenseDocumentSummary(documents);
   const submit = async (event: React.FormEvent) => {

@@ -12,7 +12,7 @@ import '../../styles/employee-governed-edit.css';
 type Revision = { revision: number; beforeSnapshot: Record<string, unknown>; afterSnapshot: Record<string, unknown>; changedFields: string[]; effectiveMode: 'IMMEDIATE' | 'FUTURE_EFFECTIVE'; effectiveDate?: string | null; reason?: string | null; submittedAt: string; submittedBy?: { displayName?: string; role?: string } };
 type Event = { action: string; metadata?: { impacts?: Record<string, number>; warningCodes?: string[] } | null };
 type RequestRow = { id: string; status: string; currentRevision: number; employeeId: string; requestOwnerRoleSnapshot?: string; employee?: { employeeCode?: string; firstName?: string; lastName?: string; department?: string; jobTitle?: string }; requestOwner?: { displayName?: string; role?: string }; revisions?: Revision[]; events?: Event[]; createdAt?: string };
-type Props = { token: string; initialRequestId?: string; onClose(): void; onChanged(): void };
+type Props = { token: string; initialRequestId?: string; onClose(): void; onChanged(): void; onInitialRequestHandled?(): void };
 const labels: Record<string, string> = { employeeCode: 'รหัสพนักงาน', firstName: 'ชื่อ', lastName: 'นามสกุล', department: 'หน่วยงาน', jobTitle: 'ตำแหน่ง', isActive: 'สถานะการทำงาน' };
 const show = (field: string, value: unknown) => field === 'isActive' ? (value === true ? 'ACTIVE' : 'TERMINATED') : value === null || value === undefined || value === '' ? '—' : String(value);
 const codeOf = (error: unknown) => error instanceof ApiRequestError && error.details && typeof error.details === 'object' && 'code' in error.details ? String((error.details as { code?: unknown }).code || '') : '';
@@ -21,7 +21,7 @@ const returnAction = approvalActionPresentation('RETURN_FOR_CORRECTION');
 const rejectAction = approvalActionPresentation('REJECT');
 const requestStatusLabels: Record<string, string> = { DRAFT: 'ฉบับร่าง', PENDING_APPROVAL: 'รออนุมัติ', RETURNED_FOR_CORRECTION: 'ส่งกลับให้แก้ไข', APPROVED: 'อนุมัติแล้ว', REJECTED: 'ไม่อนุมัติ', CANCELLED: 'ยกเลิกแล้ว' };
 
-export function EmployeeChangeReviewModal({ token, initialRequestId, onClose, onChanged }: Props) {
+export function EmployeeChangeReviewModal({ token, initialRequestId, onClose, onChanged, onInitialRequestHandled }: Props) {
   const closeRef = useRef<HTMLButtonElement | null>(null);
   const [rows, setRows] = useState<RequestRow[]>([]);
   const [page, setPage] = useState(1);
@@ -32,7 +32,7 @@ export function EmployeeChangeReviewModal({ token, initialRequestId, onClose, on
   const [error, setError] = useState<RequestErrorInput>();
   const [reviewComment, setReviewComment] = useState('');
   const [acknowledgeWarnings, setAcknowledgeWarnings] = useState(false);
-  const selected = rows.find((row) => row.id === selectedId) || rows[0];
+  const selected = rows.find((row) => row.id === selectedId);
   const revision = useMemo(() => selected?.revisions?.find((item) => item.revision === selected.currentRevision) || (selected?.revisions && selected.revisions.length ? selected.revisions[selected.revisions.length - 1] : undefined), [selected]);
   const submitEvent = [...(selected?.events || [])].reverse().find((event) => ['SUBMIT', 'RESUBMIT'].includes(event.action));
   const impacts = submitEvent?.metadata?.impacts || {};
@@ -55,13 +55,26 @@ export function EmployeeChangeReviewModal({ token, initialRequestId, onClose, on
       const nextTotalPages = Math.max(1, Number(result?.meta?.totalPages || 1));
       setPageMeta({ total: Number(result?.meta?.total || 0), totalPages: nextTotalPages });
       if (page > nextTotalPages) { setPage(nextTotalPages); return; }
+      let targetFound = !initialRequestId;
       if (initialRequestId && !data.some((row) => row.id === initialRequestId)) {
-        const detail = await api.employeeChangeRequest(token, initialRequestId).catch(() => undefined);
-        const requested = detail?.data as RequestRow | undefined;
-        if (requested?.status === 'PENDING_APPROVAL') data = [requested, ...data];
+        try {
+          const detail = await api.employeeChangeRequest(token, initialRequestId);
+          const requested = detail?.data as RequestRow | undefined;
+          if (requested?.id === initialRequestId && requested.status === 'PENDING_APPROVAL') {
+            data = [requested, ...data];
+            targetFound = true;
+          }
+        } catch (cause) {
+          setError(toRequestErrorState(cause, 'ไม่พบคำขอแก้ไขข้อมูลพนักงานที่ต้องการ'));
+        }
+      } else if (initialRequestId) {
+        targetFound = true;
       }
       setRows(data);
-      setSelectedId((current) => data.some((row) => row.id === current) ? current : data.some((row) => row.id === initialRequestId) ? String(initialRequestId) : data[0]?.id || '');
+      setSelectedId((current) => initialRequestId && targetFound
+        ? String(initialRequestId)
+        : initialRequestId ? '' : data.some((row) => row.id === current) ? current : data[0]?.id || '');
+      if (initialRequestId && targetFound) onInitialRequestHandled?.();
     }
     catch (cause) { setError(toRequestErrorState(cause, 'ไม่สามารถโหลดคิวคำขอแก้ไขทะเบียนพนักงานได้')); }
     finally { setLoading(false); }
@@ -90,7 +103,7 @@ export function EmployeeChangeReviewModal({ token, initialRequestId, onClose, on
       <header className="employee-governed-header"><div><p>ตรวจสอบคำขอแก้ไขข้อมูลพนักงาน</p><h2 id="employee-review-title">คำขอแก้ไขข้อมูลพนักงาน</h2><span>แสดงเฉพาะคำขอที่รออนุมัติ</span></div><button ref={closeRef} type="button" aria-label="ปิด" onClick={onClose} disabled={busy}><SmsIcon name="close" size={20} /></button></header>
       <div className="employee-review-layout">
         <aside className="employee-review-queue"><div className="employee-review-queue-title"><strong>รอตรวจสอบ</strong><span>{rows.length}/{pageMeta.total} รายการ</span></div>{loading ? <p>กำลังโหลด…</p> : rows.length ? rows.map((row) => <button type="button" key={row.id} className={selected?.id === row.id ? 'is-selected' : ''} onClick={() => { setSelectedId(row.id); setReviewComment(''); setError(undefined); }}><strong>{row.employee?.firstName} {row.employee?.lastName}</strong><span>{row.employee?.employeeCode} · ฉบับที่ {row.currentRevision}</span><small>โดย {row.requestOwner?.displayName || roleDisplayName('MANAGER')}</small></button>) : <div className="employee-governed-empty">ไม่มีคำขอที่รออนุมัติ</div>}<DataTablePagination page={page} totalPages={pageMeta.totalPages} onChange={setPage} ariaLabel="แบ่งหน้าคำขอแก้ไขทะเบียนพนักงาน" loading={loading} className="employee-review-pagination" /></aside>
-        <div className="employee-review-detail">{error && <div className="employee-governed-alert employee-governed-alert--error"><RequestErrorContent error={error} /></div>}{selected && revision ? <>
+        <div className="employee-review-detail">{error && <div role="alert" className="employee-governed-alert employee-governed-alert--error"><RequestErrorContent error={error} /></div>}{selected && revision ? <>
           <section className="employee-review-summary"><div><small>พนักงาน</small><strong>{selected.employee?.firstName} {selected.employee?.lastName}</strong><span>{selected.employee?.employeeCode} · {selected.employee?.department || 'ไม่ระบุหน่วยงาน'}</span></div><div><small>ผู้ส่งคำขอ</small><strong>{selected.requestOwner?.displayName || roleDisplayName('MANAGER')}</strong><span>{roleDisplayName(selected.requestOwnerRoleSnapshot || selected.requestOwner?.role || 'MANAGER')} · ฉบับที่ {revision.revision}</span><span>{new Intl.DateTimeFormat('th-TH', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(revision.submittedAt))}</span></div><div><small>สถานะ / วันที่มีผล</small><strong>{requestStatusLabels[selected.status] || 'ไม่ระบุสถานะ'}</strong><span>{revision.effectiveMode === 'FUTURE_EFFECTIVE' ? `กำหนดวันมีผลล่วงหน้า · ${String(revision.effectiveDate || '').slice(0, 10)}` : 'มีผลทันที · เมื่ออนุมัติสำเร็จ'}</span></div></section>
           <section className="employee-review-diff"><h3>ก่อนเปลี่ยน → หลังเปลี่ยน · เฉพาะข้อมูลที่เปลี่ยน</h3>{revision.changedFields.map((field: string) => <article key={field}><strong>{labels[field] || field}</strong><span>{show(field, revision.beforeSnapshot[field])}</span><i>→</i><span>{show(field, revision.afterSnapshot[field])}</span></article>)}{revision.reason && <p><b>เหตุผล:</b> {revision.reason}</p>}</section>
           <section className="employee-review-impact"><h3>ผลกระทบที่บันทึกตอนส่งคำขอ</h3><div className="employee-impact-grid"><span>เวรในอนาคต <b>{impacts.futureShiftAssignments || 0}</b></span><span>ลารอพิจารณา <b>{impacts.pendingLeaveRequests || 0}</b></span><span>ลาอนุมัติในอนาคต <b>{impacts.approvedFutureLeaveRequests || 0}</b></span><span>ใบอนุญาต <b>{impacts.activeLicenses || 0}</b></span></div>{warningCodes.length > 0 && <label className="employee-warning-confirm"><input type="checkbox" checked={acknowledgeWarnings} onChange={(event) => setAcknowledgeWarnings(event.target.checked)} /> ตรวจสอบผลกระทบแล้วและยืนยันอนุมัติ</label>}</section>

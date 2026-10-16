@@ -38,6 +38,7 @@ type Props = {
   onOpenAudit(): void;
   onProvisionG06Uat?: () => Promise<G06UatProvisionResult>;
   initialAccountId?: string;
+  onInitialTargetHandled?(): void;
 };
 
 type Dialog = 'edit' | 'approve' | 'reset' | 'view-as' | 'confirm' | undefined;
@@ -154,7 +155,7 @@ function Modal({ title, eyebrow, tone = 'default', children, onClose }: { title:
   return <div className="account-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}><section ref={modalRef} className={`account-modal account-modal--${tone}`} role="dialog" aria-modal="true" aria-labelledby="account-modal-title" tabIndex={-1}><header><div><p>{eyebrow}</p><h2 id="account-modal-title">{title}</h2></div><button type="button" className="drawer-close overlay-close" onClick={onClose} aria-label="ปิดหน้าต่าง"><SmsIcon name="close" size={20} /></button></header>{children}</section></div>;
 }
 
-export function AccessManagementPage({ rows, loading, error, role, originalUserId, onRefresh, onUpdate, onResetPassword, onViewAs, onOpenAudit, onProvisionG06Uat, initialAccountId }: Props) {
+export function AccessManagementPage({ rows, loading, error, role, originalUserId, onRefresh, onUpdate, onResetPassword, onViewAs, onOpenAudit, onProvisionG06Uat, initialAccountId, onInitialTargetHandled }: Props) {
   const [selected, setSelected] = useState<AccountRecord>();
   const [dialog, setDialog] = useState<Dialog>();
   const [target, setTarget] = useState<AccountRecord>();
@@ -177,7 +178,10 @@ export function AccessManagementPage({ rows, loading, error, role, originalUserI
   useEffect(() => {
     if (initialAccountId) {
       const account = rows.find((row) => String(row.id) === String(initialAccountId));
-      if (account) setSelected(account);
+      if (account) {
+        setSelected(account);
+        onInitialTargetHandled?.();
+      }
     }
   }, [initialAccountId, rows]);
   const closeDetails = () => { setSelected(undefined); window.setTimeout(() => triggerRef.current?.focus(), 0); };

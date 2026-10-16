@@ -34,6 +34,7 @@ type Props = {
   userId?: string;
   onOpenAttendanceReport?: () => void;
   initialRequestId?: string;
+  onInitialRequestHandled?(): void;
   onApprovalQueueChanged?: () => void;
 };
 
@@ -430,7 +431,7 @@ function AttendanceMobileCard({
   </article>;
 }
 
-export function AttendanceSupervisorPage({ token, role, department, userId, onOpenAttendanceReport, initialRequestId, onApprovalQueueChanged }: Props) {
+export function AttendanceSupervisorPage({ token, role, department, userId, onOpenAttendanceReport, initialRequestId, onInitialRequestHandled, onApprovalQueueChanged }: Props) {
   const today = bangkokDateText();
   const manager = ['MANAGER', 'SUPERVISOR'].includes(role);
   const admin = role === 'ADMIN';
@@ -605,7 +606,10 @@ export function AttendanceSupervisorPage({ token, role, department, userId, onOp
   useEffect(() => {
     if (!initialRequestId || mode !== 'requests') return;
     const request = requests.find((row) => String(row.id) === String(initialRequestId));
-    if (request) setReviewDialog({ request, action: 'approve', comment: '' });
+    if (request) {
+      setReviewDialog({ request, action: 'approve', comment: '' });
+      onInitialRequestHandled?.();
+    }
   }, [initialRequestId, mode, requests]);
 
   useEffect(() => {

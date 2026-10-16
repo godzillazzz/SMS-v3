@@ -113,14 +113,17 @@ export function RegistrationReviewPanel({ token, role, refreshSignal, initialReq
         ? [focusedRequest, ...next.slice(0, 19)]
         : next;
       setRows(rowsWithFocus);
-      const preferredId = focusedRequest?.id || focusedRequestId;
-      setSelectedId((current) => preferredId && rowsWithFocus.some((row) => row.id === preferredId)
-        ? preferredId
+      const exactTargetFound = Boolean(focusedRequest && focusedRequest.id === focusedRequestId)
+        || (!focusedRequestId ? true : next.some((row) => row.id === focusedRequestId));
+      setSelectedId((current) => focusedRequestId
+        ? exactTargetFound ? String(focusedRequestId) : ''
         : rowsWithFocus.some((row) => row.id === current) ? current : rowsWithFocus[0]?.id || '');
-      if (focusedRequestId) {
-        setMobileDetail(Boolean(focusedRequest));
+      if (focusedRequestId && exactTargetFound) {
+        setMobileDetail(true);
         initialRequestRef.current = '';
         onInitialRequestHandled?.();
+      } else if (focusedRequestId) {
+        setError('ไม่พบคำขอลงทะเบียนที่ต้องการเปิดรายละเอียด (404)');
       }
     } catch (reason) { setError(formatRequestErrorMessage(reason, 'โหลดคำขอลงทะเบียนไม่สำเร็จ')); }
     finally { setLoading(false); }
