@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../../api';
 import { getApprovalCenter, getApprovalCenterItem, getApprovalCenterSummary } from '../../approval-center-client';
 import { RequestErrorContent, toRequestErrorState, type RequestErrorInput } from '../../request-error';
@@ -216,6 +216,9 @@ export function ApprovalCenterPage({
   const [error, setError] = useState<RequestErrorInput>();
   const [notice, setNotice] = useState('');
   const [detailState, setDetailState] = useState<{ status: 'loading' | 'not-found' | 'forbidden' | 'error'; message: string }>();
+  const [detailKey, setDetailKey] = useState<string>();
+  const detailGeneration = useRef(0);
+  const detailInFlight = useRef<string | null>(null);
   const [rejecting, setRejecting] = useState<ApprovalCenterItem>();
   const [rejectReason, setRejectReason] = useState('');
 
@@ -428,9 +431,15 @@ export function ApprovalCenterPage({
   };
 
   const openDetails = async (item: ApprovalCenterItem) => {
+    const key = `${item.type}:${String(item.requestId)}`;
+    if (detailInFlight.current === key) return;
+    detailInFlight.current = key;
+    const generation = ++detailGeneration.current;
+    setDetailKey(key);
     setDetailState({ status: 'loading', message: 'กำลังโหลดรายละเอียดคำขอ…' });
     try {
       const result = await getApprovalCenterItem(token, item.type, item.requestId);
+      if (generation !== detailGeneration.current) return;
       const detail = (Array.isArray(result?.data) ? result.data[0] : result?.data || result) as ApprovalCenterItem;
       if (!detail || detail.type !== item.type || String(detail.requestId) !== String(item.requestId)) {
         setDetailState({ status: 'not-found', message: 'ไม่พบคำขอที่มีสิทธิ์เปิดรายละเอียด' });
@@ -447,6 +456,7 @@ export function ApprovalCenterPage({
       }
       onNavigate(detail);
     } catch (cause) {
+      if (generation !== detailGeneration.current) return;
       const status = typeof cause === 'object' && cause !== null && 'status' in cause ? Number((cause as { status?: unknown }).status) : 0;
       const next = status === 404
         ? { status: 'not-found' as const, message: 'ไม่พบคำขอที่ต้องการเปิดรายละเอียด (404)' }
@@ -454,12 +464,15 @@ export function ApprovalCenterPage({
           ? { status: 'forbidden' as const, message: 'คุณไม่มีสิทธิ์ดูรายละเอียดคำขอนี้ (403)' }
           : { status: 'error' as const, message: 'โหลดรายละเอียดคำขอไม่สำเร็จ กรุณาลองใหม่ (โหลดผิดพลาด)' };
       setDetailState(next);
+    } finally {
+      if (detailInFlight.current === key) detailInFlight.current = null;
     }
   };
 
   const renderDetailButton = (item: ApprovalCenterItem) => <button
     type="button"
-    onClick={() => openDetails(item)}
+    disabled={detailState?.status === 'loading' && detailKey === `${item.type}:${String(item.requestId)}`}
+    onClick={() => void openDetails(item)}
     className="approval-detail-button"
   >
     {detailActionLabel(item)}

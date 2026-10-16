@@ -74,9 +74,23 @@ function service(options = {}) {
   });
 }
 
-function tokenFor(role, sub = `http-${role.toLowerCase()}`) {
-  return jwt.sign({ sub, tokenVersion: 0 }, env.jwtSecret, {
+function tokenFor(role, sub = `http-${role.toLowerCase()}`, claims = {}) {
+  return jwt.sign({ sub, tokenVersion: 0, ...claims }, env.jwtSecret, {
     algorithm: env.jwtAlgorithm, issuer: env.jwtIssuer, audience: env.jwtAudience, expiresIn: '1m'
+  });
+}
+
+async function withViewAsUsers(callback, targetRole = 'VIEWER') {
+  const originalFindUnique = prisma.user.findUnique;
+  prisma.user.findUnique = async ({ where }) => where?.id === 'viewas-admin'
+    ? { id: 'viewas-admin', email: 'admin@example.invalid', role: 'ADMIN', employeeId: null, isActive: true, accountStatus: 'ACTIVE', passwordResetRequired: false, tokenVersion: 0, employee: null }
+    : { id: where?.id, email: `${targetRole.toLowerCase()}@example.invalid`, role: targetRole, employeeId: null, isActive: true, accountStatus: 'ACTIVE', passwordResetRequired: false, tokenVersion: 0, employee: null };
+  try { return await callback(); } finally { prisma.user.findUnique = originalFindUnique; }
+}
+
+function viewAsToken(targetRole = 'VIEWER') {
+  return tokenFor(targetRole, `viewas-${targetRole.toLowerCase()}`, {
+    impersonation: true, impersonatorSub: 'viewas-admin', impersonatorTokenVersion: 0
   });
 }
 
@@ -113,6 +127,46 @@ test('HTTP authenticated pipeline reaches route validation for malformed request
   assert.equal(response.status, 200);
   assert.deepEqual(response.body.data, []);
 });
+
+test('HTTP View-As detail filters return the deterministic zero envelope for every target role', async () => {
+  const expected = await withAuthenticatedPrismaUser(() => request(app)
+    .get('/api/v1/approval-center?type=LEAVE_REQUEST&requestId=not-a-uuid')
+    .set('Authorization', `Bearer ${tokenFor('MANAGER')}`));
+  assert.equal(expected.status, 200);
+  for (const role of ['VIEWER', 'MANAGER', 'SUPERVISOR']) {
+    await withViewAsUsers(async () => {
+      const response = await request(app)
+        .get(`/api/v1/approval-center?type=LEAVE_REQUEST&requestId=${ID}`)
+        .set('Authorization', `Bearer ${viewAsToken(role)}`);
+      assert.equal(response.status, 200);
+      assert.deepStrictEqual(response.body, expected.body);
+    }, role);
+  }
+});
+
+test('HTTP View-As mutations remain forbidden', async () => {
+  await withViewAsUsers(async () => {
+    const response = await request(app)
+      .post('/api/v1/approval-center')
+      .set('Authorization', `Bearer ${viewAsToken('VIEWER')}`)
+      .send({ requestId: ID });
+    assert.equal(response.status, 403);
+  });
+});
+
+test('HTTP inactive View-As impersonator remains unauthenticated', async () => {
+  const originalFindUnique = prisma.user.findUnique;
+  prisma.user.findUnique = async ({ where }) => where?.id === 'viewas-admin'
+    ? { id: 'viewas-admin', email: 'admin@example.invalid', role: 'ADMIN', employeeId: null, isActive: false, accountStatus: 'ACTIVE', passwordResetRequired: false, tokenVersion: 0, employee: null }
+    : { id: where?.id, email: 'viewer@example.invalid', role: 'VIEWER', employeeId: null, isActive: true, accountStatus: 'ACTIVE', passwordResetRequired: false, tokenVersion: 0, employee: null };
+  try {
+    const response = await request(app)
+      .get(`/api/v1/approval-center?type=LEAVE_REQUEST&requestId=${ID}`)
+      .set('Authorization', `Bearer ${viewAsToken('VIEWER')}`);
+    assert.equal(response.status, 401);
+  } finally { prisma.user.findUnique = originalFindUnique; }
+});
+
 
 // This table obtains type names and the definitions used by the production policy service.
 test('table-driven exact item supports every production approval type', async (t) => {

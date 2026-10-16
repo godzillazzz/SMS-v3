@@ -13,6 +13,27 @@ const query = z.object({
   requestId: z.string().optional()
 }).strict();
 router.use(authenticate);
+
+// View-As detail reads are intentionally a zero-information response. This
+// narrow intercept must run after authentication (so inactive impersonators
+// still receive 401) but before role authorization (the target role may not
+// itself be an Approval Center reviewer). Mutations never reach this branch.
+router.get('/', async (req, res, next) => {
+  if (!req.user?.impersonation || req.method !== 'GET'
+    || !Object.prototype.hasOwnProperty.call(req.query, 'requestId')) return next();
+  try {
+    res.set('Cache-Control', 'no-store');
+    res.json(await service.getItem({
+      actor: req.user,
+      type: typeof req.query.type === 'string' ? req.query.type : undefined,
+      requestId: typeof req.query.requestId === 'string' ? req.query.requestId : undefined,
+      correlationId: req.requestId
+    }));
+  } catch (error) {
+    next(error);
+  }
+});
+
 router.use(authorize('ADMIN', 'MANAGER', 'SUPERVISOR'));
 router.get('/summary', async (req, res, next) => {
   try {

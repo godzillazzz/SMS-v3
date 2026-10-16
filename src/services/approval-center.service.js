@@ -185,7 +185,9 @@ function createApprovalCenterService({
   }
   const listAttendanceAdjustments = attendanceAdjustmentList || ((input) => createAttendanceAdjustmentService({ prisma }).list(input));
   const policyService = approvalPolicyService || createApprovalPolicyService({ prismaClient: prisma });
-  const zeroEnvelopeGeneratedAt = clock().toISOString();
+  // The zero response is a public indistinguishability contract. Keep every
+  // field stable across requests so callers cannot distinguish clocks or paths.
+  const zeroEnvelopeGeneratedAt = '1970-01-01T00:00:00.000Z';
 
   async function summary({ actor }) {
     const role = String(actor?.role || '').toUpperCase();

@@ -178,4 +178,31 @@ describe('FE-VERIFY-003 approval target contracts', () => {
     expect(mocks.getApprovalCenterItem).toHaveBeenCalledTimes(1);
     expect(screen.queryByRole('alert')).toBeNull();
   });
+
+  it('single-flights duplicate clicks and ignores a superseded detail response', async () => {
+    const first = approvalItem(targetCases[0]);
+    const second = approvalItem(targetCases[2]);
+    const onNavigate = vi.fn();
+    mocks.getApprovalCenter.mockResolvedValue({ data: [first, second], summary: { total: 2 } });
+    mocks.getApprovalCenterSummary.mockResolvedValue({ summary: { total: 2, byType: { [first.type]: 1, [second.type]: 1 } } });
+    let resolveFirst!: (value: unknown) => void;
+    let resolveSecond!: (value: unknown) => void;
+    mocks.getApprovalCenterItem.mockImplementation((_token: string, _type: string, requestId: string) => requestId === first.requestId
+      ? new Promise((resolve) => { resolveFirst = resolve; })
+      : new Promise((resolve) => { resolveSecond = resolve; }));
+    render(<ApprovalCenterPage token="test-token" role="ADMIN" onChanged={vi.fn()}
+      onOpenEmployeeChange={vi.fn()} onNavigate={onNavigate} onLeaveDecision={vi.fn()} />);
+    await screen.findAllByText(first.title);
+    const buttons = screen.getAllByRole('button', { name: /ดูรายละเอียด/ });
+    fireEvent.click(buttons[0]);
+    fireEvent.click(buttons[0]);
+    fireEvent.click(buttons[1]);
+    expect(mocks.getApprovalCenterItem).toHaveBeenCalledTimes(2);
+    resolveSecond({ data: second });
+    await waitFor(() => expect(onNavigate).toHaveBeenCalledTimes(1));
+    resolveFirst({ data: first });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(onNavigate).toHaveBeenCalledWith(second);
+    expect(onNavigate).not.toHaveBeenCalledWith(first);
+  });
 });
