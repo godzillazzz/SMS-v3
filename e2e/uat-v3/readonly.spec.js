@@ -1,4 +1,5 @@
 'use strict';
+const fs = require('node:fs');
 const { test, expect, request } = require('@playwright/test');
 const { readConfig, roles } = require('./config');
 const { preflightAccounts, readRoleApi, installReadonlyBrowser } = require('./auth');
@@ -9,8 +10,19 @@ function requestOptions() {
   return { baseURL: config.baseURL, extraHTTPHeaders: automationBypassHeaders(process.env, config.baseURL, config.baseURL + '/api/v1/auth/login', { setBypassCookie: true }) };
 }
 test.beforeAll(async () => {
-  config = readConfig();
-  sessions = await preflightAccounts(() => request.newContext(requestOptions()), config);
+  const preflight = Object.fromEntries(roles.map((role) => [role, 'NOT_RUN']));
+  try {
+    config = readConfig();
+    sessions = await preflightAccounts(
+      () => request.newContext(requestOptions()),
+      config,
+      ({ role, code }) => { if (roles.includes(role)) preflight[role] = code; }
+    );
+  } finally {
+    // Only fixed role identifiers and coarse status codes are persisted.
+    fs.mkdirSync('test-results/uat-v3-safe', { recursive: true });
+    fs.writeFileSync('test-results/uat-v3-safe/preflight.json', JSON.stringify(preflight));
+  }
 });
 test.afterAll(() => sessions?.clear());
 for (const role of roles) {

@@ -13,22 +13,50 @@ class RoleSessions {
   clear() { this.#sessions.clear(); }
   summary() { return roles.map((role) => ({ role, status: this.#sessions.has(role) ? 'READY' : 'BLOCKED' })); }
 }
-async function preflightAccounts(createContext, config) {
+async function preflightAccounts(createContext, config, onStatus = () => {}) {
   const sessions = new RoleSessions();
+  let activeRole = null;
+  let failureCode = 'REQUEST_ERROR';
   try {
     for (const role of roles) {
-      const context = await createContext();
+      activeRole = role;
+      failureCode = 'REQUEST_ERROR';
+      let context;
       try {
-      const account = config.accounts[role];
-      const response = await context.post('/api/v1/auth/login', { data: { ...account, clientType: 'browser' }, timeout: 15000, maxRedirects: 0 });
-      if (response.status() !== 200) fail('UAT_ACCOUNT_LOGIN_FAILED');
-      const payload = await response.json();
-      if (payload.passwordResetRequired || payload.user?.passwordResetRequired || payload.user?.isViewingAs || payload.user?.impersonation) fail('UAT_ACCOUNT_NOT_READY');
-      sessions.put(role, payload);
-      } finally { await context.dispose(); }
+        context = await createContext();
+        const account = config.accounts[role];
+        const response = await context.post('/api/v1/auth/login', { data: { ...account, clientType: 'browser' }, timeout: 15000, maxRedirects: 0 });
+        const status = response.status();
+        if (status !== 200) {
+          failureCode = Number.isInteger(status) && status >= 100 && status <= 599 ? 'HTTP_' + status : 'REQUEST_ERROR';
+          fail('UAT_ACCOUNT_LOGIN_FAILED');
+        }
+        const payload = await response.json();
+        if (payload.passwordResetRequired || payload.user?.passwordResetRequired || payload.user?.isViewingAs || payload.user?.impersonation) {
+          failureCode = 'ACCOUNT_NOT_READY';
+          fail('UAT_ACCOUNT_NOT_READY');
+        }
+        try {
+          sessions.put(role, payload);
+        } catch {
+          failureCode = 'ROLE_SESSION_INVALID';
+          throw new Error('UAT_ROLE_PREFLIGHT_REJECTED');
+        }
+      } finally {
+        if (context) await context.dispose();
+      }
+      // Only a fixed role name and coarse outcome are ever reported.
+      onStatus({ role, code: 'READY' });
+      activeRole = null;
     }
     return sessions;
-  } catch { sessions.clear(); fail('UAT_ACCOUNT_PREFLIGHT_FAILED'); }
+  } catch {
+    sessions.clear();
+    try {
+      if (activeRole) onStatus({ role: activeRole, code: failureCode });
+    } catch { /* A diagnostic callback must never expose or change the fail-closed result. */ }
+    fail('UAT_ACCOUNT_PREFLIGHT_FAILED');
+  }
 }
 async function readRoleApi(context, role, session, path) {
   if (session.user?.role !== role) fail('UAT_ROLE_IDENTITY_MISMATCH');
