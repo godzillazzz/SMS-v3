@@ -175,7 +175,7 @@ function createApprovalCenterService({
         });
       }
     };
-    return { summary: measure('summary'), list: measure('list') };
+    return { summary: measure('summary'), list: measure('list'), getItem: measure('getItem') };
   }
   const listAttendanceAdjustments = attendanceAdjustmentList || ((input) => createAttendanceAdjustmentService({ prisma }).list(input));
   const policyService = approvalPolicyService || createApprovalPolicyService({ prismaClient: prisma });
@@ -650,7 +650,49 @@ function createApprovalCenterService({
     };
   }
 
-  return { list, summary };
+  async function getItem({ actor, type, requestId }) {
+    const role = String(actor?.role || '').toUpperCase();
+    if (!['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(role)) {
+      const error = new HttpError(403, 'Approval Center requires Supervisor, Manager, or Admin authority.');
+      error.publicCode = 'APPROVAL_CENTER_REVIEWER_REQUIRED';
+      throw error;
+    }
+    const policies = await policyService.loadPolicies(prisma);
+    if (!canReview(policies.get(type), role)) {
+      const error = new HttpError(403, 'Approval type review is forbidden.');
+      error.publicCode = 'APPROVAL_TYPE_REVIEW_FORBIDDEN';
+      throw error;
+    }
+    const definitions = {
+      EMPLOYEE_MASTER_CHANGE: { delegate: prisma.employeeChangeRequest, where: { status: 'PENDING_APPROVAL' }, sourcePage: 'employees' },
+      EMPLOYEE_REFERENCE_PHOTO: { delegate: prisma.employeeReferencePhoto, where: { status: 'PENDING_APPROVAL' }, sourcePage: 'employees' },
+      LICENSE_DOCUMENT: { delegate: prisma.employeeLicenseDocument, where: { status: 'PENDING' }, sourcePage: 'licenses' },
+      ATTENDANCE_DEVICE_REQUEST: { delegate: prisma.attendanceDeviceChangeRequest, where: { status: 'PENDING_APPROVAL' }, sourcePage: 'attendanceDevice' },
+      SCHEDULE_APPROVAL: { delegate: prisma.scheduleApproval, where: { status: 'PENDING' }, sourcePage: 'approvals' },
+      LEAVE_REQUEST: { delegate: prisma.leaveRequest, where: { status: 'PENDING' }, sourcePage: 'leavePending' },
+      USER_ACCESS: { delegate: prisma.user, where: { accountStatus: 'PENDING' }, sourcePage: 'users' },
+      REGISTRATION_REQUEST: { delegate: prisma.registrationRequest, where: { status: { in: ['PENDING', 'MATCHED'] }, emailVerifiedAt: { not: null } }, sourcePage: 'users' }
+    };
+    const definition = definitions[type];
+    let row;
+    if (definition) {
+      row = await definition.delegate.findFirst({ where: { id: requestId, ...definition.where } });
+    } else if (type === 'ATTENDANCE_ADJUSTMENT_REQUEST') {
+      const rows = await prisma.$queryRaw`SELECT id, status, request_type AS "requestType", maker_user_id AS "makerUserId", maker_role_snapshot AS "makerRoleSnapshot", current_revision AS "currentRevision", reason, created_at AS "createdAt", updated_at AS "updatedAt", employee_id AS "employeeId", employee_code AS "employeeCode", employee_name AS "employeeName", department FROM attendance_adjustment_requests WHERE id = ${requestId}::uuid AND status = 'PENDING_APPROVAL'`;
+      row = rows[0];
+    }
+    if (!row) {
+      const error = new HttpError(404, 'Approval item was not found.');
+      error.publicCode = 'APPROVAL_ITEM_NOT_FOUND';
+      throw error;
+    }
+    const now = clock();
+    const employee = row.employee ? employeeSummary(row.employee) : (row.employeeId ? { id: row.employeeId, employeeCode: row.employeeCode || null, firstName: null, lastName: null, displayName: row.employeeName || null, department: row.department || null, jobTitle: null } : null);
+    const item = withAge({ id: `${type.toLowerCase()}:${row.id}`, requestId, type, title: type, status: row.status || row.accountStatus, sourcePage: definition?.sourcePage || 'attendanceSupervisor', employee, requestedBy: actorSummary(row.requestOwner || row.uploadedBy || row.requestedBy || row.createdByUser, row.makerRoleSnapshot), submittedAt: row.requestedAt || row.uploadedAt || row.createdAt, metadata: {} }, now, policies.get(type));
+    return { data: item, generatedAt: now.toISOString() };
+  }
+
+  return { list, summary, getItem };
 }
 
 module.exports = { createApprovalCenterService, approvalUrgency, isRetroactiveLeaveStart, managerCanApproveLeave, supervisorCanApproveLeave, reviewerCanApproveLeave };
