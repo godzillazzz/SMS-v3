@@ -2,7 +2,7 @@
 
 const express = require('express');
 const { z } = require('zod');
-const { authenticate, authorize } = require('../middlewares/authenticate');
+const { authenticate, authorize, denyImpersonation } = require('../middlewares/authenticate');
 const { createApprovalCenterService } = require('../services/approval-center.service');
 
 const router = express.Router();
@@ -32,6 +32,7 @@ function validateItemParams(params) {
 }
 
 router.use(authenticate);
+router.use(denyImpersonation);
 router.use(authorize('ADMIN', 'MANAGER', 'SUPERVISOR'));
 router.get('/summary', async (req, res, next) => {
   try {

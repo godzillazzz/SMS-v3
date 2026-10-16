@@ -4,7 +4,7 @@ const bcrypt = require('bcryptjs');
 const multer = require('multer');
 const { z } = require('zod');
 const prisma = require('../config/prisma');
-const { authenticate, authorize } = require('../middlewares/authenticate');
+const { authenticate, authorize, denyImpersonation } = require('../middlewares/authenticate');
 const audit = require('../services/audit.service');
 const userAccess = require('../services/user-access.service');
 const { resolveApprovalActors, withApprovalIdentity } = require('../services/approval-identity.service');
@@ -508,11 +508,17 @@ router.get('/licenses', authorize('ADMIN', 'MANAGER', 'SUPERVISOR'), async (req,
     res.json({ data, meta: { page, pageSize, total, totalPages: Math.ceil(total / pageSize) } });
   } catch (error) { next(error); }
 });
-router.get('/licenses/:id', authorize('ADMIN', 'MANAGER', 'SUPERVISOR'), async (req, res, next) => {
+router.get('/licenses/:id', authorize('ADMIN', 'MANAGER', 'SUPERVISOR'), denyImpersonation, async (req, res, next) => {
   try {
     const id = uuid.parse(req.params.id);
+    if (req.user.impersonation) throw new HttpError(403, 'View As mode is not allowed for approval work.', { code: 'APPROVAL_VIEW_AS_FORBIDDEN' });
+    const documentId = req.query.documentId ? uuid.parse(req.query.documentId) : null;
+    if (!documentId) throw new HttpError(404, 'License not found.', { code: 'APPROVAL_ITEM_NOT_FOUND' });
+    const { createApprovalCenterService } = require('../services/approval-center.service');
+    const approvalItem = await createApprovalCenterService().getItem({ actor: req.user, type: 'LICENSE_DOCUMENT', requestId: documentId, correlationId: req.requestId });
+    if (String(approvalItem.data?.metadata?.licenseId || '') !== String(id)) throw new HttpError(404, 'License not found.', { code: 'APPROVAL_ITEM_NOT_FOUND' });
     const license = await prisma.employeeLicense.findUnique({ where: { id }, select: { id: true, employeeId: true, licenseType: true, licenseNumber: true, issueDate: true, expiryDate: true, status: true, documentMigrationStatus: true, remark: true, employee: { select: { id: true, employeeCode: true, firstName: true, lastName: true, department: true } } } });
-    if (!license) throw new HttpError(404, 'License not found.');
+    if (!license) throw new HttpError(404, 'License not found.', { code: 'APPROVAL_ITEM_NOT_FOUND' });
     const summaries = await licenseDocuments.tableSummaries({ licenses: [license], requestUser: req.user });
     res.json({ data: { ...license, documentSummary: summaries[license.id] } });
   } catch (error) { next(error); }
@@ -573,44 +579,44 @@ router.post('/license-documents/retention-cleanup', authorize('ADMIN'), async (r
   try { res.json({ data: await cleanupDueLicenseDocuments({ prisma, storage: licenseStorage }) }); }
   catch (error) { next(error); }
 });
-router.get('/license-documents/:id/view', authorize('ADMIN', 'MANAGER', 'SUPERVISOR'), async (req, res, next) => {
+router.get('/license-documents/:id/view', authorize('ADMIN', 'MANAGER', 'SUPERVISOR'), denyImpersonation, async (req, res, next) => {
   try {
     const id = uuid.parse(req.params.id);
     res.json({ data: await licenseDocuments.view({ id, requestUser: req.user }) });
   } catch (error) { next(error); }
 });
-router.post('/license-documents/:id/approve', authorize('ADMIN'), async (req, res, next) => {
+router.post('/license-documents/:id/approve', authorize('ADMIN'), denyImpersonation, async (req, res, next) => {
   try {
     const id = uuid.parse(req.params.id);
     res.json({ data: await licenseDocuments.approve({ id, requestUser: req.user }) });
   } catch (error) { next(error); }
 });
-router.post('/license-documents/:id/return-for-correction', authorize('ADMIN'), async (req, res, next) => {
+router.post('/license-documents/:id/return-for-correction', authorize('ADMIN'), denyImpersonation, async (req, res, next) => {
   try {
     const id = uuid.parse(req.params.id);
     const { correctionReason } = z.object({ correctionReason: z.string().trim().min(1).max(1000) }).parse(req.body);
     res.json({ data: await licenseDocuments.returnForCorrection({ id, requestUser: req.user, correctionReason }) });
   } catch (error) { next(error); }
 });
-router.post('/license-documents/:id/resubmit', authorize('ADMIN', 'MANAGER', 'SUPERVISOR'), licenseDocumentUpload, async (req, res, next) => {
+router.post('/license-documents/:id/resubmit', authorize('ADMIN', 'MANAGER', 'SUPERVISOR'), denyImpersonation, licenseDocumentUpload, async (req, res, next) => {
   try {
     const id = uuid.parse(req.params.id);
     const input = z.object({ licenseNumber: z.string().transform(normalizeLicenseNumber), proposedStartDate: z.coerce.date(), proposedExpiryDate: z.coerce.date(), note: nullableText(2000) }).refine((value) => value.proposedStartDate <= value.proposedExpiryDate, { message: 'Start date must not be after expiry date.', path: ['proposedExpiryDate'] }).parse(req.body);
     res.json({ data: await licenseDocuments.resubmit({ id, requestUser: req.user, input, file: req.file }) });
   } catch (error) { next(error); }
 });
-router.post('/license-documents/:id/reject', authorize('ADMIN'), async (req, res, next) => {
+router.post('/license-documents/:id/reject', authorize('ADMIN'), denyImpersonation, async (req, res, next) => {
   try {
     const id = uuid.parse(req.params.id); const { rejectionReason } = z.object({ rejectionReason: z.string().trim().min(1).max(2000) }).parse(req.body);
     res.json({ data: await licenseDocuments.reject({ id, requestUser: req.user, rejectionReason }) });
   } catch (error) { next(error); }
-});router.post('/license-documents/:id/cancel', authorize('ADMIN', 'MANAGER', 'SUPERVISOR'), async (req, res, next) => {
+});router.post('/license-documents/:id/cancel', authorize('ADMIN', 'MANAGER', 'SUPERVISOR'), denyImpersonation, async (req, res, next) => {
   try {
     const id = uuid.parse(req.params.id);
     res.json({ data: await licenseDocuments.cancel({ id, requestUser: req.user }) });
   } catch (error) { next(error); }
 });
-router.delete('/license-documents/:id/permanent', authorize('ADMIN'), async (req, res, next) => {
+router.delete('/license-documents/:id/permanent', authorize('ADMIN'), denyImpersonation, async (req, res, next) => {
   try {
     const id = uuid.parse(req.params.id);
     res.json({ data: await licenseDocuments.permanentlyDelete({ id, requestUser: req.user }) });
@@ -830,7 +836,7 @@ router.put('/shifts/:id', authorize('ADMIN', 'MANAGER', 'SUPERVISOR'), async (re
 });
 router.delete('/shifts/:id', authorize('ADMIN', 'MANAGER', 'SUPERVISOR'), async (req, res, next) => { try { const id = uuid.parse(req.params.id); await prisma.$transaction(async (tx) => { const before = await tx.shiftAssignment.findUnique({ where: { id } }); if (!before) return; await tx.shiftAssignment.delete({ where: { id } }); await updateScheduleApprovalState(tx, { workDate: before.workDate, actorUserId: req.user.sub, isAlOnly: false, changeType: 'DELETE_SHIFT' }); await audit.log({ actorUserId: req.user.sub, action: 'DELETE', entityType: 'ShiftAssignment', entityId: id, metadata: { before: safeRecord(before, ['employeeId', 'shiftTypeId', 'workDate']) } }, tx); }); res.status(204).send(); } catch (error) { next(error); } });
 
-router.get('/schedule-approvals', async (req, res, next) => {
+router.get('/schedule-approvals', denyImpersonation, async (req, res, next) => {
   try {
     const response = await paged(prisma.scheduleApproval, req.query, {
       select: { id: true, month: true, status: true, revision: true, changeType: true, changedAt: true, approvedAt: true, approvedByLegacyRef: true, approvalNote: true },
@@ -851,7 +857,7 @@ router.get('/schedule-approvals', async (req, res, next) => {
     })) });
   } catch (error) { next(error); }
 });
-router.put('/schedule-approvals/:id', authorize('ADMIN', 'SUPERVISOR'), async (req, res, next) => {
+router.put('/schedule-approvals/:id', authorize('ADMIN', 'SUPERVISOR'), denyImpersonation, async (req, res, next) => {
   try {
     const id = uuid.parse(req.params.id);
     const input = z.object({ status: z.enum(['DRAFT', 'PENDING', 'APPROVED', 'REJECTED']), approvalNote: nullableText(2000) }).parse(req.body);
@@ -1387,15 +1393,18 @@ router.post('/leave-requests/with-attachment', leaveUpload, async (req, res, nex
     res.status(201).json({ data: result });
   } catch (error) { next(error); }
 });
-router.get('/leave-requests/:id', authorize('ADMIN', 'MANAGER', 'SUPERVISOR'), async (req, res, next) => {
+router.get('/leave-requests/:id', authorize('ADMIN', 'MANAGER', 'SUPERVISOR'), denyImpersonation, async (req, res, next) => {
   try {
     const id = uuid.parse(req.params.id);
+    if (req.user.impersonation) throw new HttpError(403, 'View As mode is not allowed for approval work.', { code: 'APPROVAL_VIEW_AS_FORBIDDEN' });
+    const { createApprovalCenterService } = require('../services/approval-center.service');
+    await createApprovalCenterService().getItem({ actor: req.user, type: 'LEAVE_REQUEST', requestId: id, correlationId: req.requestId });
     const row = await prisma.leaveRequest.findUnique({ where: { id }, select: { id: true, employeeId: true, requestedAt: true, employeeNameSnapshot: true, departmentSnapshot: true, leaveType: true, leaveTypeId: true, leaveTypeNameSnapshot: true, leaveQuotaBucketSnapshot: true, startDate: true, endDate: true, dayCount: true, reason: true, attachmentUrl: true, status: true, approvedAt: true, approvedByLegacyRef: true, createdByUserId: true, attachment: { select: { fileName: true, mimeType: true, sizeBytes: true } } } });
-    if (!row) throw new HttpError(404, 'Leave request not found.');
+    if (!row) throw new HttpError(404, 'Leave request not found.', { code: 'APPROVAL_ITEM_NOT_FOUND' });
     res.json({ data: { ...row, attachmentUrl: row.attachment ? `/api/v1/leave-requests/${row.id}/attachment` : null } });
   } catch (error) { next(error); }
 });
-router.get('/leave-requests/:id/attachment', async (req, res, next) => {
+router.get('/leave-requests/:id/attachment', denyImpersonation, async (req, res, next) => {
   try {
     const id = uuid.parse(req.params.id);
     const currentUser = await prisma.user.findUniqueOrThrow({ where: { id: req.user.sub }, select: { role: true, employeeId: true } });
@@ -1406,7 +1415,7 @@ router.get('/leave-requests/:id/attachment', async (req, res, next) => {
     res.send(Buffer.from(leave.attachment.content));
   } catch (error) { next(error); }
 });
-router.post('/leave-requests/:id/return-for-correction', authorize('ADMIN', 'MANAGER', 'SUPERVISOR'), async (req, res, next) => {
+router.post('/leave-requests/:id/return-for-correction', authorize('ADMIN', 'MANAGER', 'SUPERVISOR'), denyImpersonation, async (req, res, next) => {
   try {
     const id = uuid.parse(req.params.id);
     const input = leaveWorkflowReasonInput.parse(req.body || {});
@@ -1452,7 +1461,7 @@ router.post('/leave-requests/:id/return-for-correction', authorize('ADMIN', 'MAN
   } catch (error) { next(error); }
 });
 
-router.put('/leave-requests/:id/correction', async (req, res, next) => {
+router.put('/leave-requests/:id/correction', denyImpersonation, async (req, res, next) => {
   try {
     const id = uuid.parse(req.params.id);
     const input = leaveCorrectionInput.parse(req.body || {});
@@ -1532,7 +1541,7 @@ router.put('/leave-requests/:id/correction', async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
-router.post('/leave-requests/:id/resubmit', async (req, res, next) => {
+router.post('/leave-requests/:id/resubmit', denyImpersonation, async (req, res, next) => {
   try {
     const id = uuid.parse(req.params.id);
     const stageDurationsMs = {};
@@ -1577,7 +1586,7 @@ router.post('/leave-requests/:id/resubmit', async (req, res, next) => {
     res.json({ data: result });
   } catch (error) { next(error); }
 });
-router.put('/leave-requests/:id', authorize('ADMIN', 'MANAGER', 'SUPERVISOR'), async (req, res, next) => {
+router.put('/leave-requests/:id', authorize('ADMIN', 'MANAGER', 'SUPERVISOR'), denyImpersonation, async (req, res, next) => {
   try {
     const id = uuid.parse(req.params.id);
     const input = z.object({ status: z.enum(['APPROVED', 'REJECTED']), reason: nullableText(2000) }).parse(req.body);
@@ -1640,7 +1649,7 @@ router.put('/leave-requests/:id', authorize('ADMIN', 'MANAGER', 'SUPERVISOR'), a
   } catch (error) { next(error); }
 });
 
-router.post('/leave-requests/:id/cancel', async (req, res, next) => {
+router.post('/leave-requests/:id/cancel', denyImpersonation, async (req, res, next) => {
   try {
     const id = uuid.parse(req.params.id);
     const input = leaveWorkflowReasonInput.parse(req.body || {});

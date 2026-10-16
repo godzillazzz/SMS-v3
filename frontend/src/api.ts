@@ -244,7 +244,7 @@ export const api = {
   employee: (token: string, id: string) => call(`/employees/${encodeURIComponent(id)}`, { headers: { Authorization: `Bearer ${token}` } }),
 
   licenses: (token: string, page = 1, employeeStatus: 'ACTIVE' | 'INACTIVE' | 'ALL' = 'ACTIVE', employeeId?: string) => call(`/licenses?page=${page}&pageSize=500&employeeStatus=${employeeStatus}${employeeId ? `&employeeId=${encodeURIComponent(employeeId)}` : ''}`, { headers: { Authorization: `Bearer ${token}` } }),
-  license: (token: string, id: string) => call(`/licenses/${encodeURIComponent(id)}`, { headers: { Authorization: `Bearer ${token}` } }),
+  license: (token: string, id: string, documentId?: string) => call(`/licenses/${encodeURIComponent(id)}${documentId ? `?documentId=${encodeURIComponent(documentId)}` : ''}`, { headers: { Authorization: `Bearer ${token}` } }),
   shiftTypes: (token: string) => call('/shift-types', { headers: { Authorization: `Bearer ${token}` } }),
   createShiftType: (token: string, data: unknown) => call('/shift-types', { method: 'POST', body: JSON.stringify(data), headers: { Authorization: `Bearer ${token}` } }),
   updateShiftType: (token: string, id: string, data: unknown) => call(`/shift-types/${id}`, { method: 'PUT', body: JSON.stringify(data), headers: { Authorization: `Bearer ${token}` } }),

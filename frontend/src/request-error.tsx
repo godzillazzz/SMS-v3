@@ -4,6 +4,7 @@ import { normalizeRequestId } from './api';
 export type RequestErrorState = {
   message: string;
   requestId?: string;
+  status?: number;
 };
 
 export type RequestErrorInput = RequestErrorState | string | undefined | null;
@@ -22,12 +23,14 @@ export function toRequestErrorState(reason: unknown, fallback = defaultMessage):
   if (reason && typeof reason === 'object' && !(reason instanceof Error) && 'message' in reason) {
     const message = safeUserErrorMessage((reason as { message?: unknown }).message, fallback);
     const requestId = normalizeRequestId((reason as { requestId?: unknown }).requestId);
-    return requestId ? { message, requestId } : { message };
+    const status = typeof (reason as { status?: unknown }).status === 'number' ? (reason as unknown as { status: number }).status : undefined;
+    return requestId ? { message, requestId, status } : { message, status };
   }
   if (reason instanceof Error) {
     const message = safeUserErrorMessage(reason.message, fallback);
     const requestId = normalizeRequestId((reason as Error & { requestId?: unknown }).requestId);
-    return requestId ? { message, requestId } : { message };
+    const status = typeof (reason as Error & { status?: unknown }).status === 'number' ? (reason as unknown as Error & { status: number }).status : undefined;
+    return requestId ? { message, requestId, status } : { message, status };
   }
   return { message: fallback };
 }
