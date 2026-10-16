@@ -80,29 +80,48 @@ function tokenFor(role, sub = `http-${role.toLowerCase()}`) {
   });
 }
 
-async function withAuthenticatedPrismaUser(callback, role = 'MANAGER') {
+// The application imports one Prisma singleton. Serialize temporary auth fixtures so
+// concurrent requests cannot observe another test's role or restore the wrong stub.
+let authFixtureLock = Promise.resolve();
+
+async function withAuthFixture(configure, callback) {
+  const previous = authFixtureLock;
+  let release;
+  authFixtureLock = new Promise((resolve) => { release = resolve; });
+  await previous;
   const originalFindUnique = prisma.user.findUnique;
-  prisma.user.findUnique = async ({ where }) => ({ id: where?.id, email: `${role.toLowerCase()}@example.invalid`, role, employeeId: null, isActive: true, accountStatus: 'ACTIVE', passwordResetRequired: false, tokenVersion: 0, employee: null });
-  try { return await callback(); } finally { prisma.user.findUnique = originalFindUnique; }
+  prisma.user.findUnique = configure;
+  try { return await callback(); } finally {
+    prisma.user.findUnique = originalFindUnique;
+    release();
+  }
+}
+
+async function withAuthenticatedPrismaUser(callback, role = 'MANAGER') {
+  return withAuthFixture(
+    async ({ where }) => ({ id: where?.id, email: `${role.toLowerCase()}@example.invalid`, role, employeeId: null, isActive: true, accountStatus: 'ACTIVE', passwordResetRequired: false, tokenVersion: 0, employee: null }),
+    callback
+  );
 }
 
 async function withAuthenticatedViewAsUser(callback, role) {
-  const originalFindUnique = prisma.user.findUnique;
-  prisma.user.findUnique = async ({ where }) => ({
-    id: where?.id,
-    email: `${role.toLowerCase()}@example.invalid`,
-    role: where?.id === 'view-as-admin' ? 'ADMIN' : role,
-    employeeId: null,
-    isActive: true,
-    accountStatus: 'ACTIVE',
-    passwordResetRequired: false,
-    tokenVersion: 0,
-    employee: null
-  });
   const token = jwt.sign({ sub: 'view-as-target', tokenVersion: 0, impersonation: true, impersonatorSub: 'view-as-admin', impersonatorTokenVersion: 0 }, env.jwtSecret, {
     algorithm: env.jwtAlgorithm, issuer: env.jwtIssuer, audience: env.jwtAudience, expiresIn: '1m'
   });
-  try { return await callback(token); } finally { prisma.user.findUnique = originalFindUnique; }
+  return withAuthFixture(
+    async ({ where }) => ({
+      id: where?.id,
+      email: `${role.toLowerCase()}@example.invalid`,
+      role: where?.id === 'view-as-admin' ? 'ADMIN' : role,
+      employeeId: null,
+      isActive: true,
+      accountStatus: 'ACTIVE',
+      passwordResetRequired: false,
+      tokenVersion: 0,
+      employee: null
+    }),
+    () => callback(token)
+  );
 }
 
 // HTTP boundary: auth is checked before the new exact-item handler can run.
