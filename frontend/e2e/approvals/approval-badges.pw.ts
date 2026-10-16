@@ -80,7 +80,8 @@ async function expectAdminMenuCounts(page: Page) {
     ['licenses', 'ใบอนุญาต รปภ.', 5, '5'],
     ['attendanceDevice', 'อุปกรณ์ลงเวลา', 11, '11'],
     ['attendanceSupervisor', 'ศูนย์ควบคุมการลงเวลา', 13, '13'],
-    ['users', 'ผู้ใช้และสิทธิ์', 36, '36']
+    ['users', 'ผู้ใช้และสิทธิ์', 36, '36'],
+    ['leavePending', 'อนุมัติคำขอลา', 23, '23']
   ] as const;
 
   for (const [id, label, count, badge] of rows) {
@@ -90,6 +91,7 @@ async function expectAdminMenuCounts(page: Page) {
     await expect(button.locator('.nav-count-badge')).toHaveText(badge);
     await expect(button.locator('.nav-count-badge')).toHaveCSS('background-color', 'rgb(185, 28, 28)');
   }
+  await expect(page.locator('[data-navigation-id="approvals"]')).toHaveCount(0);
 }
 
 for (const viewport of [{ label: 'desktop', width: 1366, height: 768 }, { label: 'mobile', width: 375, height: 812 }]) {
@@ -171,6 +173,30 @@ test('Viewer does not poll or display approval counts outside the existing autho
   await expect(page.locator('[data-navigation-id="employees"]')).not.toHaveAttribute('title', 'โหลดจำนวนรายการรออนุมัติไม่สำเร็จ');
 });
 
+test('View-As never displays badges after the session switches to the viewed account', async ({ page }) => {
+  await page.setViewportSize({ width: 1366, height: 768 });
+  await signIn(page, 'ADMIN', { body: { summary: adminSummary } });
+  await page.route('**/api/v1/users', route => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({ data: [{ id: 'viewer-target', displayName: 'Viewer Target', role: 'VIEWER', department: 'AN1', accountStatus: 'ACTIVE', isActive: true, passwordResetRequired: false }] })
+  }));
+  await page.route('**/api/v1/users/viewer-target/view-as', route => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({ data: { accessToken: 'view-as-token', user: { id: 'viewer-target', displayName: 'Viewer Target', role: 'VIEWER' } } })
+  }));
+  await page.locator('[data-navigation-id="users"]').click();
+  await expect(page.locator('[data-account-id="viewer-target"]')).toBeVisible();
+  await page.getByRole('button', { name: 'รายละเอียด' }).click();
+  await page.getByRole('button', { name: /การทำงานเพิ่มเติมสำหรับบัญชี Viewer Target/ }).click();
+  await page.getByRole('menuitem', { name: 'ดูในมุมมองผู้ใช้ (View As)' }).click();
+  await page.getByRole('button', { name: 'ยืนยัน View As' }).click();
+  await expect(page.getByRole('status')).toContainText('กำลังดูระบบในมุมมอง');
+  await expect(page.locator('.nav-count-badge')).toHaveCount(0);
+  await expect(page.locator('[data-navigation-id="approvalCenter"]')).toHaveCount(0);
+});
+
 // All decisions below are intercepted synthetic fixture requests, never Production UAT.
 test('central and native leave decisions refetch the same queue and both menu counts', async ({ page }) => {
   const errors: string[] = [];
@@ -200,6 +226,7 @@ test('central and native leave decisions refetch the same queue and both menu co
   await dialog.getByRole('button', { name: 'ยืนยันอนุมัติคำขอ', exact: true }).click();
   await expect(dialog).toHaveCount(0);
   await expect(page.locator('[data-navigation-id="approvalCenter"] .nav-count-badge')).toHaveText('1');
+  await expect(page.locator('[data-navigation-id="leavePending"] .nav-count-badge')).toHaveText('1');
   await expect(page.getByRole('button', { name: 'ปฏิเสธ', exact: true })).toHaveCount(1);
   await page.getByRole('button', { name: 'ปฏิเสธ', exact: true }).click();
   await expect(dialog).toBeVisible();
