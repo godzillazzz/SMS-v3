@@ -44,11 +44,18 @@ async function signIn(
       unexpectedWrites.push(`${request.method()} ${pathname}`);
     }
   });
-  await page.route('**/api/v1/**', (request) => request.fulfill({
-    status: 200,
-    contentType: 'application/json',
-    body: JSON.stringify({ data: [], meta: { page: 1, total: 0, pageSize: 20, totalPages: 0 } })
-  }));
+  await page.route('**/api/v1/**', (route) => {
+    const request = route.request();
+    const pathname = new URL(request.url()).pathname;
+    const isLeaveMutation = /^\/api\/v1\/leave-requests\/[^/]+(?:\/return-for-correction)?$/.test(pathname)
+      && !['GET', 'HEAD'].includes(request.method());
+    if (isLeaveMutation) return route.fallback();
+    return route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ data: [], meta: { page: 1, total: 0, pageSize: 20, totalPages: 0 } })
+    });
+  });
   await page.route('**/api/v1/approval-center/summary', (request) => {
     summaryRequests += 1;
     return request.fulfill({
@@ -208,15 +215,20 @@ for (const viewport of [{ label: 'desktop', width: 1366, height: 768 }, { label:
   const pending = [1, 2, 3].map(id => ({ id: `leave-${id}`, employeeId: `employee-${id}`, employeeNameSnapshot: `Leave Fixture ${id}`, departmentSnapshot: 'AN1', leaveType: 'PERSONAL', startDate: '2026-11-11', endDate: '2026-11-11', dayCount: 1, reason: 'Fixture only', status: 'PENDING' }));
   const decisions: string[] = [];
   const approvalRows = () => pending.map(row => ({ id: `LEAVE_REQUEST:${row.id}`, type: 'LEAVE_REQUEST', requestId: row.id, title: row.employeeNameSnapshot, status: row.status, sourcePage: 'leavePending', submittedAt: '2026-10-08T00:00:00Z', ageHours: 1, urgency: 'NEW', employee: { id: row.employeeId, displayName: row.employeeNameSnapshot }, metadata: { startDate: row.startDate, endDate: row.endDate, dayCount: 1 } }));
-  await page.route('**/api/v1/approval-center/summary', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ summary: { total: pending.length, byType: { ...emptyByType, LEAVE_REQUEST: pending.length } } }) }));
+  let decisionSummaryRequests = 0;
+  await page.route('**/api/v1/approval-center/summary', route => {
+    decisionSummaryRequests += 1;
+    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ summary: { total: pending.length, byType: { ...emptyByType, LEAVE_REQUEST: pending.length } } }) });
+  });
   await page.route('**/api/v1/approval-center?*', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ data: approvalRows() }) }));
   await page.route('**/api/v1/leave-requests*', route => {
     if (route.request().method() !== 'GET') return route.fallback();
     return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ data: pending, meta: { page: 1, total: pending.length, pageSize: 100, totalPages: 1 } }) });
   });
   await page.route('**/api/v1/approval-center?*', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ data: pending.map(row => ({ id: `LEAVE_REQUEST:${row.id}`, type: 'LEAVE_REQUEST', requestId: row.id, title: row.employeeNameSnapshot, status: row.status, sourcePage: 'leavePending', submittedAt: '2026-10-08T00:00:00Z', ageHours: 1, urgency: 'NEW', employee: { id: row.employeeId, displayName: row.employeeNameSnapshot }, metadata: { startDate: row.startDate, endDate: row.endDate, dayCount: 1 } })) }) }));
-  await page.route('**/api/v1/leave-requests/*', async route => {
+  await page.route('**/api/v1/leave-requests/**', async route => {
     const request = route.request();
+    if (request.method() === 'GET') return route.fallback();
     const path = new URL(request.url()).pathname;
     const segments = path.split('/');
     const isReturn = path.endsWith('/return-for-correction');
@@ -238,16 +250,20 @@ for (const viewport of [{ label: 'desktop', width: 1366, height: 768 }, { label:
   await page.getByRole('button', { name: 'อนุมัติทันที', exact: true }).first().click();
   const dialog = page.getByRole('dialog');
   await expect(dialog).toBeVisible();
+  const summaryRequestsBeforeApprove = decisionSummaryRequests;
   await dialog.getByRole('button', { name: 'ยืนยันอนุมัติคำขอ', exact: true }).click();
   await expect(dialog).toHaveCount(0);
+  await expect.poll(() => decisionSummaryRequests).toBeGreaterThan(summaryRequestsBeforeApprove);
   await expect(page.locator('[data-navigation-id="approvalCenter"] .nav-count-badge')).toHaveText('2');
   await expect(page.locator('[data-navigation-id="leavePending"] .nav-count-badge')).toHaveText('2');
   await expect(page.getByRole('button', { name: 'ส่งกลับไปแก้ไข', exact: true })).toHaveCount(2);
   await page.getByRole('button', { name: 'ส่งกลับไปแก้ไข', exact: true }).first().click();
   await expect(dialog).toBeVisible();
   await dialog.getByLabel('ระบุเหตุผลที่ส่งกลับไปแก้ไข (จำเป็น)').fill('ขอแก้ไขข้อมูล');
+  const summaryRequestsBeforeReturn = decisionSummaryRequests;
   await dialog.getByRole('button', { name: 'ส่งกลับไปแก้ไข', exact: true }).click();
   await expect(dialog).toHaveCount(0);
+  await expect.poll(() => decisionSummaryRequests).toBeGreaterThan(summaryRequestsBeforeReturn);
   await page.reload({ waitUntil: 'networkidle' });
   await expect(page.getByRole('heading', { name: 'ศูนย์อนุมัติคำขอ' })).toBeVisible();
   await openNavigation(page, viewport.width);
