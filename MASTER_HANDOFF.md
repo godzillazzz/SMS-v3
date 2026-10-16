@@ -1,5 +1,35 @@
 # MASTER HANDOFF
 
+## ACTIVE — AUTHENTICATED UAT V3 4-ROLE RECOVERY VERIFIED / PASSED — 16 October 2026 (Asia/Bangkok)
+
+**Authenticated UAT V3 four-role read-only test suite is CLOSED and VERIFIED on the existing Integration Preview.** This section is the authoritative current UAT gate identity and supersedes all prior UAT recovery and preflight sections.
+
+- **Workflow Run:** `Authenticated UAT V3 Read-only Preview`, run `38877821742` on `main` (`0305c61885ae1884ca06abb34d84134d3113237e`) — **SUCCESS** (duration: 5m 55s).
+- **Execution Target:** Preview `https://sms-v3-staging-fi0985zy2-godzillazz.vercel.app` (`dpl_G7yzbgCE1457aV6zgft47hS99BNf`), application source `ffba53f90b1787a071657c21ee162609c8f80254` (`fix/serverless-database-reliability`).
+- **Exact-Run Outcome:**
+  - `UAT_V3_READONLY=PASS`
+  - `UAT_TESTS=24_PASS_0_FAIL_0_SKIP`
+  - `UAT_ROLE_ADMIN=PASS` (6/6 tests: Browser login, API authorization, 4-view navigation/render, readonly guard)
+  - `UAT_ROLE_MANAGER=PASS` (6/6 tests: Browser login, API authorization, 4-view navigation/render, readonly guard)
+  - `UAT_ROLE_SUPERVISOR=PASS` (6/6 tests: Browser login, API authorization, 4-view navigation/render, readonly guard)
+  - `UAT_ROLE_VIEWER=PASS` (6/6 tests: Browser login, API authorization, 4-view navigation/render, readonly guard)
+  - `UAT_ARTIFACT_LEAK_COUNT=0` (zero PII, credentials, or secrets in reports or logs)
+  - Artifact `authenticated-readonly-uat-38877821742` (ID `12036885817`, sha256 `8692344efbd3e30568dbdd8b2b69b202d48f2ad2657939bcfa5aedb7fd4e4679`) uploaded successfully.
+- **Root Causes Closed on 16 October 2026:**
+  1. `API_OUTSIDE_CHECK` (ADMIN API teardown race): Fixed in PR #648 by adding `page.unrouteAll()` in `afterEach` and swallowing page/context closure in route handlers.
+  2. Finding 004 & Role Matrix drift: Fixed in PR #648 by restoring 20-item navigation catalog per Production `ffba53f`, setting `employeeLinked` to UNVERIFIED, and validating navigation at runtime.
+  3. `LOGIN_HTTP_503` (Connection Pool Contention): Fixed through three complementary actions:
+     - Owner updated Preview `DATABASE_URL` to Supabase Transaction Pooler (port 6543).
+     - T42 (PR #650 on `fix/serverless-database-reliability` @ `ba10bb50`): Staggered initial `/dashboard` and `/approval-center/summary` requests, cutting initial concurrency from 2 to 1.
+     - Harness settling cooldown (PR #652 on `main` @ `0305c618`): Added 5000ms pause between role suites, allowing the connection pool to cleanly drain.
+  4. Per-role fail-fast isolation (PR #651 on `main` @ `384f5aff`): Scoped test suites into serial describe blocks so one role failure does not abort remaining role suites.
+- **Backlog & Governance Updates:**
+  - Stale PRs closed per Owner directive: #530 (T19 metrics), #589 (stale UAT recovery), #638 (UAT account reset package).
+  - PR #546 (T20 E2E proposal) converted to tracking GitHub Issue #647 and closed.
+  - Legacy PR audit recorded vs `fix/serverless-database-reliability`: #408 (0 conflicts, keep/rebase), #130 (2 conflicts, obsolete), #113 (4 conflicts, obsolete), #112 (9 conflicts, obsolete).
+  - Standing directive: Team operates autonomously end-to-end via Local CLI dispatch; Owner sole role is Review and Approval.
+  - Proactive monitoring: Workflows and jobs are monitored via background watchers with `notify=True` to report immediately upon completion.
+
 ## ACTIVE — R7.1 LEAVE-EMPLOYEE HOTFIX LIVE / VERIFIED — 15 October 2026 (Asia/Bangkok)
 
 **Hotfix `SMSV3-BUG-LEAVE-EMP20-003` (leave-request employee picker truncated the roster at 20 rows) is CLOSED and LIVE in Production.** This section is the authoritative current Production identity and supersedes the R7.1 closeout section below for application SHA, deployment id and rollback checkpoint. All facts below were re-read from primary sources (GitHub API, the governed run log, and the live bundle) when this record was written.
