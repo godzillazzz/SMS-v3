@@ -13,6 +13,12 @@ export default defineConfig({
   use: {
     ...devices['Desktop Chrome'],
     baseURL: 'http://127.0.0.1:4179',
+    // Browser acceptance fixtures own the API contract. Service workers can
+    // satisfy fetches without passing through page.route(), which makes a
+    // fixture appear installed while the real app receives an unmocked 401.
+    // Blocking them keeps interception deterministic without changing app
+    // runtime behaviour outside this test harness.
+    serviceWorkers: 'block',
     launchOptions: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE
       ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE }
       : {},

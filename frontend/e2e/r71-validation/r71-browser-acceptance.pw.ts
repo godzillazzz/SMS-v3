@@ -50,6 +50,7 @@ function readinessTimeout(): number {
 
 async function installFixture(page: Page, role: 'ADMIN' | 'MANAGER' | 'SUPERVISOR' | 'VIEWER' = 'ADMIN') {
   const requests: RequestRecord[] = [];
+  const intercepted: string[] = [];
   let lifecycle = 'dashboard';
   // Closure state belongs to this Playwright Page only. It models the browser
   // refresh-cookie contract without changing production authentication.
@@ -57,6 +58,7 @@ async function installFixture(page: Page, role: 'ADMIN' | 'MANAGER' | 'SUPERVISO
   const user = { id: 'synthetic-r71-user', email: 'r71@example.test', displayName: 'R7.1 Fixture', role };
   await page.route('**/api/v1/**', async (route) => {
     const path = new URL(route.request().url()).pathname;
+    intercepted.push(`${route.request().method()} ${path}`);
     if (path === '/api/v1/auth/refresh') return syntheticSession
       ? json(route, { accessToken: 'synthetic-r71-token', user })
       : json(route, { message: 'No active session' }, 401);
@@ -93,7 +95,12 @@ async function installFixture(page: Page, role: 'ADMIN' | 'MANAGER' | 'SUPERVISO
     });
     return json(route, { data: [], summary: {}, meta: { total: 0, page: 1, pageSize: 20, totalPages: 0 } });
   });
-  return { requests, setLifecycle: (value: string) => { lifecycle = value; } };
+  return {
+    requests,
+    intercepted,
+    assertInstalled: () => expect(intercepted, 'R71 API fixture was registered but intercepted no API request').toContainEqual(expect.stringContaining('/api/v1/')),
+    setLifecycle: (value: string) => { lifecycle = value; },
+  };
 }
 
 async function navigateFromShell(page: Page, navigationId: string, mobile: boolean) {
@@ -103,7 +110,7 @@ async function navigateFromShell(page: Page, navigationId: string, mobile: boole
   await item.click();
 }
 
-async function signIn(page: Page, fixture: { requests: RequestRecord[] }, role: 'ADMIN' | 'MANAGER' | 'SUPERVISOR' | 'VIEWER' = 'ADMIN') {
+async function signIn(page: Page, fixture: { requests: RequestRecord[]; intercepted: string[]; assertInstalled: () => void }, role: 'ADMIN' | 'MANAGER' | 'SUPERVISOR' | 'VIEWER' = 'ADMIN') {
   test.info().setTimeout(readinessTimeout() + 10_000);
   const consoleErrors: string[] = [];
   const failedRequests: string[] = [];
@@ -115,11 +122,17 @@ async function signIn(page: Page, fixture: { requests: RequestRecord[] }, role: 
   await expect(page.locator('#auth-login-form')).toBeVisible();
   await page.locator('#email').fill('r71@example.test');
   await page.locator('#password').fill('synthetic-password');
+  const loginResponse = page.waitForResponse(response => {
+    return new URL(response.url()).pathname === '/api/v1/auth/login';
+  }, { timeout: 10_000 });
   const dashboardResponse = page.waitForResponse(response => {
     const path = new URL(response.url()).pathname;
     return response.ok() && (path === '/api/v1/dashboard' || path === '/api/v1/dashboard/summary');
   });
   await page.locator('#auth-login-form button[type="submit"]').click();
+  const login = await loginResponse;
+  fixture.assertInstalled();
+  expect(login.status(), `R71 fixture login was not intercepted: ${JSON.stringify(fixture.intercepted)}`).toBe(200);
   try {
     await dashboardResponse;
     await expect.poll(async () => {
@@ -234,6 +247,13 @@ async function computedContrast(locator: ReturnType<Page['locator']>) {
 async function assertContrast(locator: ReturnType<Page['locator']>) {
   await expect(locator).toBeVisible();
   await locator.scrollIntoViewIfNeeded();
+  // Theme CSS is loaded asynchronously by the Vite app. Wait for the
+  // rendered contract to settle, but keep the same strict ratio assertion;
+  // a permanently invalid color still fails with the observed ratio.
+  await expect.poll(async () => (await computedContrast(locator))?.ratio ?? 0, {
+    timeout: 5_000,
+    intervals: [50, 100, 250, 500],
+  }).toBeGreaterThanOrEqual(4.5);
   const colors = await computedContrast(locator);
   const diagnostics = `effective foreground/background/ratio: ${JSON.stringify(colors)}`;
   expect(colors, diagnostics).not.toBeNull();
