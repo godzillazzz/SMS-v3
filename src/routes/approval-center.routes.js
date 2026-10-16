@@ -23,6 +23,16 @@ function validateItemParams(params) {
     throw error;
   }
   if (!uuid.safeParse(params.requestId).success) {
+    // Safe native detail resolution is deliberately indistinguishable from
+    // an absent queue record; malformed identifiers must not become an
+    // enumeration oracle. Leave/license resolution retains its existing
+    // validation contract until its separately approved remediation.
+    if (['EMPLOYEE_REFERENCE_PHOTO', 'ATTENDANCE_DEVICE_REQUEST', 'USER_ACCESS'].includes(params.type)) {
+      const error = new Error('Approval item was not found.');
+      error.statusCode = 404;
+      error.publicCode = 'APPROVAL_ITEM_NOT_FOUND';
+      throw error;
+    }
     const error = new Error('Invalid approval item request ID.');
     error.statusCode = 400;
     error.publicCode = 'APPROVAL_ITEM_TARGET_INVALID';
