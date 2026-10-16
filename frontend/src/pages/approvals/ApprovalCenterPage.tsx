@@ -478,7 +478,7 @@ export function ApprovalCenterPage({
       {error && <div className="approval-center-alert approval-center-alert--error" role="alert" aria-live="assertive">
         <RequestErrorContent error={error} />
       </div>}
-      {detailState && <div className="approval-center-alert approval-center-alert--error" role="alert" aria-live="assertive">
+      {detailState && <div className={`approval-center-alert approval-center-alert--${detailState.status === 'loading' ? 'loading' : 'error'}`} role={detailState.status === 'loading' ? 'status' : 'alert'} aria-live={detailState.status === 'loading' ? 'polite' : 'assertive'}>
         {detailState.message}
       </div>}
       {notice && <div className="approval-center-alert approval-center-alert--success">

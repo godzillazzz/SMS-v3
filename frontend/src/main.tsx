@@ -1367,7 +1367,7 @@ function ShiftEditorModal({ shift, defaults, employees, shiftTypes, licenses, is
   );
 }
 
-function LeaveManagementPage({ rows, loading, error, linked, remaining, quotaSummary, leavePolicy, leaveTypes, quotaYear, employeeId, currentUserId, currentUserRole, canManage, canSubmit, canCancelApprovedLeave, mutationsEnabled = true, mode = 'all', historyScope = 'mine', historyMonth, historyTotal, historyPage, historyTotalPages, historyStatusCounts, employeeOptions, initialPendingId, onInitialPendingHandled, onSubmit, onApprove, onReject, onReturnForCorrection, onEditReturned, onCancel, onRefresh, onHistoryMonthChange, onHistoryMonthStep, onHistoryPageChange, onAttachment, onPrint }: { rows: DataRow[]; loading: boolean; error?: RequestErrorInput; linked: boolean; remaining: DataRow; quotaSummary: DataRow; leavePolicy: DataRow; leaveTypes: LeaveTypeMaster[]; quotaYear?: number; employeeId?: string; currentUserId?: string; currentUserRole?: string; canManage: boolean; canSubmit: boolean; canCancelApprovedLeave: boolean; mutationsEnabled?: boolean; mode?: 'all' | 'pending' | 'history'; historyScope?: 'mine' | 'all'; historyMonth?: string; historyTotal?: number; historyPage?: number; historyTotalPages?: number; historyStatusCounts?: Record<string, number>; employeeOptions: Array<{ value: string; label: string }>; initialPendingId?: string; onInitialPendingHandled?(): void; onSubmit(values: Record<string, string>, file?: File): Promise<void>; onApprove(row: DataRow): void; onReject(row: DataRow): void; onReturnForCorrection(row: DataRow): void; onEditReturned(row: DataRow): void; onCancel(row: DataRow): void; onRefresh(): void; onHistoryMonthChange?(value: string): void; onHistoryMonthStep?(delta: number): void; onHistoryPageChange?(page: number): void; onAttachment(row: DataRow): void; onPrint(row: DataRow): void }) {
+function LeaveManagementPage({ rows, loading, error, linked, remaining, quotaSummary, leavePolicy, leaveTypes, quotaYear, employeeId, currentUserId, currentUserRole, canManage, canSubmit, canCancelApprovedLeave, mutationsEnabled = true, mode = 'all', historyScope = 'mine', historyMonth, historyTotal, historyPage, historyTotalPages, historyStatusCounts, employeeOptions, initialPendingId, initialPendingDetail, onInitialPendingHandled, onSubmit, onApprove, onReject, onReturnForCorrection, onEditReturned, onCancel, onRefresh, onHistoryMonthChange, onHistoryMonthStep, onHistoryPageChange, onAttachment, onPrint }: { rows: DataRow[]; loading: boolean; error?: RequestErrorInput; linked: boolean; remaining: DataRow; quotaSummary: DataRow; leavePolicy: DataRow; leaveTypes: LeaveTypeMaster[]; quotaYear?: number; employeeId?: string; currentUserId?: string; currentUserRole?: string; canManage: boolean; canSubmit: boolean; canCancelApprovedLeave: boolean; mutationsEnabled?: boolean; mode?: 'all' | 'pending' | 'history'; historyScope?: 'mine' | 'all'; historyMonth?: string; historyTotal?: number; historyPage?: number; historyTotalPages?: number; historyStatusCounts?: Record<string, number>; employeeOptions: Array<{ value: string; label: string }>; initialPendingId?: string; initialPendingDetail?: DataRow; onInitialPendingHandled?(): void; onSubmit(values: Record<string, string>, file?: File): Promise<void>; onApprove(row: DataRow): void; onReject(row: DataRow): void; onReturnForCorrection(row: DataRow): void; onEditReturned(row: DataRow): void; onCancel(row: DataRow): void; onRefresh(): void; onHistoryMonthChange?(value: string): void; onHistoryMonthStep?(delta: number): void; onHistoryPageChange?(page: number): void; onAttachment(row: DataRow): void; onPrint(row: DataRow): void }) {
   const auth = useContext(AuthContext)!;
   const [form, setForm] = useState({ employeeId: '', leaveType: '', startDate: '', endDate: '', substitute: '', reason: '' });
   const [file, setFile] = useState<File>();
@@ -1377,15 +1377,27 @@ function LeaveManagementPage({ rows, loading, error, linked, remaining, quotaSum
   const [leaveDateOverlap, setLeaveDateOverlap] = useState<{ id: string; status: string; startDate: string; endDate: string; leaveType: string } | null>(null);
   const [leaveOverlapState, setLeaveOverlapState] = useState<'idle' | 'checking' | 'clear' | 'conflict' | 'error'>('idle');
   const [selectedPendingId, setSelectedPendingId] = useState<string>();
+  const [selectedPendingDetail, setSelectedPendingDetail] = useState<DataRow>();
+  const [pendingDetailState, setPendingDetailState] = useState<'idle' | 'loading' | 'ready' | 'not-found' | 'forbidden' | 'error'>('idle');
   const [requestQuota, setRequestQuota] = useState<{ entitlement: unknown; used: unknown; remaining: unknown }>();
   const [requestQuotaState, setRequestQuotaState] = useState<'idle' | 'loading' | 'ready' | 'missing' | 'error'>('idle');
   const pendingRows = rows.filter((row) => row.status === 'PENDING');
   useEffect(() => {
-    if (initialPendingId && pendingRows.some((row) => String(row.id) === initialPendingId)) {
+    if (!initialPendingId) return;
+    if (initialPendingDetail && String(initialPendingDetail.id) === initialPendingId && initialPendingDetail.status === 'PENDING') {
+      setSelectedPendingDetail(initialPendingDetail);
       setSelectedPendingId(initialPendingId);
+      setPendingDetailState('ready');
+      onInitialPendingHandled?.();
+      return;
+    }
+    if (pendingRows.some((row) => String(row.id) === initialPendingId)) {
+      setSelectedPendingDetail(undefined);
+      setSelectedPendingId(initialPendingId);
+      setPendingDetailState('ready');
       onInitialPendingHandled?.();
     }
-  }, [initialPendingId, pendingRows, onInitialPendingHandled]);
+  }, [initialPendingId, initialPendingDetail, pendingRows, onInitialPendingHandled]);
   const historyRows = historyScope === 'all' ? rows : rows.filter((row) => String(row.employeeId || '') === String(employeeId || ''));
   const latestOwnRequest = [...historyRows].filter(row => String(row.employeeId || '') === String(employeeId || '') && Number.isFinite(Date.parse(String(row.createdAt || '')))).sort((a,b)=>(Date.parse(String(b.createdAt || '')) || 0)-(Date.parse(String(a.createdAt || '')) || 0))[0];
   const days = form.startDate && form.endDate ? Math.max(0, Math.floor((Date.parse(`${form.endDate}T00:00:00Z`) - Date.parse(`${form.startDate}T00:00:00Z`)) / 86400000) + 1) : 0;
@@ -1585,7 +1597,7 @@ function LeaveManagementPage({ rows, loading, error, linked, remaining, quotaSum
     return <ResponsiveDataTable ariaLabel={mode === 'history' ? 'ประวัติการลาพนักงานทั้งหมด' : 'ประวัติคำขอลาของฉัน'} hasRows={items.length > 0} className="leave-history-responsive-table" desktop={desktop} mobile={mobile} />;
   };
   const quotaCards: Array<[SmsIconName, string, unknown, string]> = [['attendance', 'ลาป่วยคงเหลือ', remaining.sickLeave, 'green'], ['leave', 'ลากิจคงเหลือ', remaining.personalLeave, 'blue'], ['calendar', 'ลาพักร้อนคงเหลือ', remaining.vacationLeave, 'amber']];
-  const selectedPending = pendingRows.find((row) => String(row.id) === selectedPendingId) || pendingRows[0];
+  const selectedPending = selectedPendingDetail || pendingRows.find((row) => String(row.id) === selectedPendingId);
   const selectedPendingIsSelf = Boolean(selectedPending && String(selectedPending.employeeId || '') === String(employeeId || ''));
   if (mode === 'pending') {
     return <section className="view-pane leave-page leave-mode-pending leave-decision-page data-surface-page layout-roster-page layout-page-surface" aria-label="พื้นที่อนุมัติคำขอลา" aria-busy={loading}>
@@ -1802,12 +1814,14 @@ function Dashboard() {
   const [nativeApprovalLicenseId, setNativeApprovalLicenseId] = useState<string>();
   const [nativeApprovalDocumentId, setNativeApprovalDocumentId] = useState<string>();
   const [nativeApprovalUserId, setNativeApprovalUserId] = useState<string>();
+  const [nativeApprovalLeaveDetail, setNativeApprovalLeaveDetail] = useState<DataRow>();
   const clearNativeApprovalTarget = () => {
     setNativeApprovalRequestId(undefined);
     setNativeApprovalEmployeeId(undefined);
     setNativeApprovalLicenseId(undefined);
     setNativeApprovalDocumentId(undefined);
     setNativeApprovalUserId(undefined);
+    setNativeApprovalLeaveDetail(undefined);
     setLeaveReviewInitialRequestId(undefined);
   };
   const [approvalCenterRefresh, setApprovalCenterRefresh] = useState(0);
@@ -2358,15 +2372,37 @@ function Dashboard() {
   const openLicenseEdit = (row: DataRow) => { if (auth.token) setLicenseEditTarget(row); };
 
   useEffect(() => {
-    if (activePage !== 'licenses' || !nativeApprovalLicenseId || licenseEditTarget) return;
+    if (activePage !== 'leavePending' || !leaveReviewInitialRequestId || !auth.token) return;
     let active = true;
-    api.licenses(auth.token!, 1, 'ALL', nativeApprovalEmployeeId).then((result) => {
+    api.leaveRequest(auth.token, leaveReviewInitialRequestId).then((result) => {
       if (!active) return;
-      const row = (Array.isArray(result?.data) ? result.data as DataRow[] : []).find((item: DataRow) => String(item.id) === nativeApprovalLicenseId);
-      if (row) setLicenseEditTarget(row);
-    }).catch(() => undefined);
+      const row = result?.data as DataRow | undefined;
+      if (!row || String(row.id) !== leaveReviewInitialRequestId || row.status !== 'PENDING') throw Object.assign(new Error('Leave request target mismatch'), { status: 404 });
+      setNativeApprovalLeaveDetail(row);
+      setOperationError(undefined);
+    }).catch((reason) => {
+      if (!active) return;
+      setOperationError(toRequestErrorState(reason, 'โหลดรายละเอียดคำขอลาไม่สำเร็จ'));
+    });
     return () => { active = false; };
-  }, [activePage, nativeApprovalLicenseId, nativeApprovalEmployeeId, licenseEditTarget, auth.token]);
+  }, [activePage, leaveReviewInitialRequestId, auth.token]);
+
+  useEffect(() => {
+    if (activePage !== 'licenses' || !nativeApprovalLicenseId || licenseEditTarget || !auth.token) return;
+    let active = true;
+    api.license(auth.token, nativeApprovalLicenseId).then((result) => {
+      if (!active) return;
+      const row = result?.data as DataRow | undefined;
+      if (!row || String(row.id) !== nativeApprovalLicenseId) throw Object.assign(new Error('License target mismatch'), { status: 404 });
+      if (nativeApprovalDocumentId && String((row.documentSummary as { pendingDocumentId?: unknown } | undefined)?.pendingDocumentId || '') !== nativeApprovalDocumentId) throw Object.assign(new Error('Document target mismatch'), { status: 404 });
+      setLicenseEditTarget(row);
+      clearNativeApprovalTarget();
+    }).catch((reason) => {
+      if (!active) return;
+      setOperationError(toRequestErrorState(reason, 'โหลดรายละเอียดใบอนุญาตไม่สำเร็จ'));
+    });
+    return () => { active = false; };
+  }, [activePage, nativeApprovalLicenseId, nativeApprovalDocumentId, licenseEditTarget, auth.token]);
 
   const openEmployeeEditor = async (employee?: Employee) => {
     if (!auth.token) return;
@@ -3240,7 +3276,7 @@ function Dashboard() {
       const rows = Array.isArray(operationResponse.data) ? operationResponse.data : [];
       const remaining = nested(leaveSummary.remaining);
         const canCancelApprovedLeave = auth.user?.role === 'ADMIN';
-        return <LeaveManagementPage mode={activePage === 'leavePending' ? 'pending' : activePage === 'leaveHistory' ? 'history' : 'all'} initialPendingId={activePage === 'leavePending' ? leaveReviewInitialRequestId : undefined} onInitialPendingHandled={clearNativeApprovalTarget} historyScope={activePage === 'leaveHistory' ? 'all' : 'mine'} historyMonth={activePage === 'leaveHistory' ? leaveMonth : undefined} historyTotal={activePage === 'leaveHistory' ? operationResponse.meta?.total : undefined} historyPage={activePage === 'leaveHistory' ? operationResponse.meta?.page : undefined} historyTotalPages={activePage === 'leaveHistory' ? operationResponse.meta?.totalPages : undefined} historyStatusCounts={activePage === 'leaveHistory' ? operationResponse.meta?.statusCounts : undefined} employeeId={String(leaveSummary.employeeId || '')} currentUserId={auth.user?.id} currentUserRole={auth.user?.role} leavePolicy={leavePolicy} leaveTypes={activeLeaveTypes} rows={rows} loading={operationLoading} error={operationError} linked={Boolean(leaveSummary.linked)} remaining={remaining} quotaSummary={leaveSummary} quotaYear={Number(leaveSummary.quotaYear || currentBangkokQuotaYear())} canManage={pwaShell ? false : canManage} canSubmit={(pwaShell ? pwaOnline : true) && (auth.user?.role !== 'VIEWER' || Boolean(leaveSummary.linked))} canCancelApprovedLeave={canCancelApprovedLeave} mutationsEnabled={!pwaShell || pwaOnline} employeeOptions={employeeOptions} onRefresh={() => setOperationRefresh((value) => value + 1)} onHistoryMonthChange={changeLeaveMonth} onHistoryMonthStep={(delta) => changeLeaveMonth(shiftMonthValue(leaveMonth, delta))} onHistoryPageChange={setOperationPage} onApprove={(row) => handleOperationAction(row, 'approve')} onReject={(row) => handleOperationAction(row, 'reject')} onReturnForCorrection={(row) => handleOperationAction(row, 'return')} onEditReturned={(row) => runEditor({
+        return <LeaveManagementPage mode={activePage === 'leavePending' ? 'pending' : activePage === 'leaveHistory' ? 'history' : 'all'} initialPendingId={activePage === 'leavePending' ? leaveReviewInitialRequestId : undefined} initialPendingDetail={activePage === 'leavePending' ? nativeApprovalLeaveDetail : undefined} onInitialPendingHandled={clearNativeApprovalTarget} historyScope={activePage === 'leaveHistory' ? 'all' : 'mine'} historyMonth={activePage === 'leaveHistory' ? leaveMonth : undefined} historyTotal={activePage === 'leaveHistory' ? operationResponse.meta?.total : undefined} historyPage={activePage === 'leaveHistory' ? operationResponse.meta?.page : undefined} historyTotalPages={activePage === 'leaveHistory' ? operationResponse.meta?.totalPages : undefined} historyStatusCounts={activePage === 'leaveHistory' ? operationResponse.meta?.statusCounts : undefined} employeeId={String(leaveSummary.employeeId || '')} currentUserId={auth.user?.id} currentUserRole={auth.user?.role} leavePolicy={leavePolicy} leaveTypes={activeLeaveTypes} rows={rows} loading={operationLoading} error={operationError} linked={Boolean(leaveSummary.linked)} remaining={remaining} quotaSummary={leaveSummary} quotaYear={Number(leaveSummary.quotaYear || currentBangkokQuotaYear())} canManage={pwaShell ? false : canManage} canSubmit={(pwaShell ? pwaOnline : true) && (auth.user?.role !== 'VIEWER' || Boolean(leaveSummary.linked))} canCancelApprovedLeave={canCancelApprovedLeave} mutationsEnabled={!pwaShell || pwaOnline} employeeOptions={employeeOptions} onRefresh={() => setOperationRefresh((value) => value + 1)} onHistoryMonthChange={changeLeaveMonth} onHistoryMonthStep={(delta) => changeLeaveMonth(shiftMonthValue(leaveMonth, delta))} onHistoryPageChange={setOperationPage} onApprove={(row) => handleOperationAction(row, 'approve')} onReject={(row) => handleOperationAction(row, 'reject')} onReturnForCorrection={(row) => handleOperationAction(row, 'return')} onEditReturned={(row) => runEditor({
           title: `แก้ไขคำขอลา · ${text(row.employeeNameSnapshot)}`,
           submitLabel: 'บันทึกและส่งตรวจสอบอีกครั้ง',
           fields: [

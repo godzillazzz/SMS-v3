@@ -508,6 +508,15 @@ router.get('/licenses', authorize('ADMIN', 'MANAGER', 'SUPERVISOR'), async (req,
     res.json({ data, meta: { page, pageSize, total, totalPages: Math.ceil(total / pageSize) } });
   } catch (error) { next(error); }
 });
+router.get('/licenses/:id', authorize('ADMIN', 'MANAGER', 'SUPERVISOR'), async (req, res, next) => {
+  try {
+    const id = uuid.parse(req.params.id);
+    const license = await prisma.employeeLicense.findUnique({ where: { id }, select: { id: true, employeeId: true, licenseType: true, licenseNumber: true, issueDate: true, expiryDate: true, status: true, documentMigrationStatus: true, remark: true, employee: { select: { id: true, employeeCode: true, firstName: true, lastName: true, department: true } } } });
+    if (!license) throw new HttpError(404, 'License not found.');
+    const summaries = await licenseDocuments.tableSummaries({ licenses: [license], requestUser: req.user });
+    res.json({ data: { ...license, documentSummary: summaries[license.id] } });
+  } catch (error) { next(error); }
+});
 router.post('/licenses', authorize('ADMIN'), async (req, res, next) => {
   try {
     const input = licenseInput.parse(req.body);
@@ -1376,6 +1385,14 @@ router.post('/leave-requests/with-attachment', leaveUpload, async (req, res, nex
     }
 
     res.status(201).json({ data: result });
+  } catch (error) { next(error); }
+});
+router.get('/leave-requests/:id', authorize('ADMIN', 'MANAGER', 'SUPERVISOR'), async (req, res, next) => {
+  try {
+    const id = uuid.parse(req.params.id);
+    const row = await prisma.leaveRequest.findUnique({ where: { id }, select: { id: true, employeeId: true, requestedAt: true, employeeNameSnapshot: true, departmentSnapshot: true, leaveType: true, leaveTypeId: true, leaveTypeNameSnapshot: true, leaveQuotaBucketSnapshot: true, startDate: true, endDate: true, dayCount: true, reason: true, attachmentUrl: true, status: true, approvedAt: true, approvedByLegacyRef: true, createdByUserId: true, attachment: { select: { fileName: true, mimeType: true, sizeBytes: true } } } });
+    if (!row) throw new HttpError(404, 'Leave request not found.');
+    res.json({ data: { ...row, attachmentUrl: row.attachment ? `/api/v1/leave-requests/${row.id}/attachment` : null } });
   } catch (error) { next(error); }
 });
 router.get('/leave-requests/:id/attachment', async (req, res, next) => {

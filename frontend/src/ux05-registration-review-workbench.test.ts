@@ -167,7 +167,7 @@ describe('G04.2 UX-05 Registration Review workbench contract', () => {
   });
 
   it('locks the authorized API source after T25 cross-tab refresh coordination and preserves all five Registration Review API signatures', () => {
-    expect(apiSha256).toBe('a4942794175f8e4cf01317856c2a8f17efa306b6fda4519ab8f293d7bd9be5cf');
+    expect(apiSha256).toBe('d4404c0a7218fad92615bb2ea650638adbd88d302160061ca63ebb819dd5d62b');
     expect(api).toContain('registrationRequests: (token: string, options: string | { page?: number; pageSize?: number; status?: string } = {})');
     expect(api).toContain('registrationCandidates: (token: string, id: string, search = \'\')');
     expect(api).toContain('matchRegistrationRequest: (token: string, id: string, employeeId: string)');

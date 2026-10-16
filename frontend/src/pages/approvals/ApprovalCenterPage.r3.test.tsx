@@ -139,14 +139,15 @@ describe('FE-VERIFY-003 approval target contracts', () => {
     ['404', Object.assign(new Error('missing'), { status: 404 }), 'ไม่พบคำขอที่ต้องการเปิดรายละเอียด (404)'],
     ['403', Object.assign(new Error('denied'), { status: 403 }), 'คุณไม่มีสิทธิ์ดูรายละเอียดคำขอนี้ (403)'],
     ['generic load-error', Object.assign(new Error('failed'), { status: 500 }), 'โหลดรายละเอียดคำขอไม่สำเร็จ กรุณาลองใหม่ (โหลดผิดพลาด)']
-  ] as const)('exposes detail %s as role alert', async (_label, failure, message) => {
+  ] as const)('exposes detail %s with accessible status semantics', async (_label, failure, message) => {
     const item = approvalItem(targetCases[0]);
     renderApprovalPage(item);
     await screen.findAllByText(item.title);
     let resolve!: (value: unknown) => void;
     mocks.getApprovalCenterItem.mockImplementation(() => failure ? Promise.reject(failure) : new Promise((res) => { resolve = res; }));
     fireEvent.click(screen.getAllByRole('button', { name: /ดูรายละเอียด/ })[0]);
-    expect((await screen.findByRole('alert')).textContent).toContain(message);
+    const state = failure ? await screen.findByRole('alert') : await screen.findByRole('status');
+    expect(state.textContent).toContain(message);
     if (!failure) resolve({ data: item });
   });
 
@@ -170,7 +171,7 @@ describe('FE-VERIFY-003 approval target contracts', () => {
     let resolve!: (value: unknown) => void;
     mocks.getApprovalCenterItem.mockImplementation(() => new Promise((res) => { resolve = res; }));
     fireEvent.click(screen.getAllByRole('button', { name: /ดูรายละเอียด/ })[0]);
-    expect((await screen.findByRole('alert')).textContent).toContain('กำลังโหลดรายละเอียดคำขอ…');
+    expect((await screen.findByRole('status')).textContent).toContain('กำลังโหลดรายละเอียดคำขอ…');
     expect(screen.getAllByText(item.title).length).toBeGreaterThan(0);
     resolve({ data: item });
     await waitFor(() => expect(onNavigate).toHaveBeenCalledTimes(1));
