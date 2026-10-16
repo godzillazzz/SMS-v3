@@ -11,17 +11,19 @@ function requestOptions() {
 }
 test.beforeAll(async () => {
   const preflight = Object.fromEntries(roles.map((role) => [role, { code: 'NOT_RUN' }]));
+  let loginAttempts = 0;
   try {
     config = readConfig();
     sessions = await preflightAccounts(
       () => request.newContext(requestOptions()),
       config,
-      (entry) => { if (roles.includes(entry.role)) preflight[entry.role] = entry; }
+      (entry) => { if (roles.includes(entry.role)) preflight[entry.role] = entry; },
+      () => { loginAttempts++; }
     );
   } finally {
     // Only fixed role identifiers and coarse status codes are persisted.
     fs.mkdirSync('test-results/uat-v3-safe', { recursive: true });
-    fs.writeFileSync('test-results/uat-v3-safe/preflight.json', JSON.stringify(preflight));
+    fs.writeFileSync('test-results/uat-v3-safe/preflight.json', JSON.stringify({ ...preflight, __login_attempts_total: loginAttempts }));
   }
 });
 test.afterAll(() => sessions?.clear());
@@ -47,10 +49,16 @@ for (const role of roles) {
     });
     await test.step('BROWSER_LOGIN_IDENTITY', async () => {
       // Never attach payload, tokens, DOM snapshots, passwords, or login screenshots.
-      expect(response.status()).toBe(200);
-      const payload = await response.json();
-      expect(payload.user?.role).toBe(role);
-      expect(payload.user?.id === sessions.get(role).user.id).toBe(true);
+      const status = response.status();
+      if (status !== 200) {
+        const retryAfter = response.headers()['retry-after'];
+        const retryAfterSeconds = /^\d+$/.test(retryAfter || '') ? retryAfter : '';
+        throw new Error(`UAT_LOGIN_HTTP_${status}` + (retryAfterSeconds ? `_RETRY_AFTER_${retryAfterSeconds}` : ''));
+      }
+      let payload;
+      try { payload = await response.json(); } catch { throw new Error('UAT_LOGIN_BODY_UNREADABLE'); }
+      if (payload.user?.role !== role) throw new Error('UAT_LOGIN_ROLE_MISMATCH');
+      if (payload.user?.id !== sessions.get(role).user.id) throw new Error('UAT_LOGIN_ID_MISMATCH');
     });
     await test.step('BROWSER_AUTH_TRANSITION', async () => {
       await expect(page.locator('form.login-form')).toHaveCount(0);

@@ -21,7 +21,7 @@ function loginPreflightRequestOptions(environment, baseURL) {
     extraHTTPHeaders: automationBypassHeaders(environment, baseURL, loginUrl)
   };
 }
-async function preflightAccounts(createContext, config, onStatus = () => {}) {
+async function preflightAccounts(createContext, config, onStatus = () => {}, onAttempt = () => {}) {
   const sessions = new RoleSessions();
   let activeRole = null;
   let failureCode = 'REQUEST_ERROR';
@@ -32,6 +32,7 @@ async function preflightAccounts(createContext, config, onStatus = () => {}) {
       let context;
       try {
         context = await createContext();
+        onAttempt(role);
         const account = config.accounts[role];
         const response = await context.post('/api/v1/auth/login', { data: { ...account, clientType: 'browser' }, timeout: 15000, maxRedirects: 0 });
         const status = response.status();
