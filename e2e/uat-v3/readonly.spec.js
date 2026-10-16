@@ -10,13 +10,13 @@ function requestOptions() {
   return loginPreflightRequestOptions(process.env, config.baseURL);
 }
 test.beforeAll(async () => {
-  const preflight = Object.fromEntries(roles.map((role) => [role, 'NOT_RUN']));
+  const preflight = Object.fromEntries(roles.map((role) => [role, { code: 'NOT_RUN' }]));
   try {
     config = readConfig();
     sessions = await preflightAccounts(
       () => request.newContext(requestOptions()),
       config,
-      ({ role, code }) => { if (roles.includes(role)) preflight[role] = code; }
+      (entry) => { if (roles.includes(entry.role)) preflight[entry.role] = entry; }
     );
   } finally {
     // Only fixed role identifiers and coarse status codes are persisted.
@@ -25,6 +25,9 @@ test.beforeAll(async () => {
   }
 });
 test.afterAll(() => sessions?.clear());
+test.afterEach(async ({ page }) => {
+  if (page) await page.unrouteAll({ behavior: 'ignoreErrors' }).catch(() => {});
+});
 for (const role of roles) {
   test(`${role}: real browser login and exact identity`, async ({ page }) => {
     const attempts = await installReadonlyBrowser(page, undefined, config.baseURL, { realLogin: true });
@@ -121,6 +124,10 @@ for (const role of roles) {
         const nav = page.locator('nav.nav-menu').first();
         await expect(nav).toBeVisible();
         const matrix = getRoleNavigationContract(role);
+        const expectedIds = new Set([...matrix.required, ...matrix.forbidden].map((item) => item.id));
+        const actualIds = await nav.locator('[data-navigation-id]').evaluateAll((items) => items.map((item) => item.getAttribute('data-navigation-id')));
+        const unknownIds = actualIds.filter((id) => !expectedIds.has(id));
+        expect(unknownIds, `Unexpected navigation ids: ${unknownIds.join(', ')}`).toEqual([]);
         for (const item of matrix.required) await expect(nav.locator(`[data-navigation-id="${item.id}"]`)).toBeVisible();
         for (const item of matrix.forbidden) await expect(nav.locator(`[data-navigation-id="${item.id}"]`)).toHaveCount(0);
         expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);

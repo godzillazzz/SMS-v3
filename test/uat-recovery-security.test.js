@@ -206,7 +206,7 @@ test('four-role approval contracts match actual authorization middleware', () =>
     assert.equal(error?.statusCode || 200, role === 'VIEWER' ? 403 : 200);
     assert.equal(getRoleApiMatrix(role).find((route) => route.label === 'Approval Center').expectedStatus, role === 'VIEWER' ? 403 : 200);
     const nav = getRoleNavigationContract(role);
-    assert.equal(nav.required.some((item) => item.id === 'approvals'), ['ADMIN', 'SUPERVISOR'].includes(role));
+    assert.equal(nav.required.some((item) => item.id === 'approvalCenter'), role !== 'VIEWER');
     assert.ok(getRoleApiMatrix(role).every((route) => route.readOnly === true));
     if (role !== 'ADMIN') assert.ok(getRoleApiMatrix(role).some((route) => route.expectedStatus === 403));
   }
@@ -223,9 +223,9 @@ test('SUPERVISOR matrix is explicit and preserves role-specific approval boundar
   assert.equal(supervisor.find((route) => route.label === 'Security Sites').expectedStatus, 403);
   assert.equal(supervisor.find((route) => route.label === 'System settings').expectedStatus, 403);
   assert.equal(supervisor.find((route) => route.label === 'Attendance report'), undefined);
-  assert.equal(getRoleNavigationContract('SUPERVISOR').required.some((item) => item.id === 'approvals'), true);
-  assert.equal(getRoleNavigationContract('SUPERVISOR').forbidden.some((item) => item.id === 'attendanceReport'), true);
-  assert.equal(getRoleNavigationContract('MANAGER').required.some((item) => item.id === 'approvals'), false);
+  assert.equal(getRoleNavigationContract('SUPERVISOR').required.some((item) => item.id === 'approvalCenter'), true);
+  assert.equal(getRoleNavigationContract('SUPERVISOR').forbidden.some((item) => item.id === 'systemHealth'), true);
+  assert.equal(getRoleNavigationContract('MANAGER').required.some((item) => item.id === 'approvalCenter'), true);
   assert.equal(getRoleActionMatrix('MANAGER').length, 0);
   assert.deepEqual(getRoleActionMatrix('VIEWER'), []);
   assert.deepEqual(getRoleActionMatrix('SUPERVISOR').map(({ method, path }) => [method, path]), [
