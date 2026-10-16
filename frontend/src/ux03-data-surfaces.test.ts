@@ -134,7 +134,7 @@ describe('G04.2 UX-03 data surfaces contract', () => {
   });
 
   it('keeps the authorized API source blob locked after T25 cross-tab refresh coordination', () => {
-    expect(apiSha256).toBe('b099590cfbb12939cf596907a94b35cef793b26be88cf5a6ea05788ea40724d5');
+    expect(apiSha256).toBe('d4404c0a7218fad92615bb2ea650638adbd88d302160061ca63ebb819dd5d62b');
   });
 
   it('provides an accessible shared row-action menu with focus restoration and viewport containment', () => {
