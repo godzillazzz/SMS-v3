@@ -75,3 +75,7 @@ export function getApprovalCenterSummary(token: string, options: { forceRefresh?
 export function getApprovalCenter(token: string, options: { forceRefresh?: boolean } = {}) {
   return getCachedApprovalCenterRead(token, '/approval-center?limit=100', () => listEntry, entry => { listEntry = entry; }, options);
 }
+
+export function getApprovalCenterItem(token: string, type: string, requestId: string) {
+  return approvalCenterRequest(token, `/approval-center/items/${encodeURIComponent(type)}/${encodeURIComponent(requestId)}`);
+}

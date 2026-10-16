@@ -5,12 +5,14 @@ import { ApprovalCenterPage, type ApprovalCenterItem } from './ApprovalCenterPag
 
 const mocks = vi.hoisted(() => ({
   getApprovalCenter: vi.fn(),
+  getApprovalCenterItem: vi.fn(),
   getApprovalCenterSummary: vi.fn(),
   updateScheduleApproval: vi.fn().mockResolvedValue({ data: {} })
 }));
 
 vi.mock('../../approval-center-client', () => ({
   getApprovalCenter: mocks.getApprovalCenter,
+  getApprovalCenterItem: mocks.getApprovalCenterItem,
   getApprovalCenterSummary: mocks.getApprovalCenterSummary
 }));
 vi.mock('../../pages/attendance-supervisor/attendance-adjustment-client', () => ({
@@ -86,6 +88,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   window.history.replaceState({}, '', '/app/approvals');
   mocks.getApprovalCenter.mockResolvedValue({ data: [leaveItem, scheduleItem], summary: { total: 2, truncated: false } });
+  mocks.getApprovalCenterItem.mockImplementation(async (_token: string, _type: string, requestId: string) => ({ data: requestId === scheduleItem.requestId ? scheduleItem : leaveItem }));
 });
 
 describe('ApprovalCenterPage unified approval inbox', () => {

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { api } from '../../api';
-import { getApprovalCenter, getApprovalCenterSummary } from '../../approval-center-client';
+import { getApprovalCenter, getApprovalCenterItem, getApprovalCenterSummary } from '../../approval-center-client';
 import { RequestErrorContent, toRequestErrorState, type RequestErrorInput } from '../../request-error';
 import { SmsIcon } from '../../components/SmsIcon';
 import { roleDisplayName } from '../../role-display';
@@ -215,6 +215,7 @@ export function ApprovalCenterPage({
   const [busyAction, setBusyAction] = useState<{ id: string; action: 'approve' | 'reject' }>();
   const [error, setError] = useState<RequestErrorInput>();
   const [notice, setNotice] = useState('');
+  const [detailState, setDetailState] = useState<{ status: 'loading' | 'not-found' | 'forbidden' | 'error'; message: string }>();
   const [rejecting, setRejecting] = useState<ApprovalCenterItem>();
   const [rejectReason, setRejectReason] = useState('');
 
@@ -420,16 +421,34 @@ export function ApprovalCenterPage({
     </div>;
   };
 
-  const openDetails = (item: ApprovalCenterItem) => {
-    if (item.type === 'EMPLOYEE_MASTER_CHANGE') {
-      onOpenEmployeeChange(item.requestId);
-      return;
+  const openDetails = async (item: ApprovalCenterItem) => {
+    setDetailState({ status: 'loading', message: 'กำลังโหลดรายละเอียดคำขอ…' });
+    try {
+      const result = await getApprovalCenterItem(token, item.type, item.requestId);
+      const detail = (result?.data || result) as ApprovalCenterItem;
+      if (!detail || detail.type !== item.type || String(detail.requestId) !== String(item.requestId)) {
+        setDetailState({ status: 'not-found', message: 'ไม่พบคำขอที่ต้องการเปิดรายละเอียด (404)' });
+        return;
+      }
+      setDetailState(undefined);
+      if (detail.type === 'EMPLOYEE_MASTER_CHANGE') {
+        onOpenEmployeeChange(detail.requestId);
+        return;
+      }
+      if (detail.type === 'SCHEDULE_APPROVAL') {
+        setSelectedId(detail.id || item.id);
+        return;
+      }
+      onNavigate(detail);
+    } catch (cause) {
+      const status = typeof cause === 'object' && cause !== null && 'status' in cause ? Number((cause as { status?: unknown }).status) : 0;
+      const next = status === 404
+        ? { status: 'not-found' as const, message: 'ไม่พบคำขอที่ต้องการเปิดรายละเอียด (404)' }
+        : status === 403
+          ? { status: 'forbidden' as const, message: 'คุณไม่มีสิทธิ์ดูรายละเอียดคำขอนี้ (403)' }
+          : { status: 'error' as const, message: 'โหลดรายละเอียดคำขอไม่สำเร็จ กรุณาลองใหม่ (โหลดผิดพลาด)' };
+      setDetailState(next);
     }
-    if (item.type === 'SCHEDULE_APPROVAL') {
-      setSelectedId(item.id);
-      return;
-    }
-    onNavigate(item);
   };
 
   const renderDetailButton = (item: ApprovalCenterItem) => <button
@@ -456,8 +475,11 @@ export function ApprovalCenterPage({
     <div className="approval-center-content">
       <PageHeader kicker="งานที่รอการพิจารณา" title="ศูนย์อนุมัติคำขอ" description="ดูและดำเนินการกับคำขอที่รออนุมัติตามสิทธิ์ของคุณ" className="approval-center-header" actions={<button type="button" disabled={loading} onClick={() => void loadQueue(true)} className="btn-neutral small-action"><SmsIcon name="refresh" size={16} />รีเฟรชข้อมูล</button>} />
 
-      {error && <div className="approval-center-alert approval-center-alert--error">
+      {error && <div className="approval-center-alert approval-center-alert--error" role="alert" aria-live="assertive">
         <RequestErrorContent error={error} />
+      </div>}
+      {detailState && <div className="approval-center-alert approval-center-alert--error" role="alert" aria-live="assertive">
+        {detailState.message}
       </div>}
       {notice && <div className="approval-center-alert approval-center-alert--success">
         {notice}
