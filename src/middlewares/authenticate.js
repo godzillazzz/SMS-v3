@@ -65,9 +65,4 @@ function authorize(...roles) {
     : next(new HttpError(403, 'You do not have permission for this action.'));
 }
 
-function denyImpersonation(req, _res, next) {
-  if (req.user?.impersonation) return next(new HttpError(403, 'View As mode is not allowed for approval work.', { code: 'APPROVAL_VIEW_AS_FORBIDDEN' }));
-  return next();
-}
-
-module.exports = { authenticate, authorize, denyImpersonation };
+module.exports = { authenticate, authorize };

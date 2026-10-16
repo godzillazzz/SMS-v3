@@ -4,7 +4,6 @@ const express = require('express');
 const { z } = require('zod');
 const { authenticate, authorize } = require('../middlewares/authenticate');
 const { createAttendanceDeviceService } = require('../services/attendance-device.service');
-const HttpError = require('../utils/http-error');
 
 const router = express.Router();
 const service = createAttendanceDeviceService();
@@ -35,7 +34,6 @@ router.post('/requests/:id/cancel', async (req, res, next) => { try { res.json({
 router.get('/admin/overview', authorize('ADMIN'), async (req, res, next) => { try { res.json({ data: await service.listAdminOverview({ actor: req.user }) }); } catch (error) { next(error); } });
 router.post('/admin/employees/:employeeId/current/:deviceId/revoke', authorize('ADMIN'), async (req, res, next) => { try { const input = adminRevokeInput.parse(req.body); res.json({ data: await service.revokeCurrent({ actor: req.user, employeeId: uuid.parse(req.params.employeeId), deviceEnrollmentId: uuid.parse(req.params.deviceId), reason: input.reason }) }); } catch (error) { next(error); } });
 
-router.get('/requests/:id', authorize('ADMIN'), async (req, res, next) => { try { const id = uuid.parse(req.params.id); const rows = await service.listRequests({ actor: req.user, status: 'PENDING_APPROVAL' }); const row = rows.find((item) => String(item.id) === String(id)); if (!row) throw new HttpError(404, 'Attendance device request was not found.'); res.json({ data: row }); } catch (error) { next(error); } });
 router.get('/requests', authorize('ADMIN'), async (req, res, next) => { try { res.json({ data: await service.listRequests({ actor: req.user, status: req.query.status ? status.parse(req.query.status) : 'PENDING_APPROVAL' }) }); } catch (error) { next(error); } });
 router.post('/requests/:id/approve', authorize('ADMIN'), async (req, res, next) => { try { const input = z.object({ comment: z.string().trim().max(1000).nullable().optional() }).strict().parse(req.body); res.json({ data: await service.approve({ actor: req.user, requestId: uuid.parse(req.params.id), ...input }) }); } catch (error) { next(error); } });
 router.post('/requests/:id/return-for-correction', authorize('ADMIN'), async (req, res, next) => { try { res.json({ data: await service.returnForCorrection({ actor: req.user, requestId: uuid.parse(req.params.id), ...reviewComment.parse(req.body) }) }); } catch (error) { next(error); } });

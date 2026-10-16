@@ -105,16 +105,8 @@ export function RegistrationReviewPanel({ token, role, refreshSignal, initialReq
         try {
           const response = await api.registrationRequest(token, focusedRequestId);
           focusedRequest = response?.data as RequestRow | undefined;
-        } catch (reason) {
-          const status = Number((reason as { status?: unknown })?.status || 0);
-          setSelectedId('');
-          setError(status === 404
-            ? 'ไม่พบคำขอลงทะเบียนที่ต้องการเปิดรายละเอียด (404)'
-            : status === 403
-              ? 'คุณไม่มีสิทธิ์ดูคำขอลงทะเบียนนี้ (403)'
-              : 'โหลดรายละเอียดคำขอลงทะเบียนไม่สำเร็จ');
-          setRows(next);
-          return;
+        } catch {
+          // Keep the existing request list usable if a pending item changed while navigating.
         }
       }
       const rowsWithFocus = focusedRequest && !next.some((row) => row.id === focusedRequest?.id)

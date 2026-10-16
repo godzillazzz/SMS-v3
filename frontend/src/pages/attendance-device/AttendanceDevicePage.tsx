@@ -266,22 +266,13 @@ export function AttendanceDevicePage({ token, role, readOnly = false, initialReq
   useEffect(() => { void refresh(); }, [token, role]);
 
   useEffect(() => {
-    if (!initialRequestId || role !== 'ADMIN') return;
-    let active = true;
-    setQueueLoading(true);
-    api.attendanceDeviceRequest(token, initialRequestId).then((response) => {
-      if (!active) return;
-      const request = response?.data as AttendanceDeviceRequest | undefined;
-      if (!request || String(request.id) !== String(initialRequestId)) { setQueueError('ไม่พบคำขออุปกรณ์ลงเวลาที่ต้องการเปิดรายละเอียด (404)'); return; }
+    if (!initialRequestId || role !== 'ADMIN' || !queue.length) return;
+    const request = queue.find((row) => String(row.id) === String(initialRequestId));
+    if (request) {
       setReviewTarget({ row: request, action: 'RETURN' });
       onInitialRequestHandled?.();
-    }).catch((reason) => {
-      if (!active) return;
-      const status = Number(reason?.status || 0);
-      setQueueError(status === 404 ? 'ไม่พบคำขออุปกรณ์ลงเวลาที่ต้องการเปิดรายละเอียด (404)' : status === 403 ? 'คุณไม่มีสิทธิ์ดูคำขออุปกรณ์ลงเวลานี้ (403)' : 'โหลดรายละเอียดคำขออุปกรณ์ลงเวลาไม่สำเร็จ');
-    }).finally(() => { if (active) setQueueLoading(false); });
-    return () => { active = false; };
-  }, [initialRequestId, role, token, onInitialRequestHandled]);
+    }
+  }, [initialRequestId, queue, role]);
 
   const proveRequest = async (request: AttendanceDeviceRequest) => {
     const candidateId = request.candidateDeviceEnrollmentId;

@@ -44,7 +44,7 @@ import { createLeaveType, getLeaveTypes, updateLeaveType, type LeaveTypeMaster }
 import { getShiftTypes } from './shift-type-client';
 import { describePattern, getAutoSchedulePatterns, type AutoSchedulePattern } from './auto-schedule-pattern-client';
 import { setAttendanceTokenRefreshGuard, setAttendanceTokenRefreshHandler } from './attendance-auth-request';
-import { RequestErrorContent, formatRequestErrorMessage, toRequestErrorState, type RequestErrorInput, type RequestErrorState } from './request-error';
+import { RequestErrorContent, formatRequestErrorMessage, toRequestErrorState, type RequestErrorInput } from './request-error';
 import { checkExistingLeaveDates } from './leave-date-overlap-client';
 import { acquireDocumentScrollLock } from './document-scroll-lock';
 import { buildLeaveQuotaProvisioningPayload, canProvisionLeaveQuota, currentBangkokQuotaYear, hasUnmatchedLegacyQuota, leaveQuotaDefaultsFromPolicy, quotaProvisioningEmployeeOptions, thaiQuotaYearLabel } from './leave-quota-provisioning';
@@ -1367,7 +1367,7 @@ function ShiftEditorModal({ shift, defaults, employees, shiftTypes, licenses, is
   );
 }
 
-function LeaveManagementPage({ rows, loading, error, linked, remaining, quotaSummary, leavePolicy, leaveTypes, quotaYear, employeeId, currentUserId, currentUserRole, canManage, canSubmit, canCancelApprovedLeave, mutationsEnabled = true, mode = 'all', historyScope = 'mine', historyMonth, historyTotal, historyPage, historyTotalPages, historyStatusCounts, employeeOptions, initialPendingId, initialPendingDetail, onInitialPendingHandled, onSubmit, onApprove, onReject, onReturnForCorrection, onEditReturned, onCancel, onRefresh, onHistoryMonthChange, onHistoryMonthStep, onHistoryPageChange, onAttachment, onPrint }: { rows: DataRow[]; loading: boolean; error?: RequestErrorInput; linked: boolean; remaining: DataRow; quotaSummary: DataRow; leavePolicy: DataRow; leaveTypes: LeaveTypeMaster[]; quotaYear?: number; employeeId?: string; currentUserId?: string; currentUserRole?: string; canManage: boolean; canSubmit: boolean; canCancelApprovedLeave: boolean; mutationsEnabled?: boolean; mode?: 'all' | 'pending' | 'history'; historyScope?: 'mine' | 'all'; historyMonth?: string; historyTotal?: number; historyPage?: number; historyTotalPages?: number; historyStatusCounts?: Record<string, number>; employeeOptions: Array<{ value: string; label: string }>; initialPendingId?: string; initialPendingDetail?: DataRow; onInitialPendingHandled?(): void; onSubmit(values: Record<string, string>, file?: File): Promise<void>; onApprove(row: DataRow): void; onReject(row: DataRow): void; onReturnForCorrection(row: DataRow): void; onEditReturned(row: DataRow): void; onCancel(row: DataRow): void; onRefresh(): void; onHistoryMonthChange?(value: string): void; onHistoryMonthStep?(delta: number): void; onHistoryPageChange?(page: number): void; onAttachment(row: DataRow): void; onPrint(row: DataRow): void }) {
+function LeaveManagementPage({ rows, loading, error, linked, remaining, quotaSummary, leavePolicy, leaveTypes, quotaYear, employeeId, currentUserId, currentUserRole, canManage, canSubmit, canCancelApprovedLeave, mutationsEnabled = true, mode = 'all', historyScope = 'mine', historyMonth, historyTotal, historyPage, historyTotalPages, historyStatusCounts, employeeOptions, initialPendingId, onInitialPendingHandled, onSubmit, onApprove, onReject, onReturnForCorrection, onEditReturned, onCancel, onRefresh, onHistoryMonthChange, onHistoryMonthStep, onHistoryPageChange, onAttachment, onPrint }: { rows: DataRow[]; loading: boolean; error?: RequestErrorInput; linked: boolean; remaining: DataRow; quotaSummary: DataRow; leavePolicy: DataRow; leaveTypes: LeaveTypeMaster[]; quotaYear?: number; employeeId?: string; currentUserId?: string; currentUserRole?: string; canManage: boolean; canSubmit: boolean; canCancelApprovedLeave: boolean; mutationsEnabled?: boolean; mode?: 'all' | 'pending' | 'history'; historyScope?: 'mine' | 'all'; historyMonth?: string; historyTotal?: number; historyPage?: number; historyTotalPages?: number; historyStatusCounts?: Record<string, number>; employeeOptions: Array<{ value: string; label: string }>; initialPendingId?: string; onInitialPendingHandled?(): void; onSubmit(values: Record<string, string>, file?: File): Promise<void>; onApprove(row: DataRow): void; onReject(row: DataRow): void; onReturnForCorrection(row: DataRow): void; onEditReturned(row: DataRow): void; onCancel(row: DataRow): void; onRefresh(): void; onHistoryMonthChange?(value: string): void; onHistoryMonthStep?(delta: number): void; onHistoryPageChange?(page: number): void; onAttachment(row: DataRow): void; onPrint(row: DataRow): void }) {
   const auth = useContext(AuthContext)!;
   const [form, setForm] = useState({ employeeId: '', leaveType: '', startDate: '', endDate: '', substitute: '', reason: '' });
   const [file, setFile] = useState<File>();
@@ -1377,27 +1377,15 @@ function LeaveManagementPage({ rows, loading, error, linked, remaining, quotaSum
   const [leaveDateOverlap, setLeaveDateOverlap] = useState<{ id: string; status: string; startDate: string; endDate: string; leaveType: string } | null>(null);
   const [leaveOverlapState, setLeaveOverlapState] = useState<'idle' | 'checking' | 'clear' | 'conflict' | 'error'>('idle');
   const [selectedPendingId, setSelectedPendingId] = useState<string>();
-  const [selectedPendingDetail, setSelectedPendingDetail] = useState<DataRow>();
-  const [pendingDetailState, setPendingDetailState] = useState<'idle' | 'loading' | 'ready' | 'not-found' | 'forbidden' | 'error'>('idle');
   const [requestQuota, setRequestQuota] = useState<{ entitlement: unknown; used: unknown; remaining: unknown }>();
   const [requestQuotaState, setRequestQuotaState] = useState<'idle' | 'loading' | 'ready' | 'missing' | 'error'>('idle');
   const pendingRows = rows.filter((row) => row.status === 'PENDING');
   useEffect(() => {
-    if (!initialPendingId) return;
-    if (initialPendingDetail && String(initialPendingDetail.id) === initialPendingId && initialPendingDetail.status === 'PENDING') {
-      setSelectedPendingDetail(initialPendingDetail);
+    if (initialPendingId && pendingRows.some((row) => String(row.id) === initialPendingId)) {
       setSelectedPendingId(initialPendingId);
-      setPendingDetailState('ready');
-      onInitialPendingHandled?.();
-      return;
-    }
-    if (pendingRows.some((row) => String(row.id) === initialPendingId)) {
-      setSelectedPendingDetail(undefined);
-      setSelectedPendingId(initialPendingId);
-      setPendingDetailState('ready');
       onInitialPendingHandled?.();
     }
-  }, [initialPendingId, initialPendingDetail, pendingRows, onInitialPendingHandled]);
+  }, [initialPendingId, pendingRows, onInitialPendingHandled]);
   const historyRows = historyScope === 'all' ? rows : rows.filter((row) => String(row.employeeId || '') === String(employeeId || ''));
   const latestOwnRequest = [...historyRows].filter(row => String(row.employeeId || '') === String(employeeId || '') && Number.isFinite(Date.parse(String(row.createdAt || '')))).sort((a,b)=>(Date.parse(String(b.createdAt || '')) || 0)-(Date.parse(String(a.createdAt || '')) || 0))[0];
   const days = form.startDate && form.endDate ? Math.max(0, Math.floor((Date.parse(`${form.endDate}T00:00:00Z`) - Date.parse(`${form.startDate}T00:00:00Z`)) / 86400000) + 1) : 0;
@@ -1597,7 +1585,7 @@ function LeaveManagementPage({ rows, loading, error, linked, remaining, quotaSum
     return <ResponsiveDataTable ariaLabel={mode === 'history' ? 'ประวัติการลาพนักงานทั้งหมด' : 'ประวัติคำขอลาของฉัน'} hasRows={items.length > 0} className="leave-history-responsive-table" desktop={desktop} mobile={mobile} />;
   };
   const quotaCards: Array<[SmsIconName, string, unknown, string]> = [['attendance', 'ลาป่วยคงเหลือ', remaining.sickLeave, 'green'], ['leave', 'ลากิจคงเหลือ', remaining.personalLeave, 'blue'], ['calendar', 'ลาพักร้อนคงเหลือ', remaining.vacationLeave, 'amber']];
-  const selectedPending = selectedPendingDetail || pendingRows.find((row) => String(row.id) === selectedPendingId);
+  const selectedPending = pendingRows.find((row) => String(row.id) === selectedPendingId) || pendingRows[0];
   const selectedPendingIsSelf = Boolean(selectedPending && String(selectedPending.employeeId || '') === String(employeeId || ''));
   if (mode === 'pending') {
     return <section className="view-pane leave-page leave-mode-pending leave-decision-page data-surface-page layout-roster-page layout-page-surface" aria-label="พื้นที่อนุมัติคำขอลา" aria-busy={loading}>
@@ -1814,15 +1802,12 @@ function Dashboard() {
   const [nativeApprovalLicenseId, setNativeApprovalLicenseId] = useState<string>();
   const [nativeApprovalDocumentId, setNativeApprovalDocumentId] = useState<string>();
   const [nativeApprovalUserId, setNativeApprovalUserId] = useState<string>();
-  const [nativeApprovalLeaveDetail, setNativeApprovalLeaveDetail] = useState<DataRow>();
-  const [nativeApprovalResolution, setNativeApprovalResolution] = useState<{ loading: boolean; error?: RequestErrorState }>({ loading: false });
   const clearNativeApprovalTarget = () => {
     setNativeApprovalRequestId(undefined);
     setNativeApprovalEmployeeId(undefined);
     setNativeApprovalLicenseId(undefined);
     setNativeApprovalDocumentId(undefined);
     setNativeApprovalUserId(undefined);
-    setNativeApprovalLeaveDetail(undefined);
     setLeaveReviewInitialRequestId(undefined);
   };
   const [approvalCenterRefresh, setApprovalCenterRefresh] = useState(0);
@@ -2373,42 +2358,10 @@ function Dashboard() {
   const openLicenseEdit = (row: DataRow) => { if (auth.token) setLicenseEditTarget(row); };
 
   useEffect(() => {
-    if (activePage !== 'leavePending' || !leaveReviewInitialRequestId || !auth.token) return;
-    let active = true;
-    setNativeApprovalResolution({ loading: true });
-    api.leaveRequest(auth.token, leaveReviewInitialRequestId).then((result) => {
-      if (!active) return;
-      const row = result?.data as DataRow | undefined;
-      if (!row || String(row.id) !== leaveReviewInitialRequestId || row.status !== 'PENDING') throw Object.assign(new Error('Leave request target mismatch'), { status: 404 });
-      setNativeApprovalLeaveDetail(row);
-      setOperationError(undefined);
-      setNativeApprovalResolution({ loading: false });
-    }).catch((reason) => {
-      if (!active) return;
-      setOperationError(toRequestErrorState(reason, 'โหลดรายละเอียดคำขอลาไม่สำเร็จ'));
-      setNativeApprovalResolution({ loading: false, error: toRequestErrorState(reason, 'โหลดรายละเอียดคำขอลาไม่สำเร็จ') });
-    });
-    return () => { active = false; };
-  }, [activePage, leaveReviewInitialRequestId, auth.token]);
-
-  useEffect(() => {
-    if (activePage !== 'licenses' || !nativeApprovalLicenseId || licenseEditTarget || !auth.token) return;
-    let active = true;
-    setNativeApprovalResolution({ loading: true });
-    api.license(auth.token, nativeApprovalLicenseId, nativeApprovalDocumentId).then((result) => {
-      if (!active) return;
-      const row = result?.data as DataRow | undefined;
-      if (!row || String(row.id) !== nativeApprovalLicenseId) throw Object.assign(new Error('License target mismatch'), { status: 404 });
-      if (nativeApprovalDocumentId && String((row.documentSummary as { pendingDocumentId?: unknown } | undefined)?.pendingDocumentId || '') !== nativeApprovalDocumentId) throw Object.assign(new Error('Document target mismatch'), { status: 404 });
-      setLicenseEditTarget(row);
-      setNativeApprovalResolution({ loading: false });
-    }).catch((reason) => {
-      if (!active) return;
-      setOperationError(toRequestErrorState(reason, 'โหลดรายละเอียดใบอนุญาตไม่สำเร็จ'));
-      setNativeApprovalResolution({ loading: false, error: toRequestErrorState(reason, 'โหลดรายละเอียดใบอนุญาตไม่สำเร็จ') });
-    });
-    return () => { active = false; };
-  }, [activePage, nativeApprovalLicenseId, nativeApprovalDocumentId, licenseEditTarget, auth.token]);
+    if (activePage !== 'licenses' || !nativeApprovalLicenseId || licenseEditTarget) return;
+    const row = (Array.isArray(operationResponse.data) ? operationResponse.data : []).find((item) => String(item.id) === nativeApprovalLicenseId);
+    if (row) setLicenseEditTarget(row);
+  }, [activePage, nativeApprovalLicenseId, operationResponse.data, licenseEditTarget]);
 
   const openEmployeeEditor = async (employee?: Employee) => {
     if (!auth.token) return;
@@ -3282,7 +3235,7 @@ function Dashboard() {
       const rows = Array.isArray(operationResponse.data) ? operationResponse.data : [];
       const remaining = nested(leaveSummary.remaining);
         const canCancelApprovedLeave = auth.user?.role === 'ADMIN';
-        return <>{activePage === 'leavePending' && nativeApprovalResolution.loading && <div className="full-loader" role="status">กำลังโหลดรายละเอียดคำขอลา…</div>}{activePage === 'leavePending' && nativeApprovalResolution.error && <div className="alert alert-error" role="alert">{nativeApprovalResolution.error.status === 404 ? 'ไม่พบคำขออนุมัติในขอบเขตของคุณ' : nativeApprovalResolution.error.status === 403 ? 'ไม่มีสิทธิ์เปิดคำขอนี้' : nativeApprovalResolution.error.status && nativeApprovalResolution.error.status >= 500 ? 'ระบบไม่พร้อมใช้งาน กรุณาลองใหม่ภายหลัง' : nativeApprovalResolution.error.message}</div>}<LeaveManagementPage mode={activePage === 'leavePending' ? 'pending' : activePage === 'leaveHistory' ? 'history' : 'all'} initialPendingId={activePage === 'leavePending' ? leaveReviewInitialRequestId : undefined} initialPendingDetail={activePage === 'leavePending' ? nativeApprovalLeaveDetail : undefined} onInitialPendingHandled={clearNativeApprovalTarget} historyScope={activePage === 'leaveHistory' ? 'all' : 'mine'} historyMonth={activePage === 'leaveHistory' ? leaveMonth : undefined} historyTotal={activePage === 'leaveHistory' ? operationResponse.meta?.total : undefined} historyPage={activePage === 'leaveHistory' ? operationResponse.meta?.page : undefined} historyTotalPages={activePage === 'leaveHistory' ? operationResponse.meta?.totalPages : undefined} historyStatusCounts={activePage === 'leaveHistory' ? operationResponse.meta?.statusCounts : undefined} employeeId={String(leaveSummary.employeeId || '')} currentUserId={auth.user?.id} currentUserRole={auth.user?.role} leavePolicy={leavePolicy} leaveTypes={activeLeaveTypes} rows={rows} loading={operationLoading} error={operationError} linked={Boolean(leaveSummary.linked)} remaining={remaining} quotaSummary={leaveSummary} quotaYear={Number(leaveSummary.quotaYear || currentBangkokQuotaYear())} canManage={pwaShell ? false : canManage} canSubmit={(pwaShell ? pwaOnline : true) && (auth.user?.role !== 'VIEWER' || Boolean(leaveSummary.linked))} canCancelApprovedLeave={canCancelApprovedLeave} mutationsEnabled={!pwaShell || pwaOnline} employeeOptions={employeeOptions} onRefresh={() => setOperationRefresh((value) => value + 1)} onHistoryMonthChange={changeLeaveMonth} onHistoryMonthStep={(delta) => changeLeaveMonth(shiftMonthValue(leaveMonth, delta))} onHistoryPageChange={setOperationPage} onApprove={(row) => handleOperationAction(row, 'approve')} onReject={(row) => handleOperationAction(row, 'reject')} onReturnForCorrection={(row) => handleOperationAction(row, 'return')} onEditReturned={(row) => runEditor({
+        return <LeaveManagementPage mode={activePage === 'leavePending' ? 'pending' : activePage === 'leaveHistory' ? 'history' : 'all'} initialPendingId={activePage === 'leavePending' ? leaveReviewInitialRequestId : undefined} onInitialPendingHandled={clearNativeApprovalTarget} historyScope={activePage === 'leaveHistory' ? 'all' : 'mine'} historyMonth={activePage === 'leaveHistory' ? leaveMonth : undefined} historyTotal={activePage === 'leaveHistory' ? operationResponse.meta?.total : undefined} historyPage={activePage === 'leaveHistory' ? operationResponse.meta?.page : undefined} historyTotalPages={activePage === 'leaveHistory' ? operationResponse.meta?.totalPages : undefined} historyStatusCounts={activePage === 'leaveHistory' ? operationResponse.meta?.statusCounts : undefined} employeeId={String(leaveSummary.employeeId || '')} currentUserId={auth.user?.id} currentUserRole={auth.user?.role} leavePolicy={leavePolicy} leaveTypes={activeLeaveTypes} rows={rows} loading={operationLoading} error={operationError} linked={Boolean(leaveSummary.linked)} remaining={remaining} quotaSummary={leaveSummary} quotaYear={Number(leaveSummary.quotaYear || currentBangkokQuotaYear())} canManage={pwaShell ? false : canManage} canSubmit={(pwaShell ? pwaOnline : true) && (auth.user?.role !== 'VIEWER' || Boolean(leaveSummary.linked))} canCancelApprovedLeave={canCancelApprovedLeave} mutationsEnabled={!pwaShell || pwaOnline} employeeOptions={employeeOptions} onRefresh={() => setOperationRefresh((value) => value + 1)} onHistoryMonthChange={changeLeaveMonth} onHistoryMonthStep={(delta) => changeLeaveMonth(shiftMonthValue(leaveMonth, delta))} onHistoryPageChange={setOperationPage} onApprove={(row) => handleOperationAction(row, 'approve')} onReject={(row) => handleOperationAction(row, 'reject')} onReturnForCorrection={(row) => handleOperationAction(row, 'return')} onEditReturned={(row) => runEditor({
           title: `แก้ไขคำขอลา · ${text(row.employeeNameSnapshot)}`,
           submitLabel: 'บันทึกและส่งตรวจสอบอีกครั้ง',
           fields: [
@@ -3302,7 +3255,7 @@ function Dashboard() {
         }, async (form) => {
           await api.updateReturnedLeaveRequest(auth.token!, String(row.id), form);
           await api.resubmitLeaveRequest(auth.token!, String(row.id));
-        })} onCancel={(row) => handleOperationAction(row, 'cancel')} onPrint={setLeavePrintTarget} onAttachment={async (row) => { if (!auth.token) return; try { const result = await api.downloadLeaveAttachment(auth.token, String(row.id)); const url = URL.createObjectURL(result.blob); window.open(url, '_blank', 'noopener,noreferrer'); window.setTimeout(() => URL.revokeObjectURL(url), 60000); } catch (reason) { setOperationError(toRequestErrorState(reason, 'เปิดไฟล์แนบไม่สำเร็จ')); } }} onSubmit={async (form, file) => { if (!auth.token) return; if (file) await api.createLeaveRequestWithAttachment(auth.token, form, file); else await api.createLeaveRequest(auth.token, form); setOperationRefresh((value) => value + 1); }} /></>;
+        })} onCancel={(row) => handleOperationAction(row, 'cancel')} onPrint={setLeavePrintTarget} onAttachment={async (row) => { if (!auth.token) return; try { const result = await api.downloadLeaveAttachment(auth.token, String(row.id)); const url = URL.createObjectURL(result.blob); window.open(url, '_blank', 'noopener,noreferrer'); window.setTimeout(() => URL.revokeObjectURL(url), 60000); } catch (reason) { setOperationError(toRequestErrorState(reason, 'เปิดไฟล์แนบไม่สำเร็จ')); } }} onSubmit={async (form, file) => { if (!auth.token) return; if (file) await api.createLeaveRequestWithAttachment(auth.token, form, file); else await api.createLeaveRequest(auth.token, form); setOperationRefresh((value) => value + 1); }} />;
     }
     if (activePage === 'rules') {
       const rules = Array.isArray(operationResponse.data) ? operationResponse.data : [];
@@ -3353,7 +3306,6 @@ function Dashboard() {
       const users = Array.isArray(operationResponse.data) ? operationResponse.data : [];
       return <div className="users-access-workspace layout-personnel-page layout-page-surface">
         <AccessManagementPage
-          token={auth.token!}
           rows={users as Array<{ id: string; displayName?: string; role?: string; department?: string | null; accountStatus?: string; isActive?: boolean; passwordResetRequired?: boolean; createdAt?: string; updatedAt?: string }>}
           loading={operationLoading}
           error={typeof operationError === 'string' ? operationError : operationError?.message}
@@ -3387,7 +3339,7 @@ function Dashboard() {
       return <ReportCenterPage key={activePage} token={auth.token} role={auth.user?.role || 'VIEWER'} initialTab={initialTab} onNavigate={(page) => setActivePage(page as Page)} />;
     }
     if (activePage === 'quota') return <section className="view-pane layout-roster-page layout-page-surface"><PageHeader kicker="สิทธิ์การลารายปี" title={`โควตาวันลา ${showLegacyQuotas ? 'ข้อมูลเดิม' : thaiQuotaYearLabel(quotaYear)}`} description={showLegacyQuotas ? 'ข้อมูลเดิมที่ยังไม่ระบุปี ต้องจัดประเภทก่อนใช้งานรายปี' : 'สิทธิ์รายปีแยกตามพนักงานและปี ตรวจข้อมูลจริงก่อนกำหนดโควตา'} actions={<div className="heading-actions"><label className="month-filter"><span>ปีสิทธิ์</span><select aria-label="ปีสิทธิ์โควตาวันลา" disabled={showLegacyQuotas} value={quotaYear} onChange={(event) => setQuotaYear(Number(event.target.value))}>{quotaYearOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label><button className="btn-neutral small-action" type="button" onClick={() => setShowLegacyQuotas((value) => !value)}>{showLegacyQuotas ? 'กลับรายการรายปี' : 'ดูข้อมูลเดิมที่ยังไม่ระบุปี'}</button></div>} /><OperationalTable page={activePage as OperationalPage} response={operationResponse} loading={operationLoading} error={operationError} onPageChange={setOperationPage} onAction={handleOperationAction} onCreate={openCreateOperation} onNavigate={setActivePage} role={auth.user?.role || 'VIEWER'} token={auth.token} refreshSignal={operationRefresh} onLicenseDocumentChanged={() => setOperationRefresh((value) => value + 1)} printedBy={`${auth.user?.displayName || auth.user?.email || 'ผู้ใช้งาน'} · ${roleDisplayName(auth.user?.role)}`} /></section>;
-    return <>{activePage === 'licenses' && nativeApprovalResolution.loading && <div className="full-loader" role="status">กำลังโหลดรายละเอียดใบอนุญาต…</div>}{activePage === 'licenses' && nativeApprovalResolution.error && <div className="alert alert-error" role="alert">{nativeApprovalResolution.error.status === 404 ? 'ไม่พบเอกสารอนุมัติในขอบเขตของคุณ' : nativeApprovalResolution.error.status === 403 ? 'ไม่มีสิทธิ์เปิดเอกสารนี้' : nativeApprovalResolution.error.status && nativeApprovalResolution.error.status >= 500 ? 'ระบบไม่พร้อมใช้งาน กรุณาลองใหม่ภายหลัง' : nativeApprovalResolution.error.message}</div>}<OperationalTable page={activePage as OperationalPage} response={operationResponse} loading={operationLoading} error={operationError} onPageChange={setOperationPage} onAction={handleOperationAction} onCreate={openCreateOperation} onNavigate={setActivePage} role={auth.user?.role || 'VIEWER'} token={auth.token} refreshSignal={operationRefresh} onLicenseDocumentChanged={() => setOperationRefresh((value) => value + 1)} onEditLicense={activePage === 'licenses' ? openLicenseEdit : undefined} licenseEmployeeStatus={licenseEmployeeStatus} onLicenseEmployeeStatusChange={setLicenseEmployeeStatus} printedBy={`${auth.user?.displayName || auth.user?.email || 'ผู้ใช้งาน'} · ${roleDisplayName(auth.user?.role)}`} />{licenseEditTarget && auth.token && <LicenseEditModal license={{ id: String(licenseEditTarget.id), licenseNumber: licenseEditTarget.licenseNumber ? String(licenseEditTarget.licenseNumber) : null, licenseType: licenseEditTarget.licenseType ? String(licenseEditTarget.licenseType) : null, issueDate: licenseEditTarget.issueDate ? String(licenseEditTarget.issueDate) : null, expiryDate: licenseEditTarget.expiryDate ? String(licenseEditTarget.expiryDate) : null, status: licenseEditTarget.status ? String(licenseEditTarget.status) : null, employee: { employeeCode: String(nested(licenseEditTarget.employee).employeeCode || ''), firstName: String(nested(licenseEditTarget.employee).firstName || ''), lastName: String(nested(licenseEditTarget.employee).lastName || ''), department: nested(licenseEditTarget.employee).department ? String(nested(licenseEditTarget.employee).department) : undefined } }} isAdmin={auth.user?.role === 'ADMIN'} currentUserId={auth.user?.id || ''} services={licenseDocumentServices} initialDocumentId={nativeApprovalDocumentId} onInitialDocumentHandled={clearNativeApprovalTarget} onUpload={async (data, file) => { await api.uploadLicenseDocument(auth.token!, String(licenseEditTarget.id), data, file); }} onChanged={() => setOperationRefresh((value) => value + 1)} onClose={() => setLicenseEditTarget(undefined)} />}</>;
+    return <><OperationalTable page={activePage as OperationalPage} response={operationResponse} loading={operationLoading} error={operationError} onPageChange={setOperationPage} onAction={handleOperationAction} onCreate={openCreateOperation} onNavigate={setActivePage} role={auth.user?.role || 'VIEWER'} token={auth.token} refreshSignal={operationRefresh} onLicenseDocumentChanged={() => setOperationRefresh((value) => value + 1)} onEditLicense={activePage === 'licenses' ? openLicenseEdit : undefined} licenseEmployeeStatus={licenseEmployeeStatus} onLicenseEmployeeStatusChange={setLicenseEmployeeStatus} printedBy={`${auth.user?.displayName || auth.user?.email || 'ผู้ใช้งาน'} · ${roleDisplayName(auth.user?.role)}`} />{licenseEditTarget && auth.token && <LicenseEditModal license={{ id: String(licenseEditTarget.id), licenseNumber: licenseEditTarget.licenseNumber ? String(licenseEditTarget.licenseNumber) : null, licenseType: licenseEditTarget.licenseType ? String(licenseEditTarget.licenseType) : null, issueDate: licenseEditTarget.issueDate ? String(licenseEditTarget.issueDate) : null, expiryDate: licenseEditTarget.expiryDate ? String(licenseEditTarget.expiryDate) : null, status: licenseEditTarget.status ? String(licenseEditTarget.status) : null, employee: { employeeCode: String(nested(licenseEditTarget.employee).employeeCode || ''), firstName: String(nested(licenseEditTarget.employee).firstName || ''), lastName: String(nested(licenseEditTarget.employee).lastName || ''), department: nested(licenseEditTarget.employee).department ? String(nested(licenseEditTarget.employee).department) : undefined } }} isAdmin={auth.user?.role === 'ADMIN'} currentUserId={auth.user?.id || ''} services={licenseDocumentServices} initialDocumentId={nativeApprovalDocumentId} onInitialDocumentHandled={clearNativeApprovalTarget} onUpload={async (data, file) => { await api.uploadLicenseDocument(auth.token!, String(licenseEditTarget.id), data, file); }} onChanged={() => setOperationRefresh((value) => value + 1)} onClose={() => setLicenseEditTarget(undefined)} />}</>;
   };
 
   const printData = useMemo(() => {
