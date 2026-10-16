@@ -82,16 +82,6 @@ router.get('/summary', async (req, res, next) => {
   }
 });
 
-router.get('/items/:type/:requestId', async (req, res, next) => {
-  try {
-    const params = validateItemParams(req.params);
-    res.set('Cache-Control', 'no-store');
-    res.json(await service.getItem({ actor: req.user, type: params.type, requestId: params.requestId, correlationId: req.requestId }));
-  } catch (error) {
-    next(error);
-  }
-});
-
 router.get('/', async (req, res, next) => {
   try {
     res.set('Cache-Control', 'no-store');
