@@ -6,6 +6,11 @@ process.env.NODE_ENV = 'test';
 process.env.DATABASE_URL ||= 'postgresql://test:test@127.0.0.1:5433/sms_v3_test';
 process.env.JWT_SECRET ||= 'test-only-jwt-secret-value-012345678901234567890123456789';
 const request = require('supertest');
+const jwt = require('jsonwebtoken');
+const env = require('../src/config/env');
+const prisma = require('../src/config/prisma');
+const lifecycle = require('../src/services/employee-lifecycle.service');
+lifecycle.synchronizeDueLifecycleEventsForRequest = async () => ({ skipped: true, reason: 'TEST' });
 const app = require('../src/app');
 const { createApprovalCenterService } = require('../src/services/approval-center.service');
 const { REQUEST_TYPE_DEFINITIONS, defaultPolicyFor } = require('../src/services/approval-policy.service');
@@ -69,6 +74,18 @@ function service(options = {}) {
   });
 }
 
+function tokenFor(role, sub = `http-${role.toLowerCase()}`) {
+  return jwt.sign({ sub, tokenVersion: 0 }, env.jwtSecret, {
+    algorithm: env.jwtAlgorithm, issuer: env.jwtIssuer, audience: env.jwtAudience, expiresIn: '1m'
+  });
+}
+
+async function withAuthenticatedPrismaUser(callback, role = 'MANAGER') {
+  const originalFindUnique = prisma.user.findUnique;
+  prisma.user.findUnique = async ({ where }) => ({ id: where?.id, email: `${role.toLowerCase()}@example.invalid`, role, employeeId: null, isActive: true, accountStatus: 'ACTIVE', passwordResetRequired: false, tokenVersion: 0, employee: null });
+  try { return await callback(); } finally { prisma.user.findUnique = originalFindUnique; }
+}
+
 // HTTP boundary: auth is checked before the new exact-item handler can run.
 test('HTTP endpoint requires authentication', async () => {
   const response = await request(app).get(`/api/v1/approval-center/items/EMPLOYEE_MASTER_CHANGE/${ID}`);
@@ -76,10 +93,27 @@ test('HTTP endpoint requires authentication', async () => {
   assert.equal(response.body.error, 'Authentication required.');
 });
 
-test('HTTP endpoint rejects malformed item targets after authentication boundary contract', () => {
-  const routeSource = require('node:fs').readFileSync(require('node:path').join(__dirname, '../src/routes/approval-center.routes.js'), 'utf8');
-  assert.match(routeSource, /validateItemParams\(req\.params\)/);
-  assert.match(routeSource, /APPROVAL_ITEM_TARGET_INVALID/);
+test('HTTP exact-item route enforces role authorization and reaches handler for an authorized role', async () => {
+  await withAuthenticatedPrismaUser(async () => {
+    const viewer = await request(app).get(`/api/v1/approval-center/items/LEAVE_REQUEST/${ID}`).set('Authorization', `Bearer ${tokenFor('VIEWER')}`);
+    assert.equal(viewer.status, 403);
+    assert.equal(viewer.body.error, 'You do not have permission for this action.');
+  }, 'VIEWER');
+  const response = await withAuthenticatedPrismaUser(() => request(app)
+    .get(`/api/v1/approval-center/items/NOT_A_TYPE/${ID}`)
+    .set('Authorization', `Bearer ${tokenFor('MANAGER')}`));
+  assert.equal(response.status, 400);
+  assert.equal(response.body.code, 'APPROVAL_ITEM_TARGET_INVALID');
+  assert.equal(response.body.error, 'Unsupported approval item type.');
+});
+
+test('HTTP authenticated pipeline reaches route validation for malformed requestId', async () => {
+  const response = await withAuthenticatedPrismaUser(() => request(app)
+    .get('/api/v1/approval-center/items/LEAVE_REQUEST/not-a-uuid')
+    .set('Authorization', `Bearer ${tokenFor('MANAGER')}`));
+  assert.equal(response.status, 400);
+  assert.equal(response.body.code, 'APPROVAL_ITEM_TARGET_INVALID');
+  assert.equal(response.body.error, 'Invalid approval item request ID.');
 });
 
 // This table obtains type names and the definitions used by the production policy service.
@@ -111,9 +145,16 @@ test('old schedule revision is not eligible and returns the uniform not-found er
   await assert.rejects(() => current.getItem({ actor: ACTOR, type: 'SCHEDULE_APPROVAL', requestId: 'old-schedule' }), (error) => error.statusCode === 404 && error.publicCode === 'APPROVAL_ITEM_NOT_FOUND');
 });
 
-test('leave self and position-denied rows return not-found', async () => {
-  const current = service({ actorEmployeeId: 'self', leaveRows: [{ id: ID, employeeId: 'self', status: 'PENDING', requestedAt: NOW, createdAt: NOW, leaveType: 'SICK', startDate: NOW, endDate: NOW, dayCount: 1, employee: employee('self', 'SELF'), createdByUser: null }] });
-  await assert.rejects(() => current.getItem({ actor: { role: 'MANAGER', sub: 'manager' }, type: 'LEAVE_REQUEST', requestId: ID }), (error) => error.statusCode === 404 && error.publicCode === 'APPROVAL_ITEM_NOT_FOUND');
+test('leave self and non-retroactive Supervisor position denial return not-found', async () => {
+  const rows = [
+    { id: ID, employeeId: 'self', status: 'PENDING', requestedAt: NOW, createdAt: NOW, leaveType: 'SICK', startDate: NOW, endDate: NOW, dayCount: 1, employee: employee('self', 'SELF'), createdByUser: null },
+    {    id: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd', employeeId: 'supervisor', status: 'PENDING', requestedAt: NOW, createdAt: NOW, leaveType: 'SICK', startDate: new Date('2026-08-29T00:00:00Z'), endDate: NOW, dayCount: 1, employee: Object.assign(employee('supervisor', 'SUPERVISOR'), { jobTitle: 'Supervisor' }), createdByUser: null }
+  ];
+  rows[1].employee.jobTitle = 'Supervisor';
+  const current = service({ actorEmployeeId: 'manager', leaveRows: rows });
+  await assert.rejects(() => current.getItem({ actor: { role: 'MANAGER', sub: 'manager' }, type: 'LEAVE_REQUEST', requestId: rows[1].id }), (error) => error.statusCode === 404 && error.publicCode === 'APPROVAL_ITEM_NOT_FOUND');
+  const selfOnly = service({ actorEmployeeId: 'self', leaveRows: [rows[0]] });
+  await assert.rejects(() => selfOnly.getItem({ actor: { role: 'MANAGER', sub: 'manager' }, type: 'LEAVE_REQUEST', requestId: ID }), (error) => error.statusCode === 404 && error.publicCode === 'APPROVAL_ITEM_NOT_FOUND');
 });
 
 test('out-of-scope attendance adjustment returns not-found', async () => {
@@ -121,14 +162,20 @@ test('out-of-scope attendance adjustment returns not-found', async () => {
   await assert.rejects(() => current.getItem({ actor: ACTOR, type: 'ATTENDANCE_ADJUSTMENT_REQUEST', requestId: ID }), (error) => error.statusCode === 404 && error.publicCode === 'APPROVAL_ITEM_NOT_FOUND');
 });
 
-test('missing ID is indistinguishable from denied record', async () => {
-  const current = service();
+test('missing ID is indistinguishable from existing-but-denied record', async () => {
+  const deniedId = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
+  const current = service({ actorEmployeeId: 'manager', leaveRows: [{
+    id: deniedId, employeeId: 'supervisor', status: 'PENDING', requestedAt: NOW, createdAt: NOW,
+    leaveType: 'SICK', startDate: new Date('2026-08-29T00:00:00Z'), endDate: NOW, dayCount: 1,
+    employee: Object.assign(employee('supervisor', 'SUPERVISOR'), { jobTitle: 'Supervisor' }), createdByUser: null
+  }] });
   const errors = [];
-  for (const requestId of ['bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'cccccccc-cccc-4ccc-8ccc-cccccccccccc']) {
-    try { await current.getItem({ actor: ACTOR, type: 'EMPLOYEE_MASTER_CHANGE', requestId }); } catch (error) { errors.push({ status: error.statusCode, code: error.publicCode, body: error.message }); }
+  for (const requestId of ['bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', deniedId]) {
+    try { await current.getItem({ actor: { role: 'MANAGER', sub: 'manager' }, type: 'LEAVE_REQUEST', requestId }); }
+    catch (error) { errors.push({ status: error.statusCode, code: error.publicCode, body: error.message, details: error.details || null }); }
   }
   assert.deepStrictEqual(errors[0], errors[1]);
-  assert.deepStrictEqual(errors[0], { status: 404, code: 'APPROVAL_ITEM_NOT_FOUND', body: 'Approval item was not found.' });
+  assert.deepStrictEqual(errors[0], { status: 404, code: 'APPROVAL_ITEM_NOT_FOUND', body: 'Approval item was not found.', details: null });
 });
 
 test('type-level policy denial is 403 and occurs before record lookup', async () => {
