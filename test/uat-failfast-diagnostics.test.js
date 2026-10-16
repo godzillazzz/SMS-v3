@@ -21,6 +21,12 @@ test('browser login has six isolated safe diagnostic steps', () => {
   assert.match(source, /maxRedirects: 0|loginPreflightRequestOptions/);
 });
 
+test('each serial role suite settles the serverless connection pool before starting', () => {
+  const source = fs.readFileSync('e2e/uat-v3/readonly.spec.js', 'utf8');
+  assert.match(source, /test\.describe\.serial\(role, \(\) => \{/);
+  assert.match(source, /test\.beforeAll\(async \(\) => \{[\s\S]*?UAT_ROLE_COOLDOWN_MS[\s\S]*?5000[\s\S]*?setTimeout\(resolve, cooldownMs\)/);
+});
+
 test('allowlisted failed step is logged with no raw error, URL, credential or locator text', () => {
   const secret = 'synthetic-password-and-token-not-to-print';
   const step = { title: 'BROWSER_PAGE_READY', error: { message: secret } };
