@@ -234,7 +234,7 @@ for (const viewport of [{ label: 'desktop', width: 1366, height: 768 }, { label:
   await page.reload();
   await expect(page.getByRole('heading', { name: 'ศูนย์อนุมัติคำขอ' })).toBeVisible();
   await openNavigation(page, viewport.width);
-  if (viewport.width <= 760) await page.getByRole('button', { name: 'ปิดเมนูหลัก' }).click();
+  if (viewport.width <= 760) await page.locator('.sidebar-close-button').click();
   await page.getByRole('button', { name: 'อนุมัติทันที', exact: true }).first().click();
   const dialog = page.getByRole('dialog');
   await expect(dialog).toBeVisible();
@@ -248,7 +248,7 @@ for (const viewport of [{ label: 'desktop', width: 1366, height: 768 }, { label:
   await dialog.getByLabel('ระบุเหตุผลที่ส่งกลับไปแก้ไข (จำเป็น)').fill('ขอแก้ไขข้อมูล');
   await dialog.getByRole('button', { name: 'ส่งกลับไปแก้ไข', exact: true }).click();
   await expect(dialog).toHaveCount(0);
-  await page.reload();
+  await page.reload({ waitUntil: 'networkidle' });
   await expect(page.getByRole('heading', { name: 'ศูนย์อนุมัติคำขอ' })).toBeVisible();
   await openNavigation(page, viewport.width);
   await expect(page.locator('[data-navigation-id="approvalCenter"] .nav-count-badge')).toHaveText('1');
