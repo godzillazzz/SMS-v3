@@ -8,7 +8,11 @@ async function signIn(page: Page, target: string, role: 'ADMIN' | 'MANAGER' | 'S
       : { data: [], summary: { total: 0, byType: {} }, meta: { total: 0, page: 1, pageSize: 20, totalPages: 0 } };
     return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(body) });
   });
-  await page.route('**/api/v1/auth/refresh', (route) => route.fulfill({ status: 401, contentType: 'application/json', body: JSON.stringify({ message: 'No active session' }) }));
+  await page.route('**/api/v1/auth/refresh', (route) => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({ accessToken: 'fixture-access-token', user: { id: 'fixture-user', email: `${role.toLowerCase()}@example.test`, displayName: `${role} Fixture`, role } })
+  }));
   await page.route('**/api/v1/auth/passkeys/config', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ enabled: false }) }));
   await page.route('**/api/v1/auth/login', (route) => route.fulfill({
     status: 200,
