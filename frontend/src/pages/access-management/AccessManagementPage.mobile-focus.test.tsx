@@ -19,7 +19,6 @@ const account = {
 
 function openResetPasswordDialog() {
   render(<AccessManagementPage
-    token="test-token"
     rows={[account]}
     loading={false}
     role="ADMIN"

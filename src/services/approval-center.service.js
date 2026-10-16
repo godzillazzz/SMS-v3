@@ -343,10 +343,9 @@ function createApprovalCenterService({
       where: { status: 'PENDING_APPROVAL' },
       select: {
         id: true, status: true, requestType: true, reason: true, createdAt: true,
-        currentDeviceEnrollmentId: true,
         employee: { select: commonEmployeeSelect },
         requestedBy: { select: { id: true, displayName: true, role: true } },
-        candidateDevice: { select: { id: true, displayName: true, platformHint: true, keyAlgorithm: true, proofVerifiedAt: true } }
+        candidateDevice: { select: { displayName: true, platformHint: true } }
       },
       orderBy: [{ createdAt: 'asc' }, { id: 'asc' }]
     }) : Promise.resolve([0, []]);
@@ -510,11 +509,7 @@ function createApprovalCenterService({
         metadata: {
           requestType: row.requestType,
           reason: row.reason || null,
-          candidateDeviceEnrollmentId: row.candidateDevice?.id || null,
-          currentDeviceEnrollmentId: row.currentDeviceEnrollmentId || null,
           deviceName: row.candidateDevice?.displayName || null,
-          keyAlgorithm: row.candidateDevice?.keyAlgorithm || null,
-          proofVerifiedAt: row.candidateDevice?.proofVerifiedAt || null,
           platformHint: row.candidateDevice?.platformHint || null
         }
       }, now, policies.get('ATTENDANCE_DEVICE_REQUEST')));

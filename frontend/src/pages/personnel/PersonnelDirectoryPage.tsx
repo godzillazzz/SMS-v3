@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '../../api';
-import { getApprovalCenterItem } from '../../approval-center-client';
 import { formatRequestErrorMessage } from '../../request-error';
 import { PersonnelDetailDrawer } from '../../components/personnel/PersonnelDetailDrawer';
 import { PersonnelDirectoryHeader } from '../../components/personnel/PersonnelDirectoryHeader';
@@ -35,7 +34,6 @@ type Props = {
   onReviewChanges?(): void;
   onEdit(employee: PersonnelRecord): void;
   initialEmployeeId?: string;
-  initialRequestId?: string;
   onInitialTargetHandled?(): void;
 };
 
@@ -47,7 +45,7 @@ type ReadinessSnapshot = {
   byEmployeeId: Record<string, EmployeeReadinessStatus>;
 };
 
-export function PersonnelDirectoryPage({ token, refreshKey, canManage, role, searchValue, onSearchValueChange, onAdd, onReviewChanges, onEdit, initialEmployeeId, initialRequestId, onInitialTargetHandled }: Props) {
+export function PersonnelDirectoryPage({ token, refreshKey, canManage, role, searchValue, onSearchValueChange, onAdd, onReviewChanges, onEdit, initialEmployeeId, onInitialTargetHandled }: Props) {
   const [employees, setEmployees] = useState<PersonnelRecord[]>([]);
   const [meta, setMeta] = useState<DirectoryMeta>({ page: 1, pageSize, total: 0, totalPages: 1, departments: [], summary: { total: 0, active: 0, incomplete: 0 } });
   const [requestLoading, setRequestLoading] = useState(false);
@@ -84,24 +82,15 @@ export function PersonnelDirectoryPage({ token, refreshKey, canManage, role, sea
     }
   }, [searchValue]);
 
-  const [initialTargetState, setInitialTargetState] = useState<'idle' | 'loading' | 'not-found' | 'forbidden' | 'error'>('idle');
-
   useEffect(() => {
-    if (!initialEmployeeId || !initialRequestId || !token) return;
-    let active = true;
-    setInitialTargetState('loading');
-    getApprovalCenterItem(token, 'EMPLOYEE_REFERENCE_PHOTO', initialRequestId).then((result) => {
-      if (!active) return;
-      const item = result?.data as { requestId?: string; employee?: PersonnelRecord | null } | undefined;
-      const employee = item?.employee;
-      if (!employee || String(employee.id) !== String(initialEmployeeId)) throw Object.assign(new Error('Employee not found.'), { status: 404 });
+    if (!initialEmployeeId) return;
+    const employee = employees.find((row) => String(row.id) === String(initialEmployeeId));
+    if (employee) {
       lastSelectedId.current = employee.id;
       setSelected(employee);
-      setInitialTargetState('idle');
       onInitialTargetHandled?.();
-    }).catch((reason) => { if (!active) return; const status = Number(reason?.status || 0); setInitialTargetState(status === 404 ? 'not-found' : status === 403 ? 'forbidden' : 'error'); });
-    return () => { active = false; };
-  }, [token, initialEmployeeId, onInitialTargetHandled]);
+    }
+  }, [employees, initialEmployeeId]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => setDebouncedSearch(search.trim()), 250);
@@ -186,10 +175,6 @@ export function PersonnelDirectoryPage({ token, refreshKey, canManage, role, sea
   };
 
   return <section className="personnel-directory-page data-surface-page layout-personnel-page layout-page-surface" aria-label="Personnel Directory">
-    {initialTargetState === 'loading' && <p role="status">กำลังโหลดรายละเอียดพนักงาน…</p>}
-    {initialTargetState === 'not-found' && <p role="alert">ไม่พบพนักงานที่ต้องการเปิดรายละเอียด (404)</p>}
-    {initialTargetState === 'forbidden' && <p role="alert">คุณไม่มีสิทธิ์ดูรายละเอียดพนักงานนี้ (403)</p>}
-    {initialTargetState === 'error' && <p role="alert">โหลดรายละเอียดพนักงานไม่สำเร็จ</p>}
     <PersonnelDirectoryHeader canManage={canManage} canReviewChanges={role === 'ADMIN'} totalCount={loading ? undefined : totalCount} onAdd={onAdd} onReviewChanges={onReviewChanges} onRefresh={() => setLocalRefreshKey((value) => value + 1)} />
     <AttendanceReadinessCenter token={token} enabled={canViewReadiness} onReadinessChange={handleReadinessChange} />
     <PersonnelSearchToolbar search={search} department={department} status={status} departments={visibleMeta.departments || []} onSearch={changeFilter(setSearch)} onDepartment={changeFilter(setDepartment)} onStatus={changeFilter(setStatus)} onClear={clear} />

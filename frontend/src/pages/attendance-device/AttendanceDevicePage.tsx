@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
 import { api } from '../../api';
-import { getApprovalCenterItem } from '../../approval-center-client';
 import { formatRequestErrorMessage, RequestErrorReference, toRequestErrorState } from '../../request-error';
 import { PageHeader, SectionCard, StepFlow } from '../../components/layout';
 import '../../styles/personnel-layout.css';
@@ -267,39 +266,13 @@ export function AttendanceDevicePage({ token, role, readOnly = false, initialReq
   useEffect(() => { void refresh(); }, [token, role]);
 
   useEffect(() => {
-    if (!initialRequestId || role !== 'ADMIN') return;
-    let active = true;
-    setQueueLoading(true);
-    getApprovalCenterItem(token, 'ATTENDANCE_DEVICE_REQUEST', initialRequestId).then((response) => {
-      if (!active) return;
-      const item = response?.data as { requestId?: string; status?: string; employee?: AttendanceDeviceRequest['employee']; requestedBy?: AttendanceDeviceRequest['requestedBy']; metadata?: Record<string, unknown>; submittedAt?: string } | undefined;
-      if (!item || String(item.requestId) !== String(initialRequestId) || item.status !== 'PENDING_APPROVAL') {
-        throw Object.assign(new Error('Approval item was not found.'), { status: 404 });
-      }
-      const metadata = item.metadata || {};
-      const request: AttendanceDeviceRequest = {
-        id: initialRequestId,
-        employeeId: String(item.employee?.id || ''),
-        requestType: String(metadata.requestType || 'INITIAL') as AttendanceDeviceRequest['requestType'],
-        status: 'PENDING_APPROVAL',
-        requestedByUserId: String(item.requestedBy?.id || ''),
-        candidateDeviceEnrollmentId: String(metadata.candidateDeviceEnrollmentId || ''),
-        currentDeviceEnrollmentId: metadata.currentDeviceEnrollmentId ? String(metadata.currentDeviceEnrollmentId) : null,
-        reason: metadata.reason ? String(metadata.reason) : null,
-        createdAt: item.submittedAt || '',
-        candidateDevice: { id: String(metadata.candidateDeviceEnrollmentId || ''), employeeId: String(item.employee?.id || ''), displayName: metadata.deviceName ? String(metadata.deviceName) : '', keyAlgorithm: metadata.keyAlgorithm ? String(metadata.keyAlgorithm) : '', platformHint: metadata.platformHint ? String(metadata.platformHint) : null, status: 'PENDING_APPROVAL', proofVerifiedAt: metadata.proofVerifiedAt ? String(metadata.proofVerifiedAt) : null },
-        employee: item.employee,
-        requestedBy: item.requestedBy
-      };
+    if (!initialRequestId || role !== 'ADMIN' || !queue.length) return;
+    const request = queue.find((row) => String(row.id) === String(initialRequestId));
+    if (request) {
       setReviewTarget({ row: request, action: 'RETURN' });
       onInitialRequestHandled?.();
-    }).catch((reason) => {
-      if (!active) return;
-      const status = Number(reason?.status || 0);
-      setQueueError(status === 404 ? 'ไม่พบคำขออุปกรณ์ลงเวลาที่ต้องการเปิดรายละเอียด (404)' : status === 403 ? 'คุณไม่มีสิทธิ์ดูคำขออุปกรณ์ลงเวลานี้ (403)' : 'โหลดรายละเอียดคำขออุปกรณ์ลงเวลาไม่สำเร็จ');
-    }).finally(() => { if (active) setQueueLoading(false); });
-    return () => { active = false; };
-  }, [initialRequestId, role, token, onInitialRequestHandled]);
+    }
+  }, [initialRequestId, queue, role]);
 
   const proveRequest = async (request: AttendanceDeviceRequest) => {
     const candidateId = request.candidateDeviceEnrollmentId;
@@ -513,7 +486,7 @@ export function AttendanceDevicePage({ token, role, readOnly = false, initialReq
 
     {role === 'ADMIN' && <SectionCard className="attendance-device-admin-section" kicker="การดูแลอุปกรณ์" title="คำขออุปกรณ์ที่รออนุมัติ" description="อนุมัติได้เมื่ออุปกรณ์ผ่านการยืนยันแล้วเท่านั้น" actions={<>{!queueLoading && !queueError && <span className="attendance-device-queue-count">{queue.length}</span>}</>}>
       {queueError && <div className="alert alert-error" role="alert">{queueError}</div>}
-      {queueLoading ? <div className="attendance-device-state" role="status">กำลังโหลดคิวอนุมัติ…</div> : queue.length ? <div className="attendance-device-review-list">{queue.map((row) => <article className="attendance-device-review-card" key={row.id}>
+      {queueLoading ? <div className="attendance-device-state">กำลังโหลดคิวอนุมัติ…</div> : queue.length ? <div className="attendance-device-review-list">{queue.map((row) => <article className="attendance-device-review-card" key={row.id}>
         <div className="attendance-device-review-card__head"><div><strong>{employeeName(row)}</strong><span>{row.employee?.department || 'ไม่ระบุหน่วยงาน'} · ผู้ยื่น {row.requestedBy?.displayName || 'บัญชีพนักงาน'}</span></div><span className={`status-badge ${row.candidateDevice?.proofVerifiedAt ? 'active' : 'pending'}`}>{row.candidateDevice?.proofVerifiedAt ? 'ยืนยันอุปกรณ์แล้ว' : 'รอยืนยันอุปกรณ์'}</span></div>
         <div className="attendance-device-review-meta"><div><span>ประเภท</span><b>{row.requestType === 'INITIAL' ? 'เครื่องแรก' : 'เปลี่ยนอุปกรณ์'}</b></div><div><span>อุปกรณ์</span><b>{row.candidateDevice?.displayName || '—'}</b></div><div><span>แพลตฟอร์ม</span><b>{row.candidateDevice?.platformHint || 'Web'}</b></div><div><span>ยื่นเมื่อ</span><b>{formatDate(row.createdAt)}</b></div></div>
         {row.reason && <p className="attendance-device-reason"><b>เหตุผล:</b> {row.reason}</p>}
