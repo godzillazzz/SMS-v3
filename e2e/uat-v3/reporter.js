@@ -43,9 +43,33 @@ function safeLastCheck(steps) {
   }
   return last;
 }
+const RUNNER_CATEGORIES = Object.freeze([
+  'TEST_TIMEOUT', 'BEFORE_HOOK_FAILED', 'AFTER_HOOK_FAILED',
+  'FIXTURE_OR_RUNNER_FAILED', 'NO_RECORDED_ERROR'
+]);
+function safeRunnerFailureReason(result) {
+  // Only structured Playwright metadata; never inspect error messages or stacks.
+  if (result?.status === 'timedOut') return 'TEST_TIMEOUT';
+  const steps = Array.isArray(result?.steps) ? result.steps : [];
+  const containsFailingHook = (items, phase) => items.some((step) => {
+    const title = step?.title;
+    const isHook = step?.category === 'hook' ||
+      title === 'Before Hooks' || title === 'After Hooks';
+    return (isHook && step?.error && (phase === 'BEFORE'
+      ? title === 'Before Hooks' || /before/i.test(String(title))
+      : title === 'After Hooks' || /after/i.test(String(title))))
+      || (Array.isArray(step?.steps) && containsFailingHook(step.steps, phase));
+  });
+  if (containsFailingHook(steps, 'BEFORE')) return 'BEFORE_HOOK_FAILED';
+  if (containsFailingHook(steps, 'AFTER')) return 'AFTER_HOOK_FAILED';
+  if (Array.isArray(result?.errors) && result.errors.length) return 'FIXTURE_OR_RUNNER_FAILED';
+  if (result?.error) return 'FIXTURE_OR_RUNNER_FAILED';
+  return 'NO_RECORDED_ERROR';
+}
 function safeFailureReason(value) {
   if (['NONE', 'UNCLASSIFIED', 'REQUEST_FAILED', 'STATUS_UNVERIFIED',
-    'CONTEXT_CREATE_FAILED', 'CONTEXT_DISPOSE_FAILED', 'OUTSIDE_CHECK'].includes(value)) return value;
+    'CONTEXT_CREATE_FAILED', 'CONTEXT_DISPOSE_FAILED', 'OUTSIDE_CHECK',
+    ...RUNNER_CATEGORIES].includes(value)) return value;
   return typeof value === 'string' && /^HTTP_[1-5][0-9]{2}_EXPECTED_[1-5][0-9]{2}$/.test(value)
     ? value : 'UNCLASSIFIED';
 }
@@ -142,7 +166,7 @@ class SafeReporter {
       && stepCheck === 'UNCLASSIFIED';
     this.results.push({ role, phase, status,
       failure_check: outsideApiCheck ? 'API_OUTSIDE_CHECK' : stepCheck,
-      failure_reason: outsideApiCheck ? 'OUTSIDE_CHECK' : safeApiFailureReason(result.steps),
+      failure_reason: outsideApiCheck ? safeRunnerFailureReason(result) : safeApiFailureReason(result.steps),
       last_check: safeLastCheck(result.steps)
     });
   }
@@ -169,3 +193,4 @@ module.exports.safeFailureCheck = safeFailureCheck;
 module.exports.safeApiFailureReason = safeApiFailureReason;
 module.exports.safeFailureReason = safeFailureReason;
 module.exports.safeLastCheck = safeLastCheck;
+module.exports.safeRunnerFailureReason = safeRunnerFailureReason;
