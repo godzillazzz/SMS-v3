@@ -198,10 +198,11 @@ test('View-As never displays badges after the session switches to the viewed acc
 });
 
 // All decisions below are intercepted synthetic fixture requests, never Production UAT.
-test('central and native leave decisions refetch the same queue and both menu counts', async ({ page }) => {
+for (const viewport of [{ label: 'desktop', width: 1366, height: 768 }, { label: 'mobile', width: 375, height: 812 }]) {
+ test(`${viewport.label} central and native leave decisions refetch the same queue and both menu counts`, async ({ page }) => {
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
-  await page.setViewportSize({ width: 1366, height: 768 });
+  await page.setViewportSize({ width: viewport.width, height: viewport.height });
   const summary = { total: 3, byType: { ...emptyByType, LEAVE_REQUEST: 3 } };
   await signIn(page, 'ADMIN', { body: { summary } }, '/app/approvals?type=LEAVE');
   const pending = [1, 2, 3].map(id => ({ id: `leave-${id}`, employeeId: `employee-${id}`, employeeNameSnapshot: `Leave Fixture ${id}`, departmentSnapshot: 'AN1', leaveType: 'PERSONAL', startDate: '2026-11-11', endDate: '2026-11-11', dayCount: 1, reason: 'Fixture only', status: 'PENDING' }));
@@ -232,6 +233,7 @@ test('central and native leave decisions refetch the same queue and both menu co
   });
   await page.reload();
   await expect(page.getByRole('heading', { name: 'ศูนย์อนุมัติคำขอ' })).toBeVisible();
+  await openNavigation(page, viewport.width);
   await page.getByRole('button', { name: 'อนุมัติทันที', exact: true }).first().click();
   const dialog = page.getByRole('dialog');
   await expect(dialog).toBeVisible();
@@ -245,8 +247,11 @@ test('central and native leave decisions refetch the same queue and both menu co
   await dialog.getByLabel('ระบุเหตุผลที่ส่งกลับไปแก้ไข (จำเป็น)').fill('ขอแก้ไขข้อมูล');
   await dialog.getByRole('button', { name: 'ส่งกลับไปแก้ไข', exact: true }).click();
   await expect(dialog).toHaveCount(0);
-  await expect(page.locator('[data-navigation-id="approvalCenter"] .nav-count-badge')).toHaveText('2');
-  await expect(page.locator('[data-navigation-id="leavePending"] .nav-count-badge')).toHaveText('2');
-  expect(decisions).toHaveLength(1);
+  await expect(page.locator('[data-navigation-id="approvalCenter"] .nav-count-badge')).toHaveText('1');
+  await expect(page.locator('[data-navigation-id="leavePending"] .nav-count-badge')).toHaveText('1');
+  expect(summary.total).toBe(1);
+  expect(summary.byType.LEAVE_REQUEST).toBe(1);
+  expect(decisions).toHaveLength(2);
   expect(errors).toEqual([]);
-});
+ });
+}

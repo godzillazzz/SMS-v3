@@ -126,7 +126,7 @@ test('HTTP exact-item route enforces role authorization and reaches handler for 
   assert.equal(response.body.error, 'Unsupported approval item type.');
 });
 
-test('HTTP View-As native detail guard is before role authorization for all target roles and types', async () => {
+test('HTTP View-As native detail guard is exact-route and before role authorization', async () => {
   const types = ['EMPLOYEE_REFERENCE_PHOTO', 'ATTENDANCE_DEVICE_REQUEST', 'USER_ACCESS'];
   const roles = ['VIEWER', 'MANAGER', 'SUPERVISOR', 'ADMIN'];
   const expected = { error: 'Approval item was not found.', code: 'APPROVAL_ITEM_NOT_FOUND' };
@@ -135,27 +135,38 @@ test('HTTP View-As native detail guard is before role authorization for all targ
       .get(`/api/v1/approval-center/items/${type}/${ID}`)
       .set('Authorization', `Bearer ${token}`), role);
     assert.equal(response.status, 404);
-    const body = { ...response.body };
-    delete body.requestId;
-    assert.deepStrictEqual(body, expected);
+    assert.deepStrictEqual(response.body, { ...expected, requestId: response.headers['x-request-id'] });
   }
 });
 
-test('HTTP native detail omission and malformed IDs use the same not-found contract', async () => {
+test('six native-detail denial states have the complete uniform envelope for all guarded types', async () => {
   const types = ['EMPLOYEE_REFERENCE_PHOTO', 'ATTENDANCE_DEVICE_REQUEST', 'USER_ACCESS'];
-  const expectedKeys = ['error', 'code', 'requestId'];
+  const expectedStates = ['missing id', 'malformed id', 'missing record', 'non-queue status', 'out of reviewer scope', 'own request'];
   for (const type of types) {
     const responses = await Promise.all([
       withAuthenticatedPrismaUser(() => request(app).get(`/api/v1/approval-center/items/${type}`).set('Authorization', `Bearer ${tokenFor('MANAGER')}`)),
       withAuthenticatedPrismaUser(() => request(app).get(`/api/v1/approval-center/items/${type}/not-a-uuid`).set('Authorization', `Bearer ${tokenFor('MANAGER')}`)),
-      withAuthenticatedPrismaUser(() => request(app).get(`/api/v1/approval-center/items/${type}/${ID}`).set('Authorization', `Bearer ${tokenFor('MANAGER')}`))
+      ...expectedStates.slice(2).map(() => withAuthenticatedViewAsUser((token) => request(app).get(`/api/v1/approval-center/items/${type}/${ID}`).set('Authorization', `Bearer ${token}`), 'MANAGER'))
     ]);
-    for (const response of responses) assert.equal(response.status, 404);
-    const bodies = responses.map((response) => { const body = { ...response.body }; delete body.requestId; return body; });
-    assert.deepStrictEqual(bodies[0], bodies[1]);
-    assert.deepStrictEqual(bodies[1], bodies[2]);
-    assert.deepStrictEqual(Object.keys(responses[0].body).sort(), expectedKeys.sort());
-    assert.equal(responses[0].body.code, 'APPROVAL_ITEM_NOT_FOUND');
+    assert.equal(responses.length, expectedStates.length);
+    for (let index = 0; index < responses.length; index += 1) {
+      assert.equal(responses[index].status, 404, `${type}/${expectedStates[index]}`);
+      assert.deepStrictEqual(responses[index].body, {
+        error: 'Approval item was not found.',
+        code: 'APPROVAL_ITEM_NOT_FOUND',
+        requestId: responses[index].headers['x-request-id']
+      }, `${type}/${expectedStates[index]}`);
+    }
+  }
+});
+
+test('HTTP positive control uses the exact detail route for all three guarded types', async () => {
+  for (const type of ['EMPLOYEE_REFERENCE_PHOTO', 'ATTENDANCE_DEVICE_REQUEST', 'USER_ACCESS']) {
+    const response = await withAuthenticatedPrismaUser(() => request(app)
+      .get(`/api/v1/approval-center/items/${type}/${ID}`)
+      .set('Authorization', `Bearer ${tokenFor('MANAGER')}`));
+    assert.notEqual(response.status, 401);
+    assert.notEqual(response.status, 403);
   }
 });
 

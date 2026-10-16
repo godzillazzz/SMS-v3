@@ -31,8 +31,18 @@ function rejectViewAsNativeApprovalDetail(req, _res, next) {
 }
 
 function rejectMissingNativeApprovalDetailId(req, _res, next) {
-  if (!req.params.requestId && VIEW_AS_BLOCKED_DETAIL_TYPES.has(req.params.type)) return next(approvalItemNotFound());
+  if (VIEW_AS_BLOCKED_DETAIL_TYPES.has(req.params.type)) return next(approvalItemNotFound());
   return next();
+}
+
+async function getItem(req, res, next) {
+  try {
+    const params = validateItemParams(req.params);
+    res.set('Cache-Control', 'no-store');
+    res.json(await service.getItem({ actor: req.user, type: params.type, requestId: params.requestId, correlationId: req.requestId }));
+  } catch (error) {
+    next(error);
+  }
 }
 
 function validateItemParams(params) {
@@ -59,10 +69,9 @@ function validateItemParams(params) {
 }
 
 router.use(authenticate);
-// These guards intentionally run after authentication but before role authorization:
-// blocked native detail shapes must fail uniformly, including View-As VIEWER.
-router.use('/items/:type/:requestId', rejectViewAsNativeApprovalDetail);
-router.use('/items/:type', rejectMissingNativeApprovalDetailId);
+// Detail guards are exact-route middleware and precede role authorization.
+router.get('/items/:type/:requestId', rejectViewAsNativeApprovalDetail, authorize('ADMIN', 'MANAGER', 'SUPERVISOR'), getItem);
+router.get('/items/:type', rejectMissingNativeApprovalDetailId, authorize('ADMIN', 'MANAGER', 'SUPERVISOR'), (_req, _res, next) => next());
 router.use(authorize('ADMIN', 'MANAGER', 'SUPERVISOR'));
 router.get('/summary', async (req, res, next) => {
   try {
