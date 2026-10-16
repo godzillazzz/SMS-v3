@@ -146,7 +146,8 @@ describe('FE-VERIFY-003 approval target contracts', () => {
     let resolve!: (value: unknown) => void;
     mocks.getApprovalCenterItem.mockImplementation(() => failure ? Promise.reject(failure) : new Promise((res) => { resolve = res; }));
     fireEvent.click(screen.getAllByRole('button', { name: /ดูรายละเอียด/ })[0]);
-    expect((await screen.findByRole('alert')).textContent).toContain(message);
+    const stateRole = _label === 'loading' ? 'status' : 'alert';
+    expect((await screen.findByRole(stateRole)).textContent).toContain(message);
     if (!failure) resolve({ data: item });
   });
 
@@ -158,7 +159,7 @@ describe('FE-VERIFY-003 approval target contracts', () => {
     await screen.findAllByText(item.title);
     mocks.getApprovalCenterItem.mockResolvedValue({ data: other });
     fireEvent.click(screen.getAllByRole('button', { name: /ดูรายละเอียด/ })[0]);
-    expect((await screen.findByRole('alert')).textContent).toContain('(404)');
+    expect((await screen.findByRole('alert')).textContent).toContain('ไม่พบคำขอ');
     expect(onNavigate).not.toHaveBeenCalled();
   });
 
@@ -170,7 +171,7 @@ describe('FE-VERIFY-003 approval target contracts', () => {
     let resolve!: (value: unknown) => void;
     mocks.getApprovalCenterItem.mockImplementation(() => new Promise((res) => { resolve = res; }));
     fireEvent.click(screen.getAllByRole('button', { name: /ดูรายละเอียด/ })[0]);
-    expect((await screen.findByRole('alert')).textContent).toContain('กำลังโหลดรายละเอียดคำขอ…');
+    expect((await screen.findByRole('status')).textContent).toContain('กำลังโหลดรายละเอียดคำขอ…');
     expect(screen.getAllByText(item.title).length).toBeGreaterThan(0);
     resolve({ data: item });
     await waitFor(() => expect(onNavigate).toHaveBeenCalledTimes(1));

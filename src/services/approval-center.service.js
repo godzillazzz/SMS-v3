@@ -12,6 +12,11 @@ const { approvalIdentity, resolveApprovalActors } = require('./approval-identity
 const HOUR_MS = 60 * 60 * 1000;
 const PRIORITY = { OVERDUE: 3, DUE_SOON: 2, NEW: 1 };
 const APPROVAL_QUERY_CONCURRENCY = 2;
+const APPROVAL_TYPES = new Set([
+  'EMPLOYEE_MASTER_CHANGE', 'EMPLOYEE_REFERENCE_PHOTO', 'LICENSE_DOCUMENT',
+  'ATTENDANCE_DEVICE_REQUEST', 'ATTENDANCE_ADJUSTMENT_REQUEST', 'SCHEDULE_APPROVAL',
+  'LEAVE_REQUEST', 'USER_ACCESS', 'REGISTRATION_REQUEST'
+]);
 
 async function runApprovalQueries(tasks, maxConcurrency = APPROVAL_QUERY_CONCURRENCY) {
   if (!tasks.length) return [];
@@ -180,6 +185,7 @@ function createApprovalCenterService({
   }
   const listAttendanceAdjustments = attendanceAdjustmentList || ((input) => createAttendanceAdjustmentService({ prisma }).list(input));
   const policyService = approvalPolicyService || createApprovalPolicyService({ prismaClient: prisma });
+  const zeroEnvelopeGeneratedAt = clock().toISOString();
 
   async function summary({ actor }) {
     const role = String(actor?.role || '').toUpperCase();
@@ -263,6 +269,40 @@ function createApprovalCenterService({
     return { summary: { total, byType }, generatedAt: clock().toISOString() };
   }
 
+  function zeroListEnvelope() {
+    const emptyByType = {
+      EMPLOYEE_MASTER_CHANGE: 0,
+      EMPLOYEE_REFERENCE_PHOTO: 0,
+      LICENSE_DOCUMENT: 0,
+      SCHEDULE_APPROVAL: 0,
+      ATTENDANCE_DEVICE_REQUEST: 0,
+      ATTENDANCE_ADJUSTMENT_REQUEST: 0,
+      REGISTRATION_REQUEST: 0,
+      USER_ACCESS: 0,
+      LEAVE_REQUEST: 0
+    };
+    return {
+      data: [],
+      summary: {
+        total: 0,
+        byType: emptyByType,
+        employeeMasterChanges: 0,
+        referencePhotos: 0,
+        leaveRequests: 0,
+        registrationRequests: 0,
+        userAccessRequests: 0,
+        licenseDocuments: 0,
+        scheduleApprovals: 0,
+        attendanceDeviceRequests: 0,
+        attendanceAdjustmentRequests: 0,
+        dueSoon: 0,
+        overdue: 0,
+        truncated: false
+      },
+      generatedAt: zeroEnvelopeGeneratedAt
+    };
+  }
+
   async function list({ actor, limit = 100, onlyType = null, onlyRequestId = null }) {
     const role = String(actor?.role || '').toUpperCase();
     if (!['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(role)) {
@@ -272,6 +312,7 @@ function createApprovalCenterService({
     const policies = await policyService.loadPolicies(prisma);
     const allowed = (type) => canReview(policies.get(type), role);
     if (onlyType && !allowed(onlyType)) {
+      if (onlyRequestId) return zeroListEnvelope();
       const error = new HttpError(403, 'Approval type review is forbidden.');
       error.publicCode = 'APPROVAL_TYPE_REVIEW_FORBIDDEN';
       throw error;
@@ -484,6 +525,7 @@ function createApprovalCenterService({
         submittedAt: row.resubmittedAt || row.uploadedAt,
         metadata: {
           licenseId: row.licenseId,
+          documentId: row.id,
           licenseType: row.license?.licenseType || null,
           currentLicenseNumber: row.license?.licenseNumber || null,
           proposedLicenseNumber: row.proposedLicenseNumber || null,
@@ -666,23 +708,16 @@ function createApprovalCenterService({
   }
 
   async function getItem({ actor, type, requestId, correlationId }) {
-    const role = String(actor?.role || '').toUpperCase();
-    if (!['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(role)) {
-      const error = new HttpError(403, 'Approval Center requires Supervisor, Manager, or Admin authority.');
-      error.publicCode = 'APPROVAL_CENTER_REVIEWER_REQUIRED';
-      throw error;
+    // Detail reads deliberately reuse the list predicate/mapper and fail closed
+    // with the same zero envelope for every non-visible target. This prevents
+    // request existence, scope, queue state, and View-As enumeration oracles.
+    if (actor?.impersonation || actor?.isViewingAs || actor?.viewAs || actor?.viewingAs) return zeroListEnvelope();
+    if (!APPROVAL_TYPES.has(type) || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(requestId || ''))) {
+      return zeroListEnvelope();
     }
-    // The list is the single eligibility/query/mapper definition.  Do not
-    // duplicate it here: this also preserves schedule revision, leave
-    // authority/self, and attendance department-scope predicates.
     const listed = await list({ actor, limit: 100, onlyType: type, onlyRequestId: requestId, correlationId });
     const item = listed.data.find((candidate) => candidate.type === type && candidate.requestId === requestId);
-    if (!item) {
-      const error = new HttpError(404, 'Approval item was not found.');
-      error.publicCode = 'APPROVAL_ITEM_NOT_FOUND';
-      throw error;
-    }
-    return { data: item, generatedAt: listed.generatedAt };
+    return item ? { ...listed, data: [item] } : zeroListEnvelope();
   }
 
   return { list, summary, getItem };

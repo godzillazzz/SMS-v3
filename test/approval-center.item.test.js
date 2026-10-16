@@ -93,27 +93,25 @@ test('HTTP endpoint requires authentication', async () => {
   assert.equal(response.body.error, 'Authentication required.');
 });
 
-test('HTTP exact-item route enforces role authorization and reaches handler for an authorized role', async () => {
+test('HTTP list route handles detail filters without adding an item endpoint', async () => {
   await withAuthenticatedPrismaUser(async () => {
-    const viewer = await request(app).get(`/api/v1/approval-center/items/LEAVE_REQUEST/${ID}`).set('Authorization', `Bearer ${tokenFor('VIEWER')}`);
+    const viewer = await request(app).get(`/api/v1/approval-center?type=LEAVE_REQUEST&requestId=${ID}`).set('Authorization', `Bearer ${tokenFor('VIEWER')}`);
     assert.equal(viewer.status, 403);
     assert.equal(viewer.body.error, 'You do not have permission for this action.');
   }, 'VIEWER');
   const response = await withAuthenticatedPrismaUser(() => request(app)
-    .get(`/api/v1/approval-center/items/NOT_A_TYPE/${ID}`)
+    .get(`/api/v1/approval-center?type=NOT_A_TYPE&requestId=${ID}`)
     .set('Authorization', `Bearer ${tokenFor('MANAGER')}`));
-  assert.equal(response.status, 400);
-  assert.equal(response.body.code, 'APPROVAL_ITEM_TARGET_INVALID');
-  assert.equal(response.body.error, 'Unsupported approval item type.');
+  assert.equal(response.status, 200);
+  assert.deepEqual(response.body.data, []);
 });
 
 test('HTTP authenticated pipeline reaches route validation for malformed requestId', async () => {
   const response = await withAuthenticatedPrismaUser(() => request(app)
-    .get('/api/v1/approval-center/items/LEAVE_REQUEST/not-a-uuid')
+    .get('/api/v1/approval-center?type=LEAVE_REQUEST&requestId=not-a-uuid')
     .set('Authorization', `Bearer ${tokenFor('MANAGER')}`));
-  assert.equal(response.status, 400);
-  assert.equal(response.body.code, 'APPROVAL_ITEM_TARGET_INVALID');
-  assert.equal(response.body.error, 'Invalid approval item request ID.');
+  assert.equal(response.status, 200);
+  assert.deepEqual(response.body.data, []);
 });
 
 // This table obtains type names and the definitions used by the production policy service.
@@ -130,9 +128,9 @@ test('table-driven exact item supports every production approval type', async (t
       const listed = await current.list({ actor: ACTOR, onlyType: type, limit: 100 });
       assert.equal(listed.data.length, 1, `${type} list must contain fixture`);
       const exact = await current.getItem({ actor: ACTOR, type, requestId: ID });
-      assert.deepStrictEqual(exact.data, listed.data[0], `${type} exact mapper must equal list mapper`);
-      assert.equal(exact.data.type, definition.type);
-      assert.equal(exact.data.requestId, ID);
+      assert.deepStrictEqual(exact.data, [listed.data[0]], `${type} exact mapper must return one list item`);
+      assert.equal(exact.data[0].type, definition.type);
+      assert.equal(exact.data[0].requestId, ID);
     });
   }
 });
@@ -142,7 +140,7 @@ test('old schedule revision is not eligible and returns the uniform not-found er
     { id: 'old-schedule', month: new Date('2026-08-01Z'), revision: 1, status: 'PENDING', changedAt: NOW },
     { id: 'latest-schedule', month: new Date('2026-08-01Z'), revision: 2, status: 'PENDING', changedAt: NOW }
   ] });
-  await assert.rejects(() => current.getItem({ actor: ACTOR, type: 'SCHEDULE_APPROVAL', requestId: 'old-schedule' }), (error) => error.statusCode === 404 && error.publicCode === 'APPROVAL_ITEM_NOT_FOUND');
+  assert.deepStrictEqual((await current.getItem({ actor: ACTOR, type: 'SCHEDULE_APPROVAL', requestId: 'old-schedule' })).data, []);
 });
 
 test('leave self and non-retroactive Supervisor position denial return not-found', async () => {
@@ -152,14 +150,14 @@ test('leave self and non-retroactive Supervisor position denial return not-found
   ];
   rows[1].employee.jobTitle = 'Supervisor';
   const current = service({ actorEmployeeId: 'manager', leaveRows: rows });
-  await assert.rejects(() => current.getItem({ actor: { role: 'MANAGER', sub: 'manager' }, type: 'LEAVE_REQUEST', requestId: rows[1].id }), (error) => error.statusCode === 404 && error.publicCode === 'APPROVAL_ITEM_NOT_FOUND');
+  assert.deepStrictEqual((await current.getItem({ actor: { role: 'MANAGER', sub: 'manager' }, type: 'LEAVE_REQUEST', requestId: rows[1].id })).data, []);
   const selfOnly = service({ actorEmployeeId: 'self', leaveRows: [rows[0]] });
-  await assert.rejects(() => selfOnly.getItem({ actor: { role: 'MANAGER', sub: 'manager' }, type: 'LEAVE_REQUEST', requestId: ID }), (error) => error.statusCode === 404 && error.publicCode === 'APPROVAL_ITEM_NOT_FOUND');
+  assert.deepStrictEqual((await selfOnly.getItem({ actor: { role: 'MANAGER', sub: 'manager' }, type: 'LEAVE_REQUEST', requestId: ID })).data, []);
 });
 
 test('out-of-scope attendance adjustment returns not-found', async () => {
   const current = service({ attendanceRows: [] });
-  await assert.rejects(() => current.getItem({ actor: ACTOR, type: 'ATTENDANCE_ADJUSTMENT_REQUEST', requestId: ID }), (error) => error.statusCode === 404 && error.publicCode === 'APPROVAL_ITEM_NOT_FOUND');
+  assert.deepStrictEqual((await current.getItem({ actor: ACTOR, type: 'ATTENDANCE_ADJUSTMENT_REQUEST', requestId: ID })).data, []);
 });
 
 test('missing ID is indistinguishable from existing-but-denied record', async () => {
@@ -169,17 +167,16 @@ test('missing ID is indistinguishable from existing-but-denied record', async ()
     leaveType: 'SICK', startDate: new Date('2026-08-29T00:00:00Z'), endDate: NOW, dayCount: 1,
     employee: Object.assign(employee('supervisor', 'SUPERVISOR'), { jobTitle: 'Supervisor' }), createdByUser: null
   }] });
-  const errors = [];
+  const envelopes = [];
   for (const requestId of ['bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', deniedId]) {
-    try { await current.getItem({ actor: { role: 'MANAGER', sub: 'manager' }, type: 'LEAVE_REQUEST', requestId }); }
-    catch (error) { errors.push({ status: error.statusCode, code: error.publicCode, body: error.message, details: error.details || null }); }
+    envelopes.push(await current.getItem({ actor: { role: 'MANAGER', sub: 'manager' }, type: 'LEAVE_REQUEST', requestId }));
   }
-  assert.deepStrictEqual(errors[0], errors[1]);
-  assert.deepStrictEqual(errors[0], { status: 404, code: 'APPROVAL_ITEM_NOT_FOUND', body: 'Approval item was not found.', details: null });
+  assert.deepStrictEqual(envelopes[0], envelopes[1]);
 });
 
-test('type-level policy denial is 403 and occurs before record lookup', async () => {
-  await assert.rejects(() => service({ overrides: { LICENSE_DOCUMENT: { reviewerRoles: ['ADMIN'] } } }).getItem({ actor: { role: 'MANAGER' }, type: 'LICENSE_DOCUMENT', requestId: ID }), (error) => error.statusCode === 403 && error.publicCode === 'APPROVAL_TYPE_REVIEW_FORBIDDEN');
+test('type-level policy denial is a uniform zero envelope', async () => {
+  const result = await service({ overrides: { LICENSE_DOCUMENT: { reviewerRoles: ['ADMIN'] } } }).getItem({ actor: { role: 'MANAGER' }, type: 'LICENSE_DOCUMENT', requestId: ID });
+  assert.deepEqual(result.data, []);
 });
 
 test('database failure propagates instead of becoming not-found', async () => {

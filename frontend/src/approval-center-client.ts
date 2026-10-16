@@ -77,5 +77,5 @@ export function getApprovalCenter(token: string, options: { forceRefresh?: boole
 }
 
 export function getApprovalCenterItem(token: string, type: string, requestId: string) {
-  return approvalCenterRequest(token, `/approval-center/items/${encodeURIComponent(type)}/${encodeURIComponent(requestId)}`);
+  return approvalCenterRequest(token, `/approval-center?type=${encodeURIComponent(type)}&requestId=${encodeURIComponent(requestId)}`);
 }

@@ -431,9 +431,9 @@ export function ApprovalCenterPage({
     setDetailState({ status: 'loading', message: 'กำลังโหลดรายละเอียดคำขอ…' });
     try {
       const result = await getApprovalCenterItem(token, item.type, item.requestId);
-      const detail = (result?.data || result) as ApprovalCenterItem;
+      const detail = (Array.isArray(result?.data) ? result.data[0] : result?.data || result) as ApprovalCenterItem;
       if (!detail || detail.type !== item.type || String(detail.requestId) !== String(item.requestId)) {
-        setDetailState({ status: 'not-found', message: 'ไม่พบคำขอที่ต้องการเปิดรายละเอียด (404)' });
+        setDetailState({ status: 'not-found', message: 'ไม่พบคำขอที่มีสิทธิ์เปิดรายละเอียด' });
         return;
       }
       setDetailState(undefined);
@@ -484,7 +484,10 @@ export function ApprovalCenterPage({
       {error && <div className="approval-center-alert approval-center-alert--error" role="alert" aria-live="assertive">
         <RequestErrorContent error={error} />
       </div>}
-      {detailState && <div className="approval-center-alert approval-center-alert--error" role="alert" aria-live="assertive">
+      {detailState?.status === 'loading' && <div className="approval-center-alert approval-center-alert--loading" role="status" aria-live="polite">
+        {detailState.message}
+      </div>}
+      {detailState && detailState.status !== 'loading' && <div className="approval-center-alert approval-center-alert--error" role="alert" aria-live="assertive">
         {detailState.message}
       </div>}
       {notice && <div className="approval-center-alert approval-center-alert--success">
