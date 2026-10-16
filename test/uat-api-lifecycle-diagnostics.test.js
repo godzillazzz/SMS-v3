@@ -58,7 +58,7 @@ test('unknown top-level failure is classified without reading or serializing raw
   });
   const summary=makeSafeSummary(reporter.results,{ADMIN:'READY'}, {status:'failed'});
   assert.equal(summary.roles.ADMIN.failed_check,'API_OUTSIDE_CHECK');
-  assert.equal(summary.roles.ADMIN.failed_reason,'OUTSIDE_CHECK');
+  assert.equal(summary.roles.ADMIN.failed_reason,'FIXTURE_OR_RUNNER_FAILED');
   assert.equal(summary.roles.ADMIN.last_check,'API_AUTHORIZATION_COMPLETE');
   const diag=diagnosticLines(summary).join('\n');
   assert.match(diag,/UAT_FAILED_CHECK_ADMIN=API_OUTSIDE_CHECK/);
