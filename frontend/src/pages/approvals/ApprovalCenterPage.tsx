@@ -410,6 +410,12 @@ export function ApprovalCenterPage({
       >
         {busy && busyAction?.action === 'approve' ? 'กำลังอนุมัติ…' : 'อนุมัติทันที'}
       </button>}
+      {item.type === 'LEAVE_REQUEST' && <button
+        type="button"
+        disabled={busy}
+        onClick={() => onLeaveDecision(item, 'return')}
+        className="approval-action-button approval-action-button--return"
+      >ส่งกลับไปแก้ไข</button>}
       {item.type === 'SCHEDULE_APPROVAL' && role === 'SUPERVISOR' && <button
         type="button"
         disabled={busy}

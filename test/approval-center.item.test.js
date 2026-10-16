@@ -86,6 +86,25 @@ async function withAuthenticatedPrismaUser(callback, role = 'MANAGER') {
   try { return await callback(); } finally { prisma.user.findUnique = originalFindUnique; }
 }
 
+async function withAuthenticatedViewAsUser(callback, role) {
+  const originalFindUnique = prisma.user.findUnique;
+  prisma.user.findUnique = async ({ where }) => ({
+    id: where?.id,
+    email: `${role.toLowerCase()}@example.invalid`,
+    role: where?.id === 'view-as-admin' ? 'ADMIN' : role,
+    employeeId: null,
+    isActive: true,
+    accountStatus: 'ACTIVE',
+    passwordResetRequired: false,
+    tokenVersion: 0,
+    employee: null
+  });
+  const token = jwt.sign({ sub: 'view-as-target', tokenVersion: 0, impersonation: true, impersonatorSub: 'view-as-admin', impersonatorTokenVersion: 0 }, env.jwtSecret, {
+    algorithm: env.jwtAlgorithm, issuer: env.jwtIssuer, audience: env.jwtAudience, expiresIn: '1m'
+  });
+  try { return await callback(token); } finally { prisma.user.findUnique = originalFindUnique; }
+}
+
 // HTTP boundary: auth is checked before the new exact-item handler can run.
 test('HTTP endpoint requires authentication', async () => {
   const response = await request(app).get(`/api/v1/approval-center/items/EMPLOYEE_MASTER_CHANGE/${ID}`);
@@ -105,6 +124,39 @@ test('HTTP exact-item route enforces role authorization and reaches handler for 
   assert.equal(response.status, 400);
   assert.equal(response.body.code, 'APPROVAL_ITEM_TARGET_INVALID');
   assert.equal(response.body.error, 'Unsupported approval item type.');
+});
+
+test('HTTP View-As native detail guard is before role authorization for all target roles and types', async () => {
+  const types = ['EMPLOYEE_REFERENCE_PHOTO', 'ATTENDANCE_DEVICE_REQUEST', 'USER_ACCESS'];
+  const roles = ['VIEWER', 'MANAGER', 'SUPERVISOR', 'ADMIN'];
+  const expected = { error: 'Approval item was not found.', code: 'APPROVAL_ITEM_NOT_FOUND' };
+  for (const type of types) for (const role of roles) {
+    const response = await withAuthenticatedViewAsUser((token) => request(app)
+      .get(`/api/v1/approval-center/items/${type}/${ID}`)
+      .set('Authorization', `Bearer ${token}`), role);
+    assert.equal(response.status, 404);
+    const body = { ...response.body };
+    delete body.requestId;
+    assert.deepStrictEqual(body, expected);
+  }
+});
+
+test('HTTP native detail omission and malformed IDs use the same not-found contract', async () => {
+  const types = ['EMPLOYEE_REFERENCE_PHOTO', 'ATTENDANCE_DEVICE_REQUEST', 'USER_ACCESS'];
+  const expectedKeys = ['error', 'code', 'requestId'];
+  for (const type of types) {
+    const responses = await Promise.all([
+      withAuthenticatedPrismaUser(() => request(app).get(`/api/v1/approval-center/items/${type}`).set('Authorization', `Bearer ${tokenFor('MANAGER')}`)),
+      withAuthenticatedPrismaUser(() => request(app).get(`/api/v1/approval-center/items/${type}/not-a-uuid`).set('Authorization', `Bearer ${tokenFor('MANAGER')}`)),
+      withAuthenticatedPrismaUser(() => request(app).get(`/api/v1/approval-center/items/${type}/${ID}`).set('Authorization', `Bearer ${tokenFor('MANAGER')}`))
+    ]);
+    for (const response of responses) assert.equal(response.status, 404);
+    const bodies = responses.map((response) => { const body = { ...response.body }; delete body.requestId; return body; });
+    assert.deepStrictEqual(bodies[0], bodies[1]);
+    assert.deepStrictEqual(bodies[1], bodies[2]);
+    assert.deepStrictEqual(Object.keys(responses[0].body).sort(), expectedKeys.sort());
+    assert.equal(responses[0].body.code, 'APPROVAL_ITEM_NOT_FOUND');
+  }
 });
 
 test('HTTP authenticated pipeline reaches route validation for malformed requestId', async () => {

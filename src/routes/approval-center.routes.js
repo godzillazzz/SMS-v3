@@ -18,13 +18,20 @@ const VIEW_AS_BLOCKED_DETAIL_TYPES = new Set([
   'EMPLOYEE_REFERENCE_PHOTO', 'ATTENDANCE_DEVICE_REQUEST', 'USER_ACCESS'
 ]);
 
+function approvalItemNotFound() {
+  const error = new Error('Approval item was not found.');
+  error.statusCode = 404;
+  error.publicCode = 'APPROVAL_ITEM_NOT_FOUND';
+  return error;
+}
+
 function rejectViewAsNativeApprovalDetail(req, _res, next) {
-  if (req.user?.impersonation && VIEW_AS_BLOCKED_DETAIL_TYPES.has(req.params.type)) {
-    const error = new Error('Approval item was not found.');
-    error.statusCode = 404;
-    error.publicCode = 'APPROVAL_ITEM_NOT_FOUND';
-    return next(error);
-  }
+  if (req.user?.impersonation && VIEW_AS_BLOCKED_DETAIL_TYPES.has(req.params.type)) return next(approvalItemNotFound());
+  return next();
+}
+
+function rejectMissingNativeApprovalDetailId(req, _res, next) {
+  if (!req.params.requestId && VIEW_AS_BLOCKED_DETAIL_TYPES.has(req.params.type)) return next(approvalItemNotFound());
   return next();
 }
 
@@ -41,10 +48,7 @@ function validateItemParams(params) {
     // enumeration oracle. Leave/license resolution retains its existing
     // validation contract until its separately approved remediation.
     if (['EMPLOYEE_REFERENCE_PHOTO', 'ATTENDANCE_DEVICE_REQUEST', 'USER_ACCESS'].includes(params.type)) {
-      const error = new Error('Approval item was not found.');
-      error.statusCode = 404;
-      error.publicCode = 'APPROVAL_ITEM_NOT_FOUND';
-      throw error;
+      throw approvalItemNotFound();
     }
     const error = new Error('Invalid approval item request ID.');
     error.statusCode = 400;
@@ -55,6 +59,10 @@ function validateItemParams(params) {
 }
 
 router.use(authenticate);
+// These guards intentionally run after authentication but before role authorization:
+// blocked native detail shapes must fail uniformly, including View-As VIEWER.
+router.use('/items/:type/:requestId', rejectViewAsNativeApprovalDetail);
+router.use('/items/:type', rejectMissingNativeApprovalDetailId);
 router.use(authorize('ADMIN', 'MANAGER', 'SUPERVISOR'));
 router.get('/summary', async (req, res, next) => {
   try {
@@ -65,7 +73,7 @@ router.get('/summary', async (req, res, next) => {
   }
 });
 
-router.get('/items/:type/:requestId', rejectViewAsNativeApprovalDetail, async (req, res, next) => {
+router.get('/items/:type/:requestId', async (req, res, next) => {
   try {
     const params = validateItemParams(req.params);
     res.set('Cache-Control', 'no-store');
