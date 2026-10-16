@@ -57,7 +57,16 @@ for (const role of roles) {
     });
   });
   test(`${role}: API authorization and expected denial`, async () => {
-    const context = await request.newContext({ baseURL: config.baseURL, extraHTTPHeaders: requestOptions().extraHTTPHeaders });
+    let context;
+    await test.step('API_CONTEXT_CREATE', async () => {
+      try {
+        context = await request.newContext({
+          baseURL: config.baseURL, extraHTTPHeaders: requestOptions().extraHTTPHeaders
+        });
+      } catch {
+        throw new Error('UAT_API_CONTEXT_CREATE_FAILED');
+      }
+    });
     try {
       for (const route of getRoleApiMatrix(role)) {
         await test.step(apiCheckName(route.label), async () => {
@@ -85,7 +94,20 @@ for (const role of roles) {
           assertApiHttpStatus(response.status(), 401);
         });
       }
-    } finally { await context.dispose(); }
+      await test.step('API_AUTHORIZATION_COMPLETE', async () => {
+        // Marker is fixed, non-sensitive, and reachable only if all HTTP status assertions passed.
+      });
+    } finally {
+      if (context) {
+        await test.step('API_CONTEXT_DISPOSE', async () => {
+          try {
+            await context.dispose();
+          } catch {
+            throw new Error('UAT_API_CONTEXT_DISPOSE_FAILED');
+          }
+        });
+      }
+    }
   });
   for (const [name, width, height] of [['desktop', 1366, 768], ['mobile', 375, 812]]) {
     for (const theme of ['light', 'dark']) {

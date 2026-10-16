@@ -10,7 +10,11 @@ const API_CHECKS = Object.freeze([
   ...new Set(Object.values(roleApiMatrix).flatMap((routes) =>
     routes.map(([label]) => candidateCheckName(label)))),
   'API_DENY_NO_TOKEN',
-  'API_DENY_INVALID_TOKEN'
+  'API_DENY_INVALID_TOKEN',
+  'API_CONTEXT_CREATE',
+  'API_CONTEXT_DISPOSE',
+  'API_AUTHORIZATION_COMPLETE',
+  'API_OUTSIDE_CHECK'
 ]);
 function apiCheckName(label) {
   const name = candidateCheckName(label);
