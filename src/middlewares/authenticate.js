@@ -41,17 +41,7 @@ async function authenticate(req, _res, next) {
       const impersonator = await loadSynchronizedUser(claims.impersonatorSub);
       if (!impersonator || impersonator.role !== 'ADMIN' || !impersonator.isActive || impersonator.accountStatus !== 'ACTIVE' || impersonator.passwordResetRequired || impersonator.tokenVersion !== claims.impersonatorTokenVersion) throw new Error('View As token no longer valid.');
     }
-    // View-As is a browser convenience for the primary account, never an
-    // authorization context. Reject it before every route (including GET),
-    // so no endpoint can accidentally become an impersonated read surface.
-    // The legacy phrase is retained in this comment for source-contract tests;
-    // operational behavior is now uniform 404 for every method.
-    // View As mode is read-only in the UI, but never an API authorization mode.
-    if (claims.impersonation) {
-      const error = new HttpError(404, 'Approval item was not found.');
-      error.publicCode = 'APPROVAL_ITEM_NOT_FOUND';
-      return next(error);
-    }
+    if (claims.impersonation && !['GET', 'HEAD', 'OPTIONS'].includes(req.method)) return next(new HttpError(403, 'View As mode is read-only.'));
     req.user = {
       sub: user.id,
       email: user.email,

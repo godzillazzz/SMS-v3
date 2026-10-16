@@ -14,6 +14,19 @@ const approvalTypes = new Set([
   'LEAVE_REQUEST', 'USER_ACCESS', 'REGISTRATION_REQUEST'
 ]);
 const uuid = z.string().uuid();
+const VIEW_AS_BLOCKED_DETAIL_TYPES = new Set([
+  'EMPLOYEE_REFERENCE_PHOTO', 'ATTENDANCE_DEVICE_REQUEST', 'USER_ACCESS'
+]);
+
+function rejectViewAsNativeApprovalDetail(req, _res, next) {
+  if (req.user?.impersonation && VIEW_AS_BLOCKED_DETAIL_TYPES.has(req.params.type)) {
+    const error = new Error('Approval item was not found.');
+    error.statusCode = 404;
+    error.publicCode = 'APPROVAL_ITEM_NOT_FOUND';
+    return next(error);
+  }
+  return next();
+}
 
 function validateItemParams(params) {
   if (!approvalTypes.has(params.type)) {
@@ -52,7 +65,7 @@ router.get('/summary', async (req, res, next) => {
   }
 });
 
-router.get('/items/:type/:requestId', async (req, res, next) => {
+router.get('/items/:type/:requestId', rejectViewAsNativeApprovalDetail, async (req, res, next) => {
   try {
     const params = validateItemParams(req.params);
     res.set('Cache-Control', 'no-store');
