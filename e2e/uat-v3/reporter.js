@@ -23,16 +23,29 @@ function safeFailureCheck(steps) {
 function safeApiFailureReason(steps) {
   const step = firstFailedAllowlistedStep(steps);
   if (!step || !API_CHECKS.includes(step.title)) return 'UNCLASSIFIED';
-  // Parse only fixed error codes created by this test harness; discard all raw text.
+  // Only interpret exact, harness-owned codes. Raw errors never reach reports or logs.
   const message = typeof step.error?.message === 'string'
     ? step.error.message.split(/\r?\n/, 1)[0].replace(/^Error:\s*/, '').trim() : '';
+  if (step.title === 'API_CONTEXT_CREATE' && message === 'UAT_API_CONTEXT_CREATE_FAILED') return 'CONTEXT_CREATE_FAILED';
+  if (step.title === 'API_CONTEXT_DISPOSE' && message === 'UAT_API_CONTEXT_DISPOSE_FAILED') return 'CONTEXT_DISPOSE_FAILED';
   if (message === 'UAT_API_REQUEST_FAILED') return 'REQUEST_FAILED';
   if (message === 'UAT_API_STATUS_UNVERIFIED') return 'STATUS_UNVERIFIED';
   const status = /^UAT_API_HTTP_MISMATCH_EXPECTED_([1-5][0-9]{2})_ACTUAL_([1-5][0-9]{2})$/.exec(message);
   return status ? 'HTTP_' + status[2] + '_EXPECTED_' + status[1] : 'UNCLASSIFIED';
 }
+function safeLastCheck(steps) {
+  if (!Array.isArray(steps)) return 'NONE';
+  let last = 'NONE';
+  for (const step of steps) {
+    if (SAFE_CHECKS.includes(step?.title)) last = step.title;
+    const nested = safeLastCheck(step?.steps);
+    if (nested !== 'NONE') last = nested;
+  }
+  return last;
+}
 function safeFailureReason(value) {
-  if (['NONE', 'UNCLASSIFIED', 'REQUEST_FAILED', 'STATUS_UNVERIFIED'].includes(value)) return value;
+  if (['NONE', 'UNCLASSIFIED', 'REQUEST_FAILED', 'STATUS_UNVERIFIED',
+    'CONTEXT_CREATE_FAILED', 'CONTEXT_DISPOSE_FAILED', 'OUTSIDE_CHECK'].includes(value)) return value;
   return typeof value === 'string' && /^HTTP_[1-5][0-9]{2}_EXPECTED_[1-5][0-9]{2}$/.test(value)
     ? value : 'UNCLASSIFIED';
 }
@@ -59,7 +72,8 @@ function makeSafeSummary(results, preflight = {}, meta = {}) {
     phase: STAGES.includes(entry?.phase) ? entry.phase : 'UNKNOWN',
     status: safeStatus(entry?.status),
     failure_check: SAFE_CHECKS.includes(entry?.failure_check) ? entry.failure_check : 'UNCLASSIFIED',
-    failure_reason: safeFailureReason(entry?.failure_reason)
+    failure_reason: safeFailureReason(entry?.failure_reason),
+    last_check: [...SAFE_CHECKS, 'NONE'].includes(entry?.last_check) ? entry.last_check : 'NONE'
   }));
   const counts = { passed: 0, failed: 0, skipped: 0 };
   for (const entry of tests) {
@@ -80,7 +94,8 @@ function makeSafeSummary(results, preflight = {}, meta = {}) {
     return [role, { preflight: preflightCode, state, passed, failed: failed.length,
       skipped, failed_phase: failed.length ? failed[0].phase : 'NONE',
       failed_check: failed.length ? failed[0].failure_check : 'NONE',
-      failed_reason: failed.length ? failed[0].failure_reason : 'NONE' }];
+      failed_reason: failed.length ? failed[0].failure_reason : 'NONE',
+      last_check: failed.length ? failed[0].last_check : 'NONE' }];
   }));
   return {
     status: meta.status === 'passed' ? 'passed' : 'failed',
@@ -106,6 +121,8 @@ function diagnosticLines(summary) {
     const check = [...SAFE_CHECKS, 'NONE'].includes(value.failed_check) ? value.failed_check : 'UNCLASSIFIED';
     lines.push('UAT_FAILED_CHECK_' + role + '=' + check);
     lines.push('UAT_FAILED_REASON_' + role + '=' + safeFailureReason(value.failed_reason));
+    const lastCheck = [...SAFE_CHECKS, 'NONE'].includes(value.last_check) ? value.last_check : 'NONE';
+    lines.push('UAT_LAST_CHECK_' + role + '=' + lastCheck);
   }
   for (const field of ['passed', 'failed', 'skipped']) {
     const count = summary.counts?.[field];
@@ -118,9 +135,16 @@ class SafeReporter {
   constructor() { this.results = []; }
   onTestEnd(test, result) {
     const role = /^(ADMIN|MANAGER|SUPERVISOR|VIEWER):/.exec(test.title)?.[1] || 'UNKNOWN';
-    this.results.push({ role, phase: safeStage(test.title),
-      status: safeStatus(result.status), failure_check: safeFailureCheck(result.steps),
-      failure_reason: safeApiFailureReason(result.steps) });
+    const phase = safeStage(test.title);
+    const status = safeStatus(result.status);
+    const stepCheck = safeFailureCheck(result.steps);
+    const outsideApiCheck = phase === 'API_AUTHORIZATION' && status !== 'passed'
+      && stepCheck === 'UNCLASSIFIED';
+    this.results.push({ role, phase, status,
+      failure_check: outsideApiCheck ? 'API_OUTSIDE_CHECK' : stepCheck,
+      failure_reason: outsideApiCheck ? 'OUTSIDE_CHECK' : safeApiFailureReason(result.steps),
+      last_check: safeLastCheck(result.steps)
+    });
   }
   onEnd(result) {
     let preflight = {};
@@ -144,3 +168,4 @@ module.exports.safeStage = safeStage;
 module.exports.safeFailureCheck = safeFailureCheck;
 module.exports.safeApiFailureReason = safeApiFailureReason;
 module.exports.safeFailureReason = safeFailureReason;
+module.exports.safeLastCheck = safeLastCheck;
