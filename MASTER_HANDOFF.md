@@ -1,5 +1,11 @@
 # MASTER HANDOFF
 
+## OWNER DIRECTIVE — SCHEDULE-APPROVAL SIDEBAR SHORTCUT REMOVED — 16 October 2026
+
+- OWNER สั่งให้นำเมนู "อนุมัติตารางกะ" ออกจาก Sidebar ทั้ง Desktop และ Mobile โดยคงความสามารถอนุมัติ/ดูรายละเอียดไว้ที่ศูนย์อนุมัติ (`/app/approvals`) และคงเส้นทาง `/app/roster/approvals` สำหรับ deep-link/ปุ่มจากศูนย์อนุมัติ
+- บันทึกเพื่อ traceability: คำสั่งนี้เดิมไม่ปรากฏในระบบ (ไม่พบใน git/MASTER_HANDOFF/ประวัติแชท — คาดว่าถูก "กลืน" จากบั๊ก mention-gate ที่แก้ไปแล้วเมื่อ 20:25) จึงบันทึกไว้เพื่อการตรวจสอบย้อนหลัง
+- อ้างอิง commit `1f374edc` และเทสต์ `test/legacy-parity-controls.test.js`
+
 ## ACTIVE — DUAL-ENTRY NATIVE APPROVALS & REQUEST DETAILS REMEDIATED — 16 October 2026, 18:30 ICT (Asia/Bangkok)
 
 **Tracking ID:** `SMSV3-UI-APPROVAL-CENTER-ROLE-VISIBILITY-20261016` — **CLOSED / OWNER CONFIRMED NORMAL** for Role Visibility (ADMIN, MANAGER, SUPERVISOR see Approval Center as intended; VIEWER blocked).
