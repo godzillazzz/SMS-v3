@@ -27,20 +27,33 @@ test.afterAll(() => sessions?.clear());
 for (const role of roles) {
   test(`${role}: real browser login and exact identity`, async ({ page }) => {
     const attempts = await installReadonlyBrowser(page, undefined, config.baseURL, { realLogin: true });
-    await page.goto(config.baseURL + '/app');
-    await expect(page.locator('.nexus-public #auth-login-form')).toBeVisible();
-    await page.locator('#auth-login-form input#email').fill(config.accounts[role].email);
-    await page.locator('form.login-form input#password').fill(config.accounts[role].password);
-    const pending = page.waitForResponse((r) => new URL(r.url()).pathname === '/api/v1/auth/login' && r.request().method() === 'POST');
-    await page.locator('#auth-login-form button[type="submit"]').click();
-    const response = await pending;
-    // Never attach payload, tokens, DOM snapshots, passwords, or login screenshots.
-    expect(response.status()).toBe(200);
-    const payload = await response.json();
-    expect(payload.user?.role).toBe(role);
-    expect(payload.user?.id === sessions.get(role).user.id).toBe(true);
-    await expect(page.locator('form.login-form')).toHaveCount(0);
-    expect(attempts).toEqual([]);
+    await test.step('BROWSER_PAGE_READY', async () => {
+      await page.goto(config.baseURL + '/app');
+      await expect(page.locator('.nexus-public #auth-login-form')).toBeVisible();
+    });
+    await test.step('BROWSER_CREDENTIAL_INPUTS', async () => {
+      await page.locator('#auth-login-form input#email').fill(config.accounts[role].email);
+      await page.locator('form.login-form input#password').fill(config.accounts[role].password);
+    });
+    let response;
+    await test.step('BROWSER_LOGIN_REQUEST', async () => {
+      const pending = page.waitForResponse((r) => new URL(r.url()).pathname === '/api/v1/auth/login' && r.request().method() === 'POST');
+      await page.locator('#auth-login-form button[type="submit"]').click();
+      response = await pending;
+    });
+    await test.step('BROWSER_LOGIN_IDENTITY', async () => {
+      // Never attach payload, tokens, DOM snapshots, passwords, or login screenshots.
+      expect(response.status()).toBe(200);
+      const payload = await response.json();
+      expect(payload.user?.role).toBe(role);
+      expect(payload.user?.id === sessions.get(role).user.id).toBe(true);
+    });
+    await test.step('BROWSER_AUTH_TRANSITION', async () => {
+      await expect(page.locator('form.login-form')).toHaveCount(0);
+    });
+    await test.step('BROWSER_READONLY_GUARD', async () => {
+      expect(attempts).toEqual([]);
+    });
   });
   test(`${role}: API authorization and expected denial`, async () => {
     const context = await request.newContext({ baseURL: config.baseURL, extraHTTPHeaders: requestOptions().extraHTTPHeaders });
