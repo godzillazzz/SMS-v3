@@ -41,6 +41,13 @@ function json(route: Parameters<Parameters<Page['route']>[1]>[0], payload: unkno
 type RequestRecord = { path: string; lifecycle: string; started: number; responded?: number };
 const SUMMARY_DELAY_MS = 1500;
 const SUMMARY_TTL_MS = 2000;
+const READY_TIMEOUT_MS = Number.parseInt(process.env.PW_READY_TIMEOUT_MS ?? '60000', 10);
+const READY_POLL_INTERVALS = [100, 250, 500, 1000];
+
+function readinessTimeout(): number {
+  return Number.isFinite(READY_TIMEOUT_MS) && READY_TIMEOUT_MS >= 30_000 ? READY_TIMEOUT_MS : 60_000;
+}
+
 async function installFixture(page: Page, role: 'ADMIN' | 'MANAGER' | 'SUPERVISOR' | 'VIEWER' = 'ADMIN') {
   const requests: RequestRecord[] = [];
   let lifecycle = 'dashboard';
@@ -96,15 +103,55 @@ async function navigateFromShell(page: Page, navigationId: string, mobile: boole
   await item.click();
 }
 
-async function signIn(page: Page) {
+async function signIn(page: Page, fixture: { requests: RequestRecord[] }, role: 'ADMIN' | 'MANAGER' | 'SUPERVISOR' | 'VIEWER' = 'ADMIN') {
+  test.info().setTimeout(readinessTimeout() + 10_000);
+  const consoleErrors: string[] = [];
+  const failedRequests: string[] = [];
+  page.on('console', message => {
+    if (message.type() === 'error') consoleErrors.push(message.text());
+  });
+  page.on('requestfailed', request => failedRequests.push(`${request.method()} ${new URL(request.url()).pathname}: ${request.failure()?.errorText ?? 'unknown failure'}`));
   await page.goto('/app');
   await expect(page.locator('#auth-login-form')).toBeVisible();
   await page.locator('#email').fill('r71@example.test');
   await page.locator('#password').fill('synthetic-password');
+  const dashboardResponse = page.waitForResponse(response => {
+    const path = new URL(response.url()).pathname;
+    return response.ok() && (path === '/api/v1/dashboard' || path === '/api/v1/dashboard/summary');
+  });
   await page.locator('#auth-login-form button[type="submit"]').click();
-  // The broad two-worker browser suite can queue fixture login behind another worker.
-  // This only stabilizes the post-submit readiness wait; it changes no app behavior.
-  await expect(page.locator('.app-shell')).toBeVisible({ timeout: 30_000 });
+  try {
+    await dashboardResponse;
+    await expect.poll(async () => {
+      const shellReady = await page.locator('.app-shell').isVisible().catch(() => false);
+      const menuReady = await page.locator('.sidebar .nav-item').first().isVisible().catch(() => false);
+      const dashboardReady = fixture.requests.some(record =>
+        record.lifecycle === 'dashboard' &&
+        (record.path === '/api/v1/dashboard' || record.path === '/api/v1/dashboard/summary') &&
+        record.responded !== undefined,
+      );
+      return shellReady && menuReady && dashboardReady;
+    }, { timeout: readinessTimeout(), intervals: READY_POLL_INTERVALS }).toBe(true);
+    if (role !== 'VIEWER') {
+      await expect.poll(() => fixture.requests.filter(record =>
+        record.lifecycle === 'dashboard' && record.path === '/api/v1/approval-center/summary' && record.responded !== undefined,
+      ).length, { timeout: readinessTimeout(), intervals: READY_POLL_INTERVALS }).toBe(1);
+    }
+  } catch (error) {
+    const pending = fixture.requests
+      .filter(record => record.responded === undefined)
+      .map(record => `${record.path} [${record.lifecycle}]`);
+    throw new Error([
+      `R71 readiness timed out after ${readinessTimeout()}ms`,
+      `url=${page.url()}`,
+      `shellVisible=${await page.locator('.app-shell').isVisible().catch(() => false)}`,
+      `pendingApi=${JSON.stringify(pending)}`,
+      `requests=${JSON.stringify(fixture.requests)}`,
+      `consoleErrors=${JSON.stringify(consoleErrors.slice(-10))}`,
+      `failedRequests=${JSON.stringify(failedRequests.slice(-10))}`,
+      `cause=${error instanceof Error ? error.message : String(error)}`,
+    ].join('\n'));
+  }
 }
 
 // Canvas delegates CSS Color 4 parsing (including alpha) to the browser.
@@ -273,8 +320,8 @@ for (const theme of ['light', 'dark'] as const) {
       await page.setViewportSize({ width: 375, height: 812 });
       await page.addInitScript(value => localStorage.setItem('sms-v3-theme', value), theme);
       const errors = collectErrors(page);
-      await installFixture(page);
-      await signIn(page);
+      const fixture = await installFixture(page);
+      await signIn(page, fixture);
       await expect(page.locator('html')).toHaveAttribute('data-theme', theme);
       await page.getByRole('button', { name: 'เปิดเมนูบัญชีและธีม' }).click();
       await dismissUtility(page, method);
@@ -288,9 +335,9 @@ for (const theme of ['light', 'dark'] as const) {
     test(`R7.1 visual contracts ${theme} ${viewport.name}`, async ({ page }, testInfo: TestInfo) => {
       await page.setViewportSize(viewport);
       await page.addInitScript((value) => localStorage.setItem('sms-v3-theme', value), theme);
-      await installFixture(page);
+      const fixture = await installFixture(page);
       const errors = collectErrors(page);
-      await signIn(page);
+      await signIn(page, fixture);
 
       await expect(page.locator('html')).toHaveAttribute('data-theme', theme);
       const logo = page.locator('.sidebar-brand picture.sms-brand-logo');
@@ -365,7 +412,7 @@ for (const mobile of [false, true]) {
     await page.addInitScript(() => localStorage.setItem('sms-v3-theme', 'dark'));
     const errors = collectErrors(page);
     const fixture = await installFixture(page);
-    await signIn(page);
+    await signIn(page, fixture);
     // Finish dashboard lifecycle before measuring a new document/navigation.
     await expect.poll(() => fixture.requests.filter(r => r.lifecycle === 'dashboard' && r.path.endsWith('/summary') && r.responded !== undefined).length).toBe(1);
     fixture.setLifecycle('approval-center-1');
@@ -430,7 +477,7 @@ for (const role of ['ADMIN', 'MANAGER', 'SUPERVISOR', 'VIEWER'] as const) {
   test(`T42 initial Dashboard API sequencing ${role}`, async ({ page }) => {
     await page.setViewportSize({ width: 1366, height: 768 });
     const fixture = await installFixture(page, role);
-    await signIn(page);
+    await signIn(page, fixture, role);
     await expect.poll(() => fixture.requests.filter(r => r.lifecycle === 'dashboard' && r.path === '/api/v1/dashboard' && r.responded !== undefined).length).toBe(1);
     const dashboard = fixture.requests.filter(r => r.lifecycle === 'dashboard' && r.path === '/api/v1/dashboard');
     expect(dashboard).toHaveLength(1);
