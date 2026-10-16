@@ -31,6 +31,7 @@ test.afterEach(async ({ page }) => {
   if (page) await page.unrouteAll({ behavior: 'ignoreErrors' }).catch(() => {});
 });
 for (const role of roles) {
+  test.describe.serial(role, () => {
   test(`${role}: real browser login and exact identity`, async ({ page }) => {
     const attempts = await installReadonlyBrowser(page, undefined, config.baseURL, { realLogin: true });
     await test.step('BROWSER_PAGE_READY', async () => {
@@ -143,4 +144,5 @@ for (const role of roles) {
       });
     }
   }
+  });
 }

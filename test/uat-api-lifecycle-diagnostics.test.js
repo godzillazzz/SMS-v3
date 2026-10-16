@@ -15,7 +15,7 @@ test('API context creation and teardown have fixed bounded check names', () => {
   assert.ok(s.includes("await context.dispose()"));
   assert.ok(s.includes("getRoleApiMatrix(role)"));
   assert.ok(s.includes("API_DENY_INVALID_TOKEN"));
-  assert.match(fs.readFileSync('playwright.uat-v3.config.js', 'utf8'), /maxFailures:\s*1/);
+  assert.doesNotMatch(fs.readFileSync('playwright.uat-v3.config.js', 'utf8'), /maxFailures:\s*1/);
 });
 
 test('context disposal failures report only a safe fixed category', () => {
