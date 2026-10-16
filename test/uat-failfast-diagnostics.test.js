@@ -6,7 +6,7 @@ const { safeFailureCheck, makeSafeSummary, diagnosticLines } = require('../e2e/u
 
 test('hosted UAT fails fast before login preflight can re-run across restarted workers', () => {
   const config = fs.readFileSync('playwright.uat-v3.config.js', 'utf8');
-  assert.match(config, /maxFailures:\s*1/);
+  assert.doesNotMatch(config, /maxFailures:\s*1/);
   assert.match(config, /workers:\s*1/);
   assert.match(config, /retries:\s*0/);
 });

@@ -26,7 +26,7 @@ test('API suite still checks every protected status and both negative auth bound
   assert.match(source, /API_DENY_NO_TOKEN/);
   assert.match(source, /API_DENY_INVALID_TOKEN/);
   const runner = fs.readFileSync('playwright.uat-v3.config.js', 'utf8');
-  assert.match(runner, /maxFailures:\s*1/);
+  assert.doesNotMatch(runner, /maxFailures:\s*1/);
   assert.match(runner, /retries:\s*0/);
 });
 

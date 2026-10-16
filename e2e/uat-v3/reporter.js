@@ -113,7 +113,7 @@ function makeSafeSummary(results, preflight = {}, meta = {}) {
     const skipped = own.filter((t) => t.status === 'skipped').length;
     const preflightCode = safePreflight(preflight?.[role]);
     const state = preflightCode !== 'READY' ? 'BLOCKED_PREFLIGHT'
-      : failed.length ? 'FAILED_TEST'
+      : failed.length || skipped > 0 ? 'FAILED_TEST'
       : passed === 6 && skipped === 0 ? 'PASS'
       : 'INCOMPLETE';
     const details = preflight?.[role] && typeof preflight[role] === 'object' ? preflight[role] : {};
