@@ -39,7 +39,7 @@ export function approvalMenuCount(menuId: string, summary: ApprovalCountSummary 
   if (menuId === 'approvalCenter') return summary.total;
   const types = APPROVAL_MENU_TYPES[menuId];
   if (!types) return null;
-  return types.reduce((total, type) => total + summary.byType[type], 0);
+  return types.reduce((total, type) => total + (approvalCountValue(summary.byType[type]) || 0), 0);
 }
 
 export function approvalBadgeText(count: number | null | undefined): string | undefined {

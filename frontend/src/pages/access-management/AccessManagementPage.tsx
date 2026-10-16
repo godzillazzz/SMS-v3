@@ -37,6 +37,7 @@ type Props = {
   onViewAs(id: string): Promise<unknown>;
   onOpenAudit(): void;
   onProvisionG06Uat?: () => Promise<G06UatProvisionResult>;
+  initialAccountId?: string;
 };
 
 type Dialog = 'edit' | 'approve' | 'reset' | 'view-as' | 'confirm' | undefined;
@@ -153,7 +154,7 @@ function Modal({ title, eyebrow, tone = 'default', children, onClose }: { title:
   return <div className="account-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}><section ref={modalRef} className={`account-modal account-modal--${tone}`} role="dialog" aria-modal="true" aria-labelledby="account-modal-title" tabIndex={-1}><header><div><p>{eyebrow}</p><h2 id="account-modal-title">{title}</h2></div><button type="button" className="drawer-close overlay-close" onClick={onClose} aria-label="ปิดหน้าต่าง"><SmsIcon name="close" size={20} /></button></header>{children}</section></div>;
 }
 
-export function AccessManagementPage({ rows, loading, error, role, originalUserId, onRefresh, onUpdate, onResetPassword, onViewAs, onOpenAudit, onProvisionG06Uat }: Props) {
+export function AccessManagementPage({ rows, loading, error, role, originalUserId, onRefresh, onUpdate, onResetPassword, onViewAs, onOpenAudit, onProvisionG06Uat, initialAccountId }: Props) {
   const [selected, setSelected] = useState<AccountRecord>();
   const [dialog, setDialog] = useState<Dialog>();
   const [target, setTarget] = useState<AccountRecord>();
@@ -173,6 +174,12 @@ export function AccessManagementPage({ rows, loading, error, role, originalUserI
   const departments = useMemo(() => Array.from(new Set(rows.map((row) => row.department || '').filter(Boolean))).sort(), [rows]);
 
   const openDetails = (account: AccountRecord, trigger?: HTMLElement) => { triggerRef.current = trigger; setSelected(account); };
+  useEffect(() => {
+    if (initialAccountId) {
+      const account = rows.find((row) => String(row.id) === String(initialAccountId));
+      if (account) setSelected(account);
+    }
+  }, [initialAccountId, rows]);
   const closeDetails = () => { setSelected(undefined); window.setTimeout(() => triggerRef.current?.focus(), 0); };
   const prepare = (account: AccountRecord, next: Exclude<Dialog, 'confirm'>, trigger?: HTMLElement) => {
     const fallback = document.querySelector<HTMLElement>(`[data-account-id="${account.id}"] button`) || (document.activeElement instanceof HTMLElement ? document.activeElement : undefined);

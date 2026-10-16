@@ -33,6 +33,7 @@ type Props = {
   onAdd(): void;
   onReviewChanges?(): void;
   onEdit(employee: PersonnelRecord): void;
+  initialEmployeeId?: string;
 };
 
 const pageSize = 10;
@@ -43,7 +44,7 @@ type ReadinessSnapshot = {
   byEmployeeId: Record<string, EmployeeReadinessStatus>;
 };
 
-export function PersonnelDirectoryPage({ token, refreshKey, canManage, role, searchValue, onSearchValueChange, onAdd, onReviewChanges, onEdit }: Props) {
+export function PersonnelDirectoryPage({ token, refreshKey, canManage, role, searchValue, onSearchValueChange, onAdd, onReviewChanges, onEdit, initialEmployeeId }: Props) {
   const [employees, setEmployees] = useState<PersonnelRecord[]>([]);
   const [meta, setMeta] = useState<DirectoryMeta>({ page: 1, pageSize, total: 0, totalPages: 1, departments: [], summary: { total: 0, active: 0, incomplete: 0 } });
   const [requestLoading, setRequestLoading] = useState(false);
@@ -79,6 +80,15 @@ export function PersonnelDirectoryPage({ token, refreshKey, canManage, role, sea
       setPage(1);
     }
   }, [searchValue]);
+
+  useEffect(() => {
+    if (!initialEmployeeId) return;
+    const employee = employees.find((row) => String(row.id) === String(initialEmployeeId));
+    if (employee) {
+      lastSelectedId.current = employee.id;
+      setSelected(employee);
+    }
+  }, [employees, initialEmployeeId]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => setDebouncedSearch(search.trim()), 250);
