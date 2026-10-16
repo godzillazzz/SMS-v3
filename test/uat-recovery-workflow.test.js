@@ -7,19 +7,24 @@ const path = require('node:path');
 const { verifyPreview } = require('../scripts/ci/verify-uat-v3-preview');
 const { PROJECT_ID, TEAM_ID } = require('../e2e/uat-v3/config');
 const workflow = fs.readFileSync('.github/workflows/authenticated-uat-v3-readonly.yml', 'utf8');
-test('runtime guard pins cover existing files and match their SHA-256 digests', () => {
+test('reviewed Integration runtime guard pins are well-formed and enforced against exact remote source', () => {
   const repoRoot = path.resolve(__dirname, '..');
   const manifest = JSON.parse(fs.readFileSync(path.join(repoRoot, '.github/uat/authenticated-readonly-target.json'), 'utf8'));
   const { paths } = require('../scripts/ci/verify-uat-v3-trust');
   const pins = manifest.runtime_guard_file_sha256;
+  assert.equal(manifest.authorized, true);
+  assert.equal(manifest.database_isolation_verified, true);
+  assert.equal(manifest.source_sha, 'ffba53f90b1787a071657c21ee162609c8f80254');
+  assert.equal(manifest.database_isolation_evidence, 'https://github.com/godzillazzz/SMS-v3/actions/runs/38833567905');
+  assert.equal(manifest.source_branch, 'fix/serverless-database-reliability');
   assert.deepEqual(Object.keys(pins).sort(), [...paths].sort(), 'runtime guard path list and manifest pins must match exactly');
   for (const runtimePath of paths) {
-    const absolutePath = path.join(repoRoot, runtimePath);
-    assert.equal(fs.statSync(absolutePath).isFile(), true, `runtime guard path must be a file: ${runtimePath}`);
-    assert.match(pins[runtimePath], /^[a-f0-9]{64}$/, `runtime guard pin must be 64 lowercase hex characters: ${runtimePath}`);
-    const digest = crypto.createHash('sha256').update(fs.readFileSync(absolutePath)).digest('hex');
-    assert.equal(digest, pins[runtimePath], `runtime guard pin mismatch: ${runtimePath}`);
+    assert.equal(fs.statSync(path.join(repoRoot, runtimePath)).isFile(), true);
+    assert.match(pins[runtimePath], /^[a-f0-9]{64}$/);
   }
+  const verifier = fs.readFileSync(path.join(repoRoot, 'scripts/ci/verify-uat-v3-trust.js'), 'utf8');
+  assert.match(verifier, /contents\/\$\{path\}\?ref=\$\{env\.UAT_SOURCE_SHA\}/);
+  assert.match(verifier, /hash !== approved\.runtime_guard_file_sha256\?\.\[path\]/);
 });
 test('protected UAT uses trusted main only, owner gate and no PR source checkout', () => {
   assert.match(workflow, /github\.ref == 'refs\/heads\/main'/);
@@ -41,16 +46,20 @@ test('protected UAT uses trusted main only, owner gate and no PR source checkout
   assert.match(workflow, /UAT_SUPERVISOR_PASSWORD: \$\{\{ secrets.UAT_SUPERVISOR_PASSWORD \}\}/);
   assert.match(workflow, /success\(\) && steps.uat.outcome == 'success'/);
 });
-test('reviewed target is disabled, artifact capture is sanitized and no credentials persist', () => {
+test('reviewed target is explicitly approved for exact Preview; artifact capture is sanitized and no credentials persist', () => {
   const target = JSON.parse(fs.readFileSync('.github/uat/authenticated-readonly-target.json'));
-  assert.equal(target.authorized, false); assert.equal(target.database_isolation_verified, false);
+  assert.equal(target.authorized, true); assert.equal(target.database_isolation_verified, true);
+  assert.equal(target.source_branch, 'fix/serverless-database-reliability');
+  assert.equal(target.deployment_id, 'dpl_G7yzbgCE1457aV6zgft47hS99BNf');
+  assert.equal(target.project_id, PROJECT_ID);
+  assert.equal(target.team_id, TEAM_ID);
   const config = fs.readFileSync('playwright.uat-v3.config.js', 'utf8');
   for (const flag of ['trace', 'screenshot', 'video']) assert.match(config, new RegExp(flag + ": 'off'"));
   assert.doesNotMatch(config, /storageState/);
   assert.match(config, /serviceWorkers: 'block'/);
 });
 const env = { UAT_BASE_URL: 'https://sms-v3-staging-fixture-godzillazz.vercel.app', VERCEL_TOKEN: 'synthetic-not-real-token', UAT_EXPECTED_DEPLOYMENT_ID: 'dpl_Fixture123', UAT_SOURCE_SHA: 'a'.repeat(40), UAT_SOURCE_BRANCH: 'test/uat-fixture', GITHUB_TOKEN: 'synthetic-github-read-token', VERCEL_AUTOMATION_BYPASS_SECRET: 'synthetic-bypass', UAT_V3_RUNTIME_PROBE_HMAC_SECRET: 'synthetic-only-hmac-long-enough-for-unit-fixture'  };
-const approved = { authorized: true, database_isolation_verified: true, database_target_fingerprint: 'b'.repeat(64), production_database_identity_evidence: 'https://github.com/godzillazzz/SMS-v3/actions/runs/123', production_database_target_fingerprint: 'c'.repeat(64), preview_database_cluster_fingerprint_sha256: 'a'.repeat(64), production_database_cluster_fingerprint_sha256: 'd'.repeat(64), preview_runtime_principal: 'postgres' };
+const approved = { authorized: true, database_isolation_verified: true, database_target_fingerprint: crypto.createHash('sha256').update(JSON.stringify({ provider: 'supabase', projectRef: 'ezxanpfagitckpfsnflp', database: 'postgres' })).digest('hex'), production_database_identity_evidence: 'https://github.com/godzillazzz/SMS-v3/actions/runs/123', production_database_target_fingerprint: 'c'.repeat(64), preview_database_cluster_fingerprint_sha256: 'a'.repeat(64), production_database_cluster_fingerprint_sha256: 'd'.repeat(64), preview_runtime_principal: 'postgres' };
 function raw() { return { id: env.UAT_EXPECTED_DEPLOYMENT_ID, projectId: PROJECT_ID, ownerId: TEAM_ID, readyState: 'READY', target: 'preview', url: new URL(env.UAT_BASE_URL).host, meta: { githubCommitSha: env.UAT_SOURCE_SHA, githubCommitRef: env.UAT_SOURCE_BRANCH }, env: { VERCEL_ENV: 'preview', APPROVED_PREVIEW_DATABASE_TARGET_FINGERPRINT: 'b'.repeat(64), secret: 'must-not-be-output' } }; }
 function mockSignedReceipt(url, environment = env, target = approved) {
   const parsed = new URL(url);
@@ -71,7 +80,6 @@ function mockSignedReceipt(url, environment = env, target = approved) {
       configuredDatabaseName: 'postgres', observedDatabaseName: 'postgres',
       runtimePrincipal: target.preview_runtime_principal,
       runtimeClusterFingerprintSha256: target.preview_database_cluster_fingerprint_sha256,
-      logicalTargetFingerprint: target.database_target_fingerprint,
       targetGuardMatched: true, databaseReadOnlyQuerySucceeded: true,
       transactionReadOnly: true, runtimeWitnessVerified: true
     },

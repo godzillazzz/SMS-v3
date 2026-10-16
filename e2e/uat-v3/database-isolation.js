@@ -1,5 +1,6 @@
 'use strict';
 const { fail } = require('./config');
+const { targetFingerprint } = require('../../src/utils/database-target-identity');
 
 const PREVIEW_REF = 'ezxanpfagitckpfsnflp';
 const EXPECTED_BUCKET = 'license-documents-g05-preview';
@@ -38,7 +39,7 @@ function verifyRuntimeIsolation(target, receipt, expected) {
   if (!exactKeys(db, [
     'configuredDatabaseProjectRef', 'configuredDirectProjectRef',
     'configuredDatabaseName', 'observedDatabaseName', 'runtimePrincipal',
-    'runtimeClusterFingerprintSha256', 'logicalTargetFingerprint',
+    'runtimeClusterFingerprintSha256',
     'targetGuardMatched', 'databaseReadOnlyQuerySucceeded', 'transactionReadOnly',
     'runtimeWitnessVerified'
   ]) || db.configuredDatabaseProjectRef !== PREVIEW_REF
@@ -48,14 +49,13 @@ function verifyRuntimeIsolation(target, receipt, expected) {
     || !/^[a-z_][a-z0-9_]{0,62}$/.test(target.preview_runtime_principal || '')
     || db.targetGuardMatched !== true || db.databaseReadOnlyQuerySucceeded !== true
     || db.transactionReadOnly !== true || db.runtimeWitnessVerified !== true
-    || !HEX64.test(db.logicalTargetFingerprint || '')
-    || db.logicalTargetFingerprint !== target.database_target_fingerprint
+    || target.database_target_fingerprint !== targetFingerprint({ provider: 'supabase', projectRef: PREVIEW_REF, database: 'postgres' })
     || !HEX64.test(db.runtimeClusterFingerprintSha256 || '')
     || db.runtimeClusterFingerprintSha256 !== target.preview_database_cluster_fingerprint_sha256) {
     fail('UAT_RUNTIME_DATABASE_WITNESS_UNVERIFIED');
   }
   if (!HEX64.test(target.production_database_target_fingerprint || '')
-    || target.production_database_target_fingerprint === db.logicalTargetFingerprint
+    || target.production_database_target_fingerprint === target.database_target_fingerprint
     || !HEX64.test(target.production_database_cluster_fingerprint_sha256 || '')
     || target.production_database_cluster_fingerprint_sha256 === db.runtimeClusterFingerprintSha256) {
     fail('UAT_PRODUCTION_DATABASE_NOT_DISTINCT');

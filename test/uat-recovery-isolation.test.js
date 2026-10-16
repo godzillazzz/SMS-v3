@@ -6,13 +6,14 @@ const crypto = require('node:crypto');
 const Module = require('node:module');
 const { verifyRuntimeIsolation } = require('../e2e/uat-v3/database-isolation');
 const { verifyTrust, verifyHostedGovernance, paths } = require('../scripts/ci/verify-uat-v3-trust');
-const { parseAndNormalize } = require('../src/utils/database-target-identity');
+const { parseAndNormalize, targetFingerprint } = require('../src/utils/database-target-identity');
 const { verifyPreviewDatabaseTarget } = require('../src/services/runtime-database-target-guard.service');
 const synthetic = { VERCEL_ENV: 'preview', DATABASE_URL: 'postgresql://synthetic:synthetic@aws-0-ap-southeast-1.pooler.supabase.com:5432/postgres', DIRECT_URL: 'postgresql://synthetic:synthetic@db.synthetic-project.supabase.co:5432/postgres' };
 // Provider identities are synthetic; no network or credentials are used.
 synthetic.DATABASE_URL = synthetic.DATABASE_URL.replace('synthetic:synthetic@aws-', 'synthetic.synthetic-project:synthetic@aws-');
 const fingerprint = parseAndNormalize(synthetic).fingerprint;
-const target = { authorized: true, database_isolation_verified: true, database_target_fingerprint: fingerprint, production_database_target_fingerprint: 'c'.repeat(64), preview_database_cluster_fingerprint_sha256: 'a'.repeat(64), production_database_cluster_fingerprint_sha256: 'b'.repeat(64), preview_runtime_principal: 'postgres' };
+const previewFingerprint = targetFingerprint({ provider: 'supabase', projectRef: 'ezxanpfagitckpfsnflp', database: 'postgres' });
+const target = { authorized: true, database_isolation_verified: true, database_target_fingerprint: previewFingerprint, production_database_target_fingerprint: 'c'.repeat(64), preview_database_cluster_fingerprint_sha256: 'a'.repeat(64), production_database_cluster_fingerprint_sha256: 'b'.repeat(64), preview_runtime_principal: 'postgres' };
 const ready = { status: 'ready', database: 'ok' };
 const rules = [{ type: 'deletion' }, { type: 'non_fast_forward' }, { type: 'pull_request', parameters: { required_approving_review_count: 0 } }, { type: 'required_status_checks', parameters: { required_status_checks: [{ context: 'validate', integration_id: 15368 }] } }];
 const hostedEnvironment = { name: 'Hosted UAT', can_admins_bypass: false, protection_rules: [{ type: 'required_reviewers', prevent_self_review: false, reviewers: [{ type: 'User', reviewer: { login: 'godzillazzz' } }] }], deployment_branch_policy: { protected_branches: false, custom_branch_policies: true } };
@@ -95,7 +96,7 @@ test('signed runtime receipt binds exact deployment, Preview DB cluster and inde
     host: 'sms-v3-staging-fixture-godzillazz.vercel.app',
     nonce: 'f'.repeat(32), sha: 'c'.repeat(40),
     deploymentId: 'dpl_Fixture123',
-    ref: 'validation/uat-v3-exact-preview-20261015',
+    ref: 'fix/serverless-database-reliability',
     issuedAt: 1792000000000
   };
   const receipt = {
@@ -115,7 +116,7 @@ test('signed runtime receipt binds exact deployment, Preview DB cluster and inde
       configuredDirectProjectRef: 'ezxanpfagitckpfsnflp',
       configuredDatabaseName: 'postgres', observedDatabaseName: 'postgres',
       runtimePrincipal: 'postgres', runtimeClusterFingerprintSha256: 'a'.repeat(64),
-      logicalTargetFingerprint: fingerprint, targetGuardMatched: true,
+      targetGuardMatched: true,
       databaseReadOnlyQuerySucceeded: true, transactionReadOnly: true, runtimeWitnessVerified: true
     },
     storage: {
@@ -130,7 +131,8 @@ test('signed runtime receipt binds exact deployment, Preview DB cluster and inde
   assert.throws(() => verifyRuntimeIsolation(target, { ...receipt, applicationSha: '0'.repeat(40) }, expected));
   assert.throws(() => verifyRuntimeIsolation(target, { ...receipt, signedChallengeIdentity: { ...receipt.signedChallengeIdentity, signatureVerified: false } }, expected));
   assert.throws(() => verifyRuntimeIsolation(target, { ...receipt, database: { ...receipt.database, runtimeClusterFingerprintSha256: 'd'.repeat(64) } }, expected));
-  assert.throws(() => verifyRuntimeIsolation(target, { ...receipt, database: { ...receipt.database, logicalTargetFingerprint: 'd'.repeat(64) } }, expected));
+  assert.throws(() => verifyRuntimeIsolation({ ...target, database_target_fingerprint: 'd'.repeat(64) }, receipt, expected));
+  assert.throws(() => verifyRuntimeIsolation(target, { ...receipt, database: { ...receipt.database, logicalTargetFingerprint: previewFingerprint } }, expected));
   assert.throws(() => verifyRuntimeIsolation(target, { ...receipt, database: { ...receipt.database, transactionReadOnly: false } }, expected));
   assert.throws(() => verifyRuntimeIsolation(target, { ...receipt, storage: { ...receipt.storage, bucketIsPrivate: false } }, expected));
   assert.throws(() => verifyRuntimeIsolation({ ...target, production_database_cluster_fingerprint_sha256: 'a'.repeat(64) }, receipt, expected));
@@ -163,5 +165,8 @@ test('protected actions are immutable and additional trust guard remains before 
   assert.match(workflow.split('  authenticated-readonly:')[0], /verify-uat-v3-trust\.js/);
   assert.doesNotMatch(workflow.split('  authenticated-readonly:')[0], /secrets\./);
   const config = JSON.parse(fs.readFileSync('.github/uat/authenticated-readonly-target.json'));
-  assert.equal(config.authorized, false); assert.equal(config.database_isolation_verified, false);
+  assert.equal(config.authorized, true); assert.equal(config.database_isolation_verified, true);
+  assert.equal(config.database_isolation_evidence, 'https://github.com/godzillazzz/SMS-v3/actions/runs/38833567905');
+  assert.equal(config.source_sha, 'ffba53f90b1787a071657c21ee162609c8f80254');
+  assert.equal(config.deployment_id, 'dpl_G7yzbgCE1457aV6zgft47hS99BNf');
 });
