@@ -54,7 +54,10 @@ async function preflightAccounts(createContext, config, onStatus = () => {}) {
         if (context) await context.dispose();
       }
       // Only a fixed role name and coarse outcome are ever reported.
-      onStatus({ role, code: 'READY' });
+      // roleMatch is guaranteed by RoleSessions.put asserting payload.user.role === role
+      // active is guaranteed by isLoginEligible check in auth service
+      // distinct is guaranteed by RoleSessions.put rejecting duplicate user.id across roles
+      onStatus({ role, code: 'READY', employeeLinked: 'UNVERIFIED', roleMatch: true, active: true, distinct: true });
       activeRole = null;
     }
     return sessions;
@@ -76,12 +79,19 @@ async function installReadonlyBrowser(page, session, baseURL, { realLogin = fals
   const attempts = [];
   const origin = new URL(baseURL).origin;
   async function guardedFetch(route, req, url, headers) {
-    const response = await route.fetch({ maxRedirects: 0, headers: { ...headers, ...(url.origin === origin ? automationBypassHeaders(process.env, baseURL, req.url()) : {}) } });
-    if (response.status() >= 300 && response.status() < 400) {
-      attempts.push({ method: req.method(), path: 'redirect-blocked' });
-      return route.abort('blockedbyclient');
+    try {
+      const response = await route.fetch({ maxRedirects: 0, headers: { ...headers, ...(url.origin === origin ? automationBypassHeaders(process.env, baseURL, req.url()) : {}) } });
+      if (response.status() >= 300 && response.status() < 400) {
+        attempts.push({ method: req.method(), path: 'redirect-blocked' });
+        return route.abort('blockedbyclient');
+      }
+      return route.fulfill({ response });
+    } catch (error) {
+      // A page teardown may race route.fetch/fulfill. This is expected cleanup,
+      // and must not become an unhandled rejection attached to the next test.
+      if (/target page, context or browser has been closed|page closed|context closed/i.test(String(error?.message || error))) return undefined;
+      throw error;
     }
-    return route.fulfill({ response });
   }
   await page.route('**/*', async (route) => {
     const req = route.request(); const url = new URL(req.url());

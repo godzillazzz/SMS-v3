@@ -8,6 +8,15 @@ const BROWSER_CHECKS = Object.freeze(['BROWSER_PAGE_READY', 'BROWSER_CREDENTIAL_
   'BROWSER_LOGIN_REQUEST', 'BROWSER_LOGIN_IDENTITY', 'BROWSER_AUTH_TRANSITION',
   'BROWSER_READONLY_GUARD']);
 const SAFE_CHECKS = Object.freeze([...BROWSER_CHECKS, ...API_CHECKS]);
+const ERROR_CATEGORIES = Object.freeze(['NONE', 'TEST_TIMEOUT', 'ROUTE_AFTER_CLOSE', 'UNHANDLED_ERROR', 'OTHER']);
+function classifyResultErrors(errors) {
+  if (!Array.isArray(errors) || errors.length === 0) return 'OTHER';
+  const text = errors.map((error) => typeof error?.message === 'string' ? error.message : '').join(' ');
+  if (/timeout|timed out/i.test(text)) return 'TEST_TIMEOUT';
+  if (/target page, context or browser has been closed|page closed|context closed/i.test(text)) return 'ROUTE_AFTER_CLOSE';
+  if (/unhandled|unhandled rejection/i.test(text)) return 'UNHANDLED_ERROR';
+  return 'OTHER';
+}
 function firstFailedAllowlistedStep(steps) {
   if (!Array.isArray(steps)) return null;
   for (const step of steps) {
@@ -51,6 +60,7 @@ function safeFailureReason(value) {
 }
 
 function safePreflight(value) {
+  if (value && typeof value === 'object') return safePreflight(value.code);
   if (typeof value !== 'string') return 'NOT_RUN';
   if (['NOT_RUN', 'READY', 'REQUEST_ERROR', 'ACCOUNT_NOT_READY', 'ROLE_SESSION_INVALID'].includes(value)) return value;
   if (/^HTTP_[1-5][0-9]{2}$/.test(value)) return value;
@@ -73,7 +83,8 @@ function makeSafeSummary(results, preflight = {}, meta = {}) {
     status: safeStatus(entry?.status),
     failure_check: SAFE_CHECKS.includes(entry?.failure_check) ? entry.failure_check : 'UNCLASSIFIED',
     failure_reason: safeFailureReason(entry?.failure_reason),
-    last_check: [...SAFE_CHECKS, 'NONE'].includes(entry?.last_check) ? entry.last_check : 'NONE'
+    last_check: [...SAFE_CHECKS, 'NONE'].includes(entry?.last_check) ? entry.last_check : 'NONE',
+    error_category: ERROR_CATEGORIES.includes(entry?.error_category) ? entry.error_category : 'OTHER'
   }));
   const counts = { passed: 0, failed: 0, skipped: 0 };
   for (const entry of tests) {
@@ -91,7 +102,12 @@ function makeSafeSummary(results, preflight = {}, meta = {}) {
       : failed.length ? 'FAILED_TEST'
       : passed === 6 && skipped === 0 ? 'PASS'
       : 'INCOMPLETE';
-    return [role, { preflight: preflightCode, state, passed, failed: failed.length,
+    const details = preflight?.[role] && typeof preflight[role] === 'object' ? preflight[role] : {};
+    return [role, { preflight: preflightCode, login: preflightCode === 'READY',
+      role_match: details.roleMatch === true, active: details.active === true,
+      distinct: details.distinct === true, employee_linked: details.employeeLinked === 'UNVERIFIED' ? 'UNVERIFIED' : false,
+      error_category: own.length ? own.find((entry) => entry.status !== 'passed')?.error_category || 'NONE' : 'NONE',
+      state, passed, failed: failed.length,
       skipped, failed_phase: failed.length ? failed[0].phase : 'NONE',
       failed_check: failed.length ? failed[0].failure_check : 'NONE',
       failed_reason: failed.length ? failed[0].failure_reason : 'NONE',
@@ -116,6 +132,12 @@ function diagnosticLines(summary) {
       ? value.state : 'INCOMPLETE';
     const phase = [...STAGES, 'NONE'].includes(value.failed_phase) ? value.failed_phase : 'UNKNOWN';
     lines.push('UAT_PREFLIGHT_' + role + '=' + safePreflight(value.preflight));
+    lines.push('UAT_PREFLIGHT_' + role + '_LOGIN=' + (value.login === true ? 'true' : 'false'));
+    lines.push('UAT_PREFLIGHT_' + role + '_ROLE_MATCH=' + (value.role_match === true ? 'true' : 'false'));
+    lines.push('UAT_PREFLIGHT_' + role + '_ACTIVE=' + (value.active === true ? 'true' : 'false'));
+    lines.push('UAT_PREFLIGHT_' + role + '_DISTINCT=' + (value.distinct === true ? 'true' : 'false'));
+    lines.push('UAT_PREFLIGHT_' + role + '_EMPLOYEE_LINKED=' + (value.employee_linked === 'UNVERIFIED' ? 'UNVERIFIED' : 'false'));
+    lines.push('UAT_ERROR_CATEGORY_' + role + '=' + (ERROR_CATEGORIES.includes(value.error_category) ? value.error_category : 'OTHER'));
     lines.push('UAT_ROLE_' + role + '=' + state);
     lines.push('UAT_FAILED_PHASE_' + role + '=' + phase);
     const check = [...SAFE_CHECKS, 'NONE'].includes(value.failed_check) ? value.failed_check : 'UNCLASSIFIED';
@@ -140,7 +162,7 @@ class SafeReporter {
     const stepCheck = safeFailureCheck(result.steps);
     const outsideApiCheck = phase === 'API_AUTHORIZATION' && status !== 'passed'
       && stepCheck === 'UNCLASSIFIED';
-    this.results.push({ role, phase, status,
+    this.results.push({ role, phase, status, error_category: classifyResultErrors(result.errors),
       failure_check: outsideApiCheck ? 'API_OUTSIDE_CHECK' : stepCheck,
       failure_reason: outsideApiCheck ? 'OUTSIDE_CHECK' : safeApiFailureReason(result.steps),
       last_check: safeLastCheck(result.steps)
@@ -169,3 +191,5 @@ module.exports.safeFailureCheck = safeFailureCheck;
 module.exports.safeApiFailureReason = safeApiFailureReason;
 module.exports.safeFailureReason = safeFailureReason;
 module.exports.safeLastCheck = safeLastCheck;
+module.exports.ERROR_CATEGORIES = ERROR_CATEGORIES;
+module.exports.classifyResultErrors = classifyResultErrors;
