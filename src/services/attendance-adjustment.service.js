@@ -253,7 +253,7 @@ function createAttendanceAdjustmentService({ prisma = prismaDefault, audit = aud
     assertMakerScope(actor, assignment);
   }
 
-  async function list({ actor, status = null, assignmentId = null, page = 1, pageSize = 25 } = {}) {
+  async function list({ actor, status = null, assignmentId = null, requestId = null, page = 1, pageSize = 25 } = {}) {
     const role = roleOf(actor);
     if (!['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(role)) {
       throw http(403, 'ATTENDANCE_ADJUSTMENT_READ_FORBIDDEN', 'Attendance adjustment list requires Manager or Admin authority.');
@@ -269,6 +269,7 @@ function createAttendanceAdjustmentService({ prisma = prismaDefault, audit = aud
       : Prisma.empty;
     const statusClause = normalizedStatus ? Prisma.sql`AND r.status = ${normalizedStatus}` : Prisma.empty;
     const assignmentClause = assignmentId ? Prisma.sql`AND r.shift_assignment_id = ${assignmentId}::uuid` : Prisma.empty;
+    const requestClause = requestId ? Prisma.sql`AND r.id = ${requestId}::uuid` : Prisma.empty;
 
     const rows = await prisma.$queryRaw(Prisma.sql`
       ${requestSelect}
@@ -276,6 +277,7 @@ function createAttendanceAdjustmentService({ prisma = prismaDefault, audit = aud
         ${scope}
         ${statusClause}
         ${assignmentClause}
+        ${requestClause}
       ORDER BY r.created_at DESC, r.id ASC
       LIMIT ${safePageSize}
       OFFSET ${offset}
@@ -290,6 +292,7 @@ function createAttendanceAdjustmentService({ prisma = prismaDefault, audit = aud
         ${scope}
         ${statusClause}
         ${assignmentClause}
+        ${requestClause}
     `);
     const total = Number(counts[0]?.total || 0);
 

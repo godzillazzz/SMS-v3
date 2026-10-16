@@ -167,8 +167,9 @@ function createApprovalCenterService({
         status = 'error';
         throw error;
       } finally {
-        if (input.requestId) logger.info('performance_stage', {
-          requestId: input.requestId, operation: 'approval-center', stage: operation,
+        const correlationId = input.correlationId || (operation !== 'getItem' ? input.requestId : null);
+        if (correlationId) logger.info('performance_stage', {
+          requestId: correlationId, operation: 'approval-center', stage: operation,
           durationMs: Number((performance.now() - startedAt).toFixed(2)), queryCount,
           role: ['ADMIN', 'MANAGER', 'SUPERVISOR', 'VIEWER'].includes(String(input.actor?.role).toUpperCase())
             ? String(input.actor.role).toUpperCase() : 'UNKNOWN', status
@@ -262,7 +263,7 @@ function createApprovalCenterService({
     return { summary: { total, byType }, generatedAt: clock().toISOString() };
   }
 
-  async function list({ actor, limit = 100 }) {
+  async function list({ actor, limit = 100, onlyType = null, onlyRequestId = null }) {
     const role = String(actor?.role || '').toUpperCase();
     if (!['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(role)) {
       throw new HttpError(403, 'Approval Center requires Supervisor, Manager, or Admin authority.', { code: 'APPROVAL_CENTER_REVIEWER_REQUIRED' });
@@ -270,6 +271,11 @@ function createApprovalCenterService({
 
     const policies = await policyService.loadPolicies(prisma);
     const allowed = (type) => canReview(policies.get(type), role);
+    if (onlyType && !allowed(onlyType)) {
+      const error = new HttpError(403, 'Approval type review is forbidden.');
+      error.publicCode = 'APPROVAL_TYPE_REVIEW_FORBIDDEN';
+      throw error;
+    }
     const take = Math.max(1, Math.min(Number(limit) || 100, 100));
     const now = clock();
     const actorProfile = ['MANAGER', 'SUPERVISOR'].includes(role) && allowed('LEAVE_REQUEST')
@@ -285,13 +291,20 @@ function createApprovalCenterService({
     };
 
     const listWithOverflowCount = async (model, args) => {
-      const rows = await model.findMany({ ...args, take: 101 });
-      if (rows.length <= 100) return [rows.length, rows];
-      const total = await model.count({ where: args.where });
-      return [total, rows.slice(0, 100)];
+      const scopedArgs = onlyRequestId ? { ...args, where: { ...args.where, id: onlyRequestId } } : args;
+      const rows = onlyRequestId && typeof model.findFirst === 'function'
+        ? await model.findFirst({ ...scopedArgs })
+        : (typeof model.findMany === 'function'
+          ? await model.findMany({ ...scopedArgs, take: 101 })
+          : null);
+      const normalizedRows = (Array.isArray(rows) ? rows : (rows ? [rows] : []))
+        .filter((row) => !onlyRequestId || row?.id === onlyRequestId);
+      if (normalizedRows.length <= 100) return [normalizedRows.length, normalizedRows];
+      const total = await model.count({ where: scopedArgs.where });
+      return [total, normalizedRows.slice(0, 100)];
     };
 
-    const employeeChangesTask = () => allowed('EMPLOYEE_MASTER_CHANGE') ? listWithOverflowCount(prisma.employeeChangeRequest, {
+    const employeeChangesTask = () => onlyType && onlyType !== 'EMPLOYEE_MASTER_CHANGE' ? Promise.resolve([0, []]) : allowed('EMPLOYEE_MASTER_CHANGE') ? listWithOverflowCount(prisma.employeeChangeRequest, {
       where: { status: 'PENDING_APPROVAL' },
       select: {
         id: true, employeeId: true, status: true, currentRevision: true, createdAt: true,
@@ -302,7 +315,7 @@ function createApprovalCenterService({
       orderBy: [{ createdAt: 'asc' }, { id: 'asc' }]
     }) : Promise.resolve([0, []]);
 
-    const referencePhotosTask = () => allowed('EMPLOYEE_REFERENCE_PHOTO') ? listWithOverflowCount(prisma.employeeReferencePhoto, {
+    const referencePhotosTask = () => onlyType && onlyType !== 'EMPLOYEE_REFERENCE_PHOTO' ? Promise.resolve([0, []]) : allowed('EMPLOYEE_REFERENCE_PHOTO') ? listWithOverflowCount(prisma.employeeReferencePhoto, {
       where: { status: 'PENDING_APPROVAL' },
       select: {
         id: true, employeeId: true, status: true, safeDisplayFileName: true, mimeType: true, fileSize: true,
@@ -313,7 +326,7 @@ function createApprovalCenterService({
       orderBy: [{ uploadedAt: 'asc' }, { id: 'asc' }]
     }) : Promise.resolve([0, []]);
 
-    const licenseDocumentsTask = () => allowed('LICENSE_DOCUMENT') ? listWithOverflowCount(prisma.employeeLicenseDocument, {
+    const licenseDocumentsTask = () => onlyType && onlyType !== 'LICENSE_DOCUMENT' ? Promise.resolve([0, []]) : allowed('LICENSE_DOCUMENT') ? listWithOverflowCount(prisma.employeeLicenseDocument, {
       where: { status: 'PENDING' },
       select: {
         id: true, employeeId: true, licenseId: true, status: true, uploadedAt: true, resubmittedAt: true,
@@ -326,7 +339,7 @@ function createApprovalCenterService({
       orderBy: [{ uploadedAt: 'asc' }, { id: 'asc' }]
     }) : Promise.resolve([0, []]);
 
-    const attendanceDevicesTask = () => allowed('ATTENDANCE_DEVICE_REQUEST') ? listWithOverflowCount(prisma.attendanceDeviceChangeRequest, {
+    const attendanceDevicesTask = () => onlyType && onlyType !== 'ATTENDANCE_DEVICE_REQUEST' ? Promise.resolve([0, []]) : allowed('ATTENDANCE_DEVICE_REQUEST') ? listWithOverflowCount(prisma.attendanceDeviceChangeRequest, {
       where: { status: 'PENDING_APPROVAL' },
       select: {
         id: true, status: true, requestType: true, reason: true, createdAt: true,
@@ -337,7 +350,7 @@ function createApprovalCenterService({
       orderBy: [{ createdAt: 'asc' }, { id: 'asc' }]
     }) : Promise.resolve([0, []]);
 
-    const registrationTask = () => allowed('REGISTRATION_REQUEST') ? listWithOverflowCount(prisma.registrationRequest, {
+    const registrationTask = () => onlyType && onlyType !== 'REGISTRATION_REQUEST' ? Promise.resolve([0, []]) : allowed('REGISTRATION_REQUEST') ? listWithOverflowCount(prisma.registrationRequest, {
       where: { status: { in: ['PENDING', 'MATCHED'] }, emailVerifiedAt: { not: null } },
       select: {
         id: true, submittedName: true, email: true, departmentHint: true, status: true,
@@ -347,7 +360,7 @@ function createApprovalCenterService({
       orderBy: [{ createdAt: 'asc' }, { id: 'asc' }]
     }) : Promise.resolve([0, []]);
 
-    const userAccessTask = () => allowed('USER_ACCESS') ? listWithOverflowCount(prisma.user, {
+    const userAccessTask = () => onlyType && onlyType !== 'USER_ACCESS' ? Promise.resolve([0, []]) : allowed('USER_ACCESS') ? listWithOverflowCount(prisma.user, {
       where: { accountStatus: 'PENDING' },
       select: { id: true, displayName: true, email: true, role: true, department: true, accountStatus: true, requestedAt: true, createdAt: true },
       orderBy: [{ requestedAt: 'asc' }, { createdAt: 'asc' }, { id: 'asc' }]
@@ -358,7 +371,7 @@ function createApprovalCenterService({
       ...(['MANAGER', 'SUPERVISOR'].includes(role) && actorProfile?.employeeId ? { employeeId: { not: actorProfile.employeeId } } : {})
     };
     const leaveListArgs = {
-      where: leaveWhere,
+      where: onlyRequestId ? { ...leaveWhere, id: onlyRequestId } : leaveWhere,
       select: {
         id: true, employeeId: true, status: true, requestedAt: true, createdAt: true, leaveType: true, leaveTypeNameSnapshot: true,
         startDate: true, endDate: true, dayCount: true, employeeNameSnapshot: true, departmentSnapshot: true, createdByUserId: true,
@@ -368,6 +381,7 @@ function createApprovalCenterService({
       orderBy: [{ requestedAt: 'asc' }, { id: 'asc' }]
     };
     const leaveTask = async () => {
+      if (onlyType && onlyType !== 'LEAVE_REQUEST') return [0, []];
       if (!allowed('LEAVE_REQUEST')) return [0, []];
       if (role === 'ADMIN') return listWithOverflowCount(prisma.leaveRequest, leaveListArgs);
       const total = await prisma.leaveRequest.count({ where: leaveWhere });
@@ -375,10 +389,11 @@ function createApprovalCenterService({
       return [total, rows];
     };
 
-    const attendanceAdjustmentsTask = () => allowed('ATTENDANCE_ADJUSTMENT_REQUEST')
-      ? listAttendanceAdjustments({ actor, status: 'PENDING_APPROVAL', page: 1, pageSize: 100 }, prisma)
+    const attendanceAdjustmentsTask = () => onlyType && onlyType !== 'ATTENDANCE_ADJUSTMENT_REQUEST' ? Promise.resolve({ data: [], meta: { total: 0 } }) : allowed('ATTENDANCE_ADJUSTMENT_REQUEST')
+      ? listAttendanceAdjustments({ actor, status: 'PENDING_APPROVAL', requestId: onlyRequestId, page: 1, pageSize: 100 }, prisma)
       : Promise.resolve({ data: [], meta: { total: 0 } });
     const scheduleApprovalsTask = async () => {
+      if (onlyType && onlyType !== 'SCHEDULE_APPROVAL') return [0, []];
       if (!allowed('SCHEDULE_APPROVAL')) return [0, []];
       const latestRevisions = await latestScheduleApprovalConditions(prisma);
       if (!latestRevisions.length) return [0, []];
@@ -650,46 +665,24 @@ function createApprovalCenterService({
     };
   }
 
-  async function getItem({ actor, type, requestId }) {
+  async function getItem({ actor, type, requestId, correlationId }) {
     const role = String(actor?.role || '').toUpperCase();
     if (!['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(role)) {
       const error = new HttpError(403, 'Approval Center requires Supervisor, Manager, or Admin authority.');
       error.publicCode = 'APPROVAL_CENTER_REVIEWER_REQUIRED';
       throw error;
     }
-    const policies = await policyService.loadPolicies(prisma);
-    if (!canReview(policies.get(type), role)) {
-      const error = new HttpError(403, 'Approval type review is forbidden.');
-      error.publicCode = 'APPROVAL_TYPE_REVIEW_FORBIDDEN';
-      throw error;
-    }
-    const definitions = {
-      EMPLOYEE_MASTER_CHANGE: { delegate: prisma.employeeChangeRequest, where: { status: 'PENDING_APPROVAL' }, sourcePage: 'employees' },
-      EMPLOYEE_REFERENCE_PHOTO: { delegate: prisma.employeeReferencePhoto, where: { status: 'PENDING_APPROVAL' }, sourcePage: 'employees' },
-      LICENSE_DOCUMENT: { delegate: prisma.employeeLicenseDocument, where: { status: 'PENDING' }, sourcePage: 'licenses' },
-      ATTENDANCE_DEVICE_REQUEST: { delegate: prisma.attendanceDeviceChangeRequest, where: { status: 'PENDING_APPROVAL' }, sourcePage: 'attendanceDevice' },
-      SCHEDULE_APPROVAL: { delegate: prisma.scheduleApproval, where: { status: 'PENDING' }, sourcePage: 'approvals' },
-      LEAVE_REQUEST: { delegate: prisma.leaveRequest, where: { status: 'PENDING' }, sourcePage: 'leavePending' },
-      USER_ACCESS: { delegate: prisma.user, where: { accountStatus: 'PENDING' }, sourcePage: 'users' },
-      REGISTRATION_REQUEST: { delegate: prisma.registrationRequest, where: { status: { in: ['PENDING', 'MATCHED'] }, emailVerifiedAt: { not: null } }, sourcePage: 'users' }
-    };
-    const definition = definitions[type];
-    let row;
-    if (definition) {
-      row = await definition.delegate.findFirst({ where: { id: requestId, ...definition.where } });
-    } else if (type === 'ATTENDANCE_ADJUSTMENT_REQUEST') {
-      const rows = await prisma.$queryRaw`SELECT id, status, request_type AS "requestType", maker_user_id AS "makerUserId", maker_role_snapshot AS "makerRoleSnapshot", current_revision AS "currentRevision", reason, created_at AS "createdAt", updated_at AS "updatedAt", employee_id AS "employeeId", employee_code AS "employeeCode", employee_name AS "employeeName", department FROM attendance_adjustment_requests WHERE id = ${requestId}::uuid AND status = 'PENDING_APPROVAL'`;
-      row = rows[0];
-    }
-    if (!row) {
+    // The list is the single eligibility/query/mapper definition.  Do not
+    // duplicate it here: this also preserves schedule revision, leave
+    // authority/self, and attendance department-scope predicates.
+    const listed = await list({ actor, limit: 100, onlyType: type, onlyRequestId: requestId, correlationId });
+    const item = listed.data.find((candidate) => candidate.type === type && candidate.requestId === requestId);
+    if (!item) {
       const error = new HttpError(404, 'Approval item was not found.');
       error.publicCode = 'APPROVAL_ITEM_NOT_FOUND';
       throw error;
     }
-    const now = clock();
-    const employee = row.employee ? employeeSummary(row.employee) : (row.employeeId ? { id: row.employeeId, employeeCode: row.employeeCode || null, firstName: null, lastName: null, displayName: row.employeeName || null, department: row.department || null, jobTitle: null } : null);
-    const item = withAge({ id: `${type.toLowerCase()}:${row.id}`, requestId, type, title: type, status: row.status || row.accountStatus, sourcePage: definition?.sourcePage || 'attendanceSupervisor', employee, requestedBy: actorSummary(row.requestOwner || row.uploadedBy || row.requestedBy || row.createdByUser, row.makerRoleSnapshot), submittedAt: row.requestedAt || row.uploadedAt || row.createdAt, metadata: {} }, now, policies.get(type));
-    return { data: item, generatedAt: now.toISOString() };
+    return { data: item, generatedAt: listed.generatedAt };
   }
 
   return { list, summary, getItem };
