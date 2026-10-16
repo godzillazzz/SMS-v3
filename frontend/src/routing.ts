@@ -114,10 +114,6 @@ const PAGE_TITLES: Record<RoutePage, string> = {
 };
 
 const PATH_PAGES = new Map<string, RoutePage>(Object.entries(PAGE_PATHS).map(([page, path]) => [path, page as RoutePage]));
-const LEGACY_APPROVAL_REDIRECTS: Record<string, 'SCHEDULE' | 'LEAVE'> = {
-  [PAGE_PATHS.approvals]: 'SCHEDULE',
-  [PAGE_PATHS.leavePending]: 'LEAVE'
-};
 const PWA_PAGES = new Set<RoutePage>(['attendance', 'attendanceHistory', 'employeeSchedule', 'attendanceDevice', 'leave', 'profile', 'attendanceSupervisor']);
 
 function normalizePath(pathname: string): string {
@@ -129,11 +125,11 @@ export function pageFromPath(pathname: string): RoutePage | null {
   const normalized = normalizePath(pathname);
   if (normalized === SETTINGS_BASE_PATH) return 'settings';
   if (normalized.startsWith(`${SETTINGS_BASE_PATH}/`)) return SETTINGS_SECTION_BY_PATH.has(normalized) ? 'settings' : null;
-  return LEGACY_APPROVAL_REDIRECTS[normalized] ? 'approvalCenter' : PATH_PAGES.get(normalized) ?? null;
+  return PATH_PAGES.get(normalized) ?? null;
 }
 
 export function legacyApprovalRedirectType(pathname: string): 'SCHEDULE' | 'LEAVE' | undefined {
-  return LEGACY_APPROVAL_REDIRECTS[normalizePath(pathname)];
+  return undefined;
 }
 
 export function pageFromLocation(location: Pick<Location, 'pathname' | 'search'> = window.location): RouteResolution {

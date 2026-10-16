@@ -262,6 +262,14 @@ export function ApprovalCenterPage({
   }), [items, filter, urgencyFilter]);
 
   const selected = items.find((item) => item.id === selectedId);
+
+  useEffect(() => {
+    if (selected?.type !== 'SCHEDULE_APPROVAL') return;
+    const panel = document.querySelector<HTMLElement>('.approval-schedule-detail');
+    if (panel && typeof panel.scrollIntoView === 'function') panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    panel?.focus({ preventScroll: true });
+  }, [selected?.id, selected?.type]);
+
   const selectedLeaveIsSelf = selected?.type === 'LEAVE_REQUEST'
     && Boolean(currentEmployeeId)
     && selected.employee?.id === currentEmployeeId;
@@ -632,7 +640,7 @@ export function ApprovalCenterPage({
         คิวมีรายการมากกว่าจำนวนที่โหลดจาก API (limit 100) — ระบบไม่ได้ซ่อนจำนวนรวมใน Telemetry
       </p>}
 
-      {selected?.type === 'SCHEDULE_APPROVAL' && <aside className="approval-schedule-detail" aria-label="รายละเอียดตารางกะ">
+      {selected?.type === 'SCHEDULE_APPROVAL' && <aside className="approval-schedule-detail" tabIndex={-1} aria-label="รายละเอียดตารางกะ">
         <div className="approval-schedule-detail__header">
           <div>
             <p className="approval-reject-kicker">SCHEDULE APPROVAL</p>
@@ -649,6 +657,7 @@ export function ApprovalCenterPage({
           <div><dt>ผลตรวจกฎ</dt><dd>{text(meta(selected, 'ruleCheckSummary') || meta(selected, 'changeType'))}</dd></div>
           <div><dt>ความเห็น</dt><dd>{text(meta(selected, 'approvalNote') || meta(selected, 'comment'))}</dd></div>
         </dl>
+        <button type="button" className="btn-neutral small-action" onClick={() => onNavigate(selected)}>เปิดในหน้ารายการอนุมัติตารางกะ</button>
         <div className="approval-schedule-detail__actions">{renderActionButtons(selected)}</div>
       </aside>}
 

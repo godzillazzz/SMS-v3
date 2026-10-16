@@ -56,11 +56,12 @@ describe('Approval Center Command Nexus frontend contracts', () => {
   });
 
   it('keeps native review entry points for every currently actionable approval source', () => {
-    expect(main).not.toContain("{ id: 'approvals', icon: 'approval', label: 'อนุมัติตารางกะ' }");
-    expect(main).not.toContain("{ id: 'leavePending', icon: 'approval', label: 'อนุมัติคำขอลา' }");
+    expect(main).toContain("{ id: 'approvals', icon: 'approval', label: 'อนุมัติตารางกะ' }");
+    expect(main).toContain("{ id: 'leavePending', icon: 'approval', label: 'อนุมัติคำขอลา' }");
     expect(routing).toContain("if (page === 'approvals') return ['ADMIN', 'SUPERVISOR'].includes(auth.user?.role || '') && !auth.isViewingAs");
     expect(routing).toContain("if (page === 'leavePending') return ['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(auth.user?.role || '') && !auth.isViewingAs");
-    expect(main).toContain('onNavigate={(item) => { if (item.type === \'REGISTRATION_REQUEST\') setRegistrationReviewInitialRequestId(item.requestId); setActivePage(item.sourcePage); }}');
+    expect(main).toContain("if (item.type === 'LEAVE_REQUEST') setLeaveReviewInitialRequestId(item.requestId);");
+    expect(main).toContain("if (item.type === 'REGISTRATION_REQUEST') setRegistrationReviewInitialRequestId(item.requestId);");
     expect(approvalService).toMatch(/type: 'ATTENDANCE_ADJUSTMENT_REQUEST',[\s\S]{0,260}sourcePage: 'attendanceSupervisor'/);
     expect(page).toContain("type ApprovalSourcePage = 'employees' | 'licenses' | 'approvals' | 'attendanceDevice' | 'attendanceSupervisor' | 'users' | 'leavePending'");
   });
@@ -163,7 +164,7 @@ describe('Approval Center Command Nexus frontend contracts', () => {
     expect(page).toContain('aria-pressed={selected?.id === item.id}');
     expect(css).toContain('.nexus-approval-select:hover,.nexus-approval-select:active,.nexus-approval-select:focus{border:0;background:transparent;color:inherit}');
     expect(page).not.toContain('backend ยังคงตรวจสอบสิทธิ์อีกชั้นหนึ่ง');
-    expect(main).not.toContain("{ id: 'leavePending', icon: 'approval', label: 'อนุมัติคำขอลา' }");
+    expect(main).toContain("{ id: 'leavePending', icon: 'approval', label: 'อนุมัติคำขอลา' }");
     expect(main).toContain("setActivePage(canManage ? 'approvalCenter' : 'leave')");
     expect(page).toContain('layout-page-surface');
     expect(css).not.toContain('.nexus-approval-center{background:#020813!important');

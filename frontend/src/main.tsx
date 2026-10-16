@@ -84,7 +84,7 @@ import { leavePolicyKeys, type LeavePolicyForm } from './components/leave-policy
 import type { LeaveDecisionAction, LeaveDecisionTarget } from './components/LeaveDecisionConfirmation';
 import { registrationResultPresentation } from './components/auth-experience';
 import { sanitizeLicenseDocumentError, type LicenseDocument } from './components/license-document-utils';
-import { canViewRoutePage, legacyApprovalRedirectType, navigate, navigateSettingsSection, pageFromLocation, PAGE_PATHS, routeQueryMonth, routeQueryNumber, ROUTE_CHANGE_EVENT, settingsSectionFromPath, subscribeToRouteChanges, updateDocumentTitle, updateRouteQuery, type RoutePage, type RouteResolution, type SettingsSectionId } from './routing';
+import { canViewRoutePage, navigate, navigateSettingsSection, pageFromLocation, PAGE_PATHS, routeQueryMonth, routeQueryNumber, ROUTE_CHANGE_EVENT, settingsSectionFromPath, subscribeToRouteChanges, updateDocumentTitle, updateRouteQuery, type RoutePage, type RouteResolution, type SettingsSectionId } from './routing';
 import './styles/license-table.css';
 import './styles/responsive-shell.css';
 import './styles/action-system.css';
@@ -195,11 +195,13 @@ const navigation: Array<{ label: string; items: Array<{ id: Page; icon: SmsIconN
   ] },
   { label: 'ตารางกะ', items: [
     { id: 'schedule', icon: 'calendar', label: 'ตารางกะรายเดือน' },
+    { id: 'approvals', icon: 'approval', label: 'อนุมัติตารางกะ' },
     { id: 'shiftSetup', icon: 'clock', label: 'รหัสกะและเวลา' },
     { id: 'rules', icon: 'shield', label: 'ตรวจสอบกฎการทำงาน' }
   ] },
   { label: 'การลา', items: [
     { id: 'leave', icon: 'leave', label: 'คำขอลา' },
+    { id: 'leavePending', icon: 'approval', label: 'อนุมัติคำขอลา' },
     { id: 'leaveHistory', icon: 'history', label: 'ประวัติการลาทั้งหมด' },
     { id: 'quota', icon: 'quota', label: 'โควต้าวันลา' }
   ] },
@@ -1367,7 +1369,7 @@ function ShiftEditorModal({ shift, defaults, employees, shiftTypes, licenses, is
   );
 }
 
-function LeaveManagementPage({ rows, loading, error, linked, remaining, quotaSummary, leavePolicy, leaveTypes, quotaYear, employeeId, currentUserId, currentUserRole, canManage, canSubmit, canCancelApprovedLeave, mutationsEnabled = true, mode = 'all', historyScope = 'mine', historyMonth, historyTotal, historyPage, historyTotalPages, historyStatusCounts, employeeOptions, onSubmit, onApprove, onReject, onReturnForCorrection, onEditReturned, onCancel, onRefresh, onHistoryMonthChange, onHistoryMonthStep, onHistoryPageChange, onAttachment, onPrint }: { rows: DataRow[]; loading: boolean; error?: RequestErrorInput; linked: boolean; remaining: DataRow; quotaSummary: DataRow; leavePolicy: DataRow; leaveTypes: LeaveTypeMaster[]; quotaYear?: number; employeeId?: string; currentUserId?: string; currentUserRole?: string; canManage: boolean; canSubmit: boolean; canCancelApprovedLeave: boolean; mutationsEnabled?: boolean; mode?: 'all' | 'pending' | 'history'; historyScope?: 'mine' | 'all'; historyMonth?: string; historyTotal?: number; historyPage?: number; historyTotalPages?: number; historyStatusCounts?: Record<string, number>; employeeOptions: Array<{ value: string; label: string }>; onSubmit(values: Record<string, string>, file?: File): Promise<void>; onApprove(row: DataRow): void; onReject(row: DataRow): void; onReturnForCorrection(row: DataRow): void; onEditReturned(row: DataRow): void; onCancel(row: DataRow): void; onRefresh(): void; onHistoryMonthChange?(value: string): void; onHistoryMonthStep?(delta: number): void; onHistoryPageChange?(page: number): void; onAttachment(row: DataRow): void; onPrint(row: DataRow): void }) {
+function LeaveManagementPage({ rows, loading, error, linked, remaining, quotaSummary, leavePolicy, leaveTypes, quotaYear, employeeId, currentUserId, currentUserRole, canManage, canSubmit, canCancelApprovedLeave, mutationsEnabled = true, mode = 'all', historyScope = 'mine', historyMonth, historyTotal, historyPage, historyTotalPages, historyStatusCounts, employeeOptions, initialPendingId, onSubmit, onApprove, onReject, onReturnForCorrection, onEditReturned, onCancel, onRefresh, onHistoryMonthChange, onHistoryMonthStep, onHistoryPageChange, onAttachment, onPrint }: { rows: DataRow[]; loading: boolean; error?: RequestErrorInput; linked: boolean; remaining: DataRow; quotaSummary: DataRow; leavePolicy: DataRow; leaveTypes: LeaveTypeMaster[]; quotaYear?: number; employeeId?: string; currentUserId?: string; currentUserRole?: string; canManage: boolean; canSubmit: boolean; canCancelApprovedLeave: boolean; mutationsEnabled?: boolean; mode?: 'all' | 'pending' | 'history'; historyScope?: 'mine' | 'all'; historyMonth?: string; historyTotal?: number; historyPage?: number; historyTotalPages?: number; historyStatusCounts?: Record<string, number>; employeeOptions: Array<{ value: string; label: string }>; initialPendingId?: string; onSubmit(values: Record<string, string>, file?: File): Promise<void>; onApprove(row: DataRow): void; onReject(row: DataRow): void; onReturnForCorrection(row: DataRow): void; onEditReturned(row: DataRow): void; onCancel(row: DataRow): void; onRefresh(): void; onHistoryMonthChange?(value: string): void; onHistoryMonthStep?(delta: number): void; onHistoryPageChange?(page: number): void; onAttachment(row: DataRow): void; onPrint(row: DataRow): void }) {
   const auth = useContext(AuthContext)!;
   const [form, setForm] = useState({ employeeId: '', leaveType: '', startDate: '', endDate: '', substitute: '', reason: '' });
   const [file, setFile] = useState<File>();
@@ -1380,6 +1382,11 @@ function LeaveManagementPage({ rows, loading, error, linked, remaining, quotaSum
   const [requestQuota, setRequestQuota] = useState<{ entitlement: unknown; used: unknown; remaining: unknown }>();
   const [requestQuotaState, setRequestQuotaState] = useState<'idle' | 'loading' | 'ready' | 'missing' | 'error'>('idle');
   const pendingRows = rows.filter((row) => row.status === 'PENDING');
+  useEffect(() => {
+    if (initialPendingId && pendingRows.some((row) => String(row.id) === initialPendingId)) {
+      setSelectedPendingId(initialPendingId);
+    }
+  }, [initialPendingId, pendingRows]);
   const historyRows = historyScope === 'all' ? rows : rows.filter((row) => String(row.employeeId || '') === String(employeeId || ''));
   const latestOwnRequest = [...historyRows].filter(row => String(row.employeeId || '') === String(employeeId || '') && Number.isFinite(Date.parse(String(row.createdAt || '')))).sort((a,b)=>(Date.parse(String(b.createdAt || '')) || 0)-(Date.parse(String(a.createdAt || '')) || 0))[0];
   const days = form.startDate && form.endDate ? Math.max(0, Math.floor((Date.parse(`${form.endDate}T00:00:00Z`) - Date.parse(`${form.startDate}T00:00:00Z`)) / 86400000) + 1) : 0;
@@ -1790,6 +1797,7 @@ function Dashboard() {
   const [approvalSummary, setApprovalSummary] = useState<ApprovalCountSummary | null>(null);
   const [approvalCountStatus, setApprovalCountStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
   const [registrationReviewInitialRequestId, setRegistrationReviewInitialRequestId] = useState<string>();
+  const [leaveReviewInitialRequestId, setLeaveReviewInitialRequestId] = useState<string>();
   const [approvalCenterRefresh, setApprovalCenterRefresh] = useState(0);
   const [employeeRefresh, setEmployeeRefresh] = useState(0);
   const [shiftTypes, setShiftTypes] = useState<DataRow[]>([]);
@@ -2870,7 +2878,7 @@ function Dashboard() {
         </section>
       );
     }
-    if (activePage === 'approvalCenter' && auth.token && ['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(auth.user?.role || '') && !auth.isViewingAs) return <ApprovalCenterPage token={auth.token} role={auth.user?.role || 'VIEWER'} currentEmployeeId={String(leaveSummary.employeeId || '')} refreshKey={approvalCenterRefresh} onSummaryLoaded={(summary) => { const counts = approvalCountsFromSummary(summary); setApprovalSummary(counts); setApprovalCountStatus(counts ? 'ready' : 'error'); }} onChanged={() => { setApprovalCenterRefresh((value) => value + 1); setEmployeeRefresh((value) => value + 1); setOperationRefresh((value) => value + 1); }} onOpenEmployeeChange={(requestId) => { setEmployeeChangeReviewInitialId(requestId); setEmployeeChangeReviewOpen(true); }} onNavigate={(item) => { if (item.type === 'REGISTRATION_REQUEST') setRegistrationReviewInitialRequestId(item.requestId); setActivePage(item.sourcePage); }} onLeaveDecision={(item, action) => openLeaveDecision({ id: item.requestId, employeeId: item.employee?.id, employeeNameSnapshot: item.employee?.displayName || item.title, departmentSnapshot: item.employee?.department || item.metadata?.department, leaveTypeNameSnapshot: item.metadata?.leaveType, startDate: item.metadata?.startDate, endDate: item.metadata?.endDate, dayCount: item.metadata?.dayCount, reason: item.metadata?.reason, substitute: item.metadata?.substitute, status: item.status }, action)} />;
+    if (activePage === 'approvalCenter' && auth.token && ['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(auth.user?.role || '') && !auth.isViewingAs) return <ApprovalCenterPage token={auth.token} role={auth.user?.role || 'VIEWER'} currentEmployeeId={String(leaveSummary.employeeId || '')} refreshKey={approvalCenterRefresh} onSummaryLoaded={(summary) => { const counts = approvalCountsFromSummary(summary); setApprovalSummary(counts); setApprovalCountStatus(counts ? 'ready' : 'error'); }} onChanged={() => { setApprovalCenterRefresh((value) => value + 1); setEmployeeRefresh((value) => value + 1); setOperationRefresh((value) => value + 1); }} onOpenEmployeeChange={(requestId) => { setEmployeeChangeReviewInitialId(requestId); setEmployeeChangeReviewOpen(true); }} onNavigate={(item) => { if (item.type === 'LEAVE_REQUEST') setLeaveReviewInitialRequestId(item.requestId); if (item.type === 'REGISTRATION_REQUEST') setRegistrationReviewInitialRequestId(item.requestId); setActivePage(item.sourcePage); }} onLeaveDecision={(item, action) => openLeaveDecision({ id: item.requestId, employeeId: item.employee?.id, employeeNameSnapshot: item.employee?.displayName || item.title, departmentSnapshot: item.employee?.department || item.metadata?.department, leaveTypeNameSnapshot: item.metadata?.leaveType, startDate: item.metadata?.startDate, endDate: item.metadata?.endDate, dayCount: item.metadata?.dayCount, reason: item.metadata?.reason, substitute: item.metadata?.substitute, status: item.status }, action)} />;
     if (activePage === 'employees') return <PersonnelDirectoryPage token={auth.token} refreshKey={employeeRefresh} canManage={canManage} role={auth.user?.role || 'VIEWER'} searchValue={search} onSearchValueChange={setSearch} onAdd={() => openEmployeeEditor()} onReviewChanges={() => { if (auth.user?.role === 'ADMIN' && !auth.isViewingAs) { setEmployeeChangeReviewInitialId(undefined); setEmployeeChangeReviewOpen(true); } }} onEdit={openEmployeeEditor} />;
     if (activePage === 'audit') {
       const auditRows = Array.isArray(operationResponse.data) ? operationResponse.data : [];
@@ -3209,7 +3217,7 @@ function Dashboard() {
       const rows = Array.isArray(operationResponse.data) ? operationResponse.data : [];
       const remaining = nested(leaveSummary.remaining);
         const canCancelApprovedLeave = auth.user?.role === 'ADMIN';
-        return <LeaveManagementPage mode={activePage === 'leavePending' ? 'pending' : activePage === 'leaveHistory' ? 'history' : 'all'} historyScope={activePage === 'leaveHistory' ? 'all' : 'mine'} historyMonth={activePage === 'leaveHistory' ? leaveMonth : undefined} historyTotal={activePage === 'leaveHistory' ? operationResponse.meta?.total : undefined} historyPage={activePage === 'leaveHistory' ? operationResponse.meta?.page : undefined} historyTotalPages={activePage === 'leaveHistory' ? operationResponse.meta?.totalPages : undefined} historyStatusCounts={activePage === 'leaveHistory' ? operationResponse.meta?.statusCounts : undefined} employeeId={String(leaveSummary.employeeId || '')} currentUserId={auth.user?.id} currentUserRole={auth.user?.role} leavePolicy={leavePolicy} leaveTypes={activeLeaveTypes} rows={rows} loading={operationLoading} error={operationError} linked={Boolean(leaveSummary.linked)} remaining={remaining} quotaSummary={leaveSummary} quotaYear={Number(leaveSummary.quotaYear || currentBangkokQuotaYear())} canManage={pwaShell ? false : canManage} canSubmit={(pwaShell ? pwaOnline : true) && (auth.user?.role !== 'VIEWER' || Boolean(leaveSummary.linked))} canCancelApprovedLeave={canCancelApprovedLeave} mutationsEnabled={!pwaShell || pwaOnline} employeeOptions={employeeOptions} onRefresh={() => setOperationRefresh((value) => value + 1)} onHistoryMonthChange={changeLeaveMonth} onHistoryMonthStep={(delta) => changeLeaveMonth(shiftMonthValue(leaveMonth, delta))} onHistoryPageChange={setOperationPage} onApprove={(row) => handleOperationAction(row, 'approve')} onReject={(row) => handleOperationAction(row, 'reject')} onReturnForCorrection={(row) => handleOperationAction(row, 'return')} onEditReturned={(row) => runEditor({
+        return <LeaveManagementPage mode={activePage === 'leavePending' ? 'pending' : activePage === 'leaveHistory' ? 'history' : 'all'} initialPendingId={activePage === 'leavePending' ? leaveReviewInitialRequestId : undefined} historyScope={activePage === 'leaveHistory' ? 'all' : 'mine'} historyMonth={activePage === 'leaveHistory' ? leaveMonth : undefined} historyTotal={activePage === 'leaveHistory' ? operationResponse.meta?.total : undefined} historyPage={activePage === 'leaveHistory' ? operationResponse.meta?.page : undefined} historyTotalPages={activePage === 'leaveHistory' ? operationResponse.meta?.totalPages : undefined} historyStatusCounts={activePage === 'leaveHistory' ? operationResponse.meta?.statusCounts : undefined} employeeId={String(leaveSummary.employeeId || '')} currentUserId={auth.user?.id} currentUserRole={auth.user?.role} leavePolicy={leavePolicy} leaveTypes={activeLeaveTypes} rows={rows} loading={operationLoading} error={operationError} linked={Boolean(leaveSummary.linked)} remaining={remaining} quotaSummary={leaveSummary} quotaYear={Number(leaveSummary.quotaYear || currentBangkokQuotaYear())} canManage={pwaShell ? false : canManage} canSubmit={(pwaShell ? pwaOnline : true) && (auth.user?.role !== 'VIEWER' || Boolean(leaveSummary.linked))} canCancelApprovedLeave={canCancelApprovedLeave} mutationsEnabled={!pwaShell || pwaOnline} employeeOptions={employeeOptions} onRefresh={() => setOperationRefresh((value) => value + 1)} onHistoryMonthChange={changeLeaveMonth} onHistoryMonthStep={(delta) => changeLeaveMonth(shiftMonthValue(leaveMonth, delta))} onHistoryPageChange={setOperationPage} onApprove={(row) => handleOperationAction(row, 'approve')} onReject={(row) => handleOperationAction(row, 'reject')} onReturnForCorrection={(row) => handleOperationAction(row, 'return')} onEditReturned={(row) => runEditor({
           title: `แก้ไขคำขอลา · ${text(row.employeeNameSnapshot)}`,
           submitLabel: 'บันทึกและส่งตรวจสอบอีกครั้ง',
           fields: [
@@ -3621,16 +3629,7 @@ function App() {
   const [route, setRoute] = useState<RouteResolution>(() => pageFromLocation());
 
   useEffect(() => subscribeToRouteChanges(() => setRoute(pageFromLocation())), []);
-  useEffect(() => {
-    if (auth.loading || !auth.token) return;
-    const type = legacyApprovalRedirectType(window.location.pathname);
-    if (!type) return;
-    const next = new URL(window.location.href);
-    next.pathname = PAGE_PATHS.approvalCenter;
-    if (!next.searchParams.has('type')) next.searchParams.set('type', type);
-    window.history.replaceState({ ...(window.history.state ?? {}), smsPage: 'approvalCenter' }, '', `${next.pathname}${next.search}${next.hash}`);
-    window.dispatchEvent(new Event(ROUTE_CHANGE_EVENT));
-  }, [auth.loading, auth.token]);
+
   useEffect(() => {
     if (auth.token && canViewRoutePage('settings', auth) && route.kind === 'page' && route.page === 'settings' && window.location.pathname.replace(/\/+$/, '') === '/app/settings') {
       navigateSettingsSection('overview', { replace: true });
