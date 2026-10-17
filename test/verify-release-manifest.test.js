@@ -227,7 +227,7 @@ test('R7.1 hotfix manifest preserves exact target, current Production rollback, 
   assert.equal(d.production_environment_change_policy, 'OWNER_APPROVED_REGION_CHANGE_ONLY');
   assert.equal(d.preview_deployment_id, null);
   assert.equal(d.preview_state, 'NOT_VERIFIED_PRE_DISPATCH');
-  assert.equal(d.application_exact_sha_ci_run_id, 39029431806);
+  assert.equal(d.application_exact_sha_ci_run_id, 39035051317);
   assert.equal(d.application_exact_sha_ci_status, 'SUCCESS');
   assert.equal(d.production_dispatch_authorized, false);
   assert.equal(d.production_release_go_no_go, 'OWNER_PRODUCTION_DECISION_REQUIRED_NO_DISPATCH_AUTHORIZED');
