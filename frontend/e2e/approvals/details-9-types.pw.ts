@@ -26,9 +26,14 @@ test('all nine approval request types open a non-zero detail envelope', async ({
   for (const type of types) {
     const row = page.locator('.approval-queue-row').nth(types.indexOf(type));
     await expect(row).toBeVisible();
+    const detailResponse = page.waitForResponse(response => new URL(response.url()).pathname === '/api/v1/approval-center' && new URL(response.url()).searchParams.has('requestId'));
     await row.getByRole('button', { name: /ดูรายละเอียด/ }).click();
-    await expect(page.locator('.approval-detail-panel, .approval-schedule-detail')).toContainText('fixture');
-    await expect(page.locator('.approval-detail-panel, .approval-schedule-detail')).not.toContainText('ไม่มีข้อมูล');
+    const detail = await detailResponse;
+    expect(detail.status()).toBe(200);
+    const envelope = await detail.json();
+    expect(envelope.meta.total).toBe(1);
+    expect(envelope.data[0]).toMatchObject({ type, requestId: ids[type] });
+    await expect(page.locator('.approval-center-alert--error')).toHaveCount(0);
   }
 });
 
