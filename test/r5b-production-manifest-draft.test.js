@@ -98,7 +98,7 @@ test('R5-B draft remains rejected and current R7.1 control still requires separa
   const official = release('approved-production.json');
   const parsed = validateReleaseManifest(official);
   assert.equal(official.release_batch_id, 'R7.1');
-  assert.equal(parsed.commitSha, 'd461cebfacf59b3e80a867b1c6d838deaab3a104');
+  assert.equal(parsed.commitSha, 'f30bc45915acb8c87a94d2d8a2d0e90a86d6f16e');
   assert.equal(parsed.currentProductionSourceSha, 'be7136beb804f8d714df72a2547ce0dc77a96e42');
   assert.equal(parsed.rollbackDeploymentId, 'dpl_HV7a16mSeGr7vkPHfHs3FqxqvvVD');
   assert.equal(official.production_dispatch_authorized, false);
