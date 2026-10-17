@@ -58,7 +58,7 @@ export function PersonnelTable({ rows, canManage, canViewReadiness, canPrintAtte
         <span className="personnel-mobile-record__meta"><small>รหัสภายใน</small><b>{employee.employeeCode}</b></span>
         <span className="personnel-mobile-record__meta"><small>หน่วยงาน</small><b>{employee.department || 'ไม่ระบุ'}</b></span>
         <span className="personnel-mobile-record__meta personnel-mobile-record__wide"><small>ตำแหน่ง</small><b>{employee.jobTitle || 'ไม่ระบุ'}</b></span>
-        {canPrintAttendance && <span className="personnel-mobile-record__wide"><button type="button" className="data-row-primary-action" aria-label={`พิมพ์ใบลงเวลาของ ${employee.firstName} ${employee.lastName}`} onClick={(event) => { event.stopPropagation(); onPrintAttendance?.(employee); }}>🖨️ พิมพ์ใบลงเวลา</button></span>}
+        {canPrintAttendance && <button type="button" className="data-row-primary-action personnel-mobile-record__wide" aria-label={`พิมพ์ใบลงเวลาของ ${employee.firstName} ${employee.lastName}`} onClick={(event) => { event.stopPropagation(); onPrintAttendance?.(employee); }}>🖨️ พิมพ์ใบลงเวลา</button>}
         {canViewReadiness && <span className="personnel-mobile-record__meta"><small>ความพร้อม</small><b className="personnel-mobile-readiness" data-readiness-status={readinessByEmployeeId[employee.id] || 'UNKNOWN'}>{readinessLabel(readinessByEmployeeId[employee.id], readinessState)}</b></span>}
         <em>แตะเพื่อเปิดรายละเอียด</em>
       </article>) : <DataTableState variant="empty" title={hasActiveFilters ? 'ไม่พบผลการค้นหา' : 'ยังไม่พบข้อมูลบุคลากร'} description={hasActiveFilters ? 'ลองล้างตัวกรองหรือใช้คำค้นหาอื่น' : 'ระบบยังไม่พบข้อมูลที่สามารถแสดงภายใต้หน่วยงานและสิทธิ์ของบัญชีนี้'} action={emptyAction} />}
