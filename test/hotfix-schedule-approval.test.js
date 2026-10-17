@@ -194,7 +194,7 @@ describe('Bug 1 — Schedule Approval and Revision Workflow', () => {
     assert.equal(res.revision, 2);
   });
 
-  test('approveMonthlySchedule rejects MANAGER authorization with HTTP 403', async () => {
+  test('approveMonthlySchedule rejects SUPERVISOR authorization with HTTP 403', async () => {
     let auditRejectLogged = false;
     const fakeTx = {
       auditLog: {
@@ -210,7 +210,7 @@ describe('Bug 1 — Schedule Approval and Revision Workflow', () => {
       async () => {
         await approveMonthlySchedule(fakeTx, {
           month: new Date(Date.UTC(2026, 6, 1)),
-          actorUser: { sub: 'manager-1', role: 'MANAGER' }
+          actorUser: { sub: 'supervisor-1', role: 'SUPERVISOR' }
         });
       },
       (err) => {
@@ -223,7 +223,7 @@ describe('Bug 1 — Schedule Approval and Revision Workflow', () => {
     assert.equal(auditRejectLogged, true);
   });
 
-  test('approveMonthlySchedule allows SUPERVISOR and records authority', async () => {
+  test('approveMonthlySchedule allows MANAGER and records authority', async () => {
     const monthDate = new Date(Date.UTC(2026, 6, 1));
     let auditRecord;
     const fakeTx = {
@@ -237,13 +237,13 @@ describe('Bug 1 — Schedule Approval and Revision Workflow', () => {
     const result = await approveMonthlySchedule(fakeTx, {
       month: monthDate,
       approvalNote: 'Manager display-role approval',
-      actorUser: { sub: 'supervisor-1', role: 'SUPERVISOR' }
+      actorUser: { sub: 'manager-1', role: 'MANAGER' }
     });
 
     assert.equal(result.status, 'APPROVED');
     assert.equal(result.revision, 5);
-    assert.equal(result.approvedByLegacyRef, 'supervisor-1');
-    assert.equal(auditRecord.metadata.approvalAuthority, 'SUPERVISOR');
+    assert.equal(result.approvedByLegacyRef, 'manager-1');
+    assert.equal(auditRecord.metadata.approvalAuthority, 'MANAGER');
     assert.equal(auditRecord.metadata.action, 'SCHEDULE_APPROVED');
   });
 });

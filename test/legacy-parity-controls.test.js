@@ -12,9 +12,9 @@ const scheduleService = fs.readFileSync(path.join(process.cwd(), 'src/services/s
 const shiftService = fs.readFileSync(path.join(process.cwd(), 'src/services/shift.service.js'), 'utf8');
 const userAccessService = fs.readFileSync(path.join(process.cwd(), 'src/services/user-access.service.js'), 'utf8');
 
-test('legacy protected shift codes remain enforced while monthly approval is Admin-or-Supervisor only', () => {
+test('legacy protected shift codes remain enforced while monthly approval is Admin-or-Manager only', () => {
   assert.match(shiftService, /\['D', 'N', 'OFF', 'AL'\]\.includes\(existing\.code\.toUpperCase\(\)\)/);
-  assert.match(operations, /router\.put\('\/schedule-approvals\/:id', authorize\('ADMIN', 'SUPERVISOR'\)/);
+  assert.match(operations, /router\.put\('\/schedule-approvals\/:id', authorize\('ADMIN', 'MANAGER'\)/);
 });
 
 test('legacy license permissions and date validation remain enforced', () => {

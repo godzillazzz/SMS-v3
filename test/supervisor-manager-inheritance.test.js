@@ -25,7 +25,15 @@ test('internal SUPERVISOR key retains the former Supervisor superset of internal
       const isDirectManagerRoleCheck = /(?:^|[^\w])(?:[\w?.]+\.)?role\s*[!=]==?\s*['"]MANAGER['"]/.test(line);
       const intentionalPolicyToggle = relative === 'frontend/src/components/ApprovalAuthorityMatrixPanel.tsx';
       const intentionalApprovalDispatch = relative === 'src/services/approval-center.service.js' && line.includes("if (role === 'MANAGER') return managerCanApproveLeave");
-      if ((isManagerAuthorize || isManagerRoleArray || isDirectManagerRoleCheck) && !line.includes('SUPERVISOR') && !intentionalPolicyToggle && !intentionalApprovalDispatch) {
+      const intentionalScheduleApproval = relative === 'src/routes/operations.routes.js' && line.includes('schedule/approve-month')
+        || relative === 'src/routes/operations.routes.js' && line.includes('schedule-approvals/:id')
+        || relative === 'src/routes/operations.routes.js' && line.includes('SCHEDULE_MANAGER_APPROVAL_ONLY')
+        || relative === 'src/routes/schedules.routes.js' && line.includes("router.post('/approve'")
+        || relative === 'src/services/approval-policy.service.js' && line.includes("type: 'SCHEDULE_APPROVAL'")
+        || relative === 'src/services/schedule.service.js' && line.includes('actorUser.role')
+        || relative === 'frontend/src/main.tsx' && line.includes('schedule: [')
+        || relative === 'frontend/src/main.tsx' && line.includes('approval-banner');
+      if ((isManagerAuthorize || isManagerRoleArray || isDirectManagerRoleCheck) && !line.includes('SUPERVISOR') && !intentionalPolicyToggle && !intentionalApprovalDispatch && !intentionalScheduleApproval) {
         violations.push(`${relative}:${index + 1}:${line.trim()}`);
       }
     }
@@ -33,10 +41,10 @@ test('internal SUPERVISOR key retains the former Supervisor superset of internal
   assert.deepEqual(violations, []);
 });
 
-test('internal SUPERVISOR key keeps monthly approval while external display name is Manager', () => {
+test('MANAGER key keeps monthly approval while SUPERVISOR is denied', () => {
   const schedule = fs.readFileSync(path.join(root, 'src/services/schedule.service.js'), 'utf8');
   const operations = fs.readFileSync(path.join(root, 'src/routes/operations.routes.js'), 'utf8');
-  assert.match(schedule, /\['ADMIN', 'SUPERVISOR'\]\.includes\(actorUser\.role\)/);
+  assert.match(schedule, /\['ADMIN', 'MANAGER'\]\.includes\(actorUser\.role\)/);
   assert.match(operations, /Manager-role reviewers cannot review their own leave|peer Manager-role/i);
   assert.doesNotMatch(schedule, /\['ADMIN', 'MANAGER', 'SUPERVISOR'\]\.includes\(actorUser\.role\)/);
 });
