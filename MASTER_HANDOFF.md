@@ -21,7 +21,7 @@
 
 This Owner visual and role sign-off closes the authenticated Production acceptance gate. No Production data was mutated by this documentation update.
 
-**Status:** R7.1 deployment & authenticated Production role/visual acceptance CLOSED — VERIFIED & OWNER SIGNED OFF. This top entry is authoritative over stale status snapshots below.
+**Status:** R7.1 deployment is read-only verified, but the authenticated Production UAT gate for the current release is **NOT VERIFIED**. The historical Owner statement is retained as historical evidence only; it does not substitute for a current authenticated-UAT artifact or independent verdict.
 
 ## ACTIVE — OWNER-REQUESTED ROSTER ICON RESTORATION — 17 October 2026 (Asia/Bangkok)
 
@@ -51,7 +51,7 @@ This Owner visual and role sign-off closes the authenticated Production acceptan
 | Family | Tasks | Reconciled state at this checkpoint |
 | --- | --- | --- |
 | **P0 — Demo readiness** | T01–T06; plus previously delivered T21–T23 | **Delivered historically** (R1/R2/R3/R4 and subsequent Production). **T22 measured 1,000-shift / 15-second benchmark remains NOT VERIFIED**, not another missing implementation. Do not reopen completed work without a regression. |
-| P1 — Pilot readiness | T07–T14 | **DELIVERED & VERIFIED (100% COMPLETE)**. T07/T09–T14 previously delivered; T08 / T27 full approval details across all 9 types verified and merged in PR #660 (commit 7c3047ea). Technical debts A2-MUTATION-006 & A2-TEST-007 confirmed CLOSED by SENTINEL. Native schedule approval and badge delivered in PR #656. |
+| P1 — Pilot readiness | T07–T14 | **DELIVERED — PENDING FINAL INDEPENDENT VERDICT**. T07/T09–T14 previously delivered; T08 / T27 full approval details across all 9 types verified and merged in PR #660 (commit 7c3047ea). A2-MUTATION-006 and A2-TEST-007 are CLOSED with SENTINEL evidence, but authenticated current-release Production UAT, F003–F004, and T18/T22/T24 benchmark evidence remain NOT VERIFIED. Native schedule approval and badge delivered in PR #656. |
 | **P2 — Enterprise** | T15–T18 | T15–T17 **previously merged/delivered**, pending any specific acceptance delta; **T18 current authorized redacted latency/route measurements and optimization verification OPEN/BLOCKED by telemetry**. |
 | **Beyond original P groups** | T19–T20, T24–T33, T34–T42 and security/physical UAT | See T-series register. P0/P1/P2 are headings, not 3 additional work orders; no other P-family scope was verified in this PLAN. |
 
@@ -60,8 +60,8 @@ This Owner visual and role sign-off closes the authenticated Production acceptan
 | Priority | ID / topic | Current disposition | Next safe work / Owner gate |
 | --- | --- | --- | --- |
 | 1 | **T07/T11/T05 + Issue #551 Owner delta — native schedule decision and badge** | **DELIVERED & VERIFIED** in PR #656 | `SCHEDULE_APPROVAL` maps to the `schedule` menu badge (not a new menu), hub schedule decision controls are removed, and the **correct month/revision** opens in the monthly roster for the authorized decision; CI Run `39001689559` completed successfully and SENTINEL verdict is `REVIEW_PASS / GATE: PASS`. Current Role Visibility complaint CLOSED. |
-| 1 | **T08 / T27 — full approval details** | **DELIVERED & VERIFIED** in PR #660 | Verified all 9 approval types: human-readable summaries without raw UUID leaks, exact native routing target IDs and metadata (ApprovalCenterDetailsRouting.test.tsx). Technical debts A2-MUTATION-006 and A2-TEST-007 verified and closed by SENTINEL. CI Run 39016699328 completed SUCCESS. Merge commit 7c3047ea. |
-| 2 | **T30a → T32 → T33 → T30b → T31** | **DELIVERED & VERIFIED (Audit PASS 17 Oct 2026)** | Verified deployed UI against approved shared PageHeader/SectionCard, Kanit headings, layout tokens (radius 16/10), loading logo splash/variants (T32), horizontal brand logo across 6 points (T33), dark theme contrast (R7.1), and portrait 1-page A4 timesheet (T31) with compensation excluded. Owner confirmed next enhancement: add individual timesheet print shortcut on Employee Directory. |
+| 1 | **T08 / T27 — full approval details** | **DELIVERED & VERIFIED** in PR #660 | Verified all 9 approval types. **A2-MUTATION-006 CLOSED** at application SHA `4d11ae56`: SENTINEL mutation matrix removed `onlyType`, removed `onlyRequestId`, and removed both; each mutation caused the test to fail. CI Run `39025315402` SUCCESS. A2-TEST-007 is also CLOSED per SENTINEL. Merge commit 7c3047ea. |
+| 2 | **T30a → T32 → T33 → T30b → T31** | **CLAIMED DELIVERED — EVIDENCE NOT VERIFIED (Audit artifact/run id ยังไม่พบ)** | Audit artifact or run id is required to close these claims. Authenticated current-release UAT and T18/T22/T24 benchmark evidence remain NOT VERIFIED. |
 | 2 | **T18 / T24 — route latency and performance** | **T18 BLOCKED / T24 PARTIAL** | Obtain authorized redacted route p50/p95/max/5xx samples and Preview baseline; measure distinct-department N+1/cold start and DB-region relation, compare before/after. Any migration/index/infrastructure change is separate Owner approval. |
 | 2 | **T22 — 1,000-shift save timing** | **FEATURE DELIVERED; benchmark NOT VERIFIED** | Measure approved 1,000-shift workflow against 15-second acceptance target on safe environment; no synthetic pass substituted for real measurement. |
 | 3 | **T19 — Dashboard metric/action routing** | **BLOCKED pending exact owner mapping** | Define each metric/action -> permitted destination and exact API query/filter; previous PR #530 **CLOSED WITHOUT MERGE**; do not revive old draft automatically. |
@@ -75,7 +75,11 @@ This Owner visual and role sign-off closes the authenticated Production acceptan
 
 **Explicitly not reopened:** T01–T06, T09–T17 other than T08, T21/T23, T25–T29, T34–T39 (including T39 Preview RLS/isolation), and T42 as historically delivered according to available closeouts; regression-specific acceptance may still be reported separately. T20 is a proposal, not approved new end-to-end test implementation. **Authenticated UAT V3 24/24 PASS** on its separate immutable Preview remains a true historical PASS; it does not imply that these new UI criteria have passed.
 
-**Current release identity (read-only checked 17 Oct):** alias `https://sms-v3-staging-ten.vercel.app` -> READY Production deployment `dpl_8qr2a9rMKyNuoesTFptntN9JqGVb`, application `43c4906a19fc8560e2d10a1c8154fb2e4e539d54`; latest Integration control/source HEAD before this documentation-only change `903fb9e17188b34bcc61e480cb6f9fd96cd0725c` (one manifest/control-only commit ahead). CI [#38990804846](https://github.com/godzillazzz/SMS-v3/actions/runs/38990804846) SUCCESS and protected Production workflow [#38993415712](https://github.com/godzillazzz/SMS-v3/actions/runs/38993415712) SUCCESS on previous head. This documentation commit will advance HEAD and does not grant a new release or substitute for future exact-HEAD gates.
+**Current release identity (read-only checked 17 Oct):** canonical alias `https://sms-v3-staging-ten.vercel.app` -> READY Production deployment `dpl_HV7a16mSeGr7vkPHfHs3FqxqvvVD`, application SHA `be7136beb804f8d714df72a2547ce0dc77a96e42` (GitHub deployment `7135868265`). Rollback checkpoint `dpl_8qr2a9rMKyNuoesTFptntN9JqGVb` is previous. Current authenticated-UAT gate, F003–F004 evidence, and T18/T22/T24 benchmarks are NOT VERIFIED.
+
+### SHIFT HANDOVER PROTOCOL
+
+See `/root/.hermes/profiles/shift-logs/README.md`: outgoing shift writes the log and packet; incoming shift reads, checks three claims, and ACKs. Any claim without a run id or SHA is **NOT VERIFIED**.
 
 **Change boundary:** This section is documentation only. No Production deployment/promotion/alias change, schema, database/PII mutation, secret access, account creation/reset, or new role authority was authorized. Future code remediation must pass isolated synthetic and safe browser tests, exact-head CI, trusted Preview gates and specific Owner Production approval.
 
