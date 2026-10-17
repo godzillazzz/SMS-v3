@@ -26,7 +26,7 @@ import '@fontsource/ibm-plex-mono/500.css';
 import '@fontsource/ibm-plex-mono/600.css';
 import { api, refreshAuth, setTokenRefreshHandler } from './api';
 import { isRefreshUnauthenticated, refreshWithRetry } from './auth-startup-recovery';
-import { canDecideScheduleApproval, isSupersededScheduleApproval, scheduleApprovalChangeTypeLabel, scheduleApprovalErrorMessage, scheduleApprovalStatusLabel, scheduleApprovalTone } from './approval-display';
+import { isSupersededScheduleApproval, scheduleApprovalChangeTypeLabel, scheduleApprovalStatusLabel, scheduleApprovalTone } from './approval-display';
 import { getEmployeeLeaveQuota } from './leave-request-quota-api';
 import type { ScheduleBatchProgress } from './api';
 import { isG06DeviceContextDiagnosticRequested, shouldOpenG06DeviceContextDiagnostic } from './lib/g06-device-context-diagnostic-route';
@@ -1002,12 +1002,12 @@ function OperationalTable({ page, response, loading, error, onPageChange, onActi
       return [employee.employeeCode, employee.firstName, employee.lastName, employee.department, row.licenseType, row.licenseNumber, row.status, row.remark].map(text).join(' ').toLowerCase().includes(term);
     });
   }, [page, rows, tableSearch]);
-  const actionPages = ['licenses', 'schedule', 'approvals', 'rules', 'leave', 'quota', 'users'];
+  const actionPages = ['licenses', 'schedule', 'rules', 'leave', 'quota', 'users'];
   const canManage = ['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(role);
-  const canEditRows = canManage && (page !== 'approvals' || role === 'ADMIN');
+  const canEditRows = canManage;
   const rowActions = (row: DataRow) => {
     if (!canEditRows || !actionPages.includes(page)) return null;
-    if (page === 'approvals') return canDecideScheduleApproval(row) ? <><button className="btn-success compact" onClick={() => onAction(row, 'approve')}>อนุมัติ</button><button className="btn-danger-outline compact" onClick={() => onAction(row, 'reject')}>ไม่อนุมัติ</button></> : null;
+
     if (page === 'leave') return <><button className="btn-success compact" onClick={() => onAction(row, 'approve')}>อนุมัติ</button><button className="btn-danger-outline compact" onClick={() => onAction(row, 'reject')}>ไม่อนุมัติ</button></>;
     if (page === 'rules') return <><button className="btn-info-outline data-row-primary-action" onClick={() => onAction(row, 'edit')}>แก้ไข</button><button className="btn-neutral" onClick={() => onAction(row, 'toggle')}>{row.enabled ? 'ปิดใช้' : 'เปิดใช้'}</button></>;
     if (page === 'licenses') return <><button className="btn-info-outline data-row-primary-action" aria-label="แก้ไขใบอนุญาต" onClick={() => (onEditLicense ? onEditLicense(row) : onAction(row, 'edit'))}>จัดการ</button>{role === 'ADMIN' && <DataRowActionMenu label="การทำงานเพิ่มเติมของใบอนุญาต" actions={[{ label: 'ลบใบอนุญาต', tone: 'danger', onSelect: () => onAction(row, 'delete') }]} />}</>;
@@ -1019,7 +1019,7 @@ function OperationalTable({ page, response, loading, error, onPageChange, onActi
   const canCreate = page === 'leave' || (canManage && ['schedule'].includes(page)) || (role === 'ADMIN' && page === 'licenses') || (page === 'quota' && canProvisionLeaveQuota(role));
   const createLabel = page === 'leave' ? '+ ส่งคำขอลา' : page === 'quota' ? '+ กำหนดโควตา' : '+ เพิ่มรายการ';
   const related: Partial<Record<typeof page, { page: Page; label: string }>> = {
-    licenses: { page: 'employees', label: 'ข้อมูลพนักงาน' }, schedule: { page: 'approvals', label: 'อนุมัติตารางกะ' }, approvals: { page: 'schedule', label: 'ตารางกะรายเดือน' }, leave: { page: 'quota', label: 'โควตาวันลา' }, quota: { page: 'leave', label: 'คำขอลา' }, audit: { page: 'settings', label: 'Settings' }
+    licenses: { page: 'employees', label: 'ข้อมูลพนักงาน' }, schedule: { page: 'approvals', label: 'ประวัติการอนุมัติ' }, approvals: { page: 'schedule', label: 'ตารางกะรายเดือน' }, leave: { page: 'quota', label: 'โควตาวันลา' }, quota: { page: 'leave', label: 'คำขอลา' }, audit: { page: 'settings', label: 'Settings' }
   };
   const relatedPage = related[page];
   const showRelated = relatedPage && (relatedPage.page !== 'approvals' || role === 'ADMIN') && (relatedPage.page !== 'quota' || role === 'ADMIN');
@@ -1060,10 +1060,7 @@ function OperationalTable({ page, response, loading, error, onPageChange, onActi
     else if (page === 'quota') primaryAction = { label: 'แก้ไขโควตา', icon: 'edit', onSelect: () => { const row = selectedRow; closeDrawer(); onAction(row, 'edit'); } };
     else if (page === 'rules') primaryAction = { label: 'แก้ไขกฎ', icon: 'edit', onSelect: () => { const row = selectedRow; closeDrawer(); onAction(row, 'edit'); } };
     else if (page === 'schedule') primaryAction = { label: 'แก้ไขกะ', icon: 'calendar', onSelect: () => { const row = selectedRow; closeDrawer(); onAction(row, 'edit'); } };
-    else if (page === 'approvals' && canDecideScheduleApproval(selectedRow)) {
-      primaryAction = { label: 'อนุมัติ', icon: 'check', onSelect: () => { const row = selectedRow; closeDrawer(); onAction(row, 'approve'); } };
-      secondaryActions.push({ label: 'ไม่อนุมัติ', tone: 'danger', icon: 'close', onSelect: () => { const row = selectedRow; closeDrawer(); onAction(row, 'reject'); } });
-    } else if (page === 'leave') primaryAction = { label: 'อนุมัติ', icon: 'check', onSelect: () => { const row = selectedRow; closeDrawer(); onAction(row, 'approve'); } };
+    else if (page === 'leave') primaryAction = { label: 'อนุมัติ', icon: 'check', onSelect: () => { const row = selectedRow; closeDrawer(); onAction(row, 'approve'); } };
     if (page === 'rules') secondaryActions.push({ label: selectedRow.enabled ? 'ปิดใช้กฎ' : 'เปิดใช้กฎ', tone: 'secondary', icon: 'pause', onSelect: () => { const row = selectedRow; closeDrawer(); onAction(row, 'toggle'); } });
     if (page === 'quota' && role === 'ADMIN' && (selectedRow.quotaYear === null || selectedRow.quotaYear === undefined || selectedRow.quotaYear === '')) secondaryActions.push({ label: selectedRow.employeeId ? 'จัดประเภทปี' : 'จับคู่พนักงานและปี', tone: 'secondary', icon: 'users', onSelect: () => { const row = selectedRow; closeDrawer(); onAction(row, 'link'); } });
     if (page === 'licenses' && role === 'ADMIN') secondaryActions.push({ label: 'ลบใบอนุญาต', tone: 'danger', icon: 'close', onSelect: () => { const row = selectedRow; closeDrawer(); onAction(row, 'delete'); } });
@@ -2604,29 +2601,13 @@ function Dashboard() {
 
   const handleOperationAction = async (row: DataRow, action: string) => {
     if (!auth.token || !row.id) return;
+    if (activePage === 'approvals') return;
     const id = String(row.id);
     if (['approve', 'reject', 'return', 'cancel'].includes(action) && ['leave', 'leavePending', 'leaveHistory'].includes(activePage)) {
       openLeaveDecision(row, action as LeaveDecisionAction);
       return;
     }
-    let approvalNote: string | undefined;
-    const isScheduleRejection = activePage === 'approvals' && action === 'reject';
-    if (isScheduleRejection) {
-      const reason = await actionDialog.prompt({
-        title: 'ไม่อนุมัติตารางกะ',
-        message: 'ระบุเหตุผลเพื่อบันทึกประกอบประวัติการพิจารณา',
-        eyebrow: 'เหตุผลการไม่อนุมัติ',
-        fieldLabel: 'เหตุผล (จำเป็น)',
-        helperText: 'กรอกอย่างน้อย 5 ตัวอักษร',
-        minLength: 5,
-        maxLength: 2000,
-        multiline: true,
-        confirmLabel: 'ยืนยันไม่อนุมัติ',
-        tone: 'danger'
-      });
-      if (reason === null) return;
-      approvalNote = reason.trim();
-    }
+
     if (action === 'link' && activePage === 'quota') {
       runEditor({ title: row.employeeId ? 'จัดประเภทปีให้ข้อมูลโควตาเดิม' : 'จับคู่ข้อมูลเดิมกับพนักงานและปี', submitLabel: 'ยืนยันการจัดประเภท', fields: [{ name: 'employeeId', label: 'พนักงาน (รหัส · ชื่อ · หน่วยงาน)', type: 'select', required: true, options: row.employeeId ? employeeOptions.filter((option) => option.value === String(row.employeeId)) : employeeOptions }, { name: 'quotaYear', label: 'ปีสิทธิ์', type: 'select', required: true, options: quotaYearOptions }], values: { employeeId: String(row.employeeId || ''), quotaYear: String(quotaYear) } }, (form) => api.linkLeaveQuota(auth.token!, id, form.employeeId, Number(form.quotaYear)));
       return;
@@ -2684,7 +2665,7 @@ function Dashboard() {
       : action === 'cancel'
         ? 'ยืนยันยกเลิกคำขอนี้? การดำเนินการจะถูกบันทึกใน Audit'
         : 'ยืนยันการดำเนินการนี้?';
-    const confirmed = isScheduleRejection ? true : await actionDialog.confirm({
+    const confirmed = await actionDialog.confirm({
       title: action === 'delete' ? 'ยืนยันลบรายการ' : action === 'cancel' ? 'ยืนยันยกเลิกคำขอ' : action === 'return' ? 'ส่งกลับให้แก้ไข' : 'ยืนยันการดำเนินการ',
       message: confirmMessage,
       context: `${activePage} · ${id}`,
@@ -2696,17 +2677,13 @@ function Dashboard() {
     try {
       if (action === 'delete' && activePage === 'licenses') await api.deleteLicense(auth.token, id);
       else if (action === 'delete' && activePage === 'schedule') await api.deleteShift(auth.token, id);
-      else if (activePage === 'approvals') await api.updateScheduleApproval(auth.token, id, { status: action === 'approve' ? 'APPROVED' : 'REJECTED', ...(action === 'reject' && { approvalNote }) });
+
       else if (activePage === 'rules') await api.updateSchedulingRule(auth.token, id, { enabled: !row.enabled });
       else if (activePage === 'schedule') await api.updateShift(auth.token, id, { locked: !row.locked });
       else if (activePage === 'users') await api.updateUser(auth.token, id, { isActive: !row.isActive, accountStatus: row.isActive ? 'SUSPENDED' : 'ACTIVE' });
       setOperationRefresh((value) => value + 1);
     } catch (reason) {
-      const requestError = toRequestErrorState(reason, 'ดำเนินการไม่สำเร็จ');
-      const details = reason && typeof reason === 'object' && 'details' in reason ? reason.details : undefined;
-      const code = details && typeof details === 'object' && 'code' in details ? details.code : undefined;
-      const localizedMessage = activePage === 'approvals' ? scheduleApprovalErrorMessage(code) : undefined;
-      setOperationError(localizedMessage ? { ...requestError, message: localizedMessage } : requestError);
+      setOperationError(toRequestErrorState(reason, 'ดำเนินการไม่สำเร็จ'));
     }
     finally { setOperationLoading(false); }  };
 

@@ -63,15 +63,13 @@ describe('schedule approval presentation and decision guard', () => {
     expect(scheduleApprovalErrorMessage('SCHEDULE_REJECTION_REASON_REQUIRED')).toContain('เหตุผล');
   });
 
-  it('wires the latest-revision guard, Thai display map, and required rejection reason into the UI', () => {
+  it('keeps approval display semantics while making the legacy history surface read-only', () => {
     const main = readFileSync(new URL('./main.tsx', import.meta.url), 'utf8');
-    expect(main).toContain('canDecideScheduleApproval(row)');
-    expect(main).toContain('canDecideScheduleApproval(selectedRow)');
+    expect(main).not.toContain('canDecideScheduleApproval(row)');
+    expect(main).not.toContain('canDecideScheduleApproval(selectedRow)');
     expect(main).toContain('scheduleApprovalStatusLabel(row.status, superseded)');
     expect(main).toContain('scheduleApprovalChangeTypeLabel(row.changeType)');
-    expect(main).toContain("const isScheduleRejection = activePage === 'approvals' && action === 'reject';");
-    expect(main).toContain('const confirmed = isScheduleRejection ? true : await actionDialog.confirm({');
-    expect(main).toContain('minLength: 5');
-    expect(main).toContain('approvalNote');
+    expect(main).not.toContain("const isScheduleRejection = activePage === 'approvals' && action === 'reject';");
+    expect(main).toContain("if (activePage === 'approvals') return;");
   });
 });

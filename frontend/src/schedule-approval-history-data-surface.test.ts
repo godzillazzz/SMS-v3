@@ -18,19 +18,26 @@ describe('WAVE 4B Schedule Approval History responsive surface', () => {
     expect(main).toContain('แบ่งหน้า');
   });
 
-  it('keeps decisions reachable only for pending latest revisions on desktop, mobile, and the detail drawer', () => {
-    expect(main).toContain("if (page === 'approvals') return canDecideScheduleApproval(row) ? <>");
-    expect(main).toContain('className="approval-mobile-actions"');
-    expect(main).toContain('canDecideScheduleApproval(selectedRow)');
-    expect(main).toContain("secondaryActions.push({ label: 'ไม่อนุมัติ', tone: 'danger'");
-    expect(main).toContain("api.updateScheduleApproval(auth.token, id, { status: action === 'approve' ? 'APPROVED' : 'REJECTED', ...(action === 'reject' && { approvalNote }) })");
+  it('keeps the approval-history table, mobile view, and drawer read-only', () => {
+    expect(main).not.toContain("if (page === 'approvals') return canDecideScheduleApproval(row)");
+    expect(main).not.toContain("page === 'approvals' && canDecideScheduleApproval(selectedRow)");
+    expect(main).not.toContain("secondaryActions.push({ label: 'ไม่อนุมัติ', tone: 'danger'");
+    expect(main).toContain("if (activePage === 'approvals') return;");
+    expect(main).not.toContain("else if (activePage === 'approvals') await api.updateScheduleApproval");
+  });
+
+  it('keeps schedule-month approval controls on the monthly roster page', () => {
+    expect(main).toContain('อนุมัติ ตารางเดือนนี้');
+    expect(main).toContain('ยืนยันไม่อนุมัติ');
+    expect(main).toContain('api.updateScheduleApproval(auth.token');
+    expect(main).toContain('api.approveScheduleMonth(auth.token, scheduleMonth)');
   });
 
   it('preserves schedule approval authority and meaningful row identity', () => {
     expect(main).toContain("approvals: api.scheduleApprovals");
     expect(main).toContain("const approvalRowLabel = (row: DataRow) => `เปิดรายละเอียดการอนุมัติตาราง");
     expect(main).toContain('ฉบับแก้ไข ${text(row.revision)}');
-    expect(main).toContain("const canEditRows = canManage && (page !== 'approvals' || role === 'ADMIN')");
+    expect(main).toContain('const canEditRows = canManage;');
   });
 
   it('provides mobile wrapping and readable action geometry without changing business semantics', () => {
