@@ -211,11 +211,11 @@ test('R7.1 hotfix manifest preserves exact target, current Production rollback, 
   const d = JSON.parse(fs.readFileSync('.github/releases/approved-production.json', 'utf8'));
   const v = validateReleaseManifest(d);
   assert.equal(d.release_batch_id, 'R7.1');
-  assert.equal(v.releaseId, 'sms-v3-prod-f30bc45-20261017');
-  assert.equal(v.commitSha, 'f30bc45915acb8c87a94d2d8a2d0e90a86d6f16e');
-  assert.equal(v.treeSha, 'c67819da0e9dea972839a3b2b8677470889bf1ec');
-  assert.equal(v.currentProductionSourceSha, 'be7136beb804f8d714df72a2547ce0dc77a96e42');
-  assert.equal(v.rollbackDeploymentId, 'dpl_HV7a16mSeGr7vkPHfHs3FqxqvvVD');
+  assert.equal(v.releaseId, 'sms-v3-prod-a0250b8-20261017');
+  assert.equal(v.commitSha, 'a0250b8b0ca8072104a4d3593012220c4fe2fb84');
+  assert.equal(v.treeSha, 'c5470ac280e2c27d1031a794b1159c6b9411e732');
+  assert.equal(v.currentProductionSourceSha, 'f30bc45915acb8c87a94d2d8a2d0e90a86d6f16e');
+  assert.equal(v.rollbackDeploymentId, 'dpl_9CxiMbXdmBqp6LJG8YHKcVXgL1JN');
   assert.equal(v.runMigrations, false);
   assert.equal(v.databaseChangePolicy, 'NO_DATABASE_CHANGES');
   assert.equal(v.preAppliedMigrationManifestPath, '');
