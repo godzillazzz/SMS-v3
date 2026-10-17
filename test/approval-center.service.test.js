@@ -196,7 +196,7 @@ test('Approval Center counts and lists only the latest pending schedule revision
   assert.equal(scheduleItems[0].requestId, 'schedule-latest');
   assert.match(scheduleItems[0].title, /^ตารางกะ .+ ฉบับที่ 3$/);
   assert.equal(scheduleItems[0].submittedAt, changedAt);
-  assert.equal(scheduleItems[0].sourcePage, 'approvals');
+  assert.equal(scheduleItems[0].sourcePage, 'schedule');
 });
 
 test('Approval Center summary preserves Manager leave authority while using only minimal leave rows', async () => {

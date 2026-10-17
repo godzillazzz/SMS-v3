@@ -26,7 +26,7 @@ import '@fontsource/ibm-plex-mono/500.css';
 import '@fontsource/ibm-plex-mono/600.css';
 import { api, refreshAuth, setTokenRefreshHandler } from './api';
 import { isRefreshUnauthenticated, refreshWithRetry } from './auth-startup-recovery';
-import { canDecideScheduleApproval, isSupersededScheduleApproval, scheduleApprovalChangeTypeLabel, scheduleApprovalErrorMessage, scheduleApprovalStatusLabel, scheduleApprovalTone } from './approval-display';
+import { isSupersededScheduleApproval, scheduleApprovalChangeTypeLabel, scheduleApprovalStatusLabel, scheduleApprovalTone } from './approval-display';
 import { getEmployeeLeaveQuota } from './leave-request-quota-api';
 import type { ScheduleBatchProgress } from './api';
 import { isG06DeviceContextDiagnosticRequested, shouldOpenG06DeviceContextDiagnostic } from './lib/g06-device-context-diagnostic-route';
@@ -131,7 +131,8 @@ const APPROVAL_COUNT_MENU_ROLES: Readonly<Record<string, readonly string[]>> = O
   attendanceDevice: ['ADMIN'],
   attendanceSupervisor: ['ADMIN'],
   users: APPROVAL_REVIEWER_ROLES,
-  leavePending: APPROVAL_REVIEWER_ROLES
+  leavePending: APPROVAL_REVIEWER_ROLES,
+  schedule: ['ADMIN', 'SUPERVISOR']
 });
 
 const AwardPublicExperience = React.lazy(() => import('./components/AwardPublicExperience').then((module) => ({ default: module.AwardPublicExperience })));
@@ -1001,12 +1002,12 @@ function OperationalTable({ page, response, loading, error, onPageChange, onActi
       return [employee.employeeCode, employee.firstName, employee.lastName, employee.department, row.licenseType, row.licenseNumber, row.status, row.remark].map(text).join(' ').toLowerCase().includes(term);
     });
   }, [page, rows, tableSearch]);
-  const actionPages = ['licenses', 'schedule', 'approvals', 'rules', 'leave', 'quota', 'users'];
+  const actionPages = ['licenses', 'schedule', 'rules', 'leave', 'quota', 'users'];
   const canManage = ['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(role);
-  const canEditRows = canManage && (page !== 'approvals' || role === 'ADMIN');
+  const canEditRows = canManage;
   const rowActions = (row: DataRow) => {
     if (!canEditRows || !actionPages.includes(page)) return null;
-    if (page === 'approvals') return canDecideScheduleApproval(row) ? <><button className="btn-success compact" onClick={() => onAction(row, 'approve')}>อนุมัติ</button><button className="btn-danger-outline compact" onClick={() => onAction(row, 'reject')}>ไม่อนุมัติ</button></> : null;
+
     if (page === 'leave') return <><button className="btn-success compact" onClick={() => onAction(row, 'approve')}>อนุมัติ</button><button className="btn-danger-outline compact" onClick={() => onAction(row, 'reject')}>ไม่อนุมัติ</button></>;
     if (page === 'rules') return <><button className="btn-info-outline data-row-primary-action" onClick={() => onAction(row, 'edit')}>แก้ไข</button><button className="btn-neutral" onClick={() => onAction(row, 'toggle')}>{row.enabled ? 'ปิดใช้' : 'เปิดใช้'}</button></>;
     if (page === 'licenses') return <><button className="btn-info-outline data-row-primary-action" aria-label="แก้ไขใบอนุญาต" onClick={() => (onEditLicense ? onEditLicense(row) : onAction(row, 'edit'))}>จัดการ</button>{role === 'ADMIN' && <DataRowActionMenu label="การทำงานเพิ่มเติมของใบอนุญาต" actions={[{ label: 'ลบใบอนุญาต', tone: 'danger', onSelect: () => onAction(row, 'delete') }]} />}</>;
@@ -1018,7 +1019,7 @@ function OperationalTable({ page, response, loading, error, onPageChange, onActi
   const canCreate = page === 'leave' || (canManage && ['schedule'].includes(page)) || (role === 'ADMIN' && page === 'licenses') || (page === 'quota' && canProvisionLeaveQuota(role));
   const createLabel = page === 'leave' ? '+ ส่งคำขอลา' : page === 'quota' ? '+ กำหนดโควตา' : '+ เพิ่มรายการ';
   const related: Partial<Record<typeof page, { page: Page; label: string }>> = {
-    licenses: { page: 'employees', label: 'ข้อมูลพนักงาน' }, schedule: { page: 'approvals', label: 'อนุมัติตารางกะ' }, approvals: { page: 'schedule', label: 'ตารางกะรายเดือน' }, leave: { page: 'quota', label: 'โควตาวันลา' }, quota: { page: 'leave', label: 'คำขอลา' }, audit: { page: 'settings', label: 'Settings' }
+    licenses: { page: 'employees', label: 'ข้อมูลพนักงาน' }, schedule: { page: 'approvals', label: 'ประวัติการอนุมัติ' }, approvals: { page: 'schedule', label: 'ตารางกะรายเดือน' }, leave: { page: 'quota', label: 'โควตาวันลา' }, quota: { page: 'leave', label: 'คำขอลา' }, audit: { page: 'settings', label: 'Settings' }
   };
   const relatedPage = related[page];
   const showRelated = relatedPage && (relatedPage.page !== 'approvals' || role === 'ADMIN') && (relatedPage.page !== 'quota' || role === 'ADMIN');
@@ -1059,10 +1060,7 @@ function OperationalTable({ page, response, loading, error, onPageChange, onActi
     else if (page === 'quota') primaryAction = { label: 'แก้ไขโควตา', icon: 'edit', onSelect: () => { const row = selectedRow; closeDrawer(); onAction(row, 'edit'); } };
     else if (page === 'rules') primaryAction = { label: 'แก้ไขกฎ', icon: 'edit', onSelect: () => { const row = selectedRow; closeDrawer(); onAction(row, 'edit'); } };
     else if (page === 'schedule') primaryAction = { label: 'แก้ไขกะ', icon: 'calendar', onSelect: () => { const row = selectedRow; closeDrawer(); onAction(row, 'edit'); } };
-    else if (page === 'approvals' && canDecideScheduleApproval(selectedRow)) {
-      primaryAction = { label: 'อนุมัติ', icon: 'check', onSelect: () => { const row = selectedRow; closeDrawer(); onAction(row, 'approve'); } };
-      secondaryActions.push({ label: 'ไม่อนุมัติ', tone: 'danger', icon: 'close', onSelect: () => { const row = selectedRow; closeDrawer(); onAction(row, 'reject'); } });
-    } else if (page === 'leave') primaryAction = { label: 'อนุมัติ', icon: 'check', onSelect: () => { const row = selectedRow; closeDrawer(); onAction(row, 'approve'); } };
+    else if (page === 'leave') primaryAction = { label: 'อนุมัติ', icon: 'check', onSelect: () => { const row = selectedRow; closeDrawer(); onAction(row, 'approve'); } };
     if (page === 'rules') secondaryActions.push({ label: selectedRow.enabled ? 'ปิดใช้กฎ' : 'เปิดใช้กฎ', tone: 'secondary', icon: 'pause', onSelect: () => { const row = selectedRow; closeDrawer(); onAction(row, 'toggle'); } });
     if (page === 'quota' && role === 'ADMIN' && (selectedRow.quotaYear === null || selectedRow.quotaYear === undefined || selectedRow.quotaYear === '')) secondaryActions.push({ label: selectedRow.employeeId ? 'จัดประเภทปี' : 'จับคู่พนักงานและปี', tone: 'secondary', icon: 'users', onSelect: () => { const row = selectedRow; closeDrawer(); onAction(row, 'link'); } });
     if (page === 'licenses' && role === 'ADMIN') secondaryActions.push({ label: 'ลบใบอนุญาต', tone: 'danger', icon: 'close', onSelect: () => { const row = selectedRow; closeDrawer(); onAction(row, 'delete'); } });
@@ -2603,29 +2601,13 @@ function Dashboard() {
 
   const handleOperationAction = async (row: DataRow, action: string) => {
     if (!auth.token || !row.id) return;
+    if (activePage === 'approvals') return;
     const id = String(row.id);
     if (['approve', 'reject', 'return', 'cancel'].includes(action) && ['leave', 'leavePending', 'leaveHistory'].includes(activePage)) {
       openLeaveDecision(row, action as LeaveDecisionAction);
       return;
     }
-    let approvalNote: string | undefined;
-    const isScheduleRejection = activePage === 'approvals' && action === 'reject';
-    if (isScheduleRejection) {
-      const reason = await actionDialog.prompt({
-        title: 'ไม่อนุมัติตารางกะ',
-        message: 'ระบุเหตุผลเพื่อบันทึกประกอบประวัติการพิจารณา',
-        eyebrow: 'เหตุผลการไม่อนุมัติ',
-        fieldLabel: 'เหตุผล (จำเป็น)',
-        helperText: 'กรอกอย่างน้อย 5 ตัวอักษร',
-        minLength: 5,
-        maxLength: 2000,
-        multiline: true,
-        confirmLabel: 'ยืนยันไม่อนุมัติ',
-        tone: 'danger'
-      });
-      if (reason === null) return;
-      approvalNote = reason.trim();
-    }
+
     if (action === 'link' && activePage === 'quota') {
       runEditor({ title: row.employeeId ? 'จัดประเภทปีให้ข้อมูลโควตาเดิม' : 'จับคู่ข้อมูลเดิมกับพนักงานและปี', submitLabel: 'ยืนยันการจัดประเภท', fields: [{ name: 'employeeId', label: 'พนักงาน (รหัส · ชื่อ · หน่วยงาน)', type: 'select', required: true, options: row.employeeId ? employeeOptions.filter((option) => option.value === String(row.employeeId)) : employeeOptions }, { name: 'quotaYear', label: 'ปีสิทธิ์', type: 'select', required: true, options: quotaYearOptions }], values: { employeeId: String(row.employeeId || ''), quotaYear: String(quotaYear) } }, (form) => api.linkLeaveQuota(auth.token!, id, form.employeeId, Number(form.quotaYear)));
       return;
@@ -2683,7 +2665,7 @@ function Dashboard() {
       : action === 'cancel'
         ? 'ยืนยันยกเลิกคำขอนี้? การดำเนินการจะถูกบันทึกใน Audit'
         : 'ยืนยันการดำเนินการนี้?';
-    const confirmed = isScheduleRejection ? true : await actionDialog.confirm({
+    const confirmed = await actionDialog.confirm({
       title: action === 'delete' ? 'ยืนยันลบรายการ' : action === 'cancel' ? 'ยืนยันยกเลิกคำขอ' : action === 'return' ? 'ส่งกลับให้แก้ไข' : 'ยืนยันการดำเนินการ',
       message: confirmMessage,
       context: `${activePage} · ${id}`,
@@ -2695,17 +2677,13 @@ function Dashboard() {
     try {
       if (action === 'delete' && activePage === 'licenses') await api.deleteLicense(auth.token, id);
       else if (action === 'delete' && activePage === 'schedule') await api.deleteShift(auth.token, id);
-      else if (activePage === 'approvals') await api.updateScheduleApproval(auth.token, id, { status: action === 'approve' ? 'APPROVED' : 'REJECTED', ...(action === 'reject' && { approvalNote }) });
+
       else if (activePage === 'rules') await api.updateSchedulingRule(auth.token, id, { enabled: !row.enabled });
       else if (activePage === 'schedule') await api.updateShift(auth.token, id, { locked: !row.locked });
       else if (activePage === 'users') await api.updateUser(auth.token, id, { isActive: !row.isActive, accountStatus: row.isActive ? 'SUSPENDED' : 'ACTIVE' });
       setOperationRefresh((value) => value + 1);
     } catch (reason) {
-      const requestError = toRequestErrorState(reason, 'ดำเนินการไม่สำเร็จ');
-      const details = reason && typeof reason === 'object' && 'details' in reason ? reason.details : undefined;
-      const code = details && typeof details === 'object' && 'code' in details ? details.code : undefined;
-      const localizedMessage = activePage === 'approvals' ? scheduleApprovalErrorMessage(code) : undefined;
-      setOperationError(localizedMessage ? { ...requestError, message: localizedMessage } : requestError);
+      setOperationError(toRequestErrorState(reason, 'ดำเนินการไม่สำเร็จ'));
     }
     finally { setOperationLoading(false); }  };
 
@@ -2896,7 +2874,7 @@ function Dashboard() {
         </section>
       );
     }
-    if (activePage === 'approvalCenter' && auth.token && ['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(auth.user?.role || '') && !auth.isViewingAs) return <ApprovalCenterPage token={auth.token} role={auth.user?.role || 'VIEWER'} currentEmployeeId={String(leaveSummary.employeeId || '')} refreshKey={approvalCenterRefresh} onSummaryLoaded={(summary) => { const counts = approvalCountsFromSummary(summary); setApprovalSummary(counts); setApprovalCountStatus(counts ? 'ready' : 'error'); }} onChanged={() => { setApprovalCenterRefresh((value) => value + 1); setEmployeeRefresh((value) => value + 1); setOperationRefresh((value) => value + 1); }} onOpenEmployeeChange={(requestId) => { setEmployeeChangeReviewInitialId(requestId); setEmployeeChangeReviewOpen(true); }} onNavigate={(item) => { setNativeApprovalRequestId(item.requestId); setNativeApprovalEmployeeId(item.employee?.id); setNativeApprovalLicenseId(String(item.metadata?.licenseId || '')); setNativeApprovalDocumentId(String(item.metadata?.documentId || item.requestId || '')); setNativeApprovalUserId(item.type === 'USER_ACCESS' ? item.requestId : undefined); if (item.type === 'LEAVE_REQUEST') setLeaveReviewInitialRequestId(item.requestId); if (item.type === 'REGISTRATION_REQUEST') setRegistrationReviewInitialRequestId(item.requestId); setActivePage(item.sourcePage); }} onLeaveDecision={(item, action) => openLeaveDecision({ id: item.requestId, employeeId: item.employee?.id, employeeNameSnapshot: item.employee?.displayName || item.title, departmentSnapshot: item.employee?.department || item.metadata?.department, leaveTypeNameSnapshot: item.metadata?.leaveType, startDate: item.metadata?.startDate, endDate: item.metadata?.endDate, dayCount: item.metadata?.dayCount, reason: item.metadata?.reason, substitute: item.metadata?.substitute, status: item.status }, action)} />;
+    if (activePage === 'approvalCenter' && auth.token && ['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(auth.user?.role || '') && !auth.isViewingAs) return <ApprovalCenterPage token={auth.token} role={auth.user?.role || 'VIEWER'} currentEmployeeId={String(leaveSummary.employeeId || '')} refreshKey={approvalCenterRefresh} onSummaryLoaded={(summary) => { const counts = approvalCountsFromSummary(summary); setApprovalSummary(counts); setApprovalCountStatus(counts ? 'ready' : 'error'); }} onChanged={() => { setApprovalCenterRefresh((value) => value + 1); setEmployeeRefresh((value) => value + 1); setOperationRefresh((value) => value + 1); }} onOpenEmployeeChange={(requestId) => { setEmployeeChangeReviewInitialId(requestId); setEmployeeChangeReviewOpen(true); }} onNavigate={(item) => { setNativeApprovalRequestId(item.requestId); setNativeApprovalEmployeeId(item.employee?.id); setNativeApprovalLicenseId(String(item.metadata?.licenseId || '')); setNativeApprovalDocumentId(String(item.metadata?.documentId || item.requestId || '')); setNativeApprovalUserId(item.type === 'USER_ACCESS' ? item.requestId : undefined); if (item.type === 'SCHEDULE_APPROVAL') { const month = String(item.metadata?.month || '').match(/^\d{4}-\d{2}/)?.[0]; if (month) setScheduleMonth(month); setActivePage('schedule'); return; } if (item.type === 'LEAVE_REQUEST') setLeaveReviewInitialRequestId(item.requestId); if (item.type === 'REGISTRATION_REQUEST') setRegistrationReviewInitialRequestId(item.requestId); setActivePage(item.sourcePage); }} onLeaveDecision={(item, action) => openLeaveDecision({ id: item.requestId, employeeId: item.employee?.id, employeeNameSnapshot: item.employee?.displayName || item.title, departmentSnapshot: item.employee?.department || item.metadata?.department, leaveTypeNameSnapshot: item.metadata?.leaveType, startDate: item.metadata?.startDate, endDate: item.metadata?.endDate, dayCount: item.metadata?.dayCount, reason: item.metadata?.reason, substitute: item.metadata?.substitute, status: item.status }, action)} />;
     if (activePage === 'employees') return <PersonnelDirectoryPage token={auth.token} refreshKey={employeeRefresh} canManage={canManage} role={auth.user?.role || 'VIEWER'} searchValue={search} onSearchValueChange={setSearch} onAdd={() => openEmployeeEditor()} onReviewChanges={() => { if (auth.user?.role === 'ADMIN' && !auth.isViewingAs) { setEmployeeChangeReviewInitialId(undefined); setEmployeeChangeReviewOpen(true); } }} onEdit={openEmployeeEditor} initialEmployeeId={nativeApprovalEmployeeId} onInitialTargetHandled={clearNativeApprovalTarget} />;
     if (activePage === 'audit') {
       const auditRows = Array.isArray(operationResponse.data) ? operationResponse.data : [];
@@ -3039,7 +3017,7 @@ function Dashboard() {
 {id:'rules',icon:'quality',label:'ขั้นที่สาม',title:'ตรวจกฎ',desc:'เปิดผลตรวจจริงของเดือนที่เลือก ไม่ใช้ผลจากเดือนก่อน',onClick:()=>setActivePage('rules')},
 {id:'approval',icon:'approval',label:'ขั้นที่สี่',title:'ส่งอนุมัติ',desc:approval.id ? 'มีรายการอนุมัติจากระบบ ตรวจสถานะในแถบด้านล่าง' : 'ยังไม่มีรายการอนุมัติที่ยืนยันได้',completed:Boolean(!operationLoading && !operationError && calendar.month===scheduleMonth && approval.id && ['PENDING','APPROVED'].includes(String(approval.status)))}
 ]} />
-        <div className={`approval-banner ${approval.status === 'APPROVED' ? 'approved' : 'pending'}`}><div><strong>{approval.status === 'APPROVED' ? '✓ อนุมัติแล้ว' : '● รออนุมัติ'} · {monthLabel}</strong><small>ฉบับแก้ไข {text(approval.revision || 1)}{approval.approvedAt ? ` · อนุมัติโดย ${text(approval.approvedBy || approval.approvedByDisplayName || 'ผู้มีอำนาจอนุมัติ')} เมื่อ ${date(approval.approvedAt)}` : ' · การแก้ตารางจะสร้างฉบับแก้ไขใหม่โดยอัตโนมัติ'}</small></div>{['ADMIN', 'SUPERVISOR'].includes(auth.user?.role || '') && approval.status !== 'APPROVED' && <button className="btn-primary compact" style={{ backgroundColor: '#059669', borderColor: '#047857', fontWeight: 'bold' }} onClick={async () => { if (!auth.token) return; const confirmed = await actionDialog.confirm({ title: 'อนุมัติตารางกะรายเดือน', message: 'การอนุมัติจะเปลี่ยนสถานะตารางเดือนนี้เป็นอนุมัติแล้วตามขั้นตอนเดิม และการแก้ไขภายหลังจะสร้างฉบับแก้ไขใหม่โดยอัตโนมัติ', context: monthLabel, confirmLabel: 'ยืนยันอนุมัติตาราง', tone: 'primary' }); if (!confirmed) return; setOperationError(undefined); try { if (approval.id) { await api.updateScheduleApproval(auth.token, String(approval.id), { status: 'APPROVED' }); } else { await api.approveScheduleMonth(auth.token, scheduleMonth); } const updated = await api.scheduleCalendar(auth.token, scheduleMonth, operationPage, scheduleDepartment); setOperationResponse(updated); setApprovalCenterRefresh((value) => value + 1); } catch (reason) { setOperationError(toRequestErrorState(reason, 'อนุมัติตารางไม่สำเร็จ')); } }}>อนุมัติ ตารางเดือนนี้</button>}</div>
+        <div className={`approval-banner ${approval.status === 'APPROVED' ? 'approved' : 'pending'}`}><div><strong>{approval.status === 'APPROVED' ? '✓ อนุมัติแล้ว' : '● รออนุมัติ'} · {monthLabel}</strong><small>ฉบับแก้ไข {text(approval.revision || 1)}{approval.approvedAt ? ` · อนุมัติโดย ${text(approval.approvedBy || approval.approvedByDisplayName || 'ผู้มีอำนาจอนุมัติ')} เมื่อ ${date(approval.approvedAt)}` : ' · การแก้ตารางจะสร้างฉบับแก้ไขใหม่โดยอัตโนมัติ'}</small></div>{['ADMIN', 'SUPERVISOR'].includes(auth.user?.role || '') && approval.status !== 'APPROVED' && <div className="heading-actions"><button className="btn-primary compact" style={{ backgroundColor: '#059669', borderColor: '#047857', fontWeight: 'bold' }} onClick={async () => { if (!auth.token) return; const confirmed = await actionDialog.confirm({ title: 'อนุมัติตารางกะรายเดือน', message: 'การอนุมัติจะเปลี่ยนสถานะตารางเดือนนี้เป็นอนุมัติแล้วตามขั้นตอนเดิม และการแก้ไขภายหลังจะสร้างฉบับแก้ไขใหม่โดยอัตโนมัติ', context: monthLabel, confirmLabel: 'ยืนยันอนุมัติตาราง', tone: 'primary' }); if (!confirmed) return; setOperationError(undefined); try { if (approval.id) { await api.updateScheduleApproval(auth.token, String(approval.id), { status: 'APPROVED' }); } else { await api.approveScheduleMonth(auth.token, scheduleMonth); } const updated = await api.scheduleCalendar(auth.token, scheduleMonth, operationPage, scheduleDepartment); setOperationResponse(updated); setApprovalCenterRefresh((value) => value + 1); } catch (reason) { setOperationError(toRequestErrorState(reason, 'อนุมัติตารางไม่สำเร็จ')); } }}>อนุมัติ ตารางเดือนนี้</button><button className="btn-danger compact" onClick={async () => { if (!auth.token || !approval.id) return; const note = await actionDialog.prompt({ title: 'ไม่อนุมัติตารางกะ', message: 'ระบุเหตุผลเพื่อบันทึกประกอบประวัติการพิจารณา', fieldLabel: 'เหตุผลการไม่อนุมัติ', context: monthLabel, confirmLabel: 'ยืนยันไม่อนุมัติ', tone: 'danger' }); if (note === null || note.trim().length < 5) return; setOperationError(undefined); try { await api.updateScheduleApproval(auth.token, String(approval.id), { status: 'REJECTED', approvalNote: note.trim() }); const updated = await api.scheduleCalendar(auth.token, scheduleMonth, operationPage, scheduleDepartment); setOperationResponse(updated); setApprovalCenterRefresh((value) => value + 1); invalidateApprovalCenter(); } catch (reason) { setOperationError(toRequestErrorState(reason, 'ไม่อนุมัติตารางไม่สำเร็จ')); } }}>ไม่อนุมัติ ตารางเดือนนี้</button></div>}</div>
         <SectionCard className="calendar-toolbar-box schedule-workbench" kicker="ตารางกะ" title="เลือกเดือนและจัดกะ" description="บันทึกฉบับร่างก่อนตรวจและส่งอนุมัติ ไม่มีการเปลี่ยนสถานะเพียงจากการเลือกเดือน">
           <div className="roster-month-label" style={{ fontSize: '13px', fontWeight: 'bold', marginBottom: '8px' }}>
             เลือกเดือนที่จะจัดกะ: {monthLabel} (สูงสุด 1 เดือน)

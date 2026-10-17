@@ -59,13 +59,14 @@ describe('Approval Center Command Nexus frontend contracts', () => {
     expect(main).not.toContain("{ id: 'approvals', icon: 'approval', label: 'อนุมัติตารางกะ' }");
     expect(main).not.toContain("approvals: ['ADMIN', 'SUPERVISOR']");
     expect(main).toContain("{ id: 'approvalCenter', icon: 'bell', label: 'ศูนย์อนุมัติ' }");
+    expect(main).toContain("schedule: ['ADMIN', 'SUPERVISOR']");
     expect(main).toContain("{ id: 'leavePending', icon: 'approval', label: 'อนุมัติคำขอลา' }");
     expect(routing).toContain("if (page === 'approvals') return ['ADMIN', 'SUPERVISOR'].includes(auth.user?.role || '') && !auth.isViewingAs");
     expect(routing).toContain("if (page === 'leavePending') return ['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(auth.user?.role || '') && !auth.isViewingAs");
     expect(main).toContain("if (item.type === 'LEAVE_REQUEST') setLeaveReviewInitialRequestId(item.requestId);");
     expect(main).toContain("if (item.type === 'REGISTRATION_REQUEST') setRegistrationReviewInitialRequestId(item.requestId);");
     expect(approvalService).toMatch(/type: 'ATTENDANCE_ADJUSTMENT_REQUEST',[\s\S]{0,260}sourcePage: 'attendanceSupervisor'/);
-    expect(page).toContain("type ApprovalSourcePage = 'employees' | 'licenses' | 'approvals' | 'attendanceDevice' | 'attendanceSupervisor' | 'users' | 'leavePending'");
+    expect(page).toContain("type ApprovalSourcePage = 'employees' | 'licenses' | 'schedule' | 'approvals' | 'attendanceDevice' | 'attendanceSupervisor' | 'users' | 'leavePending'");
   });
 
   it('renders the zero-white command-nexus surface and real telemetry fallbacks', () => {
@@ -115,8 +116,9 @@ describe('Approval Center Command Nexus frontend contracts', () => {
     expect(page).toContain('api.approveRegistrationRequest');
     expect(page).toContain('api.rejectRegistrationRequest');
     expect(page).toContain("SCHEDULE_APPROVAL: 'อนุมัติตารางกะ'");
-    expect(page).toContain("type ApprovalSourcePage = 'employees' | 'licenses' | 'approvals' | 'attendanceDevice' | 'attendanceSupervisor' | 'users' | 'leavePending'");
+    expect(page).toContain("type ApprovalSourcePage = 'employees' | 'licenses' | 'schedule' | 'approvals' | 'attendanceDevice' | 'attendanceSupervisor' | 'users' | 'leavePending'");
     expect(page).toContain("if (item.type === 'SCHEDULE_APPROVAL') return 'ดูรายละเอียดตารางกะ'");
+    expect(page).toContain("if (item.type === 'SCHEDULE_APPROVAL') return null;");
     expect(page).toContain('onNavigate(item)');
     expect(main).toContain("if (item.type === 'REGISTRATION_REQUEST') setRegistrationReviewInitialRequestId(item.requestId)");
     expect(main).toContain('initialRequestId={registrationReviewInitialRequestId}');

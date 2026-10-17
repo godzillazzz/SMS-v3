@@ -88,8 +88,7 @@ describe('Q12-C native dialog replacement contracts', () => {
   });
 
   it('keeps safe request error handling on the governed main and employee flows', () => {
-    expect(main).toContain("const requestError = toRequestErrorState(reason, 'ดำเนินการไม่สำเร็จ')");
-    expect(main).toContain('setOperationError(localizedMessage ? { ...requestError, message: localizedMessage } : requestError)');
+    expect(main).toContain("setOperationError(toRequestErrorState(reason, 'ดำเนินการไม่สำเร็จ'))");
     expect(main).toContain("setOperationError(toRequestErrorState(reason, 'อนุมัติตารางไม่สำเร็จ'))");
     expect(employeeGoverned).toContain("setError(toRequestErrorState(cause, 'ยกเลิกคำขอไม่สำเร็จ'))");
   });

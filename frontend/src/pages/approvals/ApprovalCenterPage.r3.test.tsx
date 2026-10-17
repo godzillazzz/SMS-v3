@@ -32,7 +32,7 @@ describe('ApprovalCenterPage R3 queue display', () => {
         type: 'SCHEDULE_APPROVAL',
         title: 'ตารางกะ เดือนตุลาคม',
         status: 'PENDING',
-        sourcePage: 'approvals',
+        sourcePage: 'schedule',
         submittedAt: '2026-10-07T00:00:00.000Z',
         ageHours: 1,
         urgency: 'NEW',
@@ -98,7 +98,7 @@ const targetCases: Array<{
 function approvalItem(testCase: typeof targetCases[number], id = `row-${testCase.requestId}`): ApprovalCenterItem {
   return {
     id, requestId: testCase.requestId, type: testCase.type, title: `Target ${testCase.type}`,
-    status: 'PENDING', sourcePage: testCase.type === 'USER_ACCESS' ? 'users' : 'approvals',
+    status: 'PENDING', sourcePage: testCase.type === 'USER_ACCESS' ? 'users' : testCase.type === 'SCHEDULE_APPROVAL' ? 'schedule' : 'approvals',
     submittedAt: '2026-10-07T00:00:00.000Z', ageHours: 1, urgency: 'NEW',
     employee: testCase.employeeId ? { id: testCase.employeeId, displayName: 'Target employee' } : undefined,
     metadata: testCase.metadata
@@ -128,6 +128,9 @@ describe('FE-VERIFY-003 approval target contracts', () => {
       expect(onNavigate).not.toHaveBeenCalled();
     } else if (testCase.destination === 'navigate') {
       expect(onNavigate).toHaveBeenCalledWith(item);
+    } else if (testCase.destination === 'schedule') {
+      expect(onNavigate).toHaveBeenCalledWith(item);
+      expect(screen.queryByRole('button', { name: 'อนุมัติทันที' })).toBeNull();
     } else {
       expect(onNavigate).not.toHaveBeenCalled();
       expect(screen.getAllByText(item.title).length).toBeGreaterThan(0);

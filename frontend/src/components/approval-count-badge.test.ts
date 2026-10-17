@@ -55,6 +55,7 @@ describe('approval count badge presentation', () => {
     expect(approvalMenuCount('attendanceSupervisor', summary)).toBe(13);
     expect(approvalMenuCount('users', summary)).toBe(36);
     expect(approvalMenuCount('leavePending', summary)).toBe(23);
+    expect(approvalMenuCount('schedule', summary)).toBe(7);
     expect(approvalMenuCount('unmapped', summary)).toBeNull();
   });
 
@@ -76,5 +77,9 @@ describe('approval count badge presentation', () => {
     expect(approvalBadgeText(approvalMenuCount('leavePending', one))).toBe('1');
     expect(approvalBadgeText(approvalMenuCount('employees', ninetyNine))).toBe('99');
     expect(approvalBadgeText(approvalMenuCount('employees', oneHundred))).toBe('99+');
+    expect(approvalBadgeText(approvalMenuCount('schedule', approvalCountsFromSummary({ total: 0, byType: emptyByType })))).toBeUndefined();
+    expect(approvalBadgeText(approvalMenuCount('schedule', approvalCountsFromSummary({ total: 1, byType: { ...emptyByType, SCHEDULE_APPROVAL: 1 } })))).toBe('1');
+    expect(approvalBadgeText(approvalMenuCount('schedule', approvalCountsFromSummary({ total: 99, byType: { ...emptyByType, SCHEDULE_APPROVAL: 99 } })))).toBe('99');
+    expect(approvalBadgeText(approvalMenuCount('schedule', approvalCountsFromSummary({ total: 100, byType: { ...emptyByType, SCHEDULE_APPROVAL: 100 } })))).toBe('99+');
   });
 });
