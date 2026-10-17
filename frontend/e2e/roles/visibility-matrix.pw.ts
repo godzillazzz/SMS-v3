@@ -24,7 +24,7 @@ test.describe('four-role visibility and badge matrix', () => {
       await page.goto('/app');
       await expect(page.locator('.app-shell')).toBeVisible();
       await expect(page.locator('[data-navigation-id="approvalCenter"]')).toHaveCount(role === 'VIEWER' ? 0 : 1);
-      await expect(page.locator('.nav-count-badge')).not.toContainText('0');
+      await expect.poll(() => page.locator('.nav-count-badge').allTextContents()).not.toContain('0');
       if (role === 'ADMIN') await expect(page.locator('[data-navigation-id="approvalCenter"] .nav-count-badge')).toHaveText('6');
       if (role === 'MANAGER') await expect(page.locator('[data-navigation-id="users"] .nav-count-badge')).toHaveText('5');
       if (role === 'SUPERVISOR') await expect(page.locator('[data-navigation-id="approvalCenter"] .nav-count-badge')).toHaveText('10');
@@ -36,7 +36,7 @@ test.describe('four-role visibility and badge matrix', () => {
 test('zero counts are hidden and 99+ is used above 99', async ({ page }) => {
   await install(page, 'ADMIN', summary({ EMPLOYEE_MASTER_CHANGE: 0, LICENSE_DOCUMENT: 100, ATTENDANCE_DEVICE_REQUEST: 1 }));
   await page.goto('/app');
-  await expect(page.locator('[data-navigation-id="approvalCenter"] .nav-count-badge')).toHaveText('101');
+  await expect(page.locator('[data-navigation-id="approvalCenter"] .nav-count-badge')).toHaveText('99+');
   await expect(page.locator('[data-navigation-id="employees"] .nav-count-badge')).toHaveCount(0);
 });
 

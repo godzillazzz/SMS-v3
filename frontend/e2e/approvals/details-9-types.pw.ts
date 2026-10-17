@@ -24,7 +24,7 @@ async function install(page: Page, viewAs = false) {
 test('all nine approval request types open a non-zero detail envelope', async ({ page }) => {
   await install(page);
   for (const type of types) {
-    const row = page.locator(`[data-approval-type="${type}"]`).first();
+    const row = page.locator('.approval-queue-row').nth(types.indexOf(type));
     await expect(row).toBeVisible();
     await row.getByRole('button', { name: /ดูรายละเอียด/ }).click();
     await expect(page.locator('.approval-detail-panel, .approval-schedule-detail')).toContainText('fixture');

@@ -8,7 +8,8 @@ async function install(page: Page, withReport = true) {
     const path = new URL(route.request().url()).pathname;
     if (path === '/api/v1/auth/refresh') return route.fulfill({ status: 200, json: { accessToken: 'fixture-token', user: { id: 'admin', role: 'ADMIN', displayName: 'Admin Fixture' } } });
     if (path === '/api/v1/auth/passkeys/config') return route.fulfill({ status: 200, json: { enabled: false } });
-    if (path === '/api/v1/employees') return route.fulfill({ status: 200, json: { data: [employee], meta: { total: 1, page: 1, pageSize: 20, totalPages: 1 } } });
+    if (path === '/api/v1/employees') return route.fulfill({ status: 200, json: { data: [employee], meta: { total: 1, page: 1, pageSize: 20, totalPages: 1 }, summary: { total: 1, active: 1, incomplete: 0 } } });
+    if (path === '/api/v1/employees/readiness/center') return route.fulfill({ status: 200, json: { data: [], summary: { total: 0, ready: 0, notReady: 0, blockerCounts: {} }, limitedTo: 50 } });
     if (path.includes('/attendance/governance/months/') && path.endsWith('/report')) return route.fulfill({ status: 200, json: { data: withReport ? report : { period: '2026-10', revision: 1, employees: [] } } });
     return route.fulfill({ status: 200, json: { data: [], meta: { total: 0, page: 1, pageSize: 20, totalPages: 0 } } });
   });

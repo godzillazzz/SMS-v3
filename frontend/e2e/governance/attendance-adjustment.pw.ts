@@ -68,5 +68,5 @@ test('VIEWER is denied even when calling the adjustment API directly', async ({ 
 test('governance fixture never issues a business write outside the asserted request', async ({ page }) => {
   const fixture = await installFixture(page, 'EMPLOYEE');
   await fixture.request('POST', '/api/v1/attendance/adjustment-requests', draft);
-  expect(fixture.calls.filter(call => call.startsWith('POST '))).toEqual(['POST /api/v1/attendance/adjustment-requests']);
+  expect(fixture.calls.filter(call => call.startsWith('POST ') && !call.includes('/auth/'))).toEqual(['POST /api/v1/attendance/adjustment-requests']);
 });
