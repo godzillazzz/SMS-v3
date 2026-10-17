@@ -211,9 +211,9 @@ test('R7.1 hotfix manifest preserves exact target, current Production rollback, 
   const d = JSON.parse(fs.readFileSync('.github/releases/approved-production.json', 'utf8'));
   const v = validateReleaseManifest(d);
   assert.equal(d.release_batch_id, 'R7.1');
-  assert.equal(v.releaseId, 'sms-v3-prod-b757f37-20261017');
-  assert.equal(v.commitSha, 'b757f3764966c9a42dbcab53b6c9cd51b2beadf3');
-  assert.equal(v.treeSha, '1bbead76e8ec30ec5068b25124d3159e48cc6c22');
+  assert.equal(v.releaseId, 'sms-v3-prod-43c4906-20261017');
+  assert.equal(v.commitSha, '43c4906a19fc8560e2d10a1c8154fb2e4e539d54');
+  assert.equal(v.treeSha, 'ca065cdf72cb8b0b7300ac933288a6d15bad1417');
   assert.equal(v.currentProductionSourceSha, '2e43619957ff4f1fb9bc88da5597a8e68e3eacee');
   assert.equal(v.rollbackDeploymentId, 'dpl_GWCVv4MvfKvsm6zS8pmEswwCwiim');
   assert.equal(v.runMigrations, false);
@@ -226,7 +226,7 @@ test('R7.1 hotfix manifest preserves exact target, current Production rollback, 
   assert.equal(d.preview_github_commit_sha, v.commitSha);
   assert.equal(d.preview_deployment_id, null);
   assert.equal(d.preview_state, 'NOT_VERIFIED_PRE_DISPATCH');
-  assert.equal(d.application_exact_sha_ci_run_id, 38990006979);
+  assert.equal(d.application_exact_sha_ci_run_id, 38990146597);
   assert.equal(d.application_exact_sha_ci_status, 'SUCCESS');
   assert.equal(d.production_dispatch_authorized, false);
   assert.equal(d.production_release_go_no_go, 'OWNER_PRODUCTION_DECISION_REQUIRED_NO_DISPATCH_AUTHORIZED');
