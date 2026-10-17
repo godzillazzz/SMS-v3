@@ -45,15 +45,24 @@ router.get('/summary', async (req, res, next) => {
 });
 
 router.get('/', async (req, res, next) => {
+  const hasDetailFilter = Object.prototype.hasOwnProperty.call(req.query, 'type')
+    || Object.prototype.hasOwnProperty.call(req.query, 'requestId');
   try {
     res.set('Cache-Control', 'no-store');
     const parsed = query.parse(req.query);
-    if (Object.prototype.hasOwnProperty.call(req.query, 'type') || Object.prototype.hasOwnProperty.call(req.query, 'requestId')) {
+    if (hasDetailFilter) {
       res.json(await service.getItem({ actor: req.user, type: parsed.type, requestId: parsed.requestId, correlationId: req.requestId }));
       return;
     }
     res.json(await service.list({ actor: req.user, correlationId: req.requestId, limit: parsed.limit }));
   } catch (error) {
+    // Detail-filter syntax is intentionally indistinguishable from every
+    // other non-visible detail target. Do not turn malformed query shapes
+    // (arrays, duplicates, unknown keys, or invalid limits) into an oracle.
+    if (hasDetailFilter && error?.name === 'ZodError') {
+      res.json(await service.getItem({ actor: req.user, type: undefined, requestId: undefined, correlationId: req.requestId }));
+      return;
+    }
     next(error);
   }
 });

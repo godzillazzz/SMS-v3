@@ -120,12 +120,30 @@ test('HTTP list route handles detail filters without adding an item endpoint', a
   assert.deepEqual(response.body.data, []);
 });
 
-test('HTTP authenticated pipeline reaches route validation for malformed requestId', async () => {
-  const response = await withAuthenticatedPrismaUser(() => request(app)
+test('HTTP malformed detail-filter forms all return the canonical zero envelope', async () => {
+  const auth = { Authorization: `Bearer ${tokenFor('MANAGER')}` };
+  const canonical = await withAuthenticatedPrismaUser(() => request(app)
     .get('/api/v1/approval-center?type=LEAVE_REQUEST&requestId=not-a-uuid')
-    .set('Authorization', `Bearer ${tokenFor('MANAGER')}`));
-  assert.equal(response.status, 200);
-  assert.deepEqual(response.body.data, []);
+    .set(auth));
+  assert.equal(canonical.status, 200);
+  const cases = [
+    ['malformed UUID', '/api/v1/approval-center?type=LEAVE_REQUEST&requestId=not-a-uuid'],
+    ['missing requestId', '/api/v1/approval-center?type=LEAVE_REQUEST'],
+    ['missing type', `/api/v1/approval-center?requestId=${ID}`],
+    ['repeated type', `/api/v1/approval-center?type=LEAVE_REQUEST&type=USER_ACCESS&requestId=${ID}`],
+    ['repeated requestId', `/api/v1/approval-center?type=LEAVE_REQUEST&requestId=${ID}&requestId=${ID}`],
+    ['array type', `/api/v1/approval-center?type[]=LEAVE_REQUEST&requestId=${ID}`],
+    ['array requestId', `/api/v1/approval-center?type=LEAVE_REQUEST&requestId[]=${ID}`],
+    ['unknown detail parameter', `/api/v1/approval-center?type=LEAVE_REQUEST&requestId=${ID}&unexpected=true`],
+    ['invalid limit with detail filter', `/api/v1/approval-center?type=LEAVE_REQUEST&requestId=${ID}&limit=not-a-number`]
+  ];
+  for (const [name, url] of cases) {
+    await withAuthenticatedPrismaUser(async () => {
+      const response = await request(app).get(url).set(auth);
+      assert.equal(response.status, canonical.status, name);
+      assert.deepStrictEqual(response.body, canonical.body, name);
+    });
+  }
 });
 
 test('HTTP View-As detail filters return the deterministic zero envelope for every target role', async () => {
