@@ -121,7 +121,7 @@ test('HTTP list route handles detail filters without adding an item endpoint', a
 });
 
 test('HTTP malformed detail-filter forms all return the canonical zero envelope', async () => {
-  const auth = { Authorization: 'Bearer ' + tokenFor('MANAGER') };
+  const auth = { Authorization: `Bearer ${tokenFor('MANAGER')}` };
   const canonical = await withAuthenticatedPrismaUser(() => request(app)
     .get('/api/v1/approval-center?type=LEAVE_REQUEST&requestId=not-a-uuid')
     .set(auth));
