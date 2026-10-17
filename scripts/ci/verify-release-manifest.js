@@ -18,7 +18,10 @@ const DATABASE_CHANGE_POLICIES = Object.freeze([
   'PRE_APPLIED_APPROVED_MIGRATION',
 ]);
 
-const PRODUCTION_ENVIRONMENT_CHANGE_POLICY = 'NO_ENVIRONMENT_CHANGES';
+const PRODUCTION_ENVIRONMENT_CHANGE_POLICIES = Object.freeze([
+  'NO_ENVIRONMENT_CHANGES',
+  'OWNER_APPROVED_REGION_CHANGE_ONLY',
+]);
 const CORS_POLICY = 'EXPLICIT_CREDENTIALED_ALLOWLIST_CANONICAL_RUNTIME_VERIFY';
 const DEPLOYMENT_METHOD = 'GOVERNED_VERCEL_GIT_SOURCE_PRODUCTION_CANDIDATE_NO_CANONICAL_ALIAS_EXPLICIT_PROMOTION';
 const POST_DEPLOY_VERIFICATION_PLAN = 'IMMUTABLE_CANDIDATE_AND_CANONICAL_HEALTH_READY_AUTH_CORS_RECURSIVE_UI_SENTINELS_AUTO_ROLLBACK';
@@ -52,7 +55,10 @@ function validateReleaseManifest(input) {
   assert(input.owner_action === 'APPROVE_PRODUCTION_ONLY', 'owner_action must be APPROVE_PRODUCTION_ONLY');
   assert(input.rollback_policy === 'AUTO_ROLLBACK_ON_POST_DEPLOY_VERIFY_FAILURE', 'rollback_policy mismatch');
   assert(DATABASE_CHANGE_POLICIES.includes(input.database_change_policy), 'unsupported database_change_policy');
-  assert(input.production_environment_change_policy === PRODUCTION_ENVIRONMENT_CHANGE_POLICY, 'production_environment_change_policy mismatch');
+  assert(PRODUCTION_ENVIRONMENT_CHANGE_POLICIES.includes(input.production_environment_change_policy), 'unsupported production_environment_change_policy');
+  if (input.production_environment_change_policy === 'OWNER_APPROVED_REGION_CHANGE_ONLY') {
+    assert(typeof input.production_environment_change_note === 'string' && input.production_environment_change_note.trim(), 'region-change policy requires an approval note');
+  }
   assert(input.cors_policy === CORS_POLICY, 'cors_policy mismatch');
   assert(input.deployment_method === DEPLOYMENT_METHOD, 'deployment_method mismatch');
   assert(input.post_deploy_verification_plan === POST_DEPLOY_VERIFICATION_PLAN, 'post_deploy_verification_plan mismatch');

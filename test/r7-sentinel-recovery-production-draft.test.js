@@ -64,9 +64,11 @@ test('draft fails closed; prior R7 approval cannot be transferred to the current
   const current = load('approved-production.json');
   const validated = validateReleaseManifest(current);
   assert.equal(current.release_batch_id, 'R7.1');
-  assert.equal(validated.commitSha, '4d11ae56a8eea78fb91380f750dcf5acc0790d81');
+  assert.equal(validated.commitSha, 'f0e8f9011866c2cf73fa2195693b075e3117a5ba');
   assert.equal(validated.currentProductionSourceSha, 'be7136beb804f8d714df72a2547ce0dc77a96e42');
   assert.equal(validated.rollbackDeploymentId, 'dpl_HV7a16mSeGr7vkPHfHs3FqxqvvVD');
+  assert.equal(current.production_environment_change_policy, 'OWNER_APPROVED_REGION_CHANGE_ONLY');
+  assert.match(current.production_environment_change_note, /OWNER approved Vercel function region/);
   assert.equal(current.production_dispatch_authorized, false);
   assert.equal(current.production_release_go_no_go, 'OWNER_PRODUCTION_DECISION_REQUIRED_NO_DISPATCH_AUTHORIZED');
 });
