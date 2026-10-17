@@ -44,7 +44,7 @@ function printableFilename(report?: ExecutiveReport, department = '') {
   return `SMS-Executive-Report-${report.period.year}-${String(report.period.month).padStart(2, '0')}${suffix}.pdf`;
 }
 
-export function ReportCenterPage({ token, role, onNavigate, initialTab = 'executive' }: { token: string; role: string; onNavigate(page: string): void; initialTab?: ReportTab }) {
+export function ReportCenterPage({ token, role, onNavigate, initialTab = 'executive', initialEmployeeId }: { token: string; role: string; onNavigate(page: string): void; initialTab?: ReportTab; initialEmployeeId?: string }) {
   const current = currentBangkokPeriod();
   const [activeTab, setActiveTab] = useState<ReportTab>(initialTab);
   const [filters, setFilters] = useState<ExecutiveReportFilters>({ year: current.year, month: current.month, department: '' });
@@ -129,7 +129,7 @@ export function ReportCenterPage({ token, role, onNavigate, initialTab = 'execut
       <SectionCard kicker="ส่งออกรายงาน" title="รูปแบบที่รองรับ" description="เลือกส่งออกจากข้อมูลและรูปแบบที่ระบบรองรับในปัจจุบัน" className="report-center-export-section">
       <div className="report-center-export-grid">
         <article className="report-center-export-card"><div className="report-center-export-icon">PDF</div><div><h3>รายงานผู้บริหาร PDF</h3><p>ใช้ข้อมูลและตัวกรองเดียวกับแท็บภาพรวมผู้บริหาร พร้อมรูปแบบเอกสาร A4 ที่มีอยู่เดิม</p><small>รูปแบบที่รองรับ: PDF</small></div><button type="button" className="btn-primary" disabled={!executiveReport} onClick={exportPdf}>ส่งออก PDF</button></article>
-        {['ADMIN', 'SUPERVISOR'].includes(role) && ATTENDANCE_OFFICIAL_REPORT_ENABLED && <AttendanceOfficialReportPanel token={token} month={attendanceMonth} role={role} enabled={activeTab === 'export'} />}
+        {['ADMIN', 'SUPERVISOR'].includes(role) && ATTENDANCE_OFFICIAL_REPORT_ENABLED && <AttendanceOfficialReportPanel token={token} month={attendanceMonth} role={role} enabled={activeTab === 'export'} initialEmployeeId={initialEmployeeId} />}
       </div>
       {!executiveReport && <div className="report-center-state" role="status"><strong>กำลังเตรียมข้อมูลสำหรับส่งออก</strong><span>รอข้อมูล Executive Report จาก API เดิม</span></div>}
       </SectionCard>

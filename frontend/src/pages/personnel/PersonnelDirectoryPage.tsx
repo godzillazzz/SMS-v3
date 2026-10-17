@@ -35,9 +35,11 @@ type Props = {
   onEdit(employee: PersonnelRecord): void;
   initialEmployeeId?: string;
   onInitialTargetHandled?(): void;
+  onPrintAttendance?(employee: PersonnelRecord): void;
 };
 
 const pageSize = 10;
+const ATTENDANCE_OFFICIAL_REPORT_ENABLED = import.meta.env.VITE_ATTENDANCE_GOVERNANCE_REPORT_ENABLED === 'true';
 
 type ReadinessSnapshot = {
   token?: string;
@@ -45,7 +47,7 @@ type ReadinessSnapshot = {
   byEmployeeId: Record<string, EmployeeReadinessStatus>;
 };
 
-export function PersonnelDirectoryPage({ token, refreshKey, canManage, role, searchValue, onSearchValueChange, onAdd, onReviewChanges, onEdit, initialEmployeeId, onInitialTargetHandled }: Props) {
+export function PersonnelDirectoryPage({ token, refreshKey, canManage, role, searchValue, onSearchValueChange, onAdd, onReviewChanges, onEdit, initialEmployeeId, onInitialTargetHandled, onPrintAttendance }: Props) {
   const [employees, setEmployees] = useState<PersonnelRecord[]>([]);
   const [meta, setMeta] = useState<DirectoryMeta>({ page: 1, pageSize, total: 0, totalPages: 1, departments: [], summary: { total: 0, active: 0, incomplete: 0 } });
   const [requestLoading, setRequestLoading] = useState(false);
@@ -62,6 +64,7 @@ export function PersonnelDirectoryPage({ token, refreshKey, canManage, role, sea
   const lastSelectedId = useRef<string>();
 
   const canViewReadiness = role === 'ADMIN' || role === 'MANAGER' || role === 'SUPERVISOR';
+  const canPrintAttendance = ATTENDANCE_OFFICIAL_REPORT_ENABLED && (role === 'ADMIN' || role === 'SUPERVISOR');
   const handleReadinessChange = useCallback((state: ReadinessSnapshot) => setReadinessSnapshot(state), []);
   const tableReadiness = readinessSnapshot.token === token
     ? readinessSnapshot
@@ -180,7 +183,7 @@ export function PersonnelDirectoryPage({ token, refreshKey, canManage, role, sea
     <PersonnelSearchToolbar search={search} department={department} status={status} departments={visibleMeta.departments || []} onSearch={changeFilter(setSearch)} onDepartment={changeFilter(setDepartment)} onStatus={changeFilter(setStatus)} onClear={clear} />
     <div className="personnel-summary-grid"><PersonnelMetricCard icon="users" label="บุคลากรทั้งหมด" value={loading ? undefined : totalCount} context="รายการที่เข้าถึงได้" loading={loading} tone="indigo" /><PersonnelMetricCard icon="check" label="บุคลากรที่ใช้งาน" value={loading ? undefined : activeCount} context="จากข้อมูลทั้งหมด" loading={loading} tone="green" /><PersonnelMetricCard icon="quality" label="โปรไฟล์ไม่สมบูรณ์" value={loading ? undefined : incompleteCount} context={incompleteCount ? 'ต้องตรวจสอบข้อมูล' : 'ข้อมูลครบถ้วน'} loading={loading} tone="amber" /></div>
     {permissionDenied ? <div className="personnel-empty-state data-state data-state--permission"><span aria-hidden="true"><SmsIcon name="shield" size={24} /></span><h2>ไม่มีสิทธิ์เข้าถึงข้อมูล</h2><p>บัญชีนี้ไม่ได้รับอนุญาตให้ดู Personnel Directory</p></div>
-      : <>{!loading && !visibleError && <div className="personnel-result-line data-result-count">แสดง {visibleEmployees.length} จาก {visibleMeta.total} รายการ{hasActiveFilters ? ' · กรองจากข้อมูลทั้งหมด' : ''}</div>}<SectionCard kicker="ทะเบียนบุคลากร" title="รายชื่อพนักงาน" description="แสดงข้อมูลตามตัวกรองและสิทธิ์ที่ได้รับ"><PersonnelTable rows={visibleEmployees} canManage={canManage} canViewReadiness={canViewReadiness} readinessByEmployeeId={tableReadiness.byEmployeeId} readinessState={tableReadiness.state} selectedId={selected?.id} onSelect={(employee) => { lastSelectedId.current = employee.id; setSelected(employee); }} onEdit={onEdit} loading={loading} error={Boolean(visibleError)} onRetry={() => setLocalRefreshKey((value) => value + 1)} hasActiveFilters={hasActiveFilters} emptyAction={visibleMeta.total === 0 && hasActiveFilters ? { label: 'ล้างตัวกรอง', onClick: clear } : { label: 'รีเฟรช', onClick: () => setLocalRefreshKey((value) => value + 1) }} /></SectionCard>{!loading && !visibleError && <PersonnelPagination page={page} totalPages={visibleMeta.totalPages} onChange={setPage} />}</>}
+      : <>{!loading && !visibleError && <div className="personnel-result-line data-result-count">แสดง {visibleEmployees.length} จาก {visibleMeta.total} รายการ{hasActiveFilters ? ' · กรองจากข้อมูลทั้งหมด' : ''}</div>}<SectionCard kicker="ทะเบียนบุคลากร" title="รายชื่อพนักงาน" description="แสดงข้อมูลตามตัวกรองและสิทธิ์ที่ได้รับ"><PersonnelTable rows={visibleEmployees} canManage={canManage} canViewReadiness={canViewReadiness} canPrintAttendance={canPrintAttendance} onPrintAttendance={(employee) => onPrintAttendance?.(employee)} readinessByEmployeeId={tableReadiness.byEmployeeId} readinessState={tableReadiness.state} selectedId={selected?.id} onSelect={(employee) => { lastSelectedId.current = employee.id; setSelected(employee); }} onEdit={onEdit} loading={loading} error={Boolean(visibleError)} onRetry={() => setLocalRefreshKey((value) => value + 1)} hasActiveFilters={hasActiveFilters} emptyAction={visibleMeta.total === 0 && hasActiveFilters ? { label: 'ล้างตัวกรอง', onClick: clear } : { label: 'รีเฟรช', onClick: () => setLocalRefreshKey((value) => value + 1) }} /></SectionCard>{!loading && !visibleError && <PersonnelPagination page={page} totalPages={visibleMeta.totalPages} onChange={setPage} />}</>}
     <PersonnelDetailDrawer employee={selected} token={token} canManage={canManage} role={role} onClose={closeDrawer} onEdit={() => { if (selected) onEdit(selected); closeDrawer(); }} />
   </section>;
 }

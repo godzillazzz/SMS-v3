@@ -182,7 +182,7 @@ function groupByEmployee(rows: AttendanceReportRow[]) {
     .sort((a, b) => (a[0]?.employeeCode || '').localeCompare(b[0]?.employeeCode || '', 'th'));
 }
 
-export function AttendanceOfficialReportPanel({ token, month, role, enabled }: { token: string; month: string; role: string; enabled: boolean }) {
+export function AttendanceOfficialReportPanel({ token, month, role, enabled, initialEmployeeId }: { token: string; month: string; role: string; enabled: boolean; initialEmployeeId?: string }) {
   const [report, setReport] = useState<AttendanceOfficialReport>();
   const [loading, setLoading] = useState(false);
   const [downloading, setDownloading] = useState(false);
@@ -207,6 +207,10 @@ export function AttendanceOfficialReportPanel({ token, month, role, enabled }: {
     setPrintMode('employee');
     setPrintedAt('');
   }, [token, month]);
+
+  useEffect(() => {
+    if (report && initialEmployeeId && employeePages.some((rows) => rows[0]?.employeeId === initialEmployeeId)) setSelectedEmployeeId(initialEmployeeId);
+  }, [employeePages, report, initialEmployeeId]);
 
   useEffect(() => {
     if (!enabled || report || loading || error) return;
