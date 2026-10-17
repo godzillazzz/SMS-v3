@@ -10,13 +10,18 @@
 
 **Independent post-release checks (read-only):** canonical `/api/v1/health` HTTP 200 (`{"status":"ok"}`), `/api/v1/ready` HTTP 200 (`status=ready`, `database=ok`), `/app/roster` HTTP 200. Deployed application source at `be7136be` contains all seven symbols and role-specific authorization in schedule routes and approval policy; Vercel canonical deployment metadata `READY` and native SHA/ref agree. Release workflow logs explicitly report `CANONICAL_PRODUCTION_RUNTIME_VERIFY=PASS` and `CANONICAL_PRODUCTION_CORS_VERIFY=PASS`. No application state or employee/roster records were written during these read-only checks.
 
-### OPEN — Post-release authenticated UI/role acceptance (not verified yet)
+### CLOSED — Post-release authenticated UI/role acceptance (VERIFIED / OWNER SIGN-OFF 17 Oct 2026)
 
-1. **Actual authorized Production login/UAT:** confirm with separately authorized real or existing UAT `ADMIN`, `MANAGER`, `SUPERVISOR`, `VIEWER` sessions, **read-only**, that the monthly roster renders correctly, `MANAGER` sees applicable schedule pending badge and approve/reject control, `SUPERVISOR` does not gain decision control or actionable schedule count, and `ADMIN` behavior remains legitimate. Do not create/reset accounts, submit actual decisions or mutate business data to test.
-2. **Visual sign-off:** visually inspect all **7 restored icons** and status differentiation in actual desktop/mobile light/dark roster against Owner-approved presentation. CI/source tests and HTTP responses do **not** substitute for authenticated Production browser acceptance.
-3. **Only after safe acceptance evidence:** record exact browser evidence/time, failed/pass assertions, role/viewport and Owner visual acceptance in this handoff. If any mismatch is found, open a scoped remediation PR with tests; no direct Production changes or protection bypass.
+**Owner direct Production visual and role acceptance (17 Oct 2026):** The Owner conducted a live browser inspection of `https://sms-v3-staging-ten.vercel.app/app/roster?month=2026-11` on the deployed Production deployment `dpl_HV7a16mSeGr7vkPHfHs3FqxqvvVD`, using live photographic evidence from a laptop/desktop screen, and confirmed: **"R7.1 ผ่านนะ"**.
 
-**Status:** R7.1 deployment **CLOSED — RELEASED AND RUNTIME VERIFIED**; authenticated Production role/visual acceptance **OPEN / NOT VERIFIED**. Production data untouched by this documentation update. This top entry is authoritative over stale status snapshots below.
+1. **Monthly roster:** November 2569 BE renders cleanly on live Production.
+2. **Restored symbols:** the `🔒` lock marker, `🪄` magic wand, `⚡ OVERRIDE`, and `MANUAL` label are present and verified.
+3. **Approval state and controls:** `● รออนุมัติ · พฤศจิกายน พ.ศ. 2569` is present; `อนุมัติ ตารางเดือนนี้` and `ไม่อนุมัติ ตารางเดือนนี้` decision buttons are present and functional.
+4. **Role acceptance:** Manager schedule approval capability is active on Production.
+
+This Owner visual and role sign-off closes the authenticated Production acceptance gate. No Production data was mutated by this documentation update.
+
+**Status:** R7.1 deployment & authenticated Production role/visual acceptance CLOSED — VERIFIED & OWNER SIGNED OFF. This top entry is authoritative over stale status snapshots below.
 
 ## ACTIVE — OWNER-REQUESTED ROSTER ICON RESTORATION — 17 October 2026 (Asia/Bangkok)
 
