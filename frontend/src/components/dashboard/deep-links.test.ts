@@ -24,4 +24,23 @@ describe('Dashboard detail URL contract', () => {
       workforce: 'SCHEDULED', shiftTypeCode: 'A1'
     });
   });
+
+  it.each([
+    ['pendingLeaves', {}],
+    ['pendingUsers', {}],
+    ['licenseStatus', { status: 'PENDING' }],
+    ['unmatchedQuota', {}]
+  ] as const)('maps %s action-required links without dropping required query context', (metric, selector) => {
+    expect(dashboardDetailQuery(metric, filters, 'ADMIN', selector)).toEqual({
+      metric, date: '2026-10-10', month: '2026-10', department: 'AN1',
+      page: '1', pageSize: '20', ...selector
+    });
+  });
+
+  it('preserves every selector value exactly and never silently supplies a required filter', () => {
+    expect(dashboardDetailQuery('licenseStatus', filters, 'ADMIN', { status: 'RETURNED_FOR_CORRECTION' })).toEqual({
+      metric: 'licenseStatus', date: '2026-10-10', month: '2026-10', department: 'AN1',
+      page: '1', pageSize: '20', status: 'RETURNED_FOR_CORRECTION'
+    });
+  });
 });
