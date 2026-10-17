@@ -20,7 +20,8 @@ if (process.env.RUN_INTEGRATION_TESTS !== 'true') {
   const months = [
     new Date(Date.UTC(2026, 8, 1)),
     new Date(Date.UTC(2026, 9, 1)),
-    new Date(Date.UTC(2026, 10, 1))
+    new Date(Date.UTC(2026, 10, 1)),
+    new Date(Date.UTC(2026, 11, 1))
   ];
 
   async function cleanup() {
@@ -79,8 +80,11 @@ if (process.env.RUN_INTEGRATION_TESTS !== 'true') {
       const approvalUpdate = await request(app).put(`/api/v1/schedule-approvals/${pending.id}`).set('Authorization', `Bearer ${tokens.manager}`).send({ status: 'APPROVED' });
       assert.equal(approvalUpdate.status, 200);
       assert.equal((await prisma.scheduleApproval.findUniqueOrThrow({ where: { id: pending.id } })).status, 'APPROVED');
-      const approvalUpdateAdmin = await request(app).put(`/api/v1/schedule-approvals/${pending.id}`).set('Authorization', `Bearer ${tokens.admin}`).send({ status: 'APPROVED' });
+
+      const pendingAdmin = await prisma.scheduleApproval.create({ data: { month: months[3], status: 'PENDING', revision: 1, changeType: 'TEST' } });
+      const approvalUpdateAdmin = await request(app).put(`/api/v1/schedule-approvals/${pendingAdmin.id}`).set('Authorization', `Bearer ${tokens.admin}`).send({ status: 'APPROVED' });
       assert.equal(approvalUpdateAdmin.status, 200);
+      assert.equal((await prisma.scheduleApproval.findUniqueOrThrow({ where: { id: pendingAdmin.id } })).status, 'APPROVED');
 
       const createPayload = { code: 'RBAC_TEST', name: 'RBAC Test Shift', startTime: '08:00', endTime: '17:00', hours: 8, color: '#123456' };
       const created = await request(app).post('/api/v1/shift-types').set('Authorization', `Bearer ${tokens.admin}`).send(createPayload);
