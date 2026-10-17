@@ -27,11 +27,27 @@ function policies(overrides = {}) {
   return { loadPolicies: async () => map };
 }
 
-function model(rows, { findMany, findFirst } = {}) {
+function model(rows, { findMany, findFirst, label, queryLog } = {}) {
+  const record = (operation, args) => queryLog?.push({ label, operation, where: args?.where || {} });
+  const matches = (row, where = {}) => (!where.id || row.id === where.id)
+    && (!where.department || row.department === where.department)
+    && (!where.status || (typeof where.status === 'object' ? where.status.in?.includes(row.status) : row.status === where.status))
+    && (!where.accountStatus || row.accountStatus === where.accountStatus)
+    && (!where.emailVerifiedAt || (where.emailVerifiedAt.not === null ? row.emailVerifiedAt != null : row.emailVerifiedAt === where.emailVerifiedAt));
   return {
-    findMany: findMany || (async ({ where } = {}) => rows.filter((row) => !where?.department || row.department === where.department)),
-    findFirst: findFirst || (async ({ where } = {}) => rows.find((row) => (!where?.id || row.id === where.id) && (!where?.department || row.department === where.department)) || null),
-    count: async () => rows.length
+    findMany: findMany || (async ({ where, take } = {}) => {
+      record('findMany', { where, take });
+      const matched = rows.filter((row) => matches(row, where));
+      return take == null ? matched : matched.slice(0, take);
+    }),
+    findFirst: findFirst || (async ({ where } = {}) => {
+      record('findFirst', { where });
+      return rows.find((row) => matches(row, where)) || null;
+    }),
+    count: async ({ where } = {}) => {
+      record('count', { where });
+      return rows.filter((row) => matches(row, where)).length;
+    }
   };
 }
 
@@ -39,16 +55,16 @@ function employee(id, code) {
   return { id, employeeCode: code, firstName: code, lastName: 'Test', displayName: `${code} Test`, department: 'PN', jobTitle: 'Guard', user: { role: 'VIEWER' } };
 }
 
-function fixture({ scheduleRows = [], leaveRows = [], attendanceRows = [], actorEmployeeId = null, overrides = {}, failModel = null } = {}) {
+function fixture({ scheduleRows = [], leaveRows = [], attendanceRows = [], attendanceDeviceRows = [], userRows = [], queryLog = null, actorEmployeeId = null, overrides = {}, failModel = null } = {}) {
   const row = (id, extra = {}) => ({ id, status: 'PENDING_APPROVAL', createdAt: NOW, ...extra });
   const models = {
     employeeChangeRequest: model([row(ID, { employeeId: 'e1', currentRevision: 2, employee: employee('e1', 'E001'), requestOwner: { id: 'm1', displayName: 'Manager', role: 'MANAGER' }, revisions: [{ revision: 2, changedFields: ['department'], submittedAt: NOW }] })]),
     employeeReferencePhoto: model([row(ID, { employeeId: 'e2', uploadedAt: NOW, safeDisplayFileName: 'photo.jpg', mimeType: 'image/jpeg', fileSize: 10, imageWidth: 10, imageHeight: 10, employee: employee('e2', 'E002'), uploadedBy: { id: 'm2', displayName: 'Manager', role: 'MANAGER' } })]),
     employeeLicenseDocument: model([row(ID, { employeeId: 'e3', licenseId: 'l1', status: 'PENDING', uploadedAt: NOW, proposedStartDate: NOW, proposedExpiryDate: NOW, proposedLicenseNumber: 'LIC-NEW', version: 1, safeDisplayFileName: 'license.pdf', employee: employee('e3', 'E003'), uploadedBy: { id: 'm3', displayName: 'Manager', role: 'MANAGER' }, license: { licenseType: 'รปภ.', licenseNumber: 'LIC-OLD' } })]),
-    attendanceDeviceChangeRequest: model([row(ID, { requestType: 'REPLACEMENT', reason: 'replace', employee: employee('e4', 'E004'), requestedBy: { id: 'm4', displayName: 'Manager', role: 'MANAGER' }, candidateDevice: { displayName: 'Phone', platformHint: 'Android' } })]),
+    attendanceDeviceChangeRequest: model(attendanceDeviceRows.length ? attendanceDeviceRows : [row(ID, { requestType: 'REPLACEMENT', reason: 'replace', employee: employee('e4', 'E004'), requestedBy: { id: 'm4', displayName: 'Manager', role: 'MANAGER' }, candidateDevice: { displayName: 'Phone', platformHint: 'Android' } })], { label: 'ATTENDANCE_DEVICE_REQUEST', queryLog }),
     registrationRequest: model([row(ID, { submittedName: 'สมัครใหม่', email: 'new@example.invalid', departmentHint: 'PN', status: 'MATCHED', emailVerifiedAt: NOW, matchedEmployee: employee('e5', 'E005') })]),
-    user: { ...model([row(ID, { displayName: 'Pending User', email: 'pending@example.invalid', role: 'VIEWER', department: 'PN', accountStatus: 'PENDING', requestedAt: NOW })]), findUnique: async () => actorEmployeeId ? { employeeId: actorEmployeeId, employee: { jobTitle: 'Guard', isActive: true, deletedAt: null } } : null },
-    leaveRequest: model(leaveRows),
+    user: { ...model(userRows.length ? userRows : [row(ID, { displayName: 'Pending User', email: 'pending@example.invalid', role: 'VIEWER', department: 'PN', accountStatus: 'PENDING', requestedAt: NOW })], { label: 'USER_ACCESS', queryLog }), findUnique: async () => actorEmployeeId ? { employeeId: actorEmployeeId, employee: { jobTitle: 'Guard', isActive: true, deletedAt: null } } : null },
+    leaveRequest: model(leaveRows, { label: 'LEAVE_REQUEST', queryLog }),
     scheduleApproval: {
       groupBy: async () => [...new Map(scheduleRows.map((r) => [new Date(r.month).toISOString(), r])).values()].map((r) => ({ month: r.month, _max: { revision: Math.max(...scheduleRows.filter((x) => new Date(x.month).getTime() === new Date(r.month).getTime()).map((x) => x.revision)) } })),
       findMany: async ({ where } = {}) => scheduleRows.filter((r) => r.status === where?.status && where?.OR?.some((x) => new Date(x.month).getTime() === new Date(r.month).getTime() && x.revision === r.revision)),
@@ -240,6 +256,49 @@ test('exact item query isolates the target when multiple records of the same typ
 
   const resultMissing = await current.getItem({ actor: ACTOR, type: 'LEAVE_REQUEST', requestId: ID_MISSING });
   assert.deepStrictEqual(resultMissing.data, []);
+});
+
+test('exact item scopes multiple approval types at the database query and reaches target beyond first 100 rows (A2-MUTATION-006)', async () => {
+  const targetId = '10000000-0000-4000-8000-000000000100';
+  const targetIds = {
+    LEAVE_REQUEST: targetId,
+    USER_ACCESS: targetId,
+    ATTENDANCE_DEVICE_REQUEST: targetId
+  };
+  const queryLog = [];
+  const leaveRows = Array.from({ length: 101 }, (_, index) => ({
+    id: index === 100 ? targetIds.LEAVE_REQUEST : `10000000-0000-4000-8000-${String(index + 1).padStart(12, '0')}`,
+    employeeId: `leave-${index}`,
+    status: 'PENDING', requestedAt: new Date(NOW.getTime() + index), createdAt: NOW,
+    leaveType: 'SICK', startDate: NOW, endDate: NOW, dayCount: 1,
+    employeeNameSnapshot: `Leave ${index}`, departmentSnapshot: 'PN',
+    employee: employee(`leave-${index}`, `LEAVE-${index}`), createdByUser: null
+  }));
+  const userRows = Array.from({ length: 101 }, (_, index) => ({
+    id: index === 100 ? targetIds.USER_ACCESS : `20000000-0000-4000-8000-${String(index + 1).padStart(12, '0')}`,
+    displayName: `User ${index}`, email: `user-${index}@example.invalid`, role: 'VIEWER',
+    department: 'PN', accountStatus: 'PENDING', requestedAt: new Date(NOW.getTime() + index), createdAt: NOW
+  }));
+  const attendanceDeviceRows = Array.from({ length: 101 }, (_, index) => ({
+    id: index === 100 ? targetIds.ATTENDANCE_DEVICE_REQUEST : `30000000-0000-4000-8000-${String(index + 1).padStart(12, '0')}`,
+    status: 'PENDING_APPROVAL', requestType: 'REPLACEMENT', reason: `replace-${index}`,
+    createdAt: new Date(NOW.getTime() + index), employee: employee(`device-${index}`, `DEVICE-${index}`),
+    requestedBy: { id: `manager-${index}`, displayName: 'Manager', role: 'MANAGER' },
+    candidateDevice: { displayName: 'Phone', platformHint: 'Android' }
+  }));
+  const current = service({ leaveRows, userRows, attendanceDeviceRows, queryLog });
+
+  for (const [type, requestId] of Object.entries(targetIds)) {
+    const exact = await current.getItem({ actor: ACTOR, type, requestId });
+    assert.equal(exact.data.length, 1, `${type} target must not be lost beyond list window`);
+    assert.equal(exact.summary.total, 1, `${type} exact read must not include other approval types`);
+    assert.equal(exact.summary.byType[type], 1, `${type} exact read must count only its target type`);
+    assert.equal(exact.data[0].type, type);
+    assert.equal(exact.data[0].requestId, requestId);
+    assert.deepEqual(exact.data.map((item) => `${item.type}:${item.requestId}`), [`${type}:${requestId}`]);
+    const scopedQueries = queryLog.filter((query) => query.label === type);
+    assert.ok(scopedQueries.some((query) => query.where.id === requestId), `${type} must be scoped by requestId in DB query`);
+  }
 });
 
 test('leave self and non-retroactive Supervisor position denial return not-found', async () => {
