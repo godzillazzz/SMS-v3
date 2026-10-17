@@ -1,5 +1,7 @@
 # MASTER HANDOFF
 
+> **BRANCH LINEAGES (บังคับ ตั้งแต่ 17 ต.ค. 2569):** แอป + Production release = `fix/serverless-database-reliability` (integration) · UAT/verification harness = `main` · **ห้าม merge `main`→integration ทั้งก้อน** · **ห้ามปล่อย Production จาก `main`** · รายละเอียด + วิธี audit รายไตรมาส: [`docs/BRANCH_LINEAGES.md`](docs/BRANCH_LINEAGES.md)
+
 ## ACTIVE — TOKYO REGION RELEASE & OWNER-MEASURED T18/T24 LATENCY — 17 October 2026 (Asia/Bangkok)
 
 **Latest live release (verified read-only):** Production canonical `https://sms-v3-staging-ten.vercel.app` is READY on Vercel deployment `dpl_7muKnT92uy5AWo8QxqxPakyPHWL9`, application SHA `a0250b8b0ca8072104a4d3593012220c4fe2fb84`; governed [Production release workflow #39039639039](https://github.com/godzillazzz/SMS-v3/actions/runs/39039639039) completed SUCCESS with both prepare and approve jobs successful. Owner reported workflow verdicts `CANONICAL_PRODUCTION_RUNTIME_VERIFY=PASS`, `CORS_VERIFY=PASS`, and `ROLLBACK_CHECKPOINT_CURRENT=PASS`. Rollback checkpoint before this release: `dpl_9CxiMbXdmBqp6LJG8YHKcVXgL1JN` (source `f30bc45915acb8c87a94d2d8a2d0e90a86d6f16e`). Current application `vercel.json` pins API function to `regions:["hnd1"]` (Tokyo); Supabase Production-side project `jkexwnlxnxbemwavsebv` is provider region `ap-northeast-1` (Tokyo). Fresh read-only canonical `/api/v1/health` and `/api/v1/ready` returned HTTP 200 with `database=ok`.
