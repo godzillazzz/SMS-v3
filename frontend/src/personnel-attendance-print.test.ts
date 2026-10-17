@@ -22,7 +22,16 @@ describe('attendance print shortcut contracts', () => {
     expect(table).toContain('type="button"');
     expect(table).toContain('aria-label={`พิมพ์ใบลงเวลาของ ${employee.firstName} ${employee.lastName}`}');
     expect(table).toContain('data-row-primary-action');
+    expect(table).toContain('onKeyDown={(event) => { if (event.key === \'Enter\' || event.key === \' \')');
+    expect(table).toContain('data-personnel-id={employee.id}');
+    expect(table).toMatch(/rows\.map\(\(employee\).*onPrintAttendance\?\.\(employee\)/s);
     expect(main).toContain("setAttendanceReportEmployeeId(employee.id); setActivePage('attendanceReport')");
+  });
+
+  it('forwards each distinct row employee id rather than a shared selection', () => {
+    expect(table).toMatch(/rows\.map\(\(employee\).*data-personnel-id=\{employee\.id\}.*onPrintAttendance\?\.\(employee\)/s);
+    expect(main).toContain("setAttendanceReportEmployeeId(employee.id)");
+    expect(main).toContain("setActivePage('attendanceReport')");
   });
 
   it('preselects an existing report employee and safely ignores an absent employee', () => {
@@ -30,5 +39,12 @@ describe('attendance print shortcut contracts', () => {
     expect(report).toContain('setSelectedEmployeeId(initialEmployeeId)');
     expect(report).toContain('const selectedPage = visibleEmployeePages.find((rows) => rows[0]?.employeeId === selectedEmployeeId) || visibleEmployeePages[0];');
     expect(report).toContain('initialEmployeeId?: string');
+    expect(report).toContain('if (!report || !pagesToPrint.length) return;');
+  });
+
+  it('keeps the print control natively keyboard accessible', () => {
+    expect(table).toContain('type="button"');
+    expect(table).toContain('aria-label={`พิมพ์ใบลงเวลาของ ${employee.firstName} ${employee.lastName}`}');
+    expect(table).toContain('onClick={() => onPrintAttendance?.(employee)}');
   });
 });
