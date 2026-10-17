@@ -14,6 +14,7 @@ if (process.env.RUN_INTEGRATION_TESTS !== 'true') {
 
   const adminId = '90000000-0000-4000-8000-000000000001';
   const managerId = '90000000-0000-4000-8000-000000000002';
+  const supervisorId = '90000000-0000-4000-8000-000000000004';
   const empId = '90000000-0000-4000-8000-000000000003';
   const monthStr = '2026-08';
   const monthDate = new Date(Date.UTC(2026, 7, 1));
@@ -32,7 +33,8 @@ if (process.env.RUN_INTEGRATION_TESTS !== 'true') {
     await prisma.user.createMany({
       data: [
         { id: adminId, email: 'hotfix-admin@test.local', passwordHash: 'hash', displayName: 'Hotfix Admin', role: 'ADMIN', isActive: true },
-        { id: managerId, email: 'hotfix-manager@test.local', passwordHash: 'hash', displayName: 'Hotfix Manager', role: 'MANAGER', isActive: true }
+        { id: managerId, email: 'hotfix-manager@test.local', passwordHash: 'hash', displayName: 'Hotfix Manager', role: 'MANAGER', isActive: true },
+        { id: supervisorId, email: 'hotfix-supervisor@test.local', passwordHash: 'hash', displayName: 'Hotfix Supervisor', role: 'SUPERVISOR', isActive: true }
       ]
     });
     await prisma.employee.create({
@@ -53,15 +55,16 @@ if (process.env.RUN_INTEGRATION_TESTS !== 'true') {
     await prisma.scheduleApproval.deleteMany({ where: { month: monthDate } });
     await prisma.employee.deleteMany({ where: { id: empId } });
     await prisma.shiftType.deleteMany({ where: { id: { in: [dTypeId, alTypeId, nTypeId] } } });
-    await prisma.refreshSession.deleteMany({ where: { userId: { in: [adminId, managerId] } } });
-    await prisma.auditLog.deleteMany({ where: { actorUserId: { in: [adminId, managerId] } } });
-    await prisma.user.deleteMany({ where: { id: { in: [adminId, managerId] } } });
+    await prisma.refreshSession.deleteMany({ where: { userId: { in: [adminId, managerId, supervisorId] } } });
+    await prisma.auditLog.deleteMany({ where: { actorUserId: { in: [adminId, managerId, supervisorId] } } });
+    await prisma.user.deleteMany({ where: { id: { in: [adminId, managerId, supervisorId] } } });
   }
 
   test('Bug 1 — Integration: Schedule Approval & Revision Workflow with DB', async () => {
     await setupFixtures();
     const adminToken = await tokenFor(adminId);
     const managerToken = await tokenFor(managerId);
+    const supervisorToken = await tokenFor(supervisorId);
 
     try {
       const dType = await prisma.shiftType.findFirstOrThrow({ where: { code: 'D' } });
@@ -84,11 +87,11 @@ if (process.env.RUN_INTEGRATION_TESTS !== 'true') {
       assert.equal(appr.status, 'PENDING');
       assert.equal(appr.revision, 1);
 
-      // 2. Manager attempts approval -> 403 Forbidden
+      // 2. Supervisor attempts approval -> 403 Forbidden
       const mgrApprove = await request(app)
         .post('/api/v1/schedule/approve-month')
-        .set('Authorization', `Bearer ${managerToken}`)
-        .send({ month: monthStr, note: 'Manager approve' });
+        .set('Authorization', `Bearer ${supervisorToken}`)
+        .send({ month: monthStr, note: 'Supervisor approve' });
       assert.equal(mgrApprove.status, 403);
 
       // 3. Admin approves pending schedule -> 200 OK, revision becomes 2

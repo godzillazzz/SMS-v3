@@ -490,7 +490,7 @@ async function updateScheduleApprovalState(tx, { workDate, month, actorUserId, i
 }
 
 async function approveMonthlySchedule(tx, { month, approvalNote, actorUser }) {
-  if (!['ADMIN', 'SUPERVISOR'].includes(actorUser.role)) {
+  if (!['ADMIN', 'MANAGER'].includes(actorUser.role)) {
     await audit.log({
       actorUserId: actorUser.sub,
       action: 'REJECTED',

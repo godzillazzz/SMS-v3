@@ -93,7 +93,7 @@ router.post('/auto-plan', authorize('ADMIN', 'MANAGER', 'SUPERVISOR'), async (re
   }
 });
 
-router.post('/approve', authorize('ADMIN', 'SUPERVISOR'), async (req, res, next) => {
+router.post('/approve', authorize('ADMIN', 'MANAGER'), async (req, res, next) => {
   try {
     const { month, note } = approveSchema.parse(req.body);
     const result = await scheduleService.approveMonth(month, note, req.user);

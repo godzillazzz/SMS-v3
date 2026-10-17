@@ -14,18 +14,31 @@ const shifts = read('src/routes/shifts.routes.js');
 const scheduleService = read('src/services/schedule.service.js');
 const shiftService = read('src/services/shift.service.js');
 const attendanceSupervisorService = read('src/services/attendance-supervisor.service.js');
+const { authorize } = require('../src/middlewares/authenticate');
 
-test('monthly schedule approval routes allow Admin or Supervisor while preserving Manager denial', () => {
-  assert.match(schedules, /router\.post\('\/approve', authorize\('ADMIN', 'SUPERVISOR'\),/);
+async function authorizationResult(roles, role) {
+  return new Promise((resolve) => authorize(...roles)({ user: { role } }, {}, (error) => resolve(error || null)));
+}
+
+test('monthly schedule approval routes allow Admin or Manager while preserving Supervisor denial', () => {
+  assert.match(schedules, /router\.post\('\/approve', authorize\('ADMIN', 'MANAGER'\),/);
   assert.match(schedules, /approveMonth\(month, note, req\.user\)/);
   assert.doesNotMatch(schedules, /req\.body[^\n]*role/);
-  assert.match(operations, /router\.post\('\/schedule\/approve-month', authorize\('ADMIN', 'SUPERVISOR'\),/);
-  assert.match(operations, /router\.put\('\/schedule-approvals\/:id', authorize\('ADMIN', 'SUPERVISOR'\),/);
+  assert.match(operations, /router\.post\('\/schedule\/approve-month', authorize\('ADMIN', 'MANAGER'\),/);
+  assert.match(operations, /router\.put\('\/schedule-approvals\/:id', authorize\('ADMIN', 'MANAGER'\),/);
   assert.match(operations, /actorUser: req\.user/);
-  assert.match(operations, /req\.user\.role === 'SUPERVISOR' && input\.status !== 'APPROVED'/);
-  assert.match(scheduleService, /\['ADMIN', 'SUPERVISOR'\]\.includes\(actorUser\.role\)/);
+  assert.match(operations, /req\.user\.role === 'MANAGER' && !\['APPROVED', 'REJECTED'\]\.includes\(input\.status\)/);
+  assert.match(scheduleService, /\['ADMIN', 'MANAGER'\]\.includes\(actorUser\.role\)/);
   assert.doesNotMatch(scheduleService, /actorUser: \{ sub: actorUserId, role: 'ADMIN' \}/);
   assert.match(scheduleService, /async function approveMonth\(yearMonth, note, actorUser\)/);
+});
+
+test('schedule approval authorization is deny-by-default for Supervisor and Viewer', async () => {
+  const roles = ['ADMIN', 'MANAGER'];
+  assert.equal(await authorizationResult(roles, 'ADMIN'), null);
+  assert.equal(await authorizationResult(roles, 'MANAGER'), null);
+  assert.equal((await authorizationResult(roles, 'SUPERVISOR')).statusCode, 403);
+  assert.equal((await authorizationResult(roles, 'VIEWER')).statusCode, 403);
 });
 
 test('Shift Type writes are Admin-only on every mounted surface and use one audited service', () => {
@@ -52,13 +65,13 @@ test('approval service records the real non-Admin role on a denied direct call',
   await assert.rejects(
     () => approveMonthlySchedule(fakeTx, {
       month: new Date(Date.UTC(2026, 7, 1)),
-      actorUser: { sub: 'manager-1', role: 'MANAGER' }
+      actorUser: { sub: 'supervisor-1', role: 'SUPERVISOR' }
     }),
     (error) => error.statusCode === 403
   );
 
-  assert.equal(rejection.actorUserId, 'manager-1');
-  assert.equal(rejection.metadata.role, 'MANAGER');
+  assert.equal(rejection.actorUserId, 'supervisor-1');
+  assert.equal(rejection.metadata.role, 'SUPERVISOR');
   assert.equal(rejection.metadata.reason, 'UNAUTHORIZED_APPROVAL_ATTEMPT');
 });
 

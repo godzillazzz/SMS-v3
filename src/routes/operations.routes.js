@@ -749,7 +749,7 @@ router.post('/schedule/export.xlsx', async (req, res, next) => {
     res.send(workbook);
   } catch (error) { next(error); }
 });
-router.post('/schedule/approve-month', authorize('ADMIN', 'SUPERVISOR'), async (req, res, next) => {
+router.post('/schedule/approve-month', authorize('ADMIN', 'MANAGER'), async (req, res, next) => {
   try {
     const { month, approvalNote } = z.object({ month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/), approvalNote: nullableText(2000) }).parse(req.body);
     const [year, monthIndex] = month.split('-').map(Number);
@@ -842,11 +842,11 @@ router.get('/schedule-approvals', async (req, res, next) => {
     })) });
   } catch (error) { next(error); }
 });
-router.put('/schedule-approvals/:id', authorize('ADMIN', 'SUPERVISOR'), async (req, res, next) => {
+router.put('/schedule-approvals/:id', authorize('ADMIN', 'MANAGER'), async (req, res, next) => {
   try {
     const id = uuid.parse(req.params.id);
     const input = z.object({ status: z.enum(['DRAFT', 'PENDING', 'APPROVED', 'REJECTED']), approvalNote: nullableText(2000) }).parse(req.body);
-    if (req.user.role === 'SUPERVISOR' && input.status !== 'APPROVED') throw new HttpError(403, 'Managers may approve monthly schedules but may not set other approval states.', { code: 'SCHEDULE_SUPERVISOR_APPROVAL_ONLY' });
+    if (req.user.role === 'MANAGER' && !['APPROVED', 'REJECTED'].includes(input.status)) throw new HttpError(403, 'Managers may approve or reject monthly schedules but may not set other approval states.', { code: 'SCHEDULE_MANAGER_APPROVAL_ONLY' });
     if (input.status === 'REJECTED' && String(input.approvalNote || '').trim().length < 5) {
       throw new HttpError(400, 'กรุณาระบุเหตุผลการไม่อนุมัติอย่างน้อย 5 ตัวอักษร', { code: 'SCHEDULE_REJECTION_REASON_REQUIRED' });
     }

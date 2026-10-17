@@ -59,7 +59,7 @@ describe('Approval Center Command Nexus frontend contracts', () => {
     expect(main).not.toContain("{ id: 'approvals', icon: 'approval', label: 'อนุมัติตารางกะ' }");
     expect(main).not.toContain("approvals: ['ADMIN', 'SUPERVISOR']");
     expect(main).toContain("{ id: 'approvalCenter', icon: 'bell', label: 'ศูนย์อนุมัติ' }");
-    expect(main).toContain("schedule: ['ADMIN', 'SUPERVISOR']");
+    expect(main).toContain("schedule: ['ADMIN', 'MANAGER']");
     expect(main).toContain("{ id: 'leavePending', icon: 'approval', label: 'อนุมัติคำขอลา' }");
     expect(routing).toContain("if (page === 'approvals') return ['ADMIN', 'SUPERVISOR'].includes(auth.user?.role || '') && !auth.isViewingAs");
     expect(routing).toContain("if (page === 'leavePending') return ['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(auth.user?.role || '') && !auth.isViewingAs");

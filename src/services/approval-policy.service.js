@@ -12,7 +12,7 @@ const REQUEST_TYPE_DEFINITIONS = Object.freeze([
   Object.freeze({ type: 'EMPLOYEE_MASTER_CHANGE', label: 'แก้ไขข้อมูลพนักงาน', safeReviewerRoles: Object.freeze(['ADMIN']) }),
   Object.freeze({ type: 'EMPLOYEE_REFERENCE_PHOTO', label: 'รูปอ้างอิงพนักงาน', safeReviewerRoles: Object.freeze(['ADMIN']) }),
   Object.freeze({ type: 'LICENSE_DOCUMENT', label: 'เอกสารใบอนุญาต', safeReviewerRoles: Object.freeze(['ADMIN']) }),
-  Object.freeze({ type: 'SCHEDULE_APPROVAL', label: 'อนุมัติตารางกะ', safeReviewerRoles: Object.freeze(['ADMIN', 'SUPERVISOR']) }),
+  Object.freeze({ type: 'SCHEDULE_APPROVAL', label: 'อนุมัติตารางกะ', safeReviewerRoles: Object.freeze(['ADMIN', 'MANAGER']) }),
   Object.freeze({ type: 'ATTENDANCE_DEVICE_REQUEST', label: 'อุปกรณ์ลงเวลา', safeReviewerRoles: Object.freeze(['ADMIN']) }),
   Object.freeze({ type: 'ATTENDANCE_ADJUSTMENT_REQUEST', label: 'ปรับปรุงเวลา Attendance', safeReviewerRoles: Object.freeze(['ADMIN']) }),
   Object.freeze({ type: 'REGISTRATION_REQUEST', label: 'ลงทะเบียนบัญชี', safeReviewerRoles: Object.freeze(['ADMIN', 'MANAGER', 'SUPERVISOR']) }),

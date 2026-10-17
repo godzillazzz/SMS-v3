@@ -43,7 +43,7 @@ test('CFG-06 defines every current Approval Center request type with Admin prese
   assert.equal(ALL_SETTING_KEYS.length, 29);
 });
 
-test('CFG-06 Supervisor reviewer ceiling exactly inherits Manager reviewer ceiling', () => {
+test('CFG-06 schedule approval reviewer ceiling belongs to Manager, not Supervisor', () => {
   for (const definition of REQUEST_TYPE_DEFINITIONS) {
     if (definition.type === 'SCHEDULE_APPROVAL') continue;
     assert.equal(definition.safeReviewerRoles.includes('SUPERVISOR'), definition.safeReviewerRoles.includes('MANAGER'), definition.type);
@@ -54,9 +54,9 @@ test('CFG-06 Supervisor reviewer ceiling exactly inherits Manager reviewer ceili
   }
   const policy = normalizePolicyInput('USER_ACCESS', { reviewerRoles: ['ADMIN', 'MANAGER', 'SUPERVISOR'], dueSoonHours: 12, overdueHours: 36 });
   assert.deepEqual(policy.reviewerRoles, ['ADMIN', 'MANAGER', 'SUPERVISOR']);
-  assert.deepEqual(normalizePolicyInput('SCHEDULE_APPROVAL', { reviewerRoles: ['SUPERVISOR', 'ADMIN'], dueSoonHours: 12, overdueHours: 36 }).reviewerRoles, ['ADMIN', 'SUPERVISOR']);
+  assert.deepEqual(normalizePolicyInput('SCHEDULE_APPROVAL', { reviewerRoles: ['MANAGER', 'ADMIN'], dueSoonHours: 12, overdueHours: 36 }).reviewerRoles, ['ADMIN', 'MANAGER']);
   assert.throws(
-    () => normalizePolicyInput('SCHEDULE_APPROVAL', { reviewerRoles: ['ADMIN', 'MANAGER'], dueSoonHours: 12, overdueHours: 36 }),
+    () => normalizePolicyInput('SCHEDULE_APPROVAL', { reviewerRoles: ['ADMIN', 'SUPERVISOR'], dueSoonHours: 12, overdueHours: 36 }),
     (error) => error.details?.code === 'APPROVAL_POLICY_ROLE_EXCEEDS_SECURITY_CEILING'
   );
 });
@@ -121,7 +121,7 @@ test('CFG-06 uses safe defaults for an entirely unseeded schedule approval polic
   });
   const policies = await service.list();
   const schedulePolicy = policies.find((policy) => policy.requestType === 'SCHEDULE_APPROVAL');
-  assert.deepEqual(schedulePolicy.reviewerRoles, ['ADMIN', 'SUPERVISOR']);
+  assert.deepEqual(schedulePolicy.reviewerRoles, ['ADMIN', 'MANAGER']);
   assert.equal(schedulePolicy.dueSoonHours, 24);
   assert.equal(policySettingDefinitions().filter((row) => row.key.startsWith(scheduleKeyPrefix)).length, 3);
 

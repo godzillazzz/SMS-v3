@@ -98,7 +98,7 @@ describe('ApprovalCenterPage unified approval inbox', () => {
         total: 9,
         byType: {
           LEAVE_REQUEST: 5,
-          SCHEDULE_APPROVAL: role === 'MANAGER' ? 0 : 4,
+          SCHEDULE_APPROVAL: 4,
           REGISTRATION_REQUEST: 0,
           USER_ACCESS: 0,
           EMPLOYEE_MASTER_CHANGE: 0,
@@ -114,11 +114,7 @@ describe('ApprovalCenterPage unified approval inbox', () => {
 
     expect(await screen.findByRole('button', { name: 'ทั้งหมด 9' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'คำขอลา 5' })).toBeTruthy();
-    if (role === 'MANAGER') {
-      expect(screen.queryByRole('button', { name: 'อนุมัติตารางกะ 0' })).toBeNull();
-    } else {
-      expect(screen.getByRole('button', { name: 'อนุมัติตารางกะ 4' })).toBeTruthy();
-    }
+    expect(screen.getByRole('button', { name: 'อนุมัติตารางกะ 4' })).toBeTruthy();
     expect(screen.queryByRole('button', { name: /เอกสารใบอนุญาต/ })).toBeNull();
     expect(await screen.findByText('2 จาก 9 รายการ')).toBeTruthy();
     expect(screen.queryByText(/Event Stream|LIVE SECURITY AUDIT|บันทึกเหตุการณ์สด/)).toBeNull();
