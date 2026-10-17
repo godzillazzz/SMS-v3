@@ -160,7 +160,7 @@ describe('ApprovalCenterPage unified approval inbox', () => {
     expect(screen.queryByText('INITIAL')).toBeNull();
   });
 
-  it('filters by type, shows schedule details, and uses the existing approval API', async () => {
+  it('routes schedule interaction without ever mutating schedule approval state', async () => {
     mocks.getApprovalCenterSummary.mockResolvedValue({ summary: { total: 2, byType: { LEAVE_REQUEST: 1, SCHEDULE_APPROVAL: 1 } } });
     const { onNavigate } = renderPage('ADMIN');
 
@@ -172,5 +172,6 @@ describe('ApprovalCenterPage unified approval inbox', () => {
     await waitFor(() => expect(onNavigate).toHaveBeenCalled());
     expect(onNavigate.mock.calls[0][0].type).toBe('SCHEDULE_APPROVAL');
     expect(screen.queryByRole('button', { name: 'อนุมัติทันที' })).toBeNull();
+    expect(mocks.updateScheduleApproval).not.toHaveBeenCalled();
   });
 });

@@ -289,6 +289,11 @@ export function ApprovalCenterPage({
       return;
     }
 
+    if (item.type === 'SCHEDULE_APPROVAL') {
+      onNavigate(item);
+      return;
+    }
+
     if (item.type === 'LEAVE_REQUEST') {
       if (Boolean(currentEmployeeId) && item.employee?.id === currentEmployeeId) {
         setError('ไม่สามารถอนุมัติหรือปฏิเสธใบลาของตนเองได้');
@@ -324,11 +329,6 @@ export function ApprovalCenterPage({
         } else {
           await api.updateUser(token, item.requestId, { accountStatus: 'REJECTED', isActive: false });
         }
-      } else if (item.type === 'SCHEDULE_APPROVAL') {
-        await api.updateScheduleApproval(token, item.requestId, {
-          status: action === 'approve' ? 'APPROVED' : 'REJECTED',
-          approvalNote: reason || undefined
-        });
       } else {
         onNavigate(item);
         return;
