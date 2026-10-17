@@ -169,11 +169,8 @@ describe('ApprovalCenterPage unified approval inbox', () => {
     expect(screen.getAllByText('ตารางกะ ตุลาคม 2569 ฉบับที่ 4').length).toBeGreaterThan(0);
 
     fireEvent.click(screen.getAllByRole('button', { name: 'ดูรายละเอียดตารางกะ' })[0]);
-    expect(await screen.findByRole('heading', { name: 'รายละเอียดตารางกะ' })).toBeTruthy();
-    expect(screen.getAllByText('ผู้ส่งตารางตัวอย่าง').length).toBeGreaterThan(0);
-    expect(onNavigate).not.toHaveBeenCalled();
-
-    fireEvent.click(screen.getAllByRole('button', { name: 'อนุมัติทันที' })[0]);
-    await waitFor(() => expect(mocks.updateScheduleApproval).toHaveBeenCalledWith('test-token', 'approval-1', { status: 'APPROVED', approvalNote: undefined }));
+    await waitFor(() => expect(onNavigate).toHaveBeenCalled());
+    expect(onNavigate.mock.calls[0][0].type).toBe('SCHEDULE_APPROVAL');
+    expect(screen.queryByRole('button', { name: 'อนุมัติทันที' })).toBeNull();
   });
 });

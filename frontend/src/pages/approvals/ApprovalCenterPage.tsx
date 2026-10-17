@@ -22,7 +22,7 @@ type ApprovalType =
   | 'REGISTRATION_REQUEST'
   | 'USER_ACCESS'
   | 'LEAVE_REQUEST';
-type ApprovalSourcePage = 'employees' | 'licenses' | 'approvals' | 'attendanceDevice' | 'attendanceSupervisor' | 'users' | 'leavePending';
+type ApprovalSourcePage = 'employees' | 'licenses' | 'schedule' | 'approvals' | 'attendanceDevice' | 'attendanceSupervisor' | 'users' | 'leavePending';
 type CategoryFilter = 'ALL' | ApprovalType;
 type UrgencyFilter = 'ALL' | 'URGENT' | 'STANDARD';
 
@@ -388,7 +388,7 @@ export function ApprovalCenterPage({
       && item.employee?.id === currentEmployeeId;
 
     if (item.type === 'EMPLOYEE_MASTER_CHANGE') return null;
-    if (item.type === 'SCHEDULE_APPROVAL' && !['ADMIN', 'SUPERVISOR'].includes(role)) return null;
+    if (item.type === 'SCHEDULE_APPROVAL') return null;
 
     if (selfLeave) {
     return <span className="approval-self-leave">
@@ -397,36 +397,29 @@ export function ApprovalCenterPage({
     }
 
     return <div className={`approval-action-buttons${mobile ? ' approval-action-buttons--mobile' : ''}`}>
-      {!(item.type === 'SCHEDULE_APPROVAL' && role === 'SUPERVISOR') && <button
+      <button
         type="button"
         disabled={busy}
         onClick={() => requestReject(item)}
         className="approval-action-button approval-action-button--reject"
       >
         {busy && busyAction?.action === 'reject' ? 'กำลังปฏิเสธ…' : 'ปฏิเสธ'}
-      </button>}
-      {!(item.type === 'SCHEDULE_APPROVAL' && role === 'SUPERVISOR') && <button
+      </button>
+      <button
         type="button"
         disabled={busy}
         onClick={() => void executeDirectDecision(item, 'approve')}
         className="approval-action-button approval-action-button--approve"
       >
         {busy && busyAction?.action === 'approve' ? 'กำลังอนุมัติ…' : 'อนุมัติทันที'}
-      </button>}
+      </button>
       {item.type === 'LEAVE_REQUEST' && <button
         type="button"
         disabled={busy}
         onClick={() => onLeaveDecision(item, 'return')}
         className="approval-action-button approval-action-button--return"
       >ส่งกลับไปแก้ไข</button>}
-      {item.type === 'SCHEDULE_APPROVAL' && role === 'SUPERVISOR' && <button
-        type="button"
-        disabled={busy}
-        onClick={() => void executeDirectDecision(item, 'approve')}
-        className="approval-action-button approval-action-button--approve"
-      >
-        {busy && busyAction?.action === 'approve' ? 'กำลังอนุมัติ…' : 'อนุมัติ'}
-      </button>}
+
     </div>;
   };
 
@@ -451,7 +444,7 @@ export function ApprovalCenterPage({
         return;
       }
       if (detail.type === 'SCHEDULE_APPROVAL') {
-        setSelectedId(detail.id || item.id);
+        onNavigate(detail);
         return;
       }
       onNavigate(detail);
@@ -701,8 +694,7 @@ export function ApprovalCenterPage({
           <div><dt>ผลตรวจกฎ</dt><dd>{text(meta(selected, 'ruleCheckSummary') || meta(selected, 'changeType'))}</dd></div>
           <div><dt>ความเห็น</dt><dd>{text(meta(selected, 'approvalNote') || meta(selected, 'comment'))}</dd></div>
         </dl>
-        <button type="button" className="btn-neutral small-action" onClick={() => onNavigate(selected)}>เปิดในหน้ารายการอนุมัติตารางกะ</button>
-        <div className="approval-schedule-detail__actions">{renderActionButtons(selected)}</div>
+        <button type="button" className="btn-neutral small-action" onClick={() => onNavigate(selected)}>เปิดในหน้าตารางกะรายเดือน</button>
       </aside>}
 
       <div className="approval-center-live-region" aria-live="polite">

@@ -660,7 +660,7 @@ function createApprovalCenterService({
         type: 'SCHEDULE_APPROVAL',
         title: `ตารางกะ ${monthLabel} ฉบับที่ ${row.revision}`,
         status: row.status,
-        sourcePage: 'approvals',
+        sourcePage: 'schedule',
         requestedBy: approvalIdentity(row.changedByLegacyRef, scheduleApprovalActors) || { id: null, displayName: null, role: null },
         submittedAt: row.changedAt || row.createdAt,
         revision: row.revision,

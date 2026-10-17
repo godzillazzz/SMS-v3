@@ -22,7 +22,8 @@ const APPROVAL_MENU_TYPES: Readonly<Record<string, readonly ApprovalCountType[]>
   attendanceDevice: ['ATTENDANCE_DEVICE_REQUEST'],
   attendanceSupervisor: ['ATTENDANCE_ADJUSTMENT_REQUEST'],
   users: ['REGISTRATION_REQUEST', 'USER_ACCESS'],
-  leavePending: ['LEAVE_REQUEST']
+  leavePending: ['LEAVE_REQUEST'],
+  schedule: ['SCHEDULE_APPROVAL']
 });
 
 export function approvalCountValue(value: unknown): number | null {
