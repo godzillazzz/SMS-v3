@@ -226,7 +226,7 @@ test('R7.1 hotfix manifest preserves exact target, current Production rollback, 
   assert.equal(d.preview_github_commit_sha, v.commitSha);
   assert.equal(d.preview_deployment_id, null);
   assert.equal(d.preview_state, 'NOT_VERIFIED_PRE_DISPATCH');
-  assert.equal(d.application_exact_sha_ci_run_id, 38989143057);
+  assert.equal(d.application_exact_sha_ci_run_id, 38990006979);
   assert.equal(d.application_exact_sha_ci_status, 'SUCCESS');
   assert.equal(d.production_dispatch_authorized, false);
   assert.equal(d.production_release_go_no_go, 'OWNER_PRODUCTION_DECISION_REQUIRED_NO_DISPATCH_AUTHORIZED');
