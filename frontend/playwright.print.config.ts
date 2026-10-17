@@ -26,7 +26,7 @@ export default defineConfig({
     screenshot: 'only-on-failure'
   },
   webServer: {
-    command: 'VITE_ATTENDANCE_GOVERNANCE_REPORT_ENABLED=true npm run dev -- --host 127.0.0.1 --port 4179 --strictPort',
+    command: 'npm run dev -- --host 127.0.0.1 --port 4179 --strictPort',
     cwd: frontendDirectory,
     url: 'http://127.0.0.1:4179/e2e/print/fixture.html',
     reuseExistingServer: !process.env.CI,
