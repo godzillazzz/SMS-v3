@@ -207,12 +207,39 @@ test('table-driven exact item supports every production approval type', async (t
   }
 });
 
-test('old schedule revision is not eligible and returns the uniform not-found error', async () => {
+test('old schedule revision is not eligible and returns the uniform zero envelope (A2-TEST-007 canonical UUIDs)', async () => {
+  const OLD_ID = '11111111-1111-4111-8111-111111111111';
+  const LATEST_ID = '22222222-2222-4222-8222-222222222222';
   const current = service({ scheduleRows: [
-    { id: 'old-schedule', month: new Date('2026-08-01Z'), revision: 1, status: 'PENDING', changedAt: NOW },
-    { id: 'latest-schedule', month: new Date('2026-08-01Z'), revision: 2, status: 'PENDING', changedAt: NOW }
+    { id: OLD_ID, month: new Date('2026-08-01Z'), revision: 1, status: 'PENDING', changedAt: NOW },
+    { id: LATEST_ID, month: new Date('2026-08-01Z'), revision: 2, status: 'PENDING', changedAt: NOW }
   ] });
-  assert.deepStrictEqual((await current.getItem({ actor: ACTOR, type: 'SCHEDULE_APPROVAL', requestId: 'old-schedule' })).data, []);
+  assert.deepStrictEqual((await current.getItem({ actor: ACTOR, type: 'SCHEDULE_APPROVAL', requestId: OLD_ID })).data, []);
+  const latest = await current.getItem({ actor: ACTOR, type: 'SCHEDULE_APPROVAL', requestId: LATEST_ID });
+  assert.equal(latest.data.length, 1);
+  assert.equal(latest.data[0].requestId, LATEST_ID);
+});
+
+test('exact item query isolates the target when multiple records of the same type exist (A2-MUTATION-006)', async () => {
+  const ID_A = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1';
+  const ID_B = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2';
+  const ID_MISSING = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa9';
+
+  const leaveA = { id: ID_A, employeeId: 'e-1', status: 'PENDING', requestedAt: NOW, createdAt: NOW, leaveType: 'SICK', startDate: NOW, endDate: NOW, dayCount: 1, employeeNameSnapshot: 'E1', departmentSnapshot: 'PN', employee: employee('e-1', 'E1'), createdByUser: null };
+  const leaveB = { id: ID_B, employeeId: 'e-2', status: 'PENDING', requestedAt: NOW, createdAt: NOW, leaveType: 'ANNUAL', startDate: NOW, endDate: NOW, dayCount: 2, employeeNameSnapshot: 'E2', departmentSnapshot: 'PN', employee: employee('e-2', 'E2'), createdByUser: null };
+
+  const current = service({ leaveRows: [leaveA, leaveB] });
+
+  const resultA = await current.getItem({ actor: ACTOR, type: 'LEAVE_REQUEST', requestId: ID_A });
+  assert.equal(resultA.data.length, 1);
+  assert.equal(resultA.data[0].requestId, ID_A);
+
+  const resultB = await current.getItem({ actor: ACTOR, type: 'LEAVE_REQUEST', requestId: ID_B });
+  assert.equal(resultB.data.length, 1);
+  assert.equal(resultB.data[0].requestId, ID_B);
+
+  const resultMissing = await current.getItem({ actor: ACTOR, type: 'LEAVE_REQUEST', requestId: ID_MISSING });
+  assert.deepStrictEqual(resultMissing.data, []);
 });
 
 test('leave self and non-retroactive Supervisor position denial return not-found', async () => {
