@@ -30,6 +30,44 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  t22-schedule-benchmark:
+    name: t22-schedule-benchmark
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: ci_user
+          POSTGRES_PASSWORD: ci_test_only
+          POSTGRES_DB: sms_v3_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ci_user -d sms_v3_test"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    env:
+      NODE_ENV: test
+      DATABASE_URL: postgresql://ci_user:ci_test_only@127.0.0.1:5432/sms_v3_test?schema=public
+      DIRECT_URL: postgresql://ci_user:ci_test_only@127.0.0.1:5432/sms_v3_test?schema=public
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx prisma migrate deploy
+      - name: Run T22 schedule benchmark
+        run: node scripts/perf/t22-schedule-bench.js
+      - name: Upload T22 benchmark artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: t22-schedule-benchmark
+          path: t22-schedule-benchmark-result.json
+          if-no-files-found: error
+
   validate:
     runs-on: ubuntu-latest
     timeout-minutes: 30
