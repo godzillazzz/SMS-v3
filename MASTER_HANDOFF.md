@@ -1,5 +1,13 @@
 # MASTER HANDOFF
 
+## ACTIVE — OWNER-REQUESTED ROSTER ICON RESTORATION — 17 October 2026 (Asia/Bangkok)
+
+**Owner directive:** Restore the seven pre-T30b monthly roster visual symbols exactly as approved, without modifying schedule business rules, API, database, role mappings or deployment state. Source of truth is the prior roster interface on Integration before `fd3556ad` (10 Oct 2026): individual magic-wand button 🪄, individual wizard title 🪄, bulk preview action ✨, bulk preview modal title 🪄, apply-preview action 🪄, locked shift 🔒, override shift ⚡. The competing generic settings/shield symbols are not Owner-approved.
+
+**Development status:** Implemented exactly seven source-string substitutions in `frontend/src/main.tsx` on isolated PR branch `fix/restore-owner-roster-icons-20261017` (base Integration `c16e0a7451e215e09896492b0be51e8571afc867`, code commit `5989ae84c75d093e1cb6927d7bec8e8dcba47387`); added regression guard `frontend/src/roster-owner-icon-contract.test.ts` (test commit `5190e93449536788e8de8d913f89a81673495c56`). Exact reverse-substitution check reconstructs base source byte-for-byte: **PASS**; code, tests, build, browser UAT, CI and Preview runtime are **NOT YET VERIFIED** until run. No production deploy/DB writes/role changes. **Do not merge/promote without normal CI, Preview and Owner review gates.**
+
+**Separate authorization clarification (not part of this icon-only change):** Owner stated `MANAGER` means ผู้จัดการ and `SUPERVISOR` means หัวหน้างาน; intended schedule approval right is for ผู้จัดการ, not หัวหน้างาน. Existing schedule-approval backend `ADMIN/SUPERVISOR` authorization conflicts with that Owner instruction and must be reconciled under a distinct review/authorized security work item; do **not** change RBAC as a side effect of UI icon restoration.
+
 ## ACTIVE — OWNER CLARIFICATION & P0/P1/P2 + T-SERIES OPEN-WORK REGISTER — 17 October 2026 (Asia/Bangkok)
 
 **Decision ID:** `SMSV3-OWNER-20261017-SCHEDULE-NATIVE-APPROVAL-BADGE`. **This is the newest Owner authority for schedule-approval UX** and supersedes the earlier 16 October directive to *approve schedules at the Approval Center*, plus any older Issue #551 proposed mapping to a standalone `อนุมัติตารางกะ` sidebar entry. Owner reconfirmed that MANAGER/SUPERVISOR Approval Center visibility is normal; that particular visibility complaint is **CLOSED** (no role permission changes requested).
