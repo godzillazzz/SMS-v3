@@ -211,9 +211,9 @@ test('R7.1 hotfix manifest preserves exact target, current Production rollback, 
   const d = JSON.parse(fs.readFileSync('.github/releases/approved-production.json', 'utf8'));
   const v = validateReleaseManifest(d);
   assert.equal(d.release_batch_id, 'R7.1');
-  assert.equal(v.releaseId, 'sms-v3-prod-ee500d0-20261017');
-  assert.equal(v.commitSha, 'ee500d0190c063e8ac73e6123a9c66650ba45f86');
-  assert.equal(v.treeSha, 'cb7a76e5bc39488461b19691688e66fa60db7a16');
+  assert.equal(v.releaseId, 'sms-v3-prod-b757f37-20261017');
+  assert.equal(v.commitSha, 'b757f3764966c9a42dbcab53b6c9cd51b2beadf3');
+  assert.equal(v.treeSha, '1bbead76e8ec30ec5068b25124d3159e48cc6c22');
   assert.equal(v.currentProductionSourceSha, '2e43619957ff4f1fb9bc88da5597a8e68e3eacee');
   assert.equal(v.rollbackDeploymentId, 'dpl_GWCVv4MvfKvsm6zS8pmEswwCwiim');
   assert.equal(v.runMigrations, false);
