@@ -102,7 +102,11 @@ async function main() {
       employeeId: employee.id,
       shiftTypeId: shiftType.id,
       workDate: dateFor(month, index),
-      remark: `${PREFIX}${month}`
+      remark: `${PREFIX}${month}`,
+      // Synthetic Admin override keeps the realistic operational path
+      // (rules/conflict/audit work) runnable without seeding licence documents.
+      licenseOverride: true,
+      overrideReason: 'T22 benchmark synthetic admin override'
     }));
     const rounds = [];
     for (const month of MONTHS) {
