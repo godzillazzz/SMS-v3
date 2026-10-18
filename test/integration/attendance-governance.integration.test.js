@@ -137,6 +137,9 @@ if (!configured) {
   });
 
   test('only explicit ADMIN-approved adjustment requests affect monthly governance and certification', async () => {
+    // OWNER policy (18 Oct 2026): SUPERVISOR/MANAGER/ADMIN are cross-department executives, so
+    // the former cross-department rejection no longer applies. The operative control for this
+    // fixed 2099-02-10 shift (service clock = 2099-03-05) is the 7-day backdate window.
     await assert.rejects(
       () => adjustments.createDraft({
         actor: { sub: crypto.randomUUID(), role: 'MANAGER', department: 'OTHER-DEPARTMENT' },
@@ -146,9 +149,9 @@ if (!configured) {
           checkInAt: '2099-02-10T00:00:00.000Z',
           checkOutAt: '2099-02-10T12:00:00.000Z'
         },
-        reason: 'Cross department must fail'
+        reason: 'Backdated request must fail outside the seven day window'
       }),
-      (error) => error.details?.code === 'ATTENDANCE_ADJUSTMENT_SCOPE_FORBIDDEN'
+      (error) => error.details?.code === 'ATTENDANCE_ADJUSTMENT_BACKDATE_FORBIDDEN'
     );
 
     const draft = await adjustments.createDraft({
