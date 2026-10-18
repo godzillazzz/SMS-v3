@@ -4,11 +4,47 @@ import { SmsIcon } from '../../components/SmsIcon';
 import { activateTabFromKeyboard } from '../../components/AccessibleTabs';
 import { bangkokDateInput, formatThaiDate, formatThaiDateTime } from '../../thai-date-time';
 import { attendanceSelfHistory, type AttendanceSelfHistoryData, type AttendanceSelfRow } from '../attendance/attendance-client';
+import {
+  createAttendanceAdjustment,
+  listAttendanceAdjustments,
+  submitAttendanceAdjustment
+} from '../attendance-supervisor/attendance-adjustment-client';
 import './employee-attendance-v4.css';
 
 type Props = { token: string; online: boolean };
 
 type RangeKey = 'today' | 'week' | 'month';
+
+const SELF_CONFIRM_WINDOW_DAYS = 7;
+
+function bangkokToday() {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Bangkok', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+}
+
+function dayDiff(fromDate: string, toDate: string) {
+  const from = Date.parse(`${fromDate}T00:00:00Z`);
+  const to = Date.parse(`${toDate}T00:00:00Z`);
+  if (Number.isNaN(from) || Number.isNaN(to)) return Number.POSITIVE_INFINITY;
+  return Math.round((to - from) / 86_400_000);
+}
+
+function bangkokTimeInput(value?: string | null) {
+  if (!value) return '';
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return '';
+  return new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Asia/Bangkok',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23'
+  }).format(parsed);
+}
+
+function bangkokDateTimeToIso(date: string, hhmm: string) {
+  if (!/^\d{2}:\d{2}$/.test(hhmm)) return null;
+  const parsed = new Date(`${date}T${hhmm}:00+07:00`);
+  return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
+}
 
 function bangkokDateText(value = new Date()) {
   return bangkokDateInput(value);
@@ -79,8 +115,31 @@ export function AttendanceHistoryPwaPage({ token, online }: Props) {
   const [data, setData] = useState<AttendanceSelfHistoryData>();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>();
+  const [requestsByAssignment, setRequestsByAssignment] = useState<Record<string, { id: string; status: string }>>({});
+  const [confirmRow, setConfirmRow] = useState<AttendanceSelfRow>();
+  const [confirmCheckIn, setConfirmCheckIn] = useState('');
+  const [confirmCheckOut, setConfirmCheckOut] = useState('');
+  const [confirmReason, setConfirmReason] = useState('');
+  const [confirmBusy, setConfirmBusy] = useState(false);
+  const [confirmError, setConfirmError] = useState<string>();
+  const [confirmNotice, setConfirmNotice] = useState<string>();
 
   const selected = useMemo(() => ranges(range), [range]);
+
+  const loadRequests = () => {
+    if (!online) return;
+    listAttendanceAdjustments(token, { pageSize: 100 })
+      .then((result: unknown) => {
+        const rows = Array.isArray((result as { data?: unknown[] })?.data) ? (result as { data: Array<Record<string, unknown>> }).data : [];
+        const map: Record<string, { id: string; status: string }> = {};
+        for (const row of rows) {
+          const assignmentId = String(row.shiftAssignmentId || '');
+          if (assignmentId) map[assignmentId] = { id: String(row.id), status: String(row.status) };
+        }
+        setRequestsByAssignment(map);
+      })
+      .catch(() => setRequestsByAssignment({}));
+  };
 
   useEffect(() => {
     if (!online) return;
@@ -93,6 +152,57 @@ export function AttendanceHistoryPwaPage({ token, online }: Props) {
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, [online, range, selected.from, selected.to, token]);
+
+  useEffect(loadRequests, [online, token]);
+
+  const today = bangkokToday();
+  const canConfirm = (row: AttendanceSelfRow) => {
+    const age = dayDiff(row.date, today);
+    return age >= 0 && age <= SELF_CONFIRM_WINDOW_DAYS && !requestsByAssignment[row.assignmentId];
+  };
+
+  const openConfirm = (row: AttendanceSelfRow) => {
+    setConfirmRow(row);
+    setConfirmCheckIn(bangkokTimeInput(row.checkInAt));
+    setConfirmCheckOut(bangkokTimeInput(row.checkOutAt));
+    setConfirmReason('');
+    setConfirmError(undefined);
+    setConfirmNotice(undefined);
+  };
+
+  const submitConfirm = async () => {
+    if (!confirmRow) return;
+    const checkInAt = bangkokDateTimeToIso(confirmRow.date, confirmCheckIn);
+    const checkOutAt = bangkokDateTimeToIso(confirmRow.date, confirmCheckOut);
+    if (!checkInAt || !checkOutAt) {
+      setConfirmError('กรุณาระบุเวลาเข้าและเวลาออกให้ครบ');
+      return;
+    }
+    if (confirmReason.trim().length < 5) {
+      setConfirmError('กรุณาระบุเหตุผลอย่างน้อย 5 ตัวอักษร');
+      return;
+    }
+    setConfirmBusy(true);
+    setConfirmError(undefined);
+    try {
+      const created = await createAttendanceAdjustment(token, {
+        assignmentId: confirmRow.assignmentId,
+        requestType: 'CONFIRM_WORK_PERFORMED',
+        proposal: { checkInAt, checkOutAt },
+        reason: confirmReason.trim()
+      }) as { id?: string; data?: { id?: string } };
+      const requestId = created?.id || created?.data?.id;
+      if (!requestId) throw new Error('missing request id');
+      await submitAttendanceAdjustment(token, requestId);
+      setConfirmNotice('ส่งคำขอยืนยันแล้ว — รอผู้ดูแลอนุมัติ');
+      setConfirmRow(undefined);
+      loadRequests();
+    } catch (reason) {
+      setConfirmError(formatRequestErrorMessage(reason, 'ไม่สามารถส่งคำขอได้'));
+    } finally {
+      setConfirmBusy(false);
+    }
+  };
 
   return <section className="employee-v4-page employee-v4-list-page nexus-mobile-history" aria-label="Attendance History">
     <div className="nexus-mobile-breadcrumb">ประวัติการลงเวลา</div>
@@ -110,6 +220,7 @@ export function AttendanceHistoryPwaPage({ token, online }: Props) {
     <div id="attendance-history-panel" role="tabpanel" aria-labelledby={`attendance-range-${range}`}>
     {!online && <div className="employee-v4-message is-warning">ออฟไลน์ — ประวัติการลงเวลาต้องอ่านจากเซิร์ฟเวอร์</div>}
     {error && <div className="employee-v4-message is-danger">{error}</div>}
+    {confirmNotice && <div className="employee-v4-message is-success">{confirmNotice}</div>}
     {loading && <div className="employee-v4-loading"><span /><p>กำลังอ่านประวัติ…</p></div>}
 
     {!loading && online && data && <div className="employee-v4-history-list">
@@ -163,9 +274,50 @@ export function AttendanceHistoryPwaPage({ token, online }: Props) {
               {flags.map((flag) => <span key={flag}>{flag}</span>)}
             </div> : null;
           })()}
+          {canConfirm(row) && <div className="employee-v4-history-flags">
+            <button
+              type="button"
+              className="employee-v4-primary"
+              onClick={() => openConfirm(row)}
+              aria-label={`ยืนยันการปฏิบัติงานวันที่ ${row.date}`}
+            >ยืนยันการปฏิบัติงาน</button>
+          </div>}
+          {requestsByAssignment[row.assignmentId] && <p className="employee-v4-history-note">
+            มีคำขอสำหรับกะนี้แล้ว · สถานะ {requestsByAssignment[row.assignmentId].status}
+          </p>}
         </article>;
       })}
     </div>}
     </div>
+    {confirmRow && <div className="employee-v4-overlay" role="dialog" aria-modal="true" aria-label="ยืนยันการปฏิบัติงาน">
+      <div className="employee-v4-dialog">
+        <header>
+          <h2>ยืนยันการปฏิบัติงาน</h2>
+          <button type="button" aria-label="ปิด" onClick={() => setConfirmRow(undefined)}>✕</button>
+        </header>
+        <p className="employee-v4-hint">
+          วันที่ {confirmRow.date} · ระบบบันทึกเวลาไว้แล้ว แก้ไขได้หากไม่ตรงกับเวลาที่ปฏิบัติงานจริง (ย้อนหลังได้ไม่เกิน {SELF_CONFIRM_WINDOW_DAYS} วัน)
+        </p>
+        <label>
+          <span>เวลาเข้า (เวลาไทย)</span>
+          <input type="time" value={confirmCheckIn} onChange={(event) => setConfirmCheckIn(event.target.value)} />
+        </label>
+        <label>
+          <span>เวลาออก (เวลาไทย)</span>
+          <input type="time" value={confirmCheckOut} onChange={(event) => setConfirmCheckOut(event.target.value)} />
+        </label>
+        <label>
+          <span>เหตุผล (อย่างน้อย 5 ตัวอักษร)</span>
+          <textarea value={confirmReason} onChange={(event) => setConfirmReason(event.target.value)} rows={3} />
+        </label>
+        {confirmError && <div className="employee-v4-message is-danger">{confirmError}</div>}
+        <div className="employee-v4-dialog__actions">
+          <button type="button" onClick={() => setConfirmRow(undefined)} disabled={confirmBusy}>ยกเลิก</button>
+          <button type="button" className="employee-v4-primary" onClick={submitConfirm} disabled={confirmBusy}>
+            {confirmBusy ? 'กำลังส่ง…' : 'ส่งคำขอยืนยัน'}
+          </button>
+        </div>
+      </div>
+    </div>}
   </section>;
 }
