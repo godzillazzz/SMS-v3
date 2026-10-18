@@ -100,10 +100,15 @@ test('Governed adjustment API keeps public direct correction fail-closed', () =>
 
   assert.match(index, /router\.use\('\/attendance\/adjustment-requests', attendanceAdjustmentRoutes\)/);
   assert.match(adjustmentRoute, /router\.post\('\/:id\/approve', authorize\('ADMIN'\)/);
-  assert.match(adjustmentRoute, /router\.post\('\/:id\/return', authorize\('ADMIN'\)/);
+  // OWNER policy (18 Oct 2026): every stage may return for correction, so the route allows the
+  // reviewer roles; approve/reject stay ADMIN-only and the service enforces the stage.
+  assert.match(adjustmentRoute, /router\.post\('\/:id\/review', authorize\('ADMIN', 'MANAGER', 'SUPERVISOR'\)/);
+  assert.match(adjustmentRoute, /router\.post\('\/:id\/return', authorize\('ADMIN', 'MANAGER', 'SUPERVISOR'\)/);
   assert.match(adjustmentRoute, /router\.post\('\/:id\/reject', authorize\('ADMIN'\)/);
   assert.match(legacyGovernanceRoute, /router\.post\('\/assignments\/:id\/corrections'[\s\S]*new HttpError\(404, 'Not found\.'\)/);
-  assert.match(service, /status = 'PENDING_APPROVAL'/);
+  // OWNER policy (18 Oct 2026): submissions route to the first reviewer above the maker.
+  assert.match(service, /const nextStatus = nextStageForMaker\(request\.makerRoleSnapshot\)/);
+  assert.match(service, /SET status = \$\{nextStatus\}/);
   assert.match(service, /INSERT INTO attendance_corrections/);
   assert.match(service, /STALE_ATTENDANCE_BASE/);
   assert.match(service, /source_adjustment_request_id/);

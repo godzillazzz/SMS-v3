@@ -24,6 +24,10 @@ test('internal SUPERVISOR key retains the former Supervisor superset of internal
       const isManagerRoleArray = /\[['"]ADMIN['"],\s*['"]MANAGER['"]\]|\[['"]MANAGER['"],\s*['"]ADMIN['"]\]/.test(line);
       const isDirectManagerRoleCheck = /(?:^|[^\w])(?:[\w?.]+\.)?role\s*[!=]==?\s*['"]MANAGER['"]/.test(line);
       const intentionalPolicyToggle = relative === 'frontend/src/components/ApprovalAuthorityMatrixPanel.tsx';
+      // OWNER policy (18 Oct 2026): the approval chain is stage-scoped — only a MANAGER may
+      // forward the manager stage, so this single control intentionally omits SUPERVISOR.
+      const intentionalApprovalStage = relative === 'frontend/src/pages/attendance-supervisor/AttendanceSupervisorPage.tsx'
+        && line.includes('PENDING_MANAGER');
       const intentionalApprovalDispatch = relative === 'src/services/approval-center.service.js' && line.includes("if (role === 'MANAGER') return managerCanApproveLeave");
       const intentionalScheduleApproval = relative === 'src/routes/operations.routes.js' && line.includes('schedule/approve-month')
         || relative === 'src/routes/operations.routes.js' && line.includes('schedule-approvals/:id')
@@ -33,7 +37,7 @@ test('internal SUPERVISOR key retains the former Supervisor superset of internal
         || relative === 'src/services/schedule.service.js' && line.includes('actorUser.role')
         || relative === 'frontend/src/main.tsx' && line.includes('schedule: [')
         || relative === 'frontend/src/main.tsx' && line.includes('approval-banner');
-      if ((isManagerAuthorize || isManagerRoleArray || isDirectManagerRoleCheck) && !line.includes('SUPERVISOR') && !intentionalPolicyToggle && !intentionalApprovalDispatch && !intentionalScheduleApproval) {
+      if ((isManagerAuthorize || isManagerRoleArray || isDirectManagerRoleCheck) && !line.includes('SUPERVISOR') && !intentionalPolicyToggle && !intentionalApprovalStage && !intentionalApprovalDispatch && !intentionalScheduleApproval) {
         violations.push(`${relative}:${index + 1}:${line.trim()}`);
       }
     }
