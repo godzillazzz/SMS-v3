@@ -84,7 +84,7 @@ describe('Attendance Supervisor UX V4', () => {
     expect(page).toContain('แก้ไขเวลาปฏิบัติงาน');
     expect(page).toContain("openNewAdjustment('CONFIRM_WORK_PERFORMED')");
     expect(page).toContain("openNewAdjustment('ADJUST_WORK_TIME')");
-    expect(page).toContain('ส่งคำขอให้ ADMIN พิจารณา');
+    expect(page).toContain('ส่งคำขอให้พิจารณา');
     expect(page).toContain('Pending ไม่มีผลต่อ Attendance');
     expect(adjustmentClient).toContain('/attendance/adjustment-requests');
     expect(adjustmentClient).not.toContain('/attendance/governance/assignments/');
@@ -114,7 +114,7 @@ describe('Attendance Supervisor UX V4', () => {
     expect(page).toContain("manualDialog.workDate > today");
     expect(page).toContain('shiftDate(manualDialog.workDate, 1)');
     expect(page).toContain('ไม่พบตารางงานของพนักงานในวันที่เลือก');
-    expect(page).toContain('รอ ADMIN อนุมัติเป็นขั้นสุดท้าย');
+    expect(page).toContain('รอการอนุมัติเป็นขั้นสุดท้าย');
     expect(page).toContain('await approveAttendanceAdjustment(token, requestId)');
     expect(page).toContain('บันทึกและอนุมัติ');
     expect(css).toContain('.attendance-supervisor-v4__manual-btn');

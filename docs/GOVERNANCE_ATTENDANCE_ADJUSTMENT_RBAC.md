@@ -7,7 +7,7 @@
 2. **หัวหน้างานคีย์ยืนยันการมาปฏิบัติงานให้ลูกน้องได้**
 3. **หัวหน้างานและผู้จัดการคีย์ย้อนหลังได้ไม่เกิน 7 วัน**
 4. **ADMIN ไม่จำกัดเวลา**
-5. **การอนุมัติขั้นสุดท้ายจบที่ ADMIN เท่านั้น**
+5. **การอนุมัติ (Approve / Reject / Return) มีทุกตำแหน่งบริหาร (ADMIN, MANAGER, SUPERVISOR) ยกเว้นผู้ยื่นคำขอและกะตนเอง (No-Self-Approval)**
 6. พนักงาน (role `VIEWER` ที่ผูก employee) ยื่นยันของตัวเองได้ — เลือกทาง **A** (ไม่เพิ่ม role/migration)
 
 ## ตารางสิทธิ์ (เป้าหมาย)
@@ -15,7 +15,7 @@
 | action | ADMIN | MANAGER | SUPERVISOR | VIEWER + ผูก employee | VIEWER ไม่ผูก employee |
 |---|---|---|---|---|---|
 | สร้าง/แก้/ส่ง คำขอ (`CONFIRM_WORK_PERFORMED`, `ADJUST_WORK_TIME`) | ✅ ไม่จำกัดเวลา/แผนก | ✅ **ย้อนหลัง ≤ 7 วัน** / ทุกแผนก | ✅ **ย้อนหลัง ≤ 7 วัน** / ทุกแผนก | ✅ **เฉพาะกะตัวเอง** (≤ 7 วัน)* | ❌ 403 |
-| อนุมัติ / ส่งกลับ / ปฏิเสธ | ✅ | ❌ 403 | ❌ 403 | ❌ 403 | ❌ 403 |
+| อนุมัติ / ส่งกลับ / ปฏิเสธ | ✅ (ยกเว้นคำขอ/กะตนเอง) | ✅ (ยกเว้นคำขอ/กะตนเอง) | ✅ (ยกเว้นคำขอ/กะตนเอง) | ❌ 403 | ❌ 403 |
 | อ่านรายการ / ดูรายละเอียด | ทุกแผนก | ทุกแผนก | ทุกแผนก | เฉพาะของตัวเอง | ❌ 403 |
 
 \* **สมมติฐานที่ต้องยืนยัน:** พนักงานยื่นของตัวเองได้ภายใน 7 วันเช่นกัน (ถ้าต้องการไม่จำกัด แจ้งได้ — แก้ที่ค่าคงที่จุดเดียว)
@@ -28,7 +28,7 @@
 2. **Route** (`src/routes/attendance-adjustment.routes.js`)
    - `GET /`, `GET /:id` → `authorize('ADMIN','MANAGER','SUPERVISOR','VIEWER')`
    - `POST /`, `PUT /:id`, `POST /:id/submit` → `authorize('ADMIN','MANAGER','SUPERVISOR','VIEWER')`
-   - `POST /:id/approve|reject|return` → `authorize('ADMIN')`
+   - `POST /:id/approve|reject|return` → `authorize('ADMIN', 'MANAGER', 'SUPERVISOR')`
    - **ห้าม** ใช้ authorize ระดับ router ที่กลืน per-route
 3. **Service — maker authority** (`assertMakerScope`)
    - ADMIN: ผ่านเสมอ (ไม่จำกัดแผนก/เวลา)
@@ -49,7 +49,7 @@
    - SUPERVISOR create 3 วันก่อน (ลูกน้องแผนกอื่นก็ได้) → 2xx · 10 วันก่อน → 403
    - VIEWER+employee create กะตัวเอง → 2xx · กะคนอื่น → 403
    - VIEWER ไม่มี employee → 403
-   - approve: ADMIN 2xx · MANAGER/SUPERVISOR/VIEWER → 403
+   - approve: ADMIN/MANAGER/SUPERVISOR 2xx (ไม่ใช่ maker/own shift) · VIEWER -> 403 · Self-approval -> 403
 2. `test/attendance-adjustment.read-scope.test.js`:
    - VIEWER เห็นเฉพาะของตัวเอง (list + get ของคนอื่น → 403/ไม่พบ)
    - SUPERVISOR/MANAGER อ่านได้ทุกแผนก

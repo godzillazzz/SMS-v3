@@ -191,7 +191,7 @@ const STATUS_OPTIONS = [
 
 const REQUEST_STATUS_OPTIONS: Array<[AttendanceAdjustmentStatus | '', string]> = [
   ['', 'ทุกสถานะ'],
-  ['PENDING_APPROVAL', 'รอ ADMIN อนุมัติ'],
+  ['PENDING_APPROVAL', 'รอการอนุมัติ'],
   ['RETURNED_FOR_CORRECTION', 'ส่งกลับให้แก้ไข'],
   ['DRAFT', 'แบบร่าง'],
   ['APPROVED', 'อนุมัติแล้ว'],
@@ -317,7 +317,7 @@ function statusTone(status: string) {
 function requestStatusLabel(status: AttendanceAdjustmentStatus) {
   const map: Record<AttendanceAdjustmentStatus, string> = {
     DRAFT: 'แบบร่าง',
-    PENDING_APPROVAL: 'รอ ADMIN อนุมัติ',
+    PENDING_APPROVAL: 'รอการอนุมัติ',
     RETURNED_FOR_CORRECTION: 'ส่งกลับให้แก้ไข',
     APPROVED: 'อนุมัติแล้ว',
     REJECTED: 'ไม่อนุมัติ',
@@ -738,7 +738,7 @@ export function AttendanceSupervisorPage({ token, role, department, employeeAuth
           setRequestStatus('PENDING_APPROVAL');
         }
       } else {
-        setRequestNotice(`ส่งคำขอยืนยันปฏิบัติงานย้อนหลังของ ${target.employeeName} แล้ว · รอ ADMIN อนุมัติเป็นขั้นสุดท้าย`);
+        setRequestNotice(`ส่งคำขอยืนยันปฏิบัติงานย้อนหลังของ ${target.employeeName} แล้ว · รอการอนุมัติเป็นขั้นสุดท้าย`);
         setMode('requests');
         setRequestStatus('PENDING_APPROVAL');
       }
@@ -845,7 +845,7 @@ export function AttendanceSupervisorPage({ token, role, department, employeeAuth
       setRequestNotice(
         admin
           ? 'ส่งคำขอแล้ว · ยังไม่มีผลต่อ Attendance จนกว่าจะกดอนุมัติแยกต่างหาก'
-          : 'ส่งคำขอแล้ว · รอ ADMIN อนุมัติก่อนจึงจะมีผลต่อ Attendance'
+          : 'ส่งคำขอแล้ว · รอการอนุมัติก่อนจึงจะมีผลต่อ Attendance'
       );
       setMode('requests');
       setRequestStatus('PENDING_APPROVAL');
@@ -870,7 +870,7 @@ export function AttendanceSupervisorPage({ token, role, department, employeeAuth
     try {
       if (reviewDialog.action === 'approve') {
         await approveAttendanceAdjustment(token, reviewDialog.request.id);
-        setRequestNotice('ADMIN อนุมัติแล้ว · Effective Attendance ถูกสร้างจาก revision ที่อนุมัติ');
+        setRequestNotice('อนุมัติแล้ว · Effective Attendance ถูกสร้างจาก revision ที่อนุมัติ');
       } else if (reviewDialog.action === 'return') {
         await returnAttendanceAdjustment(token, reviewDialog.request.id, reviewDialog.comment.trim());
         setRequestNotice('ส่งคำขอกลับให้ Maker แก้ไขแล้ว');
@@ -1106,7 +1106,7 @@ export function AttendanceSupervisorPage({ token, role, department, employeeAuth
         )}
       </SectionCard>
     </> : (
-      <SectionCard className="attendance-supervisor-v4__requests" kicker="คำขอปรับข้อมูลที่มีการควบคุม" title={admin ? 'คิวอนุมัติการลงเวลา' : 'คำขอแก้ไขการลงเวลา'} description={admin ? 'ทุกการเปลี่ยนเวลาต้องผ่านการอนุมัติแยกต่างหากก่อนมีผลจริง' : 'คำขอแก้ไขไม่มีผลต่อข้อมูลลงเวลาจนกว่า ADMIN จะอนุมัติ'} actions={
+      <SectionCard className="attendance-supervisor-v4__requests" kicker="คำขอปรับข้อมูลที่มีการควบคุม" title={admin ? 'คิวอนุมัติการลงเวลา' : 'คำขอแก้ไขการลงเวลา'} description={admin ? 'ทุกการเปลี่ยนเวลาต้องผ่านการอนุมัติแยกต่างหากก่อนมีผลจริง' : 'คำขอแก้ไขไม่มีผลต่อข้อมูลลงเวลาจนกว่าจะได้รับการอนุมัติ'} actions={
           <label className="attendance-supervisor-v4__request-status-filter">
             <span>สถานะคำขอ</span>
             <select
@@ -1178,7 +1178,7 @@ export function AttendanceSupervisorPage({ token, role, department, employeeAuth
                 <span>เหตุผล</span>
                 <p>{request.reason}</p>
                 {request.lastReviewerComment && (
-                  <div><strong>ความเห็นจาก ADMIN:</strong> {request.lastReviewerComment}</div>
+                  <div><strong>ความเห็นจากผู้ตรวจสอบ:</strong> {request.lastReviewerComment}</div>
                 )}
               </div>
 
@@ -1353,7 +1353,7 @@ export function AttendanceSupervisorPage({ token, role, department, employeeAuth
             <div>
               <span>MANUAL ATTENDANCE</span>
               <h3>คีย์ยืนยันมาปฏิบัติงานย้อนหลัง</h3>
-              <p>{manager ? 'Supervisor / Manager ส่งคำขอ · ADMIN อนุมัติเป็นขั้นสุดท้าย' : 'Admin ยืนยันและอนุมัติผ่าน Audit workflow เดิม'}</p>
+              <p>{manager ? 'Supervisor / Manager ส่งคำขอ · รอผู้มีอำนาจอนุมัติเป็นขั้นสุดท้าย' : 'Admin ยืนยันและอนุมัติผ่าน Audit workflow เดิม'}</p>
             </div>
             <button type="button" aria-label="ปิด" disabled={workflowBusy} onClick={() => setManualDialog(undefined)}><SmsIcon name="close" size={18} /></button>
           </header>
@@ -1424,7 +1424,7 @@ export function AttendanceSupervisorPage({ token, role, department, employeeAuth
           <footer>
             <button type="button" className="is-secondary" disabled={workflowBusy} onClick={() => setManualDialog(undefined)}>ยกเลิก</button>
             <button type="button" className="is-primary" disabled={workflowBusy} onClick={() => void saveManualConfirmation()}>
-              {workflowBusy ? 'กำลังบันทึก…' : admin ? 'บันทึกและอนุมัติ' : 'ส่งให้ ADMIN อนุมัติ'}
+              {workflowBusy ? 'กำลังบันทึก…' : admin ? 'บันทึกและอนุมัติ' : 'ส่งให้พิจารณาอนุมัติ'}
             </button>
           </footer>
         </section>
@@ -1445,7 +1445,7 @@ export function AttendanceSupervisorPage({ token, role, department, employeeAuth
 
           {adjustmentDialog.returnedComment && (
             <div className="attendance-supervisor-v4__returned-note">
-              <strong>ADMIN ส่งกลับให้แก้ไข</strong>
+              <strong>ผู้ตรวจสอบส่งกลับให้แก้ไข</strong>
               <span>{adjustmentDialog.returnedComment}</span>
             </div>
           )}
@@ -1454,7 +1454,7 @@ export function AttendanceSupervisorPage({ token, role, department, employeeAuth
             <SmsIcon name="shield" size={19} />
             <div>
               <strong>คำขอนี้ยังไม่เปลี่ยน Attendance</strong>
-              <span>ระบบจะเก็บ Before / After / Maker / Revision และรอ ADMIN อนุมัติก่อนมีผล</span>
+              <span>ระบบจะเก็บ Before / After / Maker / Revision และรอการอนุมัติก่อนมีผล</span>
             </div>
           </div>
 
@@ -1492,7 +1492,7 @@ export function AttendanceSupervisorPage({ token, role, department, employeeAuth
           <footer>
             <button type="button" className="is-secondary" disabled={workflowBusy} onClick={() => setAdjustmentDialog(undefined)}>ยกเลิก</button>
             <button type="button" className="is-primary" disabled={workflowBusy} onClick={() => void saveAdjustment()}>
-              {workflowBusy ? 'กำลังส่ง…' : adjustmentDialog.requestId ? 'บันทึก Revision และส่งใหม่' : 'ส่งคำขอให้ ADMIN พิจารณา'}
+              {workflowBusy ? 'กำลังส่ง…' : adjustmentDialog.requestId ? 'บันทึก Revision และส่งใหม่' : 'ส่งคำขอให้พิจารณา'}
             </button>
           </footer>
         </section>
@@ -1504,7 +1504,7 @@ export function AttendanceSupervisorPage({ token, role, department, employeeAuth
         <section ref={reviewDialogRef} className="attendance-supervisor-v4__workflow-modal is-review" role="dialog" aria-modal="true" aria-label="พิจารณาอนุมัติ Attendance" tabIndex={-1}>
           <header>
             <div>
-              <span>ADMIN APPROVAL</span>
+              <span>EXECUTIVE APPROVAL</span>
               <h3>
                 {reviewDialog.action === 'approve'
                   ? 'ยืนยันการอนุมัติ'
@@ -1534,7 +1534,7 @@ export function AttendanceSupervisorPage({ token, role, department, employeeAuth
 
           {reviewDialog.action !== 'approve' && (
             <label className="attendance-supervisor-v4__review-comment">
-              <span>ความเห็นจาก ADMIN *</span>
+              <span>ความเห็นจากผู้ตรวจสอบ *</span>
               <textarea
                 rows={4}
                 maxLength={1000}
