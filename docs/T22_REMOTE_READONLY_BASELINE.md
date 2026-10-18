@@ -34,3 +34,49 @@ round trip, real region routing (Tokyo), zero-error streaming.
 Not covered: authenticated business-route latency, schedule write throughput against the live
 database (the CI benchmark `39042384522` measured that in an isolated Postgres container:
 p50 443.7 ms / p95 515.0 ms for 1,000 shifts), and office-network conditions from the customer site.
+
+---
+
+# Incident during the T22 remote probe — Vercel Security Checkpoint (18 Oct 2026)
+
+After the concurrency ladder, further probes returned HTTP **403** with these response headers:
+
+```
+server: Vercel
+x-vercel-mitigated: challenge
+retry-after: 30
+x-vercel-challenge-token: 2.1792323096.60...
+```
+and a body titled **"Vercel Security Checkpoint"**.
+
+## What this means
+
+The ~5.1 s stalls seen at concurrency ≥2 were **not application latency**: the same stall appeared
+on `/api/v1/health` (no database), on `/` (edge-cached static) and ended in `403 challenge`. The
+platform's bot-protection layer is challenging repeated automated requests from this host's IP.
+
+The application itself measured clean before mitigation engaged:
+
+- `/api/v1/ready` single user: p50 150 ms, p95 173 ms, 0 % errors
+- `/api/v1/health`: p50 124 ms, p95 147 ms
+- Region: `sin1` edge → `hnd1` function on every response
+
+## Operational risk this exposes (must be decided by the owner)
+
+1. The measurement host is a datacenter IP, which bot protection scrutinises hardest. Browsers from
+   an office IP are less likely to be challenged, but the same layer can challenge a **burst from a
+   single office NAT** — e.g. 60 guards opening the app at shift start.
+2. If the challenge fires, the user sees a "Vercel Security Checkpoint" page instead of the app, for
+   roughly `retry-after` seconds.
+3. Mitigations available: disable Attack Challenge Mode for the production domain, allowlist the
+   office egress IP in Vercel Firewall, or move to a stable dedicated egress. Each is a Production
+   configuration change and therefore needs the owner's decision.
+
+## Correct status of T22 after this run
+
+- CI write benchmark (1,000 shifts, isolated Postgres container): **CLOSED** — p50 443.7 ms, p95 515.0 ms.
+- Remote single-user read latency (health / ready / static): **CLOSED** — p95 173 ms, 0 % errors.
+- Remote burst behaviour from a datacenter IP: **BLOCKED by platform bot protection** — not an
+  application defect, requires a production firewall/plan decision.
+- Office-network user-context measurement: **STILL NOT VERIFIED** (needs a real office client or an
+  allowlisted egress).
