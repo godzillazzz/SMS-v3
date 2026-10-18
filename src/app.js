@@ -8,6 +8,7 @@ const { notFound, errorHandler } = require('./middlewares/error-handler');
 const prisma = require('./config/prisma');
 const requestContext = require('./middlewares/request-context');
 const requestLogger = require('./middlewares/request-logger');
+const routeLatency = require('./middlewares/route-latency');
 const { logger, errorCategory, setOperationalEventSink } = require('./utils/logger');
 const { createConfiguredAlerting } = require('./services/alerting.service');
 const {
@@ -33,6 +34,7 @@ app.use(cors({ credentials: true, origin(origin, callback) {
 } }));
 app.use(requestContext);
 app.use(requestLogger);
+app.use(routeLatency);
 app.use(express.json({ limit: '1mb' }));
 app.get('/health', (_req, res) => res.json({ status: 'ok' }));
 app.get('/api/v1/health', (_req, res) => res.json({ status: 'ok' }));
