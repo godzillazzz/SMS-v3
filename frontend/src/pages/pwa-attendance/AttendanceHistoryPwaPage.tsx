@@ -15,7 +15,7 @@ type Props = { token: string; online: boolean };
 
 type RangeKey = 'today' | 'week' | 'month';
 
-const SELF_CONFIRM_WINDOW_DAYS = 7;
+const SELF_CONFIRM_WINDOW_DAYS = 3;
 const MAX_SHIFT_HOURS = 16;
 const EARLY_TOLERANCE_HOURS = 4;
 const LATE_TOLERANCE_HOURS = 8;

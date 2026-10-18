@@ -16,6 +16,8 @@ const { bangkokToday } = require('../utils/bangkok-date');
 const TRANSACTION_OPTIONS = { isolationLevel: 'Serializable', maxWait: 5000, timeout: 10000 };
 const REQUEST_TYPES = new Set(['CONFIRM_WORK_PERFORMED', 'ADJUST_WORK_TIME']);
 const EDITABLE_STATUSES = new Set(['DRAFT', 'RETURNED_FOR_CORRECTION']);
+// OWNER policy (18 Oct 2026): non-ADMIN makers may key at most 3 days back.
+const BACKDATE_WINDOW_DAYS = 3;
 
 function attendanceCertificationLockKey(workDate) {
   const value = workDate instanceof Date ? workDate : new Date(workDate);
@@ -118,11 +120,13 @@ function assertMakerScope(actor, assignment, clock = () => new Date()) {
     throw http(403, 'ATTENDANCE_ADJUSTMENT_FORBIDDEN', 'Attendance adjustment request authority is required.');
   }
   if (role === 'ADMIN') return role;
+  // OWNER policy (18 Oct 2026): employees, MANAGER and SUPERVISOR may key at most 3 days back,
+  // because the ADMIN must verify real work evidence before approving (client penalties apply).
   const cutoff = bangkokToday(clock());
-  cutoff.setUTCDate(cutoff.getUTCDate() - 7);
+  cutoff.setUTCDate(cutoff.getUTCDate() - BACKDATE_WINDOW_DAYS);
   const workDate = new Date(assignment.workDate);
   if (Number.isNaN(workDate.getTime()) || workDate < cutoff) {
-    throw http(403, 'ATTENDANCE_ADJUSTMENT_BACKDATE_FORBIDDEN', 'Attendance adjustment may not be made more than 7 days in the past.');
+    throw http(403, 'ATTENDANCE_ADJUSTMENT_BACKDATE_FORBIDDEN', `Attendance adjustment may not be made more than ${BACKDATE_WINDOW_DAYS} days in the past.`);
   }
   if (role === 'VIEWER' && (!actor.employeeAuthority?.id || String(assignment.employeeId) !== String(actor.employeeAuthority.id))) {
     throw http(403, 'ATTENDANCE_ADJUSTMENT_SCOPE_FORBIDDEN', 'A linked employee account may adjust only its own shift.');

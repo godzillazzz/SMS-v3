@@ -4,15 +4,15 @@
 
 ## ACTIVE — ATTENDANCE ADJUSTMENT AUTHORITY (OWNER policy 18 Oct 2026)
 
-**Owner policy (verbatim gist):** หัวหน้างาน ผู้จัดการ ADMIN เป็นผู้บริหารของทุกแผนก · หัวหน้างานคีย์ยืนยันการมาปฏิบัติงานให้ลูกน้องได้ · หัวหน้างานและผู้จัดการคีย์ย้อนหลังได้ไม่เกิน 7 วัน · ADMIN ไม่จำกัดเวลา · **"สุดท้ายต้องมาจบที่ admin"** = การอนุมัติขั้นสุดท้ายเป็นของ ADMIN เท่านั้น · พนักงาน (role `VIEWER` ที่ผูก employee) ยื่นยันของตัวเองได้ (ไม่เพิ่ม role/migration — `UserRole` = ADMIN/MANAGER/SUPERVISOR/VIEWER)
+**Owner policy (verbatim gist):** หัวหน้างาน ผู้จัดการ ADMIN เป็นผู้บริหารของทุกแผนก · หัวหน้างานคีย์ยืนยันการมาปฏิบัติงานให้ลูกน้องได้ · หัวหน้างาน ผู้จัดการ และพนักงานคีย์ย้อนหลังได้ไม่เกิน 3 วัน (OWNER 18 ต.ค.: เพราะเมื่อถึงแอดมินต้องตรวจหลักฐานว่ามาปฏิบัติงานจริง หากไม่มาจริงผู้ว่าจ้างจะปรับผู้รับจ้าง) · ADMIN ไม่จำกัดเวลา · **"สุดท้ายต้องมาจบที่ admin"** = การอนุมัติขั้นสุดท้ายเป็นของ ADMIN เท่านั้น · พนักงาน (role `VIEWER` ที่ผูก employee) ยื่นยันของตัวเองได้ (ไม่เพิ่ม role/migration — `UserRole` = ADMIN/MANAGER/SUPERVISOR/VIEWER)
 
 | action | ADMIN | MANAGER | SUPERVISOR | VIEWER + linked employee |
 |---|---|---|---|---|
-| สร้าง/แก้/ส่ง คำขอ | ไม่จำกัดเวลา/แผนก | ≤ 7 วัน · ทุกแผนก | ≤ 7 วัน · ทุกแผนก | เฉพาะกะตัวเอง (≤ 7 วัน) |
+| สร้าง/แก้/ส่ง คำขอ | ไม่จำกัดเวลา/แผนก | ≤ 3 วัน · ทุกแผนก | ≤ 3 วัน · ทุกแผนก | เฉพาะกะตัวเอง (≤ 3 วัน) |
 | อนุมัติ / ส่งกลับ / ปฏิเสธ | ✅ | ❌ 403 | ❌ 403 | ❌ 403 |
 | อ่านรายการ / รายละเอียด | ทุกแผนก | ทุกแผนก | ทุกแผนก | เฉพาะของตัวเอง |
 
-**Implementation:** `src/routes/attendance-adjustment.routes.js` (per-route authorize; decision routes `authorize('ADMIN')`) · `src/services/attendance-adjustment.service.js` (`assertMakerScope` with Bangkok 7-day cut-off, `assertReadable` separated from maker scope, `assertAdmin` unchanged) · `src/services/attendance-correction.service.js` (department restriction removed for executives) · `src/services/attendance-supervisor.service.js` (cross-department reads; linked VIEWER governance metadata)
+**Implementation:** `src/routes/attendance-adjustment.routes.js` (per-route authorize; decision routes `authorize('ADMIN')`) · `src/services/attendance-adjustment.service.js` (`assertMakerScope` with Bangkok 3-day cut-off, `assertReadable` separated from maker scope, `assertAdmin` unchanged) · `src/services/attendance-correction.service.js` (department restriction removed for executives) · `src/services/attendance-supervisor.service.js` (cross-department reads; linked VIEWER governance metadata)
 
 **Evidence:** 34+ targeted tests (route matrix, maker scope/boundary, read scope, maker-only submit/revise, correction scope, supervisor detail) · mutation proofs: backdate check, VIEWER ownership, VIEWER read scope, makerUserId check, correction department check — each removed guard makes the matching test fail · CI run `39094933162` on `dec90bb5` = SUCCESS (validate + t22).
 
