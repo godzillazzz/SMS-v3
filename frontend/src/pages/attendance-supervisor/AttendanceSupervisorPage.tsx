@@ -15,6 +15,7 @@ import {
 } from './attendance-supervisor-client';
 import {
   approveAttendanceAdjustment,
+  getAttendanceAdjustment,
   reviewAttendanceAdjustment,
   createAttendanceAdjustment,
   listAttendanceAdjustments,
@@ -484,6 +485,8 @@ export function AttendanceSupervisorPage({ token, role, department, employeeAuth
   const [adjustmentDialog, setAdjustmentDialog] = useState<AdjustmentDialog>();
   const [manualDialog, setManualDialog] = useState<ManualConfirmationDialog>();
   const [reviewDialog, setReviewDialog] = useState<ReviewDialog>();
+  const [queueDetail, setQueueDetail] = useState<{ id: string; events: Array<Record<string, unknown>> }>();
+  const [queueDetailBusy, setQueueDetailBusy] = useState(false);
   const [workflowBusy, setWorkflowBusy] = useState(false);
   const [workflowError, setWorkflowError] = useState<string>();
   const [reloadKey, setReloadKey] = useState(0);
@@ -864,6 +867,30 @@ export function AttendanceSupervisorPage({ token, role, department, employeeAuth
     }
   };
 
+  const openQueueDetail = async (requestId: string) => {
+    if (queueDetailBusy) return;
+    setQueueDetailBusy(true);
+    try {
+      const result = await getAttendanceAdjustment(token, requestId) as { data?: { events?: Array<Record<string, unknown>> }; events?: Array<Record<string, unknown>> };
+      const events = (result?.data?.events || result?.events || []) as Array<Record<string, unknown>>;
+      setQueueDetail({ id: requestId, events });
+    } catch (reason) {
+      setWorkflowError(formatRequestErrorMessage(reason, 'ไม่สามารถอ่านประวัติคำขอได้'));
+    } finally {
+      setQueueDetailBusy(false);
+    }
+  };
+
+  const EVENT_LABELS: Record<string, string> = {
+    CREATED: 'สร้างคำขอ',
+    REVISED: 'แก้ไขคำขอ',
+    SUBMITTED: 'ส่งคำขอ',
+    REVIEWED: 'ตรวจและส่งต่อ',
+    RETURNED: 'ส่งกลับแก้ไข',
+    REJECTED: 'ปฏิเสธ',
+    APPROVED: 'อนุมัติ'
+  };
+
   const executeReview = async () => {
     if (!reviewDialog || workflowBusy) return;
     if (!['approve', 'forward'].includes(reviewDialog.action) && reviewDialog.comment.trim().length < 3) {
@@ -1208,6 +1235,14 @@ export function AttendanceSupervisorPage({ token, role, department, employeeAuth
                   </button>
                 )}
 
+                <button
+                  type="button"
+                  className="is-secondary"
+                  disabled={queueDetailBusy}
+                  onClick={() => openQueueDetail(request.id)}
+                >
+                  ดูรายละเอียด / ไทม์ไลน์
+                </button>
                 {role === 'SUPERVISOR' && request.status === 'PENDING_SUPERVISOR' && <>
                   <button
                     type="button"
@@ -1285,6 +1320,20 @@ export function AttendanceSupervisorPage({ token, role, department, employeeAuth
                   </button>
                 </>}
               </footer>
+              {queueDetail?.id === request.id && <section className="attendance-supervisor-v4__request-timeline" aria-label="ไทม์ไลน์คำขอ">
+                <h4>ไทม์ไลน์การอนุมัติ</h4>
+                {queueDetail.events.length === 0 && <p>ไม่พบประวัติสำหรับคำขอนี้</p>}
+                <ol>
+                  {queueDetail.events.map((event, index) => (
+                    <li key={String(event.id || index)}>
+                      <strong>{EVENT_LABELS[String(event.eventType)] || String(event.eventType)}</strong>
+                      <span>{String(event.actorRoleSnapshot || '—')}</span>
+                      <time>{event.createdAt ? new Date(String(event.createdAt)).toLocaleString('th-TH', { timeZone: 'Asia/Bangkok' }) : '—'}</time>
+                      {event.comment ? <p>{String(event.comment)}</p> : null}
+                    </li>
+                  ))}
+                </ol>
+              </section>}
             </article>;
           })}
         </div>

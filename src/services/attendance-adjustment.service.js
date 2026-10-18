@@ -18,6 +18,55 @@ const REQUEST_TYPES = new Set(['CONFIRM_WORK_PERFORMED', 'ADJUST_WORK_TIME']);
 const EDITABLE_STATUSES = new Set(['DRAFT', 'RETURNED_FOR_CORRECTION']);
 // OWNER policy (18 Oct 2026): non-ADMIN makers may key at most 3 days back.
 const BACKDATE_WINDOW_DAYS = 3;
+// OWNER policy (18 Oct 2026): server-side guard on the confirmed working window.
+const MAX_SHIFT_HOURS = 16;
+const EARLY_TOLERANCE_HOURS = 4;
+const LATE_TOLERANCE_HOURS = 8;
+const CHECKOUT_TOLERANCE_HOURS = 8;
+
+function bangkokDateTimeFrom(dateLike, hhmm) {
+  if (!/^\d{2}:\d{2}$/.test(String(hhmm || ''))) return null;
+  const date = dateLike instanceof Date ? dateLike : new Date(dateLike);
+  if (Number.isNaN(date.getTime())) return null;
+  const ymd = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Bangkok', year: 'numeric', month: '2-digit', day: '2-digit'
+  }).format(date);
+  const parsed = new Date(`${ymd}T${hhmm}:00+07:00`);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function assertProposalWindow(assignment, proposal) {
+  const start = proposal?.checkInAt ? new Date(proposal.checkInAt) : null;
+  const end = proposal?.checkOutAt ? new Date(proposal.checkOutAt) : null;
+  if (!start || !end) return;
+  const hours = (end.getTime() - start.getTime()) / 3_600_000;
+  if (hours > MAX_SHIFT_HOURS) {
+    throw http(409, 'ATTENDANCE_ADJUSTMENT_DURATION_INVALID', `A confirmed shift may not exceed ${MAX_SHIFT_HOURS} hours.`);
+  }
+  const shiftStart = assignment?.startTime;
+  if (shiftStart) {
+    const plannedStart = bangkokDateTimeFrom(assignment.workDate, shiftStart);
+    if (plannedStart) {
+      const delta = (start.getTime() - plannedStart.getTime()) / 3_600_000;
+      if (delta < -EARLY_TOLERANCE_HOURS || delta > LATE_TOLERANCE_HOURS) {
+        throw http(409, 'ATTENDANCE_ADJUSTMENT_WINDOW_INVALID', `Check-in must be within ${EARLY_TOLERANCE_HOURS}h before and ${LATE_TOLERANCE_HOURS}h after the shift start.`);
+      }
+    }
+  }
+  const shiftEnd = assignment?.endTime;
+  if (shiftEnd) {
+    const crossesMidnight = String(shiftEnd) <= String(shiftStart || '');
+    const plannedEndDate = crossesMidnight ? new Date(assignment.workDate) : new Date(assignment.workDate);
+    if (crossesMidnight) plannedEndDate.setUTCDate(plannedEndDate.getUTCDate() + 1);
+    const plannedEnd = bangkokDateTimeFrom(plannedEndDate, shiftEnd);
+    if (plannedEnd) {
+      const deltaOut = Math.abs((end.getTime() - plannedEnd.getTime()) / 3_600_000);
+      if (deltaOut > CHECKOUT_TOLERANCE_HOURS) {
+        throw http(409, 'ATTENDANCE_ADJUSTMENT_WINDOW_INVALID', `Check-out must be within ${CHECKOUT_TOLERANCE_HOURS}h of the shift end.`);
+      }
+    }
+  }
+}
 // OWNER policy (18 Oct 2026): staged approval chain.
 // Employee -> any SUPERVISOR -> any MANAGER -> ADMIN final approval.
 const PENDING_SUPERVISOR = 'PENDING_SUPERVISOR';
@@ -414,6 +463,7 @@ function createAttendanceAdjustmentService({ prisma = prismaDefault, audit = aud
     return prisma.$transaction(async (tx) => {
       const assignment = await loadAssignment(tx, assignmentId);
       const makerRole = assertMakerScope(actor, assignment, clock);
+      assertProposalWindow(assignment, normalized.proposal);
       const before = await authoritySnapshot(tx, assignment);
       const rows = await tx.$queryRaw(Prisma.sql`
         INSERT INTO attendance_adjustment_requests (
@@ -472,6 +522,7 @@ function createAttendanceAdjustmentService({ prisma = prismaDefault, audit = aud
       if (!request) throw http(404, 'ATTENDANCE_ADJUSTMENT_NOT_FOUND', 'Attendance adjustment request was not found.');
       const assignment = await loadAssignment(tx, request.shiftAssignmentId);
       assertMakerScope(actor, assignment, clock);
+      assertProposalWindow(assignment, normalized.proposal);
       if (request.makerUserId !== actor.sub) {
         throw http(403, 'ATTENDANCE_ADJUSTMENT_NOT_MAKER', 'Only the request maker may revise this Attendance adjustment request.');
       }
@@ -954,6 +1005,7 @@ module.exports = {
   authoritySnapshot,
   assertMakerScope,
   assertAdmin,
+  assertProposalWindow,
   nextStageForMaker,
   reviewerRoleFor,
   PENDING_SUPERVISOR,

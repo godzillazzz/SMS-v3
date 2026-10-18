@@ -130,6 +130,11 @@ describe('Attendance Supervisor UX V4', () => {
     expect(page).toContain('ส่งกลับให้แก้ไข');
     expect(page).toContain('ยืนยันไม่อนุมัติ');
     expect(page).toContain("admin && ['PENDING_ADMIN', 'PENDING_APPROVAL'].includes(request.status)");
+    expect(page).toContain('openQueueDetail');
+    expect(page).toContain('ไทม์ไลน์การอนุมัติ');
+    expect(page).toContain("REVIEWED: 'ตรวจและส่งต่อ'");
+    expect(page).toContain('ส่งต่อผู้จัดการ');
+    expect(page).toContain('ส่งต่อ ADMIN');
   });
 
   it('keeps ordinary adjustment review explicit while allowing Admin to finalize manual retrospective confirmation', () => {
