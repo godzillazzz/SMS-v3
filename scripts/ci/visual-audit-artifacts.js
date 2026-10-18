@@ -29,10 +29,10 @@ const ROSTER_SYMBOLS = ['🪄', '✨', '🔒', '⚡'];
 const TASKS = [
   { id: 'T30a', pr: 556, scope: 'layout/shell', commit: 'e8cb6cbc' },
   { id: 'T30b', pr: '593–596', scope: 'personnel / roster / attendance / system surfaces', commit: '6d651315' },
-  { id: 'T31', pr: 597, scope: 'timesheet print pipeline', commit: null },
+  { id: 'T31', pr: 597, scope: 'timesheet print pipeline', commit: '451e667b' },
   { id: 'T32', pr: 591, scope: 'branded surfaces', commit: 'beabb62f' },
   { id: 'T33', pr: 592, scope: 'horizontal layout', commit: 'dfac6123' },
-  { id: 'T19', pr: 602, scope: 'dashboard metric deep links', commit: null }
+  { id: 'T19', pr: 602, scope: 'dashboard metric deep links', commit: '3622eb36' }
 ];
 
 function arg(name, fallback) {
@@ -120,7 +120,8 @@ async function main() {
     if (task.commit) {
       try {
         commit = git(['rev-parse', task.commit]);
-        files = git(['show', '--name-only', '--pretty=format:', commit]).split('\n').filter(Boolean);
+        // A merge commit shows no files without a diff against its first parent.
+        files = git(['diff', '--name-only', `${commit}^1`, commit]).split('\n').filter(Boolean);
         try {
           execFileSync('git', ['merge-base', '--is-ancestor', commit, head], { cwd: ROOT, stdio: 'ignore' });
           ancestor = true;

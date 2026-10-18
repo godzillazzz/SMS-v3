@@ -1,7 +1,7 @@
 {
-  "generatedAt": "2026-10-18T23:43:10.254Z",
+  "generatedAt": "2026-10-18T23:45:26.289Z",
   "canonicalUrl": "https://sms-v3-staging-ten.vercel.app",
-  "sourceHead": "ce30f5e73743d747a0c58bce37069932be1b8b92",
+  "sourceHead": "1c545bfc3bce8fc0dbf08f7f874fd67a8f1fe975",
   "assetCount": 56,
   "assetBytes": 2505890,
   "assets": [
@@ -463,54 +463,93 @@
       "pr": 556,
       "scope": "layout/shell",
       "commit": "e8cb6cbc40762c0a0d40ab595bffb0dc6670a0dd",
-      "fileCount": 0,
+      "fileCount": 15,
       "inCurrentSource": true,
-      "sampleFiles": []
+      "sampleFiles": [
+        "docs/PROJECT_BACKLOG.md",
+        "frontend/e2e/layout/fixture.html",
+        "frontend/e2e/layout/fixture.tsx",
+        "frontend/e2e/layout/layout-foundation.pw.ts",
+        "frontend/src/components/layout/MetricCard.tsx",
+        "frontend/src/components/layout/PageHeader.tsx"
+      ]
     },
     {
       "id": "T30b",
       "pr": "593–596",
       "scope": "personnel / roster / attendance / system surfaces",
       "commit": "6d651315913647f4a38ff3fb560d6a5d892ff9ae",
-      "fileCount": 0,
+      "fileCount": 18,
       "inCurrentSource": true,
-      "sampleFiles": []
+      "sampleFiles": [
+        "docs/PROJECT_BACKLOG.md",
+        "frontend/e2e/personnel-layout/personnel-layout.pw.ts",
+        "frontend/e2e/personnel/fixture.tsx",
+        "frontend/src/cfg08-attendance-device-administration.test.ts",
+        "frontend/src/components/layout/MetricCard.tsx",
+        "frontend/src/components/layout/PageHeader.tsx"
+      ]
     },
     {
       "id": "T31",
       "pr": 597,
       "scope": "timesheet print pipeline",
-      "commit": null,
-      "fileCount": 0,
-      "inCurrentSource": null,
-      "sampleFiles": []
+      "commit": "451e667bf52541f9eba74383facbc5043c3936d2",
+      "fileCount": 15,
+      "inCurrentSource": true,
+      "sampleFiles": [
+        "docs/PROJECT_BACKLOG.md",
+        "docs/ux-remediation/PLAN.md",
+        "frontend/e2e/print/t31-fixture.html",
+        "frontend/e2e/print/t31-fixture.tsx",
+        "frontend/e2e/print/t31-timesheet.pw.ts",
+        "frontend/src/attendance-official-report.test.ts"
+      ]
     },
     {
       "id": "T32",
       "pr": 591,
       "scope": "branded surfaces",
       "commit": "beabb62f50ec21ea57535e783d76beccf1f6b551",
-      "fileCount": 0,
+      "fileCount": 17,
       "inCurrentSource": true,
-      "sampleFiles": []
+      "sampleFiles": [
+        "docs/PROJECT_BACKLOG.md",
+        "frontend/e2e/loading/fixture.html",
+        "frontend/e2e/loading/fixture.tsx",
+        "frontend/e2e/loading/loading.pw.ts",
+        "frontend/index.html",
+        "frontend/public/brand/sms-logo-dark.webp"
+      ]
     },
     {
       "id": "T33",
       "pr": 592,
       "scope": "horizontal layout",
       "commit": "dfac6123a1754567828971a067419fa7d2af3ccc",
-      "fileCount": 0,
+      "fileCount": 21,
       "inCurrentSource": true,
-      "sampleFiles": []
+      "sampleFiles": [
+        "docs/PROJECT_BACKLOG.md",
+        "frontend/e2e/branding/brand-logo.pw.ts",
+        "frontend/public/brand/sms-logo-horizontal-dark.webp",
+        "frontend/public/brand/sms-logo-horizontal.webp",
+        "frontend/public/sw.js",
+        "frontend/src/brand-logo.test.tsx"
+      ]
     },
     {
       "id": "T19",
       "pr": 602,
       "scope": "dashboard metric deep links",
-      "commit": null,
-      "fileCount": 0,
-      "inCurrentSource": null,
-      "sampleFiles": []
+      "commit": "3622eb3673a1113d147079ce241022045dbfabbc",
+      "fileCount": 3,
+      "inCurrentSource": true,
+      "sampleFiles": [
+        "frontend/src/components/dashboard/AttentionNeededCard.test.tsx",
+        "frontend/src/components/dashboard/deep-links.test.ts",
+        "test/dashboard-details.route.test.js"
+      ]
     }
   ],
   "result": "PASS"

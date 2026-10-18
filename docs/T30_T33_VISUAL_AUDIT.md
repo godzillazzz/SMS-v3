@@ -1,20 +1,20 @@
 # T30a / T30b / T31 / T32 / T33 / T19 — visual audit artifact
 
-Generated: 2026-10-18T23:43:10.254Z
+Generated: 2026-10-18T23:45:26.289Z
 Canonical: https://sms-v3-staging-ten.vercel.app
-Source head: `ce30f5e73743d747a0c58bce37069932be1b8b92`
+Source head: `1c545bfc3bce8fc0dbf08f7f874fd67a8f1fe975`
 Assets inspected: 56 (2447 KiB)
 Result: **PASS**
 
 ## Delivered work per task
 | Task | PR | Scope | Merge commit | Files | In current source |
 |---|---|---|---|---|---|
-| T30a | #556 | layout/shell | `e8cb6cbc` | 0 | yes |
-| T30b | #593–596 | personnel / roster / attendance / system surfaces | `6d651315` | 0 | yes |
-| T31 | #597 | timesheet print pipeline | n/v | 0 | n/v |
-| T32 | #591 | branded surfaces | `beabb62f` | 0 | yes |
-| T33 | #592 | horizontal layout | `dfac6123` | 0 | yes |
-| T19 | #602 | dashboard metric deep links | n/v | 0 | n/v |
+| T30a | #556 | layout/shell | `e8cb6cbc` | 15 | yes |
+| T30b | #593–596 | personnel / roster / attendance / system surfaces | `6d651315` | 18 | yes |
+| T31 | #597 | timesheet print pipeline | `451e667b` | 15 | yes |
+| T32 | #591 | branded surfaces | `beabb62f` | 17 | yes |
+| T33 | #592 | horizontal layout | `dfac6123` | 21 | yes |
+| T19 | #602 | dashboard metric deep links | `3622eb36` | 3 | yes |
 
 ## Shipped sentinels
 | Sentinel | Shipped | Asset | Asset sha256 |
