@@ -95,7 +95,7 @@ test('R5-B draft remains rejected and current R7.1 control still requires separa
   assert.equal(d.owner_batch_frozen_sha_approval, 'PENDING_NOT_AUTHORIZED');
   assert.throws(() => validateReleaseManifest(d), /manifest_state is not approved/);
 
-  const official = release('approved-production.json');
+  const official = release('r7.1-production-manifest-approved-20261017.json');
   const parsed = validateReleaseManifest(official);
   assert.equal(official.release_batch_id, 'R7.1');
   assert.equal(parsed.commitSha, 'a0250b8b0ca8072104a4d3593012220c4fe2fb84');

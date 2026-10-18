@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "release_id": "sms-v3-prod-ed73d4e-20261018",
-  "release_batch_id": "R7.1",
+  "release_batch_id": "R8",
   "manifest_state": "APPROVED_FOR_OWNER_PRODUCTION_DECISION",
   "commit_sha": "ed73d4e07831c652b55ff3bf945fc2462e1063ac",
   "tree_sha": "e324260e3fc666b43d3fdbe0bb7a8ff3039ac40c",

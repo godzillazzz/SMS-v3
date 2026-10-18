@@ -61,13 +61,24 @@ test('draft fails closed; prior R7 approval cannot be transferred to the current
   assert.equal(original.commit_sha, '1b30ec935fb2fe3ed15c85d74d15245996bff62c');
   assert.equal(original.rollback_deployment_id, rollback);
 
-  const current = load('approved-production.json');
+  const current = load('r7.1-production-manifest-approved-20261017.json');
   const validated = validateReleaseManifest(current);
   assert.equal(current.release_batch_id, 'R7.1');
   assert.equal(validated.commitSha, 'a0250b8b0ca8072104a4d3593012220c4fe2fb84');
   assert.equal(validated.currentProductionSourceSha, 'f30bc45915acb8c87a94d2d8a2d0e90a86d6f16e');
   assert.equal(validated.rollbackDeploymentId, 'dpl_9CxiMbXdmBqp6LJG8YHKcVXgL1JN');
   assert.equal(current.production_environment_change_policy, 'OWNER_APPROVED_REGION_CHANGE_ONLY');
+
+  // The live manifest is a separate, later release: it must carry its own evidence and must
+  // never inherit the R7.1 approval SHA.
+  const live = load('approved-production.json');
+  const liveValidated = validateReleaseManifest(live);
+  assert.equal(live.release_batch_id, 'R8');
+  assert.equal(live.database_change_policy, 'PRE_APPLIED_APPROVED_MIGRATION');
+  assert.equal(live.pre_applied_migration_evidence_run_id, 39106871944);
+  assert.match(live.pre_applied_migration_manifest_path, /^[.]github\/releases\/approved-[a-z0-9-]+-production-migration[.]json$/);
+  assert.notEqual(liveValidated.commitSha, 'a0250b8b0ca8072104a4d3593012220c4fe2fb84');
+  assert.equal(live.run_migrations, false);
   assert.match(current.production_environment_change_note, /OWNER approved Vercel function region/);
   assert.equal(current.production_dispatch_authorized, false);
   assert.equal(current.production_release_go_no_go, 'OWNER_PRODUCTION_DECISION_REQUIRED_NO_DISPATCH_AUTHORIZED');
