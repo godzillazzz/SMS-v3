@@ -770,8 +770,8 @@ function createAttendanceAdjustmentService({ prisma = prismaDefault, audit = aud
     return prisma.$transaction(async (tx) => {
       const request = await getRequestRow(tx, id, true);
       if (!request) throw http(404, 'ATTENDANCE_ADJUSTMENT_NOT_FOUND', 'Attendance adjustment request was not found.');
-      if (request.status !== 'PENDING_APPROVAL') {
-        throw http(409, 'ATTENDANCE_ADJUSTMENT_INVALID_TRANSITION', 'Only pending requests may be rejected.');
+      if (request.status !== PENDING_ADMIN && request.status !== LEGACY_PENDING) {
+        throw http(409, 'ATTENDANCE_ADJUSTMENT_INVALID_TRANSITION', 'Only requests that reached the administrator stage may be rejected.');
       }
 
       await tx.$executeRaw(Prisma.sql`

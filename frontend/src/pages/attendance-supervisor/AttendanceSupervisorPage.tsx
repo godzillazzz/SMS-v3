@@ -475,7 +475,7 @@ export function AttendanceSupervisorPage({ token, role, department, employeeAuth
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailRequests, setDetailRequests] = useState<AttendanceAdjustmentRequest[]>([]);
 
-  const [requestStatus, setRequestStatus] = useState<AttendanceAdjustmentStatus | ''>(admin ? 'PENDING_APPROVAL' : '');
+  const [requestStatus, setRequestStatus] = useState<AttendanceAdjustmentStatus | ''>(role === 'ADMIN' ? 'PENDING_ADMIN' : role === 'MANAGER' ? 'PENDING_MANAGER' : role === 'SUPERVISOR' ? 'PENDING_SUPERVISOR' : '');
   const [requestPage, setRequestPage] = useState(1);
   const [requests, setRequests] = useState<AttendanceAdjustmentRequest[]>([]);
   const [requestMeta, setRequestMeta] = useState({ page: 1, pageSize: 25, total: 0, totalPages: 1 });
