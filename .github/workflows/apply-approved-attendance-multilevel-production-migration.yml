@@ -156,8 +156,9 @@ jobs:
           node scripts/ci/prisma-migration.js status
           # Verify the script that actually runs matches the reviewed commit exactly.
           git fetch --no-tags origin "$GITHUB_SHA"
-          git show "$GITHUB_SHA:scripts/ci/verify-attendance-multilevel-constraints.js" >/tmp/verify-attendance-multilevel-constraints.js
-          node /tmp/verify-attendance-multilevel-constraints.js
+          # Run it inside the worktree so @prisma/client resolves from the installed node_modules.
+          git show "$GITHUB_SHA:scripts/ci/verify-attendance-multilevel-constraints.js" > ./verify-attendance-multilevel-constraints.runtime.js
+          node ./verify-attendance-multilevel-constraints.runtime.js
       - name: Verify canonical application remains healthy
         shell: bash
         run: |
