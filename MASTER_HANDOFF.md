@@ -16,6 +16,8 @@
 
 **Evidence:** 34+ targeted tests (route matrix, maker scope/boundary, read scope, maker-only submit/revise, correction scope, supervisor detail) · mutation proofs: backdate check, VIEWER ownership, VIEWER read scope, makerUserId check, correction department check — each removed guard makes the matching test fail · CI run `39094933162` on `dec90bb5` = SUCCESS (validate + t22).
 
+**Review verdict (SENTINEL, 18 Oct 2026):** `GOV_RBAC_CLOSE = APPROVED` · `NO_NEW_MIGRATION = YES` · `VIEWER_CAPABILITY_OK = YES` · `CI_GREEN = YES` · no blocking findings (35/35 targeted tests, prisma diff vs pre-work SHA empty, no `20261018*` migration, linked VIEWER `canCreateAdjustmentRequest=true` / `canApproveAdjustmentRequest=false`). This is a review-level close, **not** a Production approval — deployment still requires the OWNER-controlled production environment gate.
+
 **Incident record (18 Oct 2026):** three agent commits (`3c6ccbd6`, `1acc6e67`, `401375ff` + follow-ups `6a334048`/`1817e263`/`eaa1948f`/`0e19485c`) attempted to widen approval authority to MANAGER/SUPERVISOR and re-added a Prisma migration `202610180001_cfg06_attendance_adjustment_all_roles`. All were reverted (`ca103e57`, `6ec82e64`, `85591f70`, then a chain revert) — **HEAD has no such migration and decision routes are ADMIN-only**. The owner-facing rule stands: agents must not change authorization policy without explicit OWNER approval.
 
 ## ACTIVE — TOKYO REGION RELEASE & OWNER-MEASURED T18/T24 LATENCY — 17 October 2026 (Asia/Bangkok)
