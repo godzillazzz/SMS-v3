@@ -1,0 +1,517 @@
+{
+  "generatedAt": "2026-10-18T23:43:10.254Z",
+  "canonicalUrl": "https://sms-v3-staging-ten.vercel.app",
+  "sourceHead": "ce30f5e73743d747a0c58bce37069932be1b8b92",
+  "assetCount": 56,
+  "assetBytes": 2505890,
+  "assets": [
+    {
+      "asset": "/assets/index-CLNwpM1C.js",
+      "bytes": 374611,
+      "sha256": "ab28a0ee8e0194402c724bfb93bf009d218a6e71c42d7793d10cd919e358acd3"
+    },
+    {
+      "asset": "/assets/rolldown-runtime-QTnfLwEv.js",
+      "bytes": 694,
+      "sha256": "5db5ba82eef00d1dee7e86e663098c9427d01183a88d357437daff295aec3e75"
+    },
+    {
+      "asset": "/assets/app-loader-DQpvvXAs.js",
+      "bytes": 8097,
+      "sha256": "4f6cad13e181165bab841645f0afed0a10922e1b790bfd007dbb3d0ee9e59b36"
+    },
+    {
+      "asset": "/assets/webauthn-vendor-CAMkWa7m.js",
+      "bytes": 8523,
+      "sha256": "c411e722a20316ac65f9bedadf50a6baa83ae2746656d5d8918989ca0d5b55f2"
+    },
+    {
+      "asset": "/assets/react-vendor-BH6ziLs1.js",
+      "bytes": 132814,
+      "sha256": "6526173fe6408bd07d3be3d86eda36763d569d9e2a0a50abad2734a2c5d27ec5"
+    },
+    {
+      "asset": "/assets/layout-components-DflU1LJ1.js",
+      "bytes": 8865,
+      "sha256": "40f7d486a599d8eb5109b5ddb3a87a58788a5e5d9aebecd6b6bff3d52332ff10"
+    },
+    {
+      "asset": "/assets/document-scroll-lock-BfAIN6Xx.js",
+      "bytes": 505,
+      "sha256": "a628196c416e10602310d968044c28de7c7ad5acf0ba9272c7a43d26126a90b5"
+    },
+    {
+      "asset": "/assets/app-loader-BtVzvwKf.css",
+      "bytes": 1138,
+      "sha256": "d00f2e4d8ed63d23d43a4f9f6f763586c000e1052e5249c9439e44d106d83780"
+    },
+    {
+      "asset": "/assets/index-CNw9fH0f.css",
+      "bytes": 691821,
+      "sha256": "6d1670397b4adfae2d327cc2c35238b51f846c6e20c266d37c87a1d9f2cfb30a"
+    },
+    {
+      "asset": "/assets/es-CjhjPywI.js",
+      "bytes": 420013,
+      "sha256": "f052e085b091407f1a453b8cfb67923023c330f1fa9ca4a8125e4ff74e02e574"
+    },
+    {
+      "asset": "/assets/DashboardDetailsPage-CkzgLKmj.js",
+      "bytes": 5551,
+      "sha256": "fb53d6d3d36f1e56f5e5bcc8b17186b5ebe4b723b667d8c7aafe8fdd479eea57"
+    },
+    {
+      "asset": "/assets/LicenseDocuments-gGntpidp.js",
+      "bytes": 33091,
+      "sha256": "c33ba208670c096e28e2367e86b5d2e7cfe5776e0f78c4490aea5ff6be1daea3"
+    },
+    {
+      "asset": "/assets/AwardPublicExperience-B8-6mUmG.js",
+      "bytes": 18218,
+      "sha256": "7f87c7cfbbe7120ed934b4468aed403727e080ea6056ae152705e4043f1b3ed5"
+    },
+    {
+      "asset": "/assets/ReportCenterPage-CD7F8Us2.js",
+      "bytes": 22669,
+      "sha256": "2c2925dc21a4a930f27a6a6a1c71db87a183fa128409fa76451df4eb027fc57a"
+    },
+    {
+      "asset": "/assets/SettingsPage-By9AKYI9.js",
+      "bytes": 12520,
+      "sha256": "95f309e97c461f166854f7b7a89a410abf3a54704945e0025b7fd27a3f7bec9a"
+    },
+    {
+      "asset": "/assets/PersonnelDirectoryPage-24cv417l.js",
+      "bytes": 42220,
+      "sha256": "a6168a8d10e3189dd079c35665f1829759327f6a341e0185e31e3c49483170a2"
+    },
+    {
+      "asset": "/assets/EmployeeGovernedEditModal-Bs5nMgon.js",
+      "bytes": 44579,
+      "sha256": "c3eda49283e8cd5839f77456c157c7feccb63b6a7558b9d73e14921c66d397c1"
+    },
+    {
+      "asset": "/assets/EmployeeChangeReviewModal-D8OXyB2o.js",
+      "bytes": 10656,
+      "sha256": "f2bd7b509740ca8737aed8a0b0ca28586a8f53bd5d662096945417a7fd20f689"
+    },
+    {
+      "asset": "/assets/ApprovalCenterPage-BgbnKacK.js",
+      "bytes": 22320,
+      "sha256": "f8e1fd2720e182239437eaf5e5f199193ff177f9fa30a059b35f76d17cf80d2b"
+    },
+    {
+      "asset": "/assets/AuditCompliancePage-t9xDlYbH.js",
+      "bytes": 18800,
+      "sha256": "308491620d162d11622dd6bf8f4f0d64cea9a61c7670a422962fafbc935e4de5"
+    },
+    {
+      "asset": "/assets/DataQualityCenterPage-Bg0JaxbJ.js",
+      "bytes": 12256,
+      "sha256": "fd72e6ae34f5da1f50cc6c778ea640e0076b125e6307d99c319db17619257eec"
+    },
+    {
+      "asset": "/assets/SystemHealthPage-BjCwgDem.js",
+      "bytes": 11770,
+      "sha256": "f84541bef7fca8b845681b3f5e7d7a78dbe482ec7f743f24ec666bb09b508b48"
+    },
+    {
+      "asset": "/assets/AccessManagementPage-DKffXsSO.js",
+      "bytes": 32553,
+      "sha256": "ecb050a5b8035e8f2c5b2a564159471dbf9b1269e356e1f08d0f7ab965d15acd"
+    },
+    {
+      "asset": "/assets/AttendanceDevicePage-yDXhZs_l.js",
+      "bytes": 41634,
+      "sha256": "8a2300df61777f551ebd81cc53d13e5c45bf0cd1c16436577aada719d6970b2c"
+    },
+    {
+      "asset": "/assets/SecuritySiteManagementPanel-CmUJCxOX.js",
+      "bytes": 61913,
+      "sha256": "0de1ed3074d94d36ff8d9343163853213b0dab6fbcde7e7f68c7b7da04a2a090"
+    },
+    {
+      "asset": "/assets/PwaProfilePage-iMcPk7oO.js",
+      "bytes": 6511,
+      "sha256": "336e99f1d1eee22f6aacff625c2a7166a398b32b42b6f87818229d55c55bdb18"
+    },
+    {
+      "asset": "/assets/AttendanceHistoryPwaPage-B0OQDFwF.js",
+      "bytes": 16166,
+      "sha256": "2372c75dc78791ba32c6422f95987e2eb429600cfe7b48c2cc19fd2660601d40"
+    },
+    {
+      "asset": "/assets/AttendanceSchedulePwaPage-CiGXF5zg.js",
+      "bytes": 5464,
+      "sha256": "68a440fa69a12a450a167dd8a473b7f76bfc5a19ee254cd060ba291adb2ebd80"
+    },
+    {
+      "asset": "/assets/AttendanceSimplePage-BDKvxA9B.js",
+      "bytes": 30544,
+      "sha256": "30f7bf191745d20c5f0b195db8535ef0640b13f87dc4a459341b2985e67543e9"
+    },
+    {
+      "asset": "/assets/AttendanceSupervisorPage-CKWy0zdn.js",
+      "bytes": 58177,
+      "sha256": "11cf9a81d913de5e68f22bb45292400cd23896c2b6616de7e17a4d51daf31a56"
+    },
+    {
+      "asset": "/assets/RegistrationReviewPanel-Dxs8TBbY.js",
+      "bytes": 21042,
+      "sha256": "88ee13401594d8bb70ffa5f08970e7551c0e79b9d369d43b497843ddb149e319"
+    },
+    {
+      "asset": "/assets/PasskeySecurityPanel-F-HUnRr_.js",
+      "bytes": 8296,
+      "sha256": "5a463c6e472bc75a6518050a76a04582ad776fc4c5dd5b1822dfcdb60c2c8a15"
+    },
+    {
+      "asset": "/assets/RuleCheckingDataSurfaces-B2AOnVPK.js",
+      "bytes": 7732,
+      "sha256": "9d8d8fcc2d4d15b9d1d46b5ce478b1bb27ac842bd858930ebd5c6c62bcdaf390"
+    },
+    {
+      "asset": "/assets/OperationalRecordDrawer-CeCUNAhD.js",
+      "bytes": 3945,
+      "sha256": "7061a4d03758c38b4847de16ae8355500eb060c04888efd91cc70839ddb8604b"
+    },
+    {
+      "asset": "/assets/DataRowActionMenu-CqR3xvAl.js",
+      "bytes": 2408,
+      "sha256": "36cc37fd43b16d4c82e38cab895b12a9692cc5cc1c801379f7931259001c333f"
+    },
+    {
+      "asset": "/assets/TableActionColumn-w2f_46m5.js",
+      "bytes": 560,
+      "sha256": "0152f2ea9cdf0270ef80b9ac3fad119d8ca582e5472f30a76300bafa573c9e9b"
+    },
+    {
+      "asset": "/assets/LeaveDecisionConfirmation-D06q_36-.js",
+      "bytes": 8340,
+      "sha256": "6042a2e221f54b323d78d11de578066b97b5a10bf638b30abaeb8227a5fb65cb"
+    },
+    {
+      "asset": "/assets/SearchableEmployeeCombobox-C9AF2bYb.js",
+      "bytes": 3868,
+      "sha256": "0e199f62a5d036c6fbc266791490cb1003655869d60f9dfc77ec14c3ef8535af"
+    },
+    {
+      "asset": "/assets/approval-count-refresh-B7L0w_J-.js",
+      "bytes": 377,
+      "sha256": "9b30eb5a3ed0e7e6363fcb1172fb80ac0dc0c3250916cb3f7e5d0a365ad4c934"
+    },
+    {
+      "asset": "/assets/G06DeviceContextDiagnosticPage-7vdVTNcT.js",
+      "bytes": 13799,
+      "sha256": "f2175842dc5d03f41d430c95cee0216d92a9ec8b9b7b7b4f447144decccce25c"
+    },
+    {
+      "asset": "/assets/AccessibleTabs-c4HSi4SA.js",
+      "bytes": 436,
+      "sha256": "d2785b8fda80356785fa1892faf253728daaf50cfe1ae9e046042f943af0871f"
+    },
+    {
+      "asset": "/assets/AttendancePolicySettingsCard-CFAf6ewa.js",
+      "bytes": 6681,
+      "sha256": "0e4aefec4efb1063ce818cbae66a73cda2156c66eaadbcf28ecc9e6f04541b3b"
+    },
+    {
+      "asset": "/assets/AttendanceTimePolicySettingsCard-av4Esd2b.js",
+      "bytes": 11961,
+      "sha256": "341161fe5319a0eae17f1cdeda65cc06808a83a0c0819df96eab0431cbae885f"
+    },
+    {
+      "asset": "/assets/LeavePolicySettingsCard-DLS5sG3C.js",
+      "bytes": 6637,
+      "sha256": "7239d463f01903f5b3b1eb2df6b4e9320afc76da283c993a17e1a123e8456083"
+    },
+    {
+      "asset": "/assets/LeaveTypeMasterPanel-B5ny91aa.js",
+      "bytes": 11118,
+      "sha256": "a446b9da70c9d0ec4b9f2b4d91b65cbf2d053f8869d96ee89cbf7b558baf0614"
+    },
+    {
+      "asset": "/assets/AutoSchedulePatternPanel--Y-jI9Ab.js",
+      "bytes": 14474,
+      "sha256": "8dae00d3e80a1f5064e0080ee55ff855c2a7e2d9b3424a91aa475338ebd0d529"
+    },
+    {
+      "asset": "/assets/ApprovalAuthorityMatrixPanel-DX9uyJXB.js",
+      "bytes": 14954,
+      "sha256": "c60f9d804700e2d1f39f5a54ab3d66c3101b2aa7c92446a314d0f79ac3b51007"
+    },
+    {
+      "asset": "/assets/PersonnelMasterPanel-De2VPPWE.js",
+      "bytes": 10679,
+      "sha256": "c56fa3d90e1e3c04899a7bdbc28a1f72dfa0bba8f1d73767842e4576e8cd1cbf"
+    },
+    {
+      "asset": "/assets/DataRetentionCenterPanel-BYCkQP85.js",
+      "bytes": 14041,
+      "sha256": "2f0abfef4c9f86f9e34fbe732a94b287d99306723f878fa64ed8b638ae73bd3f"
+    },
+    {
+      "asset": "/assets/ConfigurationRegistryPanel-D-fZ7SaH.js",
+      "bytes": 10097,
+      "sha256": "2f1b2e680595232dacb4ec3b0145f38eccb61b77e5ec3c09a8e1652d18823e11"
+    },
+    {
+      "asset": "/assets/NotificationCenterPanel-DFQ0VgPU.js",
+      "bytes": 3639,
+      "sha256": "f8477fd211e91d759a60701995572751daf062c3f257bdcf9b10bee39a06f5cc"
+    },
+    {
+      "asset": "/assets/attendance-adjustment-client-Cze0eOyv.js",
+      "bytes": 1943,
+      "sha256": "30e63aedeca5949e823d60a3840382f2221d9cac53dcabdca7ec9dd24b61bfcc"
+    },
+    {
+      "asset": "/assets/audit-utils-BUG-autH.js",
+      "bytes": 13758,
+      "sha256": "985a95bff9cfd1fdb9d5264f2cd5af88d335fd537abbdfb9807ced111a329185"
+    },
+    {
+      "asset": "/assets/attendance-client-CSkrl22s.js",
+      "bytes": 2669,
+      "sha256": "4e3a7c9c34faf20c83532fdfe2438b4b0f7a774d6f6774cbfda117fc8ef4862c"
+    },
+    {
+      "asset": "/assets/attendance-device-key-3KLINACj.js",
+      "bytes": 5803,
+      "sha256": "becaa1a966d9145b61ab1f92bbd235d65d38cb5be3d784ca32dc25876a011790"
+    },
+    {
+      "asset": "/assets/SecuritySiteMapPicker-D3yqHquh.js",
+      "bytes": 151940,
+      "sha256": "72388e66d9df1c53da046bde4cbce60c7752a12359f4462ce8b526443988f3c7"
+    }
+  ],
+  "sentinels": [
+    {
+      "sentinel": "เข้าสู่ระบบด้วย Passkey",
+      "shipped": true,
+      "asset": "/assets/index-CLNwpM1C.js",
+      "assetSha256": "ab28a0ee8e0194402c724bfb93bf009d218a6e71c42d7793d10cd919e358acd3"
+    },
+    {
+      "sentinel": "ลงเวลา",
+      "shipped": true,
+      "asset": "/assets/index-CLNwpM1C.js",
+      "assetSha256": "ab28a0ee8e0194402c724bfb93bf009d218a6e71c42d7793d10cd919e358acd3"
+    },
+    {
+      "sentinel": "อุปกรณ์ลงเวลา",
+      "shipped": true,
+      "asset": "/assets/index-CLNwpM1C.js",
+      "assetSha256": "ab28a0ee8e0194402c724bfb93bf009d218a6e71c42d7793d10cd919e358acd3"
+    },
+    {
+      "sentinel": "Security Site",
+      "shipped": true,
+      "asset": "/assets/SecuritySiteManagementPanel-CmUJCxOX.js",
+      "assetSha256": "0de1ed3074d94d36ff8d9343163853213b0dab6fbcde7e7f68c7b7da04a2a090"
+    },
+    {
+      "sentinel": "ศูนย์ควบคุมการลงเวลา",
+      "shipped": true,
+      "asset": "/assets/index-CLNwpM1C.js",
+      "assetSha256": "ab28a0ee8e0194402c724bfb93bf009d218a6e71c42d7793d10cd919e358acd3"
+    },
+    {
+      "sentinel": "ตารางผู้มีอำนาจอนุมัติและกรอบเวลา",
+      "shipped": true,
+      "asset": "/assets/ApprovalAuthorityMatrixPanel-DX9uyJXB.js",
+      "assetSha256": "c60f9d804700e2d1f39f5a54ab3d66c3101b2aa7c92446a314d0f79ac3b51007"
+    },
+    {
+      "sentinel": "เกณฑ์ SLA",
+      "shipped": true,
+      "asset": "/assets/ApprovalAuthorityMatrixPanel-DX9uyJXB.js",
+      "assetSha256": "c60f9d804700e2d1f39f5a54ab3d66c3101b2aa7c92446a314d0f79ac3b51007"
+    },
+    {
+      "sentinel": "การเปลี่ยนแปลงสำคัญ",
+      "shipped": true,
+      "asset": "/assets/EmployeeGovernedEditModal-Bs5nMgon.js",
+      "assetSha256": "c3eda49283e8cd5839f77456c157c7feccb63b6a7558b9d73e14921c66d397c1"
+    },
+    {
+      "sentinel": "เปลี่ยนชื่อ",
+      "shipped": true,
+      "asset": "/assets/PersonnelDirectoryPage-24cv417l.js",
+      "assetSha256": "a6168a8d10e3189dd079c35665f1829759327f6a341e0185e31e3c49483170a2"
+    },
+    {
+      "sentinel": "ย้ายหน่วยงาน / แผนก",
+      "shipped": true,
+      "asset": "/assets/EmployeeGovernedEditModal-Bs5nMgon.js",
+      "assetSha256": "c3eda49283e8cd5839f77456c157c7feccb63b6a7558b9d73e14921c66d397c1"
+    },
+    {
+      "sentinel": "เปลี่ยนตำแหน่ง",
+      "shipped": true,
+      "asset": "/assets/PersonnelDirectoryPage-24cv417l.js",
+      "assetSha256": "a6168a8d10e3189dd079c35665f1829759327f6a341e0185e31e3c49483170a2"
+    },
+    {
+      "sentinel": "Data Retention Center / การเก็บรักษาข้อมูล",
+      "shipped": true,
+      "asset": "/assets/DataRetentionCenterPanel-BYCkQP85.js",
+      "assetSha256": "2f0abfef4c9f86f9e34fbe732a94b287d99306723f878fa64ed8b638ae73bd3f"
+    },
+    {
+      "sentinel": "รัน Cleanup รอบถัดไป",
+      "shipped": true,
+      "asset": "/assets/DataRetentionCenterPanel-BYCkQP85.js",
+      "assetSha256": "2f0abfef4c9f86f9e34fbe732a94b287d99306723f878fa64ed8b638ae73bd3f"
+    },
+    {
+      "sentinel": "GPS / GEOFENCE",
+      "shipped": true,
+      "asset": "/assets/AttendanceSimplePage-BDKvxA9B.js",
+      "assetSha256": "30f7bf191745d20c5f0b195db8535ef0640b13f87dc4a459341b2985e67543e9"
+    },
+    {
+      "sentinel": "เครื่องแรกจะผูกอัตโนมัติ",
+      "shipped": true,
+      "asset": "/assets/AttendanceSimplePage-BDKvxA9B.js",
+      "assetSha256": "30f7bf191745d20c5f0b195db8535ef0640b13f87dc4a459341b2985e67543e9"
+    },
+    {
+      "sentinel": "ใช้อุปกรณ์อื่น · ต้องตรวจ",
+      "shipped": true,
+      "asset": "/assets/AttendanceSimplePage-BDKvxA9B.js",
+      "assetSha256": "30f7bf191745d20c5f0b195db8535ef0640b13f87dc4a459341b2985e67543e9"
+    },
+    {
+      "sentinel": "ออฟไลน์พร้อมใช้งาน",
+      "shipped": true,
+      "asset": "/assets/AttendanceSimplePage-BDKvxA9B.js",
+      "assetSha256": "30f7bf191745d20c5f0b195db8535ef0640b13f87dc4a459341b2985e67543e9"
+    },
+    {
+      "sentinel": "รอ ADMIN ยืนยันก่อนนับ",
+      "shipped": true,
+      "asset": "/assets/AttendanceSimplePage-BDKvxA9B.js",
+      "assetSha256": "30f7bf191745d20c5f0b195db8535ef0640b13f87dc4a459341b2985e67543e9"
+    },
+    {
+      "sentinel": "SUPPORT_SITE",
+      "shipped": true,
+      "asset": "/assets/index-CLNwpM1C.js",
+      "assetSha256": "ab28a0ee8e0194402c724bfb93bf009d218a6e71c42d7793d10cd919e358acd3"
+    },
+    {
+      "sentinel": "ช่วยปฏิบัติงาน",
+      "shipped": true,
+      "asset": "/assets/AttendanceHistoryPwaPage-B0OQDFwF.js",
+      "assetSha256": "2372c75dc78791ba32c6422f95987e2eb429600cfe7b48c2cc19fd2660601d40"
+    },
+    {
+      "sentinel": "นโยบายเวลาลงงาน",
+      "shipped": true,
+      "asset": "/assets/AttendanceTimePolicySettingsCard-av4Esd2b.js",
+      "assetSha256": "341161fe5319a0eae17f1cdeda65cc06808a83a0c0819df96eab0431cbae885f"
+    },
+    {
+      "sentinel": "ผ่อนผันการมาสาย (นาที)",
+      "shipped": true,
+      "asset": "/assets/AttendanceTimePolicySettingsCard-av4Esd2b.js",
+      "assetSha256": "341161fe5319a0eae17f1cdeda65cc06808a83a0c0819df96eab0431cbae885f"
+    },
+    {
+      "sentinel": "latestCheckInEnabled",
+      "shipped": true,
+      "asset": "/assets/AttendanceTimePolicySettingsCard-av4Esd2b.js",
+      "assetSha256": "341161fe5319a0eae17f1cdeda65cc06808a83a0c0819df96eab0431cbae885f"
+    }
+  ],
+  "rosterSymbols": [
+    {
+      "symbol": "🪄",
+      "shipped": true,
+      "assets": [
+        "/assets/index-CLNwpM1C.js",
+        "/assets/AutoSchedulePatternPanel--Y-jI9Ab.js"
+      ]
+    },
+    {
+      "symbol": "✨",
+      "shipped": true,
+      "assets": [
+        "/assets/index-CLNwpM1C.js"
+      ]
+    },
+    {
+      "symbol": "🔒",
+      "shipped": true,
+      "assets": [
+        "/assets/index-CLNwpM1C.js"
+      ]
+    },
+    {
+      "symbol": "⚡",
+      "shipped": true,
+      "assets": [
+        "/assets/index-CLNwpM1C.js"
+      ]
+    }
+  ],
+  "tasks": [
+    {
+      "id": "T30a",
+      "pr": 556,
+      "scope": "layout/shell",
+      "commit": "e8cb6cbc40762c0a0d40ab595bffb0dc6670a0dd",
+      "fileCount": 0,
+      "inCurrentSource": true,
+      "sampleFiles": []
+    },
+    {
+      "id": "T30b",
+      "pr": "593–596",
+      "scope": "personnel / roster / attendance / system surfaces",
+      "commit": "6d651315913647f4a38ff3fb560d6a5d892ff9ae",
+      "fileCount": 0,
+      "inCurrentSource": true,
+      "sampleFiles": []
+    },
+    {
+      "id": "T31",
+      "pr": 597,
+      "scope": "timesheet print pipeline",
+      "commit": null,
+      "fileCount": 0,
+      "inCurrentSource": null,
+      "sampleFiles": []
+    },
+    {
+      "id": "T32",
+      "pr": 591,
+      "scope": "branded surfaces",
+      "commit": "beabb62f50ec21ea57535e783d76beccf1f6b551",
+      "fileCount": 0,
+      "inCurrentSource": true,
+      "sampleFiles": []
+    },
+    {
+      "id": "T33",
+      "pr": 592,
+      "scope": "horizontal layout",
+      "commit": "dfac6123a1754567828971a067419fa7d2af3ccc",
+      "fileCount": 0,
+      "inCurrentSource": true,
+      "sampleFiles": []
+    },
+    {
+      "id": "T19",
+      "pr": 602,
+      "scope": "dashboard metric deep links",
+      "commit": null,
+      "fileCount": 0,
+      "inCurrentSource": null,
+      "sampleFiles": []
+    }
+  ],
+  "result": "PASS"
+}
