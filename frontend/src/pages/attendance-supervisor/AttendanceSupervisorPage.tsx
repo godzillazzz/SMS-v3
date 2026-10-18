@@ -437,6 +437,7 @@ export function AttendanceSupervisorPage({ token, role, department, employeeAuth
   const manager = ['MANAGER', 'SUPERVISOR'].includes(role);
   const viewer = role === 'VIEWER';
   const admin = role === 'ADMIN';
+  const reviewer = ['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(role);
 
   const [mode, setMode] = useState<Mode>('daily');
   const [date, setDate] = useState(today);
@@ -467,7 +468,7 @@ export function AttendanceSupervisorPage({ token, role, department, employeeAuth
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailRequests, setDetailRequests] = useState<AttendanceAdjustmentRequest[]>([]);
 
-  const [requestStatus, setRequestStatus] = useState<AttendanceAdjustmentStatus | ''>(admin ? 'PENDING_APPROVAL' : '');
+  const [requestStatus, setRequestStatus] = useState<AttendanceAdjustmentStatus | ''>(reviewer ? 'PENDING_APPROVAL' : '');
   const [requestPage, setRequestPage] = useState(1);
   const [requests, setRequests] = useState<AttendanceAdjustmentRequest[]>([]);
   const [requestMeta, setRequestMeta] = useState({ page: 1, pageSize: 25, total: 0, totalPages: 1 });
@@ -1196,7 +1197,9 @@ export function AttendanceSupervisorPage({ token, role, department, employeeAuth
                   </button>
                 )}
 
-                {admin && request.status === 'PENDING_APPROVAL' && <>
+                {reviewer && request.status === 'PENDING_APPROVAL'
+                  && request.makerUserId !== userId
+                  && request.employeeId !== employeeAuthorityId && <>
                   <button
                     type="button"
                     className="is-return"
