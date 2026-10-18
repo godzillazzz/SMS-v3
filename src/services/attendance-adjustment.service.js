@@ -752,7 +752,7 @@ function createAttendanceAdjustmentService({ prisma = prismaDefault, audit = aud
         entityId: id,
         metadata: {
           event: 'RETURNED',
-          fromStatus: 'PENDING_APPROVAL',
+          fromStatus: request.status,
           toStatus: 'RETURNED_FOR_CORRECTION',
           revision: request.currentRevision,
           comment: normalizedComment
@@ -802,7 +802,7 @@ function createAttendanceAdjustmentService({ prisma = prismaDefault, audit = aud
         entityId: id,
         metadata: {
           event: 'REJECTED',
-          fromStatus: 'PENDING_APPROVAL',
+          fromStatus: request.status,
           toStatus: 'REJECTED',
           revision: request.currentRevision,
           comment: normalizedComment
@@ -971,7 +971,7 @@ function createAttendanceAdjustmentService({ prisma = prismaDefault, audit = aud
         entityId: id,
         metadata: {
           event: 'APPROVED',
-          fromStatus: 'PENDING_APPROVAL',
+          fromStatus: request.status,
           toStatus: 'APPROVED',
           revision: request.currentRevision,
           makerUserId: request.makerUserId,

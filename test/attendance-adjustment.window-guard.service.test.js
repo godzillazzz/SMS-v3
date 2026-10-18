@@ -20,6 +20,7 @@ const assignment = {
 };
 
 function buildService(requestOverrides = {}) {
+  const auditCalls = [];
   const request = {
     id: '22222222-2222-4222-8222-222222222222',
     shiftAssignmentId: assignment.id,
@@ -45,11 +46,12 @@ function buildService(requestOverrides = {}) {
     shiftAssignment: { findUnique: async () => assignment },
     $transaction: async (fn) => fn(prisma)
   };
-  return createAttendanceAdjustmentService({
+  const service = createAttendanceAdjustmentService({
     prisma,
-    audit: { log: async () => {} },
+    audit: { log: async (input) => { auditCalls.push(input); } },
     clock: () => new Date('2026-10-18T05:00:00.000Z')
   });
+  return { service, auditCalls };
 }
 
 const codeOf = async (fn) => {
@@ -57,7 +59,7 @@ const codeOf = async (fn) => {
 };
 
 test('createDraft rejects a duration longer than the allowed shift window', async () => {
-  const service = buildService();
+  const { service } = buildService();
   assert.equal(await codeOf(() => service.createDraft({
     actor: { sub: 'admin-1', role: 'ADMIN' },
     assignmentId: assignment.id,
@@ -71,7 +73,7 @@ test('createDraft rejects a duration longer than the allowed shift window', asyn
 });
 
 test('createDraft rejects a check-in far before the planned shift start', async () => {
-  const service = buildService();
+  const { service } = buildService();
   assert.equal(await codeOf(() => service.createDraft({
     actor: { sub: 'admin-1', role: 'ADMIN' },
     assignmentId: assignment.id,
@@ -85,7 +87,7 @@ test('createDraft rejects a check-in far before the planned shift start', async 
 });
 
 test('reject is refused before the request reaches the administrator stage', async () => {
-  const service = buildService({ status: 'PENDING_MANAGER' });
+  const { service } = buildService({ status: 'PENDING_MANAGER' });
   assert.equal(await codeOf(() => service.reject({
     actor: { sub: 'admin-1', role: 'ADMIN' },
     id: 'req-1',
@@ -94,11 +96,14 @@ test('reject is refused before the request reaches the administrator stage', asy
 });
 
 test('reject is allowed at the administrator stage', async () => {
-  const service = buildService({ status: 'PENDING_ADMIN' });
+  const { service, auditCalls } = buildService({ status: 'PENDING_ADMIN' });
   const result = await service.reject({
     actor: { sub: 'admin-1', role: 'ADMIN' },
     id: 'req-1',
     comment: 'ไม่อนุมัติ'
   });
   assert.equal(result.id, '22222222-2222-4222-8222-222222222222');
+  const rejected = auditCalls.find((call) => call?.metadata?.event === 'REJECTED');
+  assert.ok(rejected, 'expected a REJECTED audit entry');
+  assert.equal(rejected.metadata.fromStatus, 'PENDING_ADMIN', 'audit must record the real source stage');
 });
