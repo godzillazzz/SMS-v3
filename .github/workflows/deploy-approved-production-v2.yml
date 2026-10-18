@@ -84,6 +84,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
+          set -x
           [[ "$TARGET_SHA" =~ ^[0-9a-f]{40}$ ]]
           [[ "$TARGET_TREE" =~ ^[0-9a-f]{40}$ ]]
           [[ "$CURRENT_PRODUCTION_SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]]
