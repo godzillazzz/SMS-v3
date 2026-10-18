@@ -55,7 +55,6 @@ type Props = {
   token: string;
   role: string;
   currentEmployeeId?: string;
-  userId?: string;
   refreshKey?: number;
   onChanged(): void;
   onSummaryLoaded?(summary: unknown): void;
@@ -199,7 +198,6 @@ export function ApprovalCenterPage({
   token,
   role,
   currentEmployeeId,
-  userId,
   refreshKey = 0,
   onChanged,
   onSummaryLoaded,
@@ -388,9 +386,6 @@ export function ApprovalCenterPage({
     const selfLeave = item.type === 'LEAVE_REQUEST'
       && Boolean(currentEmployeeId)
       && item.employee?.id === currentEmployeeId;
-    const selfAttendanceAdjustment = item.type === 'ATTENDANCE_ADJUSTMENT_REQUEST'
-      && ((Boolean(currentEmployeeId) && item.employee?.id === currentEmployeeId)
-        || (Boolean(userId) && item.requestedBy?.id === userId));
 
     if (item.type === 'EMPLOYEE_MASTER_CHANGE') return null;
     if (item.type === 'SCHEDULE_APPROVAL') return null;
@@ -399,10 +394,6 @@ export function ApprovalCenterPage({
     return <span className="approval-self-leave">
         ห้ามอนุมัติใบลาของตนเอง
       </span>;
-    }
-
-    if (selfAttendanceAdjustment) {
-      return <span className="approval-self-leave">ห้ามอนุมัติคำขอของตนเอง</span>;
     }
 
     return <div className={`approval-action-buttons${mobile ? ' approval-action-buttons--mobile' : ''}`}>

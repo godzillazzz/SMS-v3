@@ -14,7 +14,7 @@ const REQUEST_TYPE_DEFINITIONS = Object.freeze([
   Object.freeze({ type: 'LICENSE_DOCUMENT', label: 'เอกสารใบอนุญาต', safeReviewerRoles: Object.freeze(['ADMIN']) }),
   Object.freeze({ type: 'SCHEDULE_APPROVAL', label: 'อนุมัติตารางกะ', safeReviewerRoles: Object.freeze(['ADMIN', 'MANAGER']) }),
   Object.freeze({ type: 'ATTENDANCE_DEVICE_REQUEST', label: 'อุปกรณ์ลงเวลา', safeReviewerRoles: Object.freeze(['ADMIN']) }),
-  Object.freeze({ type: 'ATTENDANCE_ADJUSTMENT_REQUEST', label: 'ปรับปรุงเวลา Attendance', safeReviewerRoles: Object.freeze(['ADMIN', 'MANAGER', 'SUPERVISOR']) }),
+  Object.freeze({ type: 'ATTENDANCE_ADJUSTMENT_REQUEST', label: 'ปรับปรุงเวลา Attendance', safeReviewerRoles: Object.freeze(['ADMIN']) }),
   Object.freeze({ type: 'REGISTRATION_REQUEST', label: 'ลงทะเบียนบัญชี', safeReviewerRoles: Object.freeze(['ADMIN', 'MANAGER', 'SUPERVISOR']) }),
   Object.freeze({ type: 'USER_ACCESS', label: 'เปิดสิทธิ์ผู้ใช้', safeReviewerRoles: Object.freeze(['ADMIN', 'MANAGER', 'SUPERVISOR']) }),
   Object.freeze({ type: 'LEAVE_REQUEST', label: 'คำขอลา', safeReviewerRoles: Object.freeze(['ADMIN', 'MANAGER', 'SUPERVISOR']), supportsPositionAliases: true })
@@ -159,13 +159,7 @@ function parseStoredPolicy(definition, rowsByKey) {
   }
   try {
     return normalizePolicyInput(definition.type, {
-      reviewerRoles: (() => {
-        let reviewerRoles = parseJsonArray(rowsByKey.get(policyKey(definition.type, 'REVIEWER_ROLES')).value, 'REVIEWER_ROLES');
-        if (definition.type === 'ATTENDANCE_ADJUSTMENT_REQUEST' && reviewerRoles.length === 1 && reviewerRoles[0] === 'ADMIN') {
-          reviewerRoles = ['ADMIN', 'MANAGER', 'SUPERVISOR'];
-        }
-        return reviewerRoles;
-      })(),
+      reviewerRoles: parseJsonArray(rowsByKey.get(policyKey(definition.type, 'REVIEWER_ROLES')).value, 'REVIEWER_ROLES'),
       dueSoonHours: rowsByKey.get(policyKey(definition.type, 'DUE_SOON_HOURS')).value,
       overdueHours: rowsByKey.get(policyKey(definition.type, 'OVERDUE_HOURS')).value,
       additionalSupervisorAliases: definition.supportsPositionAliases

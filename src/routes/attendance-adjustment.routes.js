@@ -104,7 +104,7 @@ router.post('/:id/submit', authorize('ADMIN', 'MANAGER', 'SUPERVISOR', 'VIEWER')
   } catch (error) { next(error); }
 });
 
-router.post('/:id/return', authorize('ADMIN', 'MANAGER', 'SUPERVISOR'), async (req, res, next) => {
+router.post('/:id/return', authorize('ADMIN'), async (req, res, next) => {
   try {
     const input = commentInput.parse(req.body);
     res.json({
@@ -117,7 +117,7 @@ router.post('/:id/return', authorize('ADMIN', 'MANAGER', 'SUPERVISOR'), async (r
   } catch (error) { next(error); }
 });
 
-router.post('/:id/reject', authorize('ADMIN', 'MANAGER', 'SUPERVISOR'), async (req, res, next) => {
+router.post('/:id/reject', authorize('ADMIN'), async (req, res, next) => {
   try {
     const input = commentInput.parse(req.body);
     res.json({
@@ -130,7 +130,7 @@ router.post('/:id/reject', authorize('ADMIN', 'MANAGER', 'SUPERVISOR'), async (r
   } catch (error) { next(error); }
 });
 
-router.post('/:id/approve', authorize('ADMIN', 'MANAGER', 'SUPERVISOR'), async (req, res, next) => {
+router.post('/:id/approve', authorize('ADMIN'), async (req, res, next) => {
   try {
     z.object({}).strict().parse(req.body || {});
     res.json({ data: await service.approve({ actor: req.user, id: uuid.parse(req.params.id) }) });
