@@ -13,6 +13,7 @@
  */
 
 export type ResilienceOptions = {
+  /** Total requests allowed, including the first one: attempts=3 means 1 request + 2 retries. */
   attempts?: number;
   baseDelayMs?: number;
   maxDelayMs?: number;

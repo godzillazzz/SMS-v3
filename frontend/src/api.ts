@@ -178,7 +178,11 @@ async function binaryCall(path: string, init: RequestInit = {}, isRetry = false)
       }
     }
     const payload = await response.json().catch(() => ({}));
-    throw new ApiRequestError(payload.error || 'เกิดข้อผิดพลาดในการดาวน์โหลดเอกสาร', response.status, responseRequestId(response, payload));
+    throw new ApiRequestError(
+      isPlatformChallenge(response) ? PLATFORM_CHALLENGE_MESSAGE : payload.error || 'เกิดข้อผิดพลาดในการดาวน์โหลด',
+      response.status,
+      responseRequestId(response, payload)
+    );
   }
   const disposition = response.headers.get('content-disposition') || '';
   const encodedName = disposition.match(/filename\*=UTF-8''([^;]+)/i)?.[1];

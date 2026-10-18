@@ -131,6 +131,6 @@ describe('G04.2 VF-02 owner visual fidelity correction contract', () => {
   });
 
   it('locks the authorized API source after T25 cross-tab refresh coordination', () => {
-    expect(apiSha256).toBe('91d05b7e6a11a9be1059f3c65caa4de7ec7a20826890bf18752bb094ed357004');
+    expect(apiSha256).toBe('10585a3f0c2dec7bf1bfe9078bbb564d971af130dc2ea0e3d7902eb626c3d3a4');
   });
 });
