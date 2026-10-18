@@ -81,14 +81,68 @@ describe('fetchWithResilience', () => {
     expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 
-  it('honours retry-after on a 429', async () => {
+  it.each([
+    ['0', 0],
+    ['2', 2000],
+    ['30', 30000]
+  ])('honours Retry-After seconds exactly: %s', async (header, expectedMs) => {
     const waits: number[] = [];
     const fetchMock = vi.fn()
-      .mockResolvedValueOnce(jsonResponse(429, { 'retry-after': '2' }))
+      .mockResolvedValueOnce(jsonResponse(429, { 'retry-after': header }))
       .mockResolvedValueOnce(jsonResponse(200));
     vi.stubGlobal('fetch', fetchMock);
     await fetchWithResilience('/api/v1/health', {}, { wait: async (ms) => { waits.push(ms); } });
-    expect(waits[0]).toBe(2000);
+    expect(waits).toEqual([expectedMs]);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('gives up instead of retrying when Retry-After exceeds 30 seconds', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(429, { 'retry-after': '60' }));
+    vi.stubGlobal('fetch', fetchMock);
+    await expect(fetchWithResilience('/api/v1/health', {}, { wait: noWait }))
+      .rejects.toThrow(PLATFORM_CHALLENGE_MESSAGE);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('honours a future HTTP-date Retry-After', async () => {
+    const now = new Date('2026-01-01T00:00:00.000Z');
+    vi.setSystemTime(now);
+    const waits: number[] = [];
+    const retryAt = new Date(now.getTime() + 5000).toUTCString();
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(jsonResponse(429, { 'retry-after': retryAt }))
+      .mockResolvedValueOnce(jsonResponse(200));
+    vi.stubGlobal('fetch', fetchMock);
+    await fetchWithResilience('/api/v1/health', {}, { wait: async (ms) => { waits.push(ms); } });
+    expect(waits).toEqual([5000]);
+  });
+
+  it.each(['Thu, 01 Jan 2025 00:00:00 GMT', 'not-a-date'])
+    ('falls back to exponential backoff for invalid or past Retry-After: %s', async (header) => {
+      vi.setSystemTime(new Date('2026-01-01T00:00:00.000Z'));
+      const waits: number[] = [];
+      const fetchMock = vi.fn()
+        .mockResolvedValueOnce(jsonResponse(429, { 'retry-after': header }))
+        .mockResolvedValueOnce(jsonResponse(200));
+      vi.stubGlobal('fetch', fetchMock);
+      await fetchWithResilience('/api/v1/health', {}, {
+        wait: async (ms) => { waits.push(ms); },
+        random: () => 0
+      });
+      expect(waits).toEqual([400]);
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    });
+
+  it('gives up on an overlong Retry-After challenge for every method', async () => {
+    for (const method of ['GET', 'POST', 'PATCH']) {
+      const fetchMock = vi.fn().mockResolvedValue(
+        jsonResponse(403, { 'x-vercel-mitigated': 'challenge', 'retry-after': '60' })
+      );
+      vi.stubGlobal('fetch', fetchMock);
+      await expect(fetchWithResilience('/api/v1/challenge', { method }, { wait: noWait }))
+        .rejects.toThrow(PLATFORM_CHALLENGE_MESSAGE);
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    }
   });
 
   it('retries a transport failure for reads', async () => {

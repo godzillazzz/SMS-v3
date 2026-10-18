@@ -25,7 +25,9 @@ export type ResilienceOptions = {
 const DEFAULT_ATTEMPTS = 3;
 const DEFAULT_BASE_DELAY = 400;
 const DEFAULT_MAX_DELAY = 3_000;
-const RETRY_AFTER_CAP_MS = 10_000;
+// Never retry early; give up instead when the server asks for more than 30 seconds.
+const MAX_WAIT_BEFORE_GIVING_UP_MS = 30_000;
+const RETRY_AFTER_TOO_LONG = 'retry-after-too-long' as const;
 
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
@@ -40,14 +42,19 @@ export function isIdempotentMethod(method: string | undefined): boolean {
   return normalized === 'GET' || normalized === 'HEAD' || normalized === 'OPTIONS';
 }
 
-function retryAfterMs(response: Response): number | undefined {
+function retryAfterMs(response: Response): number | typeof RETRY_AFTER_TOO_LONG | undefined {
   const header = response.headers?.get?.('retry-after');
   if (!header) return undefined;
   const seconds = Number(header);
-  if (Number.isFinite(seconds) && seconds >= 0) return Math.min(seconds * 1000, RETRY_AFTER_CAP_MS);
+  if (Number.isFinite(seconds) && seconds >= 0) {
+    const delayMs = seconds * 1000;
+    return delayMs <= MAX_WAIT_BEFORE_GIVING_UP_MS ? delayMs : RETRY_AFTER_TOO_LONG;
+  }
   const date = Date.parse(header);
-  if (Number.isFinite(date)) return Math.max(0, Math.min(date - Date.now(), RETRY_AFTER_CAP_MS));
-  return undefined;
+  if (!Number.isFinite(date)) return undefined;
+  const delayMs = date - Date.now();
+  if (delayMs < 0) return undefined;
+  return delayMs <= MAX_WAIT_BEFORE_GIVING_UP_MS ? delayMs : RETRY_AFTER_TOO_LONG;
 }
 
 function backoffDelay(attempt: number, base: number, max: number, random: () => number) {
@@ -62,12 +69,13 @@ async function shouldRetry(
   idempotent: boolean
 ): Promise<{ retry: boolean; delayMs?: number }> {
   if (attempt >= attempts - 1) return { retry: false };
-  if (isPlatformChallenge(response)) return { retry: true, delayMs: retryAfterMs(response) ?? 1_000 };
-  if (!idempotent) return { retry: false };
-  if (response.status === 429 || response.status === 502 || response.status === 503 || response.status === 504) {
-    return { retry: true, delayMs: retryAfterMs(response) };
-  }
-  return { retry: false };
+  const challenge = isPlatformChallenge(response);
+  const retryableStatus = response.status === 429 || response.status === 502 || response.status === 503 || response.status === 504;
+  if (!challenge && (!idempotent || !retryableStatus)) return { retry: false };
+  const retryAfter = retryAfterMs(response);
+  if (retryAfter === RETRY_AFTER_TOO_LONG) throw new Error(PLATFORM_CHALLENGE_MESSAGE);
+  if (challenge) return { retry: true, delayMs: retryAfter ?? 1_000 };
+  return { retry: true, delayMs: retryAfter };
 }
 
 export async function fetchWithResilience(
@@ -91,6 +99,8 @@ export async function fetchWithResilience(
       await wait(decision.delayMs ?? backoffDelay(attempt, base, max, random));
     } catch (error) {
       lastError = error;
+      // A server-directed give-up is not a transport failure and must not be retried.
+      if (error instanceof Error && error.message === PLATFORM_CHALLENGE_MESSAGE) throw error;
       // A transport failure on a write is ambiguous: never resend it.
       if (!idempotent || attempt >= attempts - 1) throw error;
       await wait(backoffDelay(attempt, base, max, random));
