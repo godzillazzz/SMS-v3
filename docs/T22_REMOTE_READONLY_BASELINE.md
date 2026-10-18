@@ -80,3 +80,39 @@ The application itself measured clean before mitigation engaged:
   application defect, requires a production firewall/plan decision.
 - Office-network user-context measurement: **STILL NOT VERIFIED** (needs a real office client or an
   allowlisted egress).
+
+---
+
+# Correction — the office-NAT burst scenario does not apply
+
+The owner clarified that security staff **do not have office internet access**; they use their own
+mobile data. The "60 users behind one office NAT" scenario used to size the platform-challenge risk
+therefore does not describe real usage.
+
+Revised risk assessment:
+
+1. The `403 challenge` observed here came from this host's datacenter IP under a rapid burst. Real
+   users arrive from mobile-carrier addresses on browsers, which pass the JavaScript challenge
+   automatically when it fires.
+2. Carrier CGNAT still means several phones can share one public address, so protection should stay
+   enabled — disabling it would trade a very small usability risk for a real abuse risk.
+3. **No Vercel configuration change is required.** The remaining recommendation is client-side
+   resilience only: retry with backoff plus a plain-language message when a challenge or a 5xx is
+   returned, because mobile links drop and are re-homed frequently.
+
+## Polite re-measurement (1 request / 2 s, no challenge triggered)
+
+| Path | n | status | p50 | p95 | max |
+|---|---|---|---|---|---|
+| `/api/v1/ready` (Postgres) | 30 | 100 % `200` | **227 ms** | 1767 ms | 1819 ms |
+
+The p95 tail here is serverless cold-start behaviour, not the platform challenge: every request
+returned `200` and no `x-vercel-mitigated` header appeared.
+
+## Final T22 status
+
+- CI write benchmark (isolated Postgres container): **CLOSED** — p50 443.7 ms, p95 515.0 ms.
+- Remote single-user read latency: **CLOSED** — p95 173 ms warm, 1.77 s with cold starts, 0 % errors.
+- Platform challenge on datacenter bursts: **EXPLAINED, NOT A DEFECT** — no action requested.
+- Office-network measurement: **NOT APPLICABLE** — staff use mobile data; a browser-based mobile
+  measurement remains the only outstanding evidence if the owner wants it.
