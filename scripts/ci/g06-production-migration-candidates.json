@@ -170,24 +170,6 @@
           "blob": "bbafa4201f94988f7c613be79b2c0992324a4734"
         }
       ]
-    },
-    {
-      "name": "202610180002_attendance_adjustment_multilevel_approval",
-      "candidates": [
-        {
-          "commit": "73be09bd8555c52f36caac3d3bf1cf7ea2b890ee",
-          "blob": "f09fba655ff9bd3c134b0225beccfce350bbd644"
-        }
-      ]
-    },
-    {
-      "name": "202610180003_attendance_adjustment_status_restore_cancelled",
-      "candidates": [
-        {
-          "commit": "e541e2aa850d156d75b1b8b82f42fed58733c797",
-          "blob": "3a0a3b2b86853bcb702c0d8dba231e0766805036"
-        }
-      ]
     }
   ],
   "optionalHistoricalMigrations": [
