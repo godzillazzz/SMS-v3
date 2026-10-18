@@ -25,8 +25,8 @@
   "data_backfill": false,
   "application_deploy": false,
   "destructive_rollback": false,
-  "evidence_run_id": 39106871944,
-  "evidence_run_url": "https://github.com/godzillazzz/SMS-v3/actions/runs/39106871944",
+  "evidence_run_id": 39112848415,
+  "evidence_run_url": "https://github.com/godzillazzz/SMS-v3/actions/runs/39112848415",
   "evidence_run_status": "SUCCESS",
   "prisma_migrate_status": "UP_TO_DATE",
   "verified_constraints": {
@@ -54,5 +54,6 @@
   },
   "constraint_verification": "PASS",
   "canonical_health_readiness": "PASS",
-  "owner_approval_reference": "Owner approved the production migration gate on 18 Oct 2026"
+  "owner_approval_reference": "Owner approved the production migration gate on 18 Oct 2026",
+  "evidence_run_note": "Authoritative evidence run id for the release is carried in approved-production.json.pre_applied_migration_evidence_run_id; this field records the last verified constraint run."
 }
