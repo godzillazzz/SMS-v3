@@ -122,6 +122,6 @@ describe('G04.2 VF-07 visual baseline with Owner brand correction', () => {
   });
 
   it('locks the authorized API source after T25 cross-tab refresh coordination', () => {
-    expect(apiSha256).toBe('b0144981af17f3b286158a7a82277656bab79097242d1a563b1b157a96378b18');
+    expect(apiSha256).toBe('af2d50e9b7f78f67b3e48d059b48afdc1144453aa662b01b6481345be49098e4');
   });
 });

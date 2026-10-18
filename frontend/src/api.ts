@@ -1,5 +1,6 @@
 import { optimizeUploadFile } from './lib/attachment-optimizer';
 import { withAuthRefreshLock } from './auth-refresh-lock';
+import { fetchWithResilience, isPlatformChallenge, PLATFORM_CHALLENGE_MESSAGE } from './lib/request-resilience';
 
 const baseUrl = import.meta.env.VITE_API_BASE_URL || '/api/v1';
 const csrf = () => document.cookie.split('; ').find((item) => item.startsWith('smsv3_csrf='))?.split('=')[1];
@@ -132,7 +133,7 @@ async function call(path: string, init: RequestInit = {}, isRetry = false): Prom
   const csrfToken = csrf();
   if (csrfToken) headers.set('X-CSRF-Token', decodeURIComponent(csrfToken));
 
-  const response = await fetch(`${baseUrl}${path}`, { ...init, credentials: 'include', headers });
+  const response = await fetchWithResilience(`${baseUrl}${path}`, { ...init, credentials: 'include', headers });
   if (response.status === 204) return undefined;
   const payload = await response.json().catch(() => ({}));
 
@@ -149,7 +150,9 @@ async function call(path: string, init: RequestInit = {}, isRetry = false): Prom
         throw new Error('เซสชันหมดอายุ กรุณาเข้าสู่ระบบอีกครั้ง');
       }
     }
-    const errMessage = payload.error || (response.status === 401 ? 'เซสชันหมดอายุ กรุณาเข้าสู่ระบบอีกครั้ง' : 'เกิดข้อผิดพลาดในการเชื่อมต่อระบบ');
+    const errMessage = isPlatformChallenge(response)
+      ? PLATFORM_CHALLENGE_MESSAGE
+      : payload.error || (response.status === 401 ? 'เซสชันหมดอายุ กรุณาเข้าสู่ระบบอีกครั้ง' : 'เกิดข้อผิดพลาดในการเชื่อมต่อระบบ');
     throw new ApiRequestError(errMessage, response.status, responseRequestId(response, payload), payload.details);
   }
   return payload;
@@ -160,7 +163,7 @@ async function binaryCall(path: string, init: RequestInit = {}, isRetry = false)
   const csrfToken = csrf();
   if (csrfToken) headers.set('X-CSRF-Token', decodeURIComponent(csrfToken));
 
-  const response = await fetch(`${baseUrl}${path}`, { ...init, credentials: 'include', headers });
+  const response = await fetchWithResilience(`${baseUrl}${path}`, { ...init, credentials: 'include', headers });
   if (!response.ok) {
     if (response.status === 401 && !isRetry && !path.startsWith('/auth/')) {
       try {
