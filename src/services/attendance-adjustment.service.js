@@ -131,10 +131,26 @@ function assertMakerScope(actor, assignment, clock = () => new Date()) {
 }
 
 function assertAdmin(actor) {
-  if (roleOf(actor) !== 'ADMIN') {
-    throw http(403, 'ATTENDANCE_ADJUSTMENT_ADMIN_REQUIRED', 'Only ADMIN may approve, return, or reject Attendance adjustment requests.');
-  }
+  return assertReviewerAuthority(actor);
+}
+
+function assertReviewerAuthority(actor) {
+  const role = roleOf(actor);
   if (!actor?.sub) throw http(403, 'ATTENDANCE_ADJUSTMENT_ACTOR_REQUIRED', 'Authenticated actor identity is required.');
+  if (!['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(role)) {
+    throw http(403, 'ATTENDANCE_ADJUSTMENT_REVIEWER_REQUIRED', 'Only executive roles (Admin, Manager, Supervisor) may review Attendance adjustment requests.');
+  }
+  return role;
+}
+
+function assertNoSelfApproval(actor, request, assignment = null) {
+  if (request.makerUserId && String(request.makerUserId) === String(actor.sub)) {
+    throw http(403, 'ATTENDANCE_ADJUSTMENT_SELF_APPROVAL_FORBIDDEN', 'Approvers may not approve, return, or reject their own Attendance adjustment requests.');
+  }
+  const employeeId = assignment?.employeeId || request.assignment?.employeeId;
+  if (actor.employeeAuthority?.id && employeeId && String(employeeId) === String(actor.employeeAuthority.id)) {
+    throw http(403, 'ATTENDANCE_ADJUSTMENT_SELF_APPROVAL_FORBIDDEN', 'Approvers may not approve, return, or reject adjustments for their own shifts.');
+  }
 }
 
 async function authoritySnapshot(client, assignment) {
@@ -566,12 +582,14 @@ function createAttendanceAdjustmentService({ prisma = prismaDefault, audit = aud
   }
 
   async function returnForCorrection({ actor, id, comment } = {}) {
-    assertAdmin(actor);
+    const reviewerRole = assertReviewerAuthority(actor);
     const normalizedComment = reviewerComment(comment);
 
     return prisma.$transaction(async (tx) => {
       const request = await getRequestRow(tx, id, true);
       if (!request) throw http(404, 'ATTENDANCE_ADJUSTMENT_NOT_FOUND', 'Attendance adjustment request was not found.');
+      const assignment = await loadAssignment(tx, request.shiftAssignmentId);
+      assertNoSelfApproval(actor, request, assignment);
       if (request.status !== 'PENDING_APPROVAL') {
         throw http(409, 'ATTENDANCE_ADJUSTMENT_INVALID_TRANSITION', 'Only pending requests may be returned.');
       }
@@ -591,7 +609,7 @@ function createAttendanceAdjustmentService({ prisma = prismaDefault, audit = aud
           'RETURNED',
           ${request.currentRevision},
           ${actor.sub}::uuid,
-          'ADMIN',
+          ${reviewerRole},
           ${normalizedComment}
         )
       `);
@@ -613,13 +631,15 @@ function createAttendanceAdjustmentService({ prisma = prismaDefault, audit = aud
   }
 
   async function reject({ actor, id, comment } = {}) {
-    assertAdmin(actor);
+    const reviewerRole = assertReviewerAuthority(actor);
     const normalizedComment = reviewerComment(comment);
     const now = clock();
 
     return prisma.$transaction(async (tx) => {
       const request = await getRequestRow(tx, id, true);
       if (!request) throw http(404, 'ATTENDANCE_ADJUSTMENT_NOT_FOUND', 'Attendance adjustment request was not found.');
+      const assignment = await loadAssignment(tx, request.shiftAssignmentId);
+      assertNoSelfApproval(actor, request, assignment);
       if (request.status !== 'PENDING_APPROVAL') {
         throw http(409, 'ATTENDANCE_ADJUSTMENT_INVALID_TRANSITION', 'Only pending requests may be rejected.');
       }
@@ -641,7 +661,7 @@ function createAttendanceAdjustmentService({ prisma = prismaDefault, audit = aud
           'REJECTED',
           ${request.currentRevision},
           ${actor.sub}::uuid,
-          'ADMIN',
+          ${reviewerRole},
           ${normalizedComment}
         )
       `);
@@ -663,7 +683,7 @@ function createAttendanceAdjustmentService({ prisma = prismaDefault, audit = aud
   }
 
   async function approve({ actor, id } = {}) {
-    assertAdmin(actor);
+    const reviewerRole = assertReviewerAuthority(actor);
     const now = clock();
 
     return prisma.$transaction(async (tx) => {
@@ -680,6 +700,7 @@ function createAttendanceAdjustmentService({ prisma = prismaDefault, audit = aud
       `);
 
       const assignment = await loadAssignment(tx, request.shiftAssignmentId);
+      assertNoSelfApproval(actor, request, assignment);
       const certificationLockKey = attendanceCertificationLockKey(assignment.workDate);
       await tx.$queryRaw(Prisma.sql`
         SELECT 1::integer AS locked
@@ -752,7 +773,7 @@ function createAttendanceAdjustmentService({ prisma = prismaDefault, audit = aud
             ${correctedAt},
             ${request.reason},
             ${request.makerUserId}::uuid,
-            ${request.makerRoleSnapshot},
+            ${reviewerRole},
             ${id}::uuid,
             ${request.currentRevision},
             ${actor.sub}::uuid,
@@ -809,7 +830,7 @@ function createAttendanceAdjustmentService({ prisma = prismaDefault, audit = aud
           'APPROVED',
           ${request.currentRevision},
           ${actor.sub}::uuid,
-          'ADMIN',
+          ${reviewerRole},
           ${JSON.stringify(current.snapshot)}::jsonb,
           ${JSON.stringify(afterSnapshot)}::jsonb
         )
@@ -860,5 +881,7 @@ module.exports = {
   authoritySnapshot,
   assertMakerScope,
   assertAdmin,
+  assertReviewerAuthority,
+  assertNoSelfApproval,
   createAttendanceAdjustmentService
 };
