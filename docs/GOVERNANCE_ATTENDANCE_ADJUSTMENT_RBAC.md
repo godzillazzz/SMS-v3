@@ -1,67 +1,66 @@
-# GOVERNANCE — Attendance Adjustment RBAC change (OWNER approved 17 Oct 2026)
+# GOVERNANCE — Attendance Adjustment authority (ฉบับ OWNER 18 ต.ค. 2569)
 
-**คำสั่ง OWNER (17 ต.ค. 2569):** "หัวหน้างานแก้เวลาไม่ได้ · พนักงานต้องยื่นยันเองผ่านสายบังคับบัญชา · จบที่ Admin เป็นผู้อนุมัติขั้นสุดท้าย"
-**OWNER อนุมัติให้แก้ RBAC:** ใช่ (18 ต.ค. 2569 เวลา ~00:30 BKK)
-**ขอบเขต:** เฉพาะ attendance adjustment (`src/routes/attendance-adjustment.routes.js` + `src/services/attendance-adjustment.service.js`) · **ไม่มี schema/migration change**
-**ต้องผ่าน:** CI เขียว + SENTINEL review ก่อนปิดงาน
+> **ฉบับนี้แทนที่ฉบับ 17 ต.ค. 2569 ทั้งหมด** (OWNER ปรับนโยบาย: หัวหน้างานคีย์ยืนยันให้ลูกน้องได้)
 
-## สภาพปัจจุบัน (ตรวจจากซอร์ส 17 ต.ค.)
+**คำสั่ง OWNER (18 ต.ค. 2569):**
+1. **หัวหน้างาน (SUPERVISOR) ผู้จัดการ (MANAGER) และ ADMIN เป็นผู้บริหารของทุกแผนก** → ไม่จำกัดแผนก
+2. **หัวหน้างานคีย์ยืนยันการมาปฏิบัติงานให้ลูกน้องได้**
+3. **หัวหน้างานและผู้จัดการคีย์ย้อนหลังได้ไม่เกิน 7 วัน**
+4. **ADMIN ไม่จำกัดเวลา**
+5. **การอนุมัติขั้นสุดท้ายจบที่ ADMIN เท่านั้น**
+6. พนักงาน (role `VIEWER` ที่ผูก employee) ยื่นยันของตัวเองได้ — เลือกทาง **A** (ไม่เพิ่ม role/migration)
 
-| จุด | โค้ดวันนี้ | ตรงคำสั่ง OWNER? |
-|---|---|---|
-| router-level | `authorize('ADMIN','MANAGER','SUPERVISOR')` | ❌ SUPERVISOR หลุดเข้ามาได้, EMPLOYEE เข้าไม่ได้ |
-| maker (`assertMakerScope`) | ADMIN/MANAGER/SUPERVISOR (MANAGER/SUPERVISOR ผูก department) | ❌ |
-| approve/reject/return (`assertAdmin`) | ADMIN เท่านั้น | ✅ |
-| read (`list`/`get`) | ADMIN ทั้งหมด · MANAGER/SUPERVISOR ตาม department · อื่น 403 | ต้องขยายให้ EMPLOYEE อ่านของตัวเอง |
+## ตารางสิทธิ์ (เป้าหมาย)
 
-## เป้าหมายหลังแก้
-
-| action | ADMIN | MANAGER | SUPERVISOR | EMPLOYEE | VIEWER |
+| action | ADMIN | MANAGER | SUPERVISOR | VIEWER + ผูก employee | VIEWER ไม่ผูก employee |
 |---|---|---|---|---|---|
-| สร้างคำขอ (POST /) | ✅ | ✅ (แผนกตัวเอง) | ❌ 403 | ✅ **เฉพาะกะของตัวเอง** | ❌ 403 |
-| แก้ไขคำขอ (PUT /:id) | ✅ | ✅ (แผนก) | ❌ 403 | ✅ เฉพาะของตัวเอง + สถานะ DRAFT | ❌ |
-| ส่งคำขอ (POST /:id/submit) | ✅ | ✅ | ❌ 403 | ✅ เฉพาะของผู้สร้าง | ❌ |
-| อนุมัติ/ส่งกลับ/ปฏิเสธ | ✅ | ❌ 403 | ❌ 403 | ❌ 403 | ❌ |
-| อ่านรายการ (GET /) | ทั้งหมด | แผนก | แผนก (อ่านได้ คงเดิม) | **เฉพาะของตัวเอง** | ❌ 403 |
+| สร้าง/แก้/ส่ง คำขอ (`CONFIRM_WORK_PERFORMED`, `ADJUST_WORK_TIME`) | ✅ ไม่จำกัดเวลา/แผนก | ✅ **ย้อนหลัง ≤ 7 วัน** / ทุกแผนก | ✅ **ย้อนหลัง ≤ 7 วัน** / ทุกแผนก | ✅ **เฉพาะกะตัวเอง** (≤ 7 วัน)* | ❌ 403 |
+| อนุมัติ / ส่งกลับ / ปฏิเสธ | ✅ | ❌ 403 | ❌ 403 | ❌ 403 | ❌ 403 |
+| อ่านรายการ / ดูรายละเอียด | ทุกแผนก | ทุกแผนก | ทุกแผนก | เฉพาะของตัวเอง | ❌ 403 |
 
-## การแก้ที่ต้องทำ (แม่นยำ)
+\* **สมมติฐานที่ต้องยืนยัน:** พนักงานยื่นของตัวเองได้ภายใน 7 วันเช่นกัน (ถ้าต้องการไม่จำกัด แจ้งได้ — แก้ที่ค่าคงที่จุดเดียว)
 
-1. **Route** — เลิกใช้ `authorize` ระดับ router; ใส่ authorize ต่อ route:
-   - `GET /` และ `GET /:id` → `authorize('ADMIN','MANAGER','SUPERVISOR','EMPLOYEE')`
-   - `POST /`, `PUT /:id`, `POST /:id/submit` → `authorize('ADMIN','MANAGER','EMPLOYEE')`
-   - `POST /:id/approve|reject|return` → `authorize('ADMIN')` (คงเดิม)
-   - ยังต้องมี `requireAttendanceApi` + `authenticate` ที่ router-level
-2. **Service `assertMakerScope`**
-   - รับ ADMIN/MANAGER/EMPLOYEE
-   - **SUPERVISOR → 403** (`ATTENDANCE_ADJUSTMENT_FORBIDDEN`)
-   - EMPLOYEE → อนุญาตเฉพาะเมื่อ `actor.employeeId` ตรงกับ `assignment.employeeId`; ไม่ตรง → 403 `ATTENDANCE_ADJUSTMENT_SCOPE_FORBIDDEN`
-   - MANAGER → ผูก department เหมือนเดิม
-3. **Service read scope (`list` / `get`)** — เพิ่ม EMPLOYEE: เห็นเฉพาะแถวที่ `employeeId = actor.employeeId`; SUPERVISOR คงเดิม (แผนก)
-4. **Service `submit`** — ผู้ส่งต้องเป็น maker ของคำขอนั้น (ถ้ามีอยู่แล้วให้คงไว้และเพิ่มเทสต์ยืนยัน)
-5. **Frontend** — ปุ่ม/ทางเข้า "ยืนยันการปฏิบัติงาน" แสดงเฉพาะ EMPLOYEE (กะของตัวเอง) และ ADMIN/MANAGER; **ซ่อนสำหรับ SUPERVISOR** · ไม่ต้องแตะหน้าาอื่น
-6. **ห้าม:** เปลี่ยน `assertAdmin` · เปลี่ยน schema · แตะ Production · ลบ/ทำให้เทสต์เดิมอ่อนลง
+## การแก้ที่ต้องทำ
 
-## เทสต์ที่ต้องมี (backend เป็นหลัก — ห้ามใช้เทสต์ที่แต่งคำตอบเอง)
+1. **Role model (ทาง A — ไม่มี migration)**
+   - "employee maker" = role `VIEWER` ที่มี `employeeAuthority.id` (จาก `authenticate`) — **ไม่ใช่ `EMPLOYEE`** (role นี้ไม่มีในระบบ; `UserRole` = ADMIN/MANAGER/SUPERVISOR/VIEWER)
+   - `VIEWER` ที่ไม่มี employee → 403 ทุก action
+2. **Route** (`src/routes/attendance-adjustment.routes.js`)
+   - `GET /`, `GET /:id` → `authorize('ADMIN','MANAGER','SUPERVISOR','VIEWER')`
+   - `POST /`, `PUT /:id`, `POST /:id/submit` → `authorize('ADMIN','MANAGER','SUPERVISOR','VIEWER')`
+   - `POST /:id/approve|reject|return` → `authorize('ADMIN')`
+   - **ห้าม** ใช้ authorize ระดับ router ที่กลืน per-route
+3. **Service — maker authority** (`assertMakerScope`)
+   - ADMIN: ผ่านเสมอ (ไม่จำกัดแผนก/เวลา)
+   - MANAGER / SUPERVISOR: ผ่านทุกแผนก แต่ **`assignment.workDate` ต้องไม่เก่ากว่า 7 วัน** (เทียบวันตาม Asia/Bangkok กับ `clock()`); เกิน → 403 `ATTENDANCE_ADJUSTMENT_BACKDATE_FORBIDDEN`
+   - VIEWER+employee: ผ่านเฉพาะ `assignment.employeeId === actor.employeeAuthority.id` และภายใน 7 วัน
+   - **ลบการผูก department ออกจากการตัดสินสิทธิ์** (ปิดช่อง GOV-RBAC-003 — ไม่ต้องพึ่ง `actor.department` ที่ไม่มีใน `req.user`)
+4. **Service — read scope** (แยกฟังก์ชันจาก maker scope — **ห้ามเรียก `assertMakerScope`**)
+   - ADMIN/MANAGER/SUPERVISOR: อ่านได้ทุกแผนก (list ไม่กรอง department; get ได้ทุก id)
+   - VIEWER+employee: เฉพาะแถวที่ `employeeId` ของตัวเอง (ทั้ง list และ get) — ต้องมีเทสต์กันข้อมูลรั่ว
+5. **Submit**: ผู้ส่งต้องเป็น maker ของคำขอนั้น (`makerUserId`) ไม่งั้น 403 `ATTENDANCE_ADJUSTMENT_NOT_MAKER`
+6. **Frontend**: คอนโทรลสำหรับ SUPERVISOR แสดงได้ (คีย์ให้ลูกน้อง) · VIEWER ที่ผูก employee เห็นปุ่มของตัวเอง · ปรับเทสต์ `frontend/src/attendance-supervisor-wave4c-authority.test.ts` ให้ตรงนโยบายใหม่
 
-`test/attendance-adjustment-authz.route.test.js` (มีอยู่ — ขยาย):
-- SUPERVISOR `POST /` → **403** (จากของเดิม 201)
-- EMPLOYEE `POST /` กะของตัวเอง → **201** (positive control)
-- EMPLOYEE `POST /` กะของคนอื่น → **403**
-- EMPLOYEE `PUT`/`submit` ของตัวเอง → 2xx · ของคนอื่น → 403
-- ADMIN approve → 200; MANAGER/SUPERVISOR/EMPLOYEE approve → 403
-- VIEWER ทุก action → 403
+## เทสต์ที่ต้องมี (ยิง implementation จริง — ห้าม mock service)
 
-เพิ่ม `test/attendance-adjustment.maker-scope.test.js` (service-level):
-- EMPLOYEE ผูก assignment ของตัวเองได้ / ของคนอื่นไม่ได้
-- MANAGER แผนกเดียวกันได้ / ต่างแผนกไม่ได้
-- SUPERVISOR ไม่ได้ทุกกรณี
-
-**Mutation proof (บังคับใน clone แยก `/tmp/mut-gov` — ห้าม commit):**
-- ถอดเงื่อนไข SUPERVISOR ออกจาก `assertMakerScope` → เทสต์ SUPERVISOR 403 ต้องตก
-- ถอดเงื่อนไข employee ownership → เทสต์ "กะของคนอื่น" ต้องตก
-รายงานผลก่อน/หลังทั้ง 2 กรณี
+1. `test/attendance-adjustment-authz.route.test.js` (ยิง router + service จริง, mock เฉพาะ prisma/auth):
+   - ADMIN create ที่ workDate 30 วันก่อน → 2xx
+   - MANAGER create 3 วันก่อน → 2xx · 10 วันก่อน → 403 (backdate)
+   - SUPERVISOR create 3 วันก่อน (ลูกน้องแผนกอื่นก็ได้) → 2xx · 10 วันก่อน → 403
+   - VIEWER+employee create กะตัวเอง → 2xx · กะคนอื่น → 403
+   - VIEWER ไม่มี employee → 403
+   - approve: ADMIN 2xx · MANAGER/SUPERVISOR/VIEWER → 403
+2. `test/attendance-adjustment.read-scope.test.js`:
+   - VIEWER เห็นเฉพาะของตัวเอง (list + get ของคนอื่น → 403/ไม่พบ)
+   - SUPERVISOR/MANAGER อ่านได้ทุกแผนก
+3. `test/attendance-adjustment.maker-ownership.test.js`:
+   - submit โดยไม่ใช่ maker → 403 `ATTENDANCE_ADJUSTMENT_NOT_MAKER`
+4. **Mutation proof (clone แยก `/tmp/mut-gov2` — ห้าม commit)** ต้องพิสูจน์ 4 แบบ:
+   a) ถอด backdate check → เทสต์ 10 วันต้องตก
+   b) ถอด VIEWER employee ownership → เทสต์กะคนอื่นต้องตก
+   c) ถอด read-scope ของ VIEWER → เทสต์อ่านของคนอื่นต้องตก
+   d) ถอด makerUserId check → เทสต์ submit ownership ต้องตก
 
 ## Acceptance
-- เทสต์ทั้งหมดผ่าน · CI เขียว (validate + t22)
-- SENTINEL review verdict = APPROVED ก่อนปิดงาน
-- บันทึกผลลง `MASTER_HANDOFF.md` (สถานะ + commit + run id)
+- เทสต์ทั้งหมดผ่าน · CI เขียว (validate + t22) บน SHA เดียว · SENTINEL APPROVED
+- ไม่มี schema/migration change · ไม่แตะ Production
