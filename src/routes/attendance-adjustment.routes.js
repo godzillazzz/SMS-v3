@@ -52,16 +52,16 @@ function requireAttendanceApi(_req, _res, next) {
     : next(new HttpError(404, 'Not found.'));
 }
 
-router.use(requireAttendanceApi, authenticate, authorize('ADMIN', 'MANAGER', 'SUPERVISOR'));
+router.use(requireAttendanceApi, authenticate);
 
-router.get('/', async (req, res, next) => {
+router.get('/', authorize('ADMIN', 'MANAGER', 'SUPERVISOR', 'VIEWER'), async (req, res, next) => {
   try {
     const filters = listQuery.parse(req.query);
     res.json(await service.list({ actor: req.user, ...filters }));
   } catch (error) { next(error); }
 });
 
-router.post('/', async (req, res, next) => {
+router.post('/', authorize('ADMIN', 'MANAGER', 'SUPERVISOR', 'VIEWER'), async (req, res, next) => {
   try {
     const input = requestInput.parse(req.body);
     res.status(201).json({
@@ -76,13 +76,13 @@ router.post('/', async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
-router.get('/:id', async (req, res, next) => {
+router.get('/:id', authorize('ADMIN', 'MANAGER', 'SUPERVISOR', 'VIEWER'), async (req, res, next) => {
   try {
     res.json({ data: await service.get({ actor: req.user, id: uuid.parse(req.params.id) }) });
   } catch (error) { next(error); }
 });
 
-router.put('/:id', async (req, res, next) => {
+router.put('/:id', authorize('ADMIN', 'MANAGER', 'SUPERVISOR', 'VIEWER'), async (req, res, next) => {
   try {
     const input = revisionInput.parse(req.body);
     res.json({
@@ -97,7 +97,7 @@ router.put('/:id', async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
-router.post('/:id/submit', async (req, res, next) => {
+router.post('/:id/submit', authorize('ADMIN', 'MANAGER', 'SUPERVISOR', 'VIEWER'), async (req, res, next) => {
   try {
     z.object({}).strict().parse(req.body || {});
     res.json({ data: await service.submit({ actor: req.user, id: uuid.parse(req.params.id) }) });

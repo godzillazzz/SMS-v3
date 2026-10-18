@@ -31,6 +31,7 @@ type Props = {
   token: string;
   role: string;
   department?: string;
+  employeeAuthorityId?: string;
   userId?: string;
   onOpenAttendanceReport?: () => void;
   initialRequestId?: string;
@@ -431,16 +432,17 @@ function AttendanceMobileCard({
   </article>;
 }
 
-export function AttendanceSupervisorPage({ token, role, department, userId, onOpenAttendanceReport, initialRequestId, onInitialRequestHandled, onApprovalQueueChanged }: Props) {
+export function AttendanceSupervisorPage({ token, role, department, employeeAuthorityId, userId, onOpenAttendanceReport, initialRequestId, onInitialRequestHandled, onApprovalQueueChanged }: Props) {
   const today = bangkokDateText();
   const manager = ['MANAGER', 'SUPERVISOR'].includes(role);
+  const viewer = role === 'VIEWER';
   const admin = role === 'ADMIN';
 
   const [mode, setMode] = useState<Mode>('daily');
   const [date, setDate] = useState(today);
   const [from, setFrom] = useState(shiftDate(today, -30));
   const [to, setTo] = useState(today);
-  const [departmentFilter, setDepartmentFilter] = useState(manager ? department || '' : '');
+  const [departmentFilter, setDepartmentFilter] = useState('');
   const [siteId, setSiteId] = useState('');
   const [shiftTypeId, setShiftTypeId] = useState('');
   const [employeeId, setEmployeeId] = useState('');
@@ -505,9 +507,6 @@ export function AttendanceSupervisorPage({ token, role, department, userId, onOp
     return () => { active = false; };
   }, [token]);
 
-  useEffect(() => {
-    if (manager) setDepartmentFilter(department || '');
-  }, [department, manager]);
 
   const departments = useMemo(() => {
     const values = new Set<string>();
@@ -518,8 +517,8 @@ export function AttendanceSupervisorPage({ token, role, department, userId, onOp
   }, [employees]);
 
   const filteredEmployees = useMemo(
-    () => employees.filter((employee) => !departmentFilter || employee.department === departmentFilter),
-    [departmentFilter, employees]
+    () => employees.filter((employee) => (!viewer || employee.id === employeeAuthorityId) && (!departmentFilter || employee.department === departmentFilter)),
+    [departmentFilter, employeeAuthorityId, employees, viewer]
   );
 
   useEffect(() => {
@@ -658,7 +657,7 @@ export function AttendanceSupervisorPage({ token, role, department, userId, onOp
   const openManualConfirmation = () => {
     setWorkflowError(undefined);
     setManualDialog({
-      employeeId: employeeId || '',
+      employeeId: viewer ? (employeeAuthorityId || '') : (employeeId || ''),
       workDate: date || today,
       checkInAt: '',
       checkOutAt: '',
@@ -1016,15 +1015,14 @@ export function AttendanceSupervisorPage({ token, role, department, userId, onOp
           <span>หน่วยงาน</span>
           <select
             value={departmentFilter}
-            disabled={manager || filtersLoading}
+            disabled={viewer || filtersLoading}
             onChange={(event) => {
               setDepartmentFilter(event.target.value);
               setEmployeeId('');
             }}
           >
-            {!manager && <option value="">ทั้งหมด</option>}
-            {manager && departmentFilter && <option value={departmentFilter}>{departmentFilter}</option>}
-            {!manager && departments.map((value) => <option key={value} value={value}>{value}</option>)}
+            <option value="">ทั้งหมด</option>
+            {departments.map((value) => <option key={value} value={value}>{value}</option>)}
           </select>
         </label>
         <label>

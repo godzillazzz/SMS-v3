@@ -11,6 +11,7 @@ const {
   currentCorrectionsForAssignments,
   applyCurrentCorrections
 } = require('./attendance-correction.service');
+const { bangkokToday } = require('../utils/bangkok-date');
 
 const TRANSACTION_OPTIONS = { isolationLevel: 'Serializable', maxWait: 5000, timeout: 10000 };
 const REQUEST_TYPES = new Set(['CONFIRM_WORK_PERFORMED', 'ADJUST_WORK_TIME']);
@@ -110,19 +111,21 @@ async function loadAssignment(client, assignmentId) {
   return assignment;
 }
 
-function assertMakerScope(actor, assignment) {
+function assertMakerScope(actor, assignment, clock = () => new Date()) {
   const role = roleOf(actor);
-  if (!['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(role)) {
-    throw http(403, 'ATTENDANCE_ADJUSTMENT_FORBIDDEN', 'Attendance adjustment request requires Manager or Admin authority.');
-  }
   if (!actor?.sub) throw http(403, 'ATTENDANCE_ADJUSTMENT_ACTOR_REQUIRED', 'Authenticated actor identity is required.');
-
-  if (['MANAGER', 'SUPERVISOR'].includes(role)) {
-    const actorDepartment = String(actor.department || '').trim();
-    const assignmentDepartment = String(assignment.departmentSnapshot || assignment.employee?.department || '').trim();
-    if (!actorDepartment || actorDepartment !== assignmentDepartment) {
-      throw http(403, 'ATTENDANCE_ADJUSTMENT_SCOPE_FORBIDDEN', 'Manager may request Attendance changes only for their own Department.');
-    }
+  if (!['ADMIN', 'MANAGER', 'SUPERVISOR', 'VIEWER'].includes(role)) {
+    throw http(403, 'ATTENDANCE_ADJUSTMENT_FORBIDDEN', 'Attendance adjustment request authority is required.');
+  }
+  if (role === 'ADMIN') return role;
+  const cutoff = bangkokToday(clock());
+  cutoff.setUTCDate(cutoff.getUTCDate() - 7);
+  const workDate = new Date(assignment.workDate);
+  if (Number.isNaN(workDate.getTime()) || workDate < cutoff) {
+    throw http(403, 'ATTENDANCE_ADJUSTMENT_BACKDATE_FORBIDDEN', 'Attendance adjustment may not be made more than 7 days in the past.');
+  }
+  if (role === 'VIEWER' && (!actor.employeeAuthority?.id || String(assignment.employeeId) !== String(actor.employeeAuthority.id))) {
+    throw http(403, 'ATTENDANCE_ADJUSTMENT_SCOPE_FORBIDDEN', 'A linked employee account may adjust only its own shift.');
   }
   return role;
 }
@@ -248,24 +251,23 @@ function createAttendanceAdjustmentService({ prisma = prismaDefault, audit = aud
     if (!request) throw http(404, 'ATTENDANCE_ADJUSTMENT_NOT_FOUND', 'Attendance adjustment request was not found.');
     const role = roleOf(actor);
     if (role === 'ADMIN') return;
-    if (!['MANAGER', 'SUPERVISOR'].includes(role)) throw http(403, 'ATTENDANCE_ADJUSTMENT_READ_FORBIDDEN', 'Attendance adjustment access denied.');
-    const assignment = await loadAssignment(client, request.shiftAssignmentId);
-    assertMakerScope(actor, assignment);
+    if (role === 'MANAGER' || role === 'SUPERVISOR') return;
+    if (role !== 'VIEWER' || !actor?.employeeAuthority?.id || String(request.employeeId) !== String(actor.employeeAuthority.id)) {
+      throw http(403, 'ATTENDANCE_ADJUSTMENT_READ_FORBIDDEN', 'Attendance adjustment access denied.');
+    }
   }
 
   async function list({ actor, status = null, assignmentId = null, requestId = null, page = 1, pageSize = 25 } = {}) {
     const role = roleOf(actor);
-    if (!['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(role)) {
-      throw http(403, 'ATTENDANCE_ADJUSTMENT_READ_FORBIDDEN', 'Attendance adjustment list requires Manager or Admin authority.');
-    }
+    if (!['ADMIN', 'MANAGER', 'SUPERVISOR', 'VIEWER'].includes(role) || (role === 'VIEWER' && !actor?.employeeAuthority?.id)) throw http(403, 'ATTENDANCE_ADJUSTMENT_READ_FORBIDDEN', 'Attendance adjustment list requires an authorized role.');
 
     const safePage = Math.max(1, Number(page || 1));
     const safePageSize = Math.min(100, Math.max(1, Number(pageSize || 25)));
     const normalizedStatus = status ? String(status).trim().toUpperCase() : null;
     const offset = (safePage - 1) * safePageSize;
 
-    const scope = ['MANAGER', 'SUPERVISOR'].includes(role)
-      ? Prisma.sql`AND COALESCE(sa.department_snapshot, e.department) = ${String(actor.department || '').trim()}`
+    const scope = role === 'VIEWER'
+      ? Prisma.sql`AND sa.employee_id = ${actor.employeeAuthority.id}::uuid`
       : Prisma.empty;
     const statusClause = normalizedStatus ? Prisma.sql`AND r.status = ${normalizedStatus}` : Prisma.empty;
     const assignmentClause = assignmentId ? Prisma.sql`AND r.shift_assignment_id = ${assignmentId}::uuid` : Prisma.empty;
@@ -385,7 +387,7 @@ function createAttendanceAdjustmentService({ prisma = prismaDefault, audit = aud
 
     return prisma.$transaction(async (tx) => {
       const assignment = await loadAssignment(tx, assignmentId);
-      const makerRole = assertMakerScope(actor, assignment);
+      const makerRole = assertMakerScope(actor, assignment, clock);
       const before = await authoritySnapshot(tx, assignment);
       const rows = await tx.$queryRaw(Prisma.sql`
         INSERT INTO attendance_adjustment_requests (
@@ -443,7 +445,7 @@ function createAttendanceAdjustmentService({ prisma = prismaDefault, audit = aud
       const request = await getRequestRow(tx, id, true);
       if (!request) throw http(404, 'ATTENDANCE_ADJUSTMENT_NOT_FOUND', 'Attendance adjustment request was not found.');
       const assignment = await loadAssignment(tx, request.shiftAssignmentId);
-      assertMakerScope(actor, assignment);
+      assertMakerScope(actor, assignment, clock);
       if (request.makerUserId !== actor.sub) {
         throw http(403, 'ATTENDANCE_ADJUSTMENT_NOT_MAKER', 'Only the request maker may revise this Attendance adjustment request.');
       }
@@ -499,10 +501,10 @@ function createAttendanceAdjustmentService({ prisma = prismaDefault, audit = aud
       const request = await getRequestRow(tx, id, true);
       if (!request) throw http(404, 'ATTENDANCE_ADJUSTMENT_NOT_FOUND', 'Attendance adjustment request was not found.');
       const assignment = await loadAssignment(tx, request.shiftAssignmentId);
-      assertMakerScope(actor, assignment);
       if (request.makerUserId !== actor.sub) {
         throw http(403, 'ATTENDANCE_ADJUSTMENT_NOT_MAKER', 'Only the request maker may submit this Attendance adjustment request.');
       }
+      assertMakerScope(actor, assignment, clock);
       if (!EDITABLE_STATUSES.has(request.status)) {
         throw http(409, 'ATTENDANCE_ADJUSTMENT_INVALID_TRANSITION', 'Only Draft or Returned requests may be submitted.');
       }

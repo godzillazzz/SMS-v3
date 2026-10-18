@@ -62,14 +62,24 @@ test('Attendance approval shares the monthly certification advisory-lock namespa
   assert.match(governance, /attendance-cert:\$\{period\.text\}/);
 });
 
-test('Manager may make requests only inside own Department while Admin may make requests', () => {
-  const assignment = { departmentSnapshot: 'OPS', employee: { department: 'OPS' } };
-  assert.equal(assertMakerScope({ sub: 'm', role: 'MANAGER', department: 'OPS' }, assignment), 'MANAGER');
-  assert.equal(assertMakerScope({ sub: 'a', role: 'ADMIN' }, assignment), 'ADMIN');
+test('Manager and Supervisor may make cross-department requests within the seven-day window', () => {
+  const assignment = { workDate: '2026-08-25', employeeId: 'employee-1', departmentSnapshot: 'OTHER' };
+  const clock = () => new Date('2026-08-27T04:00:00.000Z');
+  assert.equal(assertMakerScope({ sub: 'm', role: 'MANAGER', department: 'OPS' }, assignment, clock), 'MANAGER');
+  assert.equal(assertMakerScope({ sub: 's', role: 'SUPERVISOR' }, assignment, clock), 'SUPERVISOR');
+  assert.equal(assertMakerScope({ sub: 'a', role: 'ADMIN' }, { workDate: '2026-07-01' }, clock), 'ADMIN');
   assert.throws(
-    () => assertMakerScope({ sub: 'm', role: 'MANAGER', department: 'OTHER' }, assignment),
-    (error) => error.statusCode === 403 && error.details?.code === 'ATTENDANCE_ADJUSTMENT_SCOPE_FORBIDDEN'
+    () => assertMakerScope({ sub: 'm', role: 'MANAGER' }, { ...assignment, workDate: '2026-08-17' }, clock),
+    (error) => error.statusCode === 403 && error.details?.code === 'ATTENDANCE_ADJUSTMENT_BACKDATE_FORBIDDEN'
   );
+});
+
+test('Viewer requires employee authority and can adjust only its own shift', () => {
+  const clock = () => new Date('2026-08-27T04:00:00.000Z');
+  const own = { workDate: '2026-08-25', employeeId: 'employee-1' };
+  assert.equal(assertMakerScope({ sub: 'v', role: 'VIEWER', employeeAuthority: { id: 'employee-1' } }, own, clock), 'VIEWER');
+  assert.throws(() => assertMakerScope({ sub: 'v', role: 'VIEWER' }, own, clock), (error) => error.statusCode === 403);
+  assert.throws(() => assertMakerScope({ sub: 'v', role: 'VIEWER', employeeAuthority: { id: 'employee-1' } }, { ...own, employeeId: 'employee-2' }, clock), (error) => error.statusCode === 403);
 });
 
 test('Only ADMIN may execute approval decisions', () => {

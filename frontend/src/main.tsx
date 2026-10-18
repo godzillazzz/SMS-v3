@@ -163,7 +163,7 @@ const TableActionHeader = React.lazy(() => import('./components/TableActionColum
 const LeaveDecisionConfirmation = React.lazy(() => import('./components/LeaveDecisionConfirmation').then((module) => ({ default: module.LeaveDecisionConfirmation })));
 const SearchableEmployeeCombobox = React.lazy(() => import('./components/SearchableEmployeeCombobox').then((module) => ({ default: module.SearchableEmployeeCombobox })));
 
-type User = { id: string; email: string; displayName: string; role: string; department?: string };
+type User = { id: string; email: string; displayName: string; role: string; department?: string; employeeId?: string };
 type Employee = { id: string; employeeCode: string; firstName: string; lastName: string; displayName?: string; email?: string | null; phone?: string | null; department?: string; jobTitle?: string; hiredAt?: string | null; skill?: string | null; isActive: boolean; updatedAt?: string };
 type Page = RoutePage;
 type Auth = { token?: string; user?: User; originalUser?: User; loading: boolean; error?: string; refreshState: 'checking' | 'ready' | 'unauthenticated' | 'unavailable'; isViewingAs: boolean; login(email: string, password: string): Promise<void>; passkeyLogin(): Promise<void>; logout(): Promise<void>; retryRefresh(): Promise<void>; beginViewAs(userId: string): Promise<void>; endViewAs(): void };
@@ -3266,8 +3266,8 @@ function Dashboard() {
         onOpenSupervisor={pwaShell && ['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(auth.user?.role || '') && !auth.isViewingAs ? openPwaAttendanceSupervisor : undefined}
       />;
     }
-    if (activePage === 'attendanceSupervisor' && auth.token && ['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(auth.user?.role || '') && !auth.isViewingAs) {
-      return <AttendanceSupervisorPage token={auth.token} role={auth.user?.role || 'VIEWER'} department={auth.user?.department} userId={auth.user?.id} initialRequestId={nativeApprovalRequestId} onInitialRequestHandled={clearNativeApprovalTarget} onOpenAttendanceReport={!pwaShell && auth.user?.role === 'ADMIN' ? () => setActivePage('attendanceReport') : undefined} onApprovalQueueChanged={() => { setOperationRefresh((value) => value + 1); setApprovalCenterRefresh((value) => value + 1); }} />;
+    if (activePage === 'attendanceSupervisor' && auth.token && ['ADMIN', 'MANAGER', 'SUPERVISOR', 'VIEWER'].includes(auth.user?.role || '') && !auth.isViewingAs) {
+      return <AttendanceSupervisorPage token={auth.token} role={auth.user?.role || 'VIEWER'} department={auth.user?.department} employeeAuthorityId={auth.user?.employeeId} userId={auth.user?.id} initialRequestId={nativeApprovalRequestId} onInitialRequestHandled={clearNativeApprovalTarget} onOpenAttendanceReport={!pwaShell && auth.user?.role === 'ADMIN' ? () => setActivePage('attendanceReport') : undefined} onApprovalQueueChanged={() => { setOperationRefresh((value) => value + 1); setApprovalCenterRefresh((value) => value + 1); }} />;
     }
     if (activePage === 'attendanceHistory' && auth.token && pwaShell) {
       return <AttendanceHistoryPwaPage token={auth.token} online={pwaOnline} />;
