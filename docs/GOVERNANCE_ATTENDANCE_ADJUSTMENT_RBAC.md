@@ -7,7 +7,7 @@
 2. **หัวหน้างานคีย์ยืนยันการมาปฏิบัติงานให้ลูกน้องได้**
 3. **หัวหน้างานและผู้จัดการคีย์ย้อนหลังได้ไม่เกิน 7 วัน**
 4. **ADMIN ไม่จำกัดเวลา**
-5. **การอนุมัติ (Approve / Reject / Return) มีทุกตำแหน่งบริหาร (ADMIN, MANAGER, SUPERVISOR) ยกเว้นผู้ยื่นคำขอและกะตนเอง (No-Self-Approval)**
+5. **การอนุมัติขั้นสุดท้ายจบที่ ADMIN เท่านั้น**
 6. พนักงาน (role `VIEWER` ที่ผูก employee) ยื่นยันของตัวเองได้ — เลือกทาง **A** (ไม่เพิ่ม role/migration)
 
 ## ตารางสิทธิ์ (เป้าหมาย)
@@ -15,7 +15,7 @@
 | action | ADMIN | MANAGER | SUPERVISOR | VIEWER + ผูก employee | VIEWER ไม่ผูก employee |
 |---|---|---|---|---|---|
 | สร้าง/แก้/ส่ง คำขอ (`CONFIRM_WORK_PERFORMED`, `ADJUST_WORK_TIME`) | ✅ ไม่จำกัดเวลา/แผนก | ✅ **ย้อนหลัง ≤ 7 วัน** / ทุกแผนก | ✅ **ย้อนหลัง ≤ 7 วัน** / ทุกแผนก | ✅ **เฉพาะกะตัวเอง** (≤ 7 วัน)* | ❌ 403 |
-| อนุมัติ / ส่งกลับ / ปฏิเสธ | ✅ (ยกเว้นคำขอ/กะตนเอง) | ✅ (ยกเว้นคำขอ/กะตนเอง) | ✅ (ยกเว้นคำขอ/กะตนเอง) | ❌ 403 | ❌ 403 |
+| อนุมัติ / ส่งกลับ / ปฏิเสธ | ✅ | ❌ 403 | ❌ 403 | ❌ 403 | ❌ 403 |
 | อ่านรายการ / ดูรายละเอียด | ทุกแผนก | ทุกแผนก | ทุกแผนก | เฉพาะของตัวเอง | ❌ 403 |
 
 \* **สมมติฐานที่ต้องยืนยัน:** พนักงานยื่นของตัวเองได้ภายใน 7 วันเช่นกัน (ถ้าต้องการไม่จำกัด แจ้งได้ — แก้ที่ค่าคงที่จุดเดียว)
@@ -28,7 +28,7 @@
 2. **Route** (`src/routes/attendance-adjustment.routes.js`)
    - `GET /`, `GET /:id` → `authorize('ADMIN','MANAGER','SUPERVISOR','VIEWER')`
    - `POST /`, `PUT /:id`, `POST /:id/submit` → `authorize('ADMIN','MANAGER','SUPERVISOR','VIEWER')`
-   - `POST /:id/approve|reject|return` → `authorize('ADMIN', 'MANAGER', 'SUPERVISOR')`
+   - `POST /:id/approve|reject|return` → `authorize('ADMIN')`
    - **ห้าม** ใช้ authorize ระดับ router ที่กลืน per-route
 3. **Service — maker authority** (`assertMakerScope`)
    - ADMIN: ผ่านเสมอ (ไม่จำกัดแผนก/เวลา)
@@ -49,7 +49,7 @@
    - SUPERVISOR create 3 วันก่อน (ลูกน้องแผนกอื่นก็ได้) → 2xx · 10 วันก่อน → 403
    - VIEWER+employee create กะตัวเอง → 2xx · กะคนอื่น → 403
    - VIEWER ไม่มี employee → 403
-   - approve: ADMIN/MANAGER/SUPERVISOR 2xx (ไม่ใช่ maker/own shift) · VIEWER -> 403 · Self-approval -> 403
+   - approve: ADMIN 2xx · MANAGER/SUPERVISOR/VIEWER → 403
 2. `test/attendance-adjustment.read-scope.test.js`:
    - VIEWER เห็นเฉพาะของตัวเอง (list + get ของคนอื่น → 403/ไม่พบ)
    - SUPERVISOR/MANAGER อ่านได้ทุกแผนก
@@ -63,8 +63,4 @@
 
 ## Acceptance
 - เทสต์ทั้งหมดผ่าน · CI เขียว (validate + t22) บน SHA เดียว · SENTINEL APPROVED
-- ไม่มี schema change ใน Prisma
-- มี Data migration: `prisma/migrations/202610180001_cfg06_attendance_adjustment_all_roles/migration.sql` สำหรับปรับปรุงค่า default ใน `system_settings` ให้ครอบคลุม `["ADMIN","MANAGER","SUPERVISOR"]`
-- Rollback procedure: รัน SQL `UPDATE "system_settings" SET "value" = '["ADMIN"]', "updated_at" = NOW() WHERE "key" = 'APPROVAL_POLICY.ATTENDANCE_ADJUSTMENT_REQUEST.REVIEWER_ROLES';`
-- ผลกระทบ: อัปเดต 1 แถวในตาราง `system_settings`
-- ไม่แตะ Production จนกว่าจะได้รับคำสั่งอนุมัติจาก OWNER
+- ไม่มี schema/migration change · ไม่แตะ Production

@@ -223,7 +223,7 @@ if (!configured) {
 
     await assert.rejects(
       () => service.approve({ actor: manager, id: draft.id }),
-      (error) => error.statusCode === 403 && error.details?.code === 'ATTENDANCE_ADJUSTMENT_SELF_APPROVAL_FORBIDDEN'
+      (error) => error.statusCode === 403 && error.details?.code === 'ATTENDANCE_ADJUSTMENT_ADMIN_REQUIRED'
     );
 
     corrections = await currentCorrectionsForAssignments(prisma, [ids.assignment]);
@@ -366,13 +366,13 @@ if (!configured) {
     await service.submit({ actor: manager, id: draft.id });
 
     const newerDraft = await service.createDraft({
-      actor: manager,
+      actor: admin,
       assignmentId: ids.assignment,
       requestType: 'ADJUST_WORK_TIME',
       proposal: { checkInAt: '2099-04-10T00:10:00.000Z' },
       reason: 'Approved newer request changes authority after older request submission'
     });
-    await service.submit({ actor: manager, id: newerDraft.id });
+    await service.submit({ actor: admin, id: newerDraft.id });
     const newerApproved = await service.approve({ actor: admin, id: newerDraft.id });
     assert.equal(newerApproved.status, 'APPROVED');
 

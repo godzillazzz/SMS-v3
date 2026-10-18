@@ -51,7 +51,6 @@ function approvalPolicyRows(overrides = {}) {
 
 function adminPrisma() {
   return {
-    $queryRaw: async () => [{ count: 0 }],
     systemSetting: { findMany: async () => approvalPolicyRows() },
     employeeChangeRequest: model([{
       id: 'change-1', employeeId: 'e1', status: 'PENDING_APPROVAL', currentRevision: 2, createdAt: new Date('2026-08-27T01:00:00.000Z'),
@@ -263,7 +262,7 @@ test('Manager Approval Center contains only workflows Manager can act on', async
   const service = createApprovalCenterService({
     prisma,
     clock: () => now,
-    attendanceAdjustmentList: async () => ({ data: [], meta: { total: 0 } })
+    attendanceAdjustmentList: async () => { throw new Error('Manager must not load Admin-only attendance adjustments'); }
   });
   const result = await service.list({ actor: { role: 'MANAGER', sub: 'manager-1' }, limit: 100 });
 
@@ -322,8 +321,7 @@ test('Manager Approval Center obeys governed reviewer-role narrowing without que
   prisma.systemSetting.findMany = async () => approvalPolicyRows({
     REGISTRATION_REQUEST: { reviewerRoles: ['ADMIN'] },
     USER_ACCESS: { reviewerRoles: ['ADMIN'] },
-    LEAVE_REQUEST: { reviewerRoles: ['ADMIN'] },
-    ATTENDANCE_ADJUSTMENT_REQUEST: { reviewerRoles: ['ADMIN'] }
+    LEAVE_REQUEST: { reviewerRoles: ['ADMIN'] }
   });
   prisma.user.findUnique = async () => { throw new Error('blocked Manager leave policy must not load actor profile'); };
   prisma.registrationRequest.findMany = async () => { throw new Error('blocked registration policy must not query queue'); };

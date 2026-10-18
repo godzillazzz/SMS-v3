@@ -191,7 +191,7 @@ const STATUS_OPTIONS = [
 
 const REQUEST_STATUS_OPTIONS: Array<[AttendanceAdjustmentStatus | '', string]> = [
   ['', 'ทุกสถานะ'],
-  ['PENDING_APPROVAL', 'รอการอนุมัติ'],
+  ['PENDING_APPROVAL', 'รอ ADMIN อนุมัติ'],
   ['RETURNED_FOR_CORRECTION', 'ส่งกลับให้แก้ไข'],
   ['DRAFT', 'แบบร่าง'],
   ['APPROVED', 'อนุมัติแล้ว'],
@@ -317,7 +317,7 @@ function statusTone(status: string) {
 function requestStatusLabel(status: AttendanceAdjustmentStatus) {
   const map: Record<AttendanceAdjustmentStatus, string> = {
     DRAFT: 'แบบร่าง',
-    PENDING_APPROVAL: 'รอการอนุมัติ',
+    PENDING_APPROVAL: 'รอ ADMIN อนุมัติ',
     RETURNED_FOR_CORRECTION: 'ส่งกลับให้แก้ไข',
     APPROVED: 'อนุมัติแล้ว',
     REJECTED: 'ไม่อนุมัติ',
@@ -437,7 +437,6 @@ export function AttendanceSupervisorPage({ token, role, department, employeeAuth
   const manager = ['MANAGER', 'SUPERVISOR'].includes(role);
   const viewer = role === 'VIEWER';
   const admin = role === 'ADMIN';
-  const reviewer = ['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(role);
 
   const [mode, setMode] = useState<Mode>('daily');
   const [date, setDate] = useState(today);
@@ -738,7 +737,7 @@ export function AttendanceSupervisorPage({ token, role, department, employeeAuth
           setRequestStatus('PENDING_APPROVAL');
         }
       } else {
-        setRequestNotice(`ส่งคำขอยืนยันปฏิบัติงานย้อนหลังของ ${target.employeeName} แล้ว · รอการอนุมัติเป็นขั้นสุดท้าย`);
+        setRequestNotice(`ส่งคำขอยืนยันปฏิบัติงานย้อนหลังของ ${target.employeeName} แล้ว · รอ ADMIN อนุมัติเป็นขั้นสุดท้าย`);
         setMode('requests');
         setRequestStatus('PENDING_APPROVAL');
       }
@@ -845,7 +844,7 @@ export function AttendanceSupervisorPage({ token, role, department, employeeAuth
       setRequestNotice(
         admin
           ? 'ส่งคำขอแล้ว · ยังไม่มีผลต่อ Attendance จนกว่าจะกดอนุมัติแยกต่างหาก'
-          : 'ส่งคำขอแล้ว · รอการอนุมัติก่อนจึงจะมีผลต่อ Attendance'
+          : 'ส่งคำขอแล้ว · รอ ADMIN อนุมัติก่อนจึงจะมีผลต่อ Attendance'
       );
       setMode('requests');
       setRequestStatus('PENDING_APPROVAL');
@@ -870,7 +869,7 @@ export function AttendanceSupervisorPage({ token, role, department, employeeAuth
     try {
       if (reviewDialog.action === 'approve') {
         await approveAttendanceAdjustment(token, reviewDialog.request.id);
-        setRequestNotice('อนุมัติแล้ว · Effective Attendance ถูกสร้างจาก revision ที่อนุมัติ');
+        setRequestNotice('ADMIN อนุมัติแล้ว · Effective Attendance ถูกสร้างจาก revision ที่อนุมัติ');
       } else if (reviewDialog.action === 'return') {
         await returnAttendanceAdjustment(token, reviewDialog.request.id, reviewDialog.comment.trim());
         setRequestNotice('ส่งคำขอกลับให้ Maker แก้ไขแล้ว');
@@ -1106,7 +1105,7 @@ export function AttendanceSupervisorPage({ token, role, department, employeeAuth
         )}
       </SectionCard>
     </> : (
-      <SectionCard className="attendance-supervisor-v4__requests" kicker="คำขอปรับข้อมูลที่มีการควบคุม" title={admin ? 'คิวอนุมัติการลงเวลา' : 'คำขอแก้ไขการลงเวลา'} description={admin ? 'ทุกการเปลี่ยนเวลาต้องผ่านการอนุมัติแยกต่างหากก่อนมีผลจริง' : 'คำขอแก้ไขไม่มีผลต่อข้อมูลลงเวลาจนกว่าจะได้รับการอนุมัติ'} actions={
+      <SectionCard className="attendance-supervisor-v4__requests" kicker="คำขอปรับข้อมูลที่มีการควบคุม" title={admin ? 'คิวอนุมัติการลงเวลา' : 'คำขอแก้ไขการลงเวลา'} description={admin ? 'ทุกการเปลี่ยนเวลาต้องผ่านการอนุมัติแยกต่างหากก่อนมีผลจริง' : 'คำขอแก้ไขไม่มีผลต่อข้อมูลลงเวลาจนกว่า ADMIN จะอนุมัติ'} actions={
           <label className="attendance-supervisor-v4__request-status-filter">
             <span>สถานะคำขอ</span>
             <select
@@ -1147,9 +1146,6 @@ export function AttendanceSupervisorPage({ token, role, department, employeeAuth
           {requests.map((request) => {
             const proposal = proposalLine(request);
             const canRevise = request.status === 'RETURNED_FOR_CORRECTION' && request.makerUserId === userId;
-            const canReview = reviewer && request.status === 'PENDING_APPROVAL'
-              && request.makerUserId !== userId
-              && request.employeeId !== employeeAuthorityId;
             return <article className="attendance-supervisor-v4__request-card" key={request.id}>
               <header>
                 <div>
@@ -1181,7 +1177,7 @@ export function AttendanceSupervisorPage({ token, role, department, employeeAuth
                 <span>เหตุผล</span>
                 <p>{request.reason}</p>
                 {request.lastReviewerComment && (
-                  <div><strong>ความเห็นจากผู้ตรวจสอบ:</strong> {request.lastReviewerComment}</div>
+                  <div><strong>ความเห็นจาก ADMIN:</strong> {request.lastReviewerComment}</div>
                 )}
               </div>
 
@@ -1200,7 +1196,7 @@ export function AttendanceSupervisorPage({ token, role, department, employeeAuth
                   </button>
                 )}
 
-                {canReview && <>
+                {admin && request.status === 'PENDING_APPROVAL' && <>
                   <button
                     type="button"
                     className="is-return"
@@ -1329,7 +1325,7 @@ export function AttendanceSupervisorPage({ token, role, department, employeeAuth
             {detail.correctionAuthority === 'EFFECTIVE_ATTENDANCE_CORRECTION' && (
               <div className="attendance-supervisor-v4__legacy-warning">
                 <strong>Approved Attendance correction</strong>
-                <span>รายการนี้มี correction ที่ผ่าน governed request และผู้บริหารที่มีสิทธิ์ซึ่งไม่ใช่ผู้ยื่นคำขออนุมัติแล้ว ค่า Effective คือ authority ปัจจุบัน</span>
+                <span>รายการนี้มี correction ที่ผ่าน governed request และ ADMIN approval แล้ว ค่า Effective คือ authority ปัจจุบัน</span>
               </div>
             )}
 
@@ -1341,7 +1337,7 @@ export function AttendanceSupervisorPage({ token, role, department, employeeAuth
                 แก้ไขเวลาปฏิบัติงาน
               </button>
               <small>
-                การกดปุ่มจะสร้างคำขอเท่านั้น · Pending ไม่มีผลต่อ Attendance · ผู้บริหารที่มีสิทธิ์ซึ่งไม่ใช่ผู้ยื่นคำขอต้องอนุมัติแยกต่างหาก
+                การกดปุ่มจะสร้างคำขอเท่านั้น · Pending ไม่มีผลต่อ Attendance · ADMIN ต้องอนุมัติแยกต่างหาก
               </small>
             </section>
           </>}
@@ -1356,7 +1352,7 @@ export function AttendanceSupervisorPage({ token, role, department, employeeAuth
             <div>
               <span>MANUAL ATTENDANCE</span>
               <h3>คีย์ยืนยันมาปฏิบัติงานย้อนหลัง</h3>
-              <p>{manager ? 'Supervisor / Manager ส่งคำขอ · รอผู้มีอำนาจอนุมัติเป็นขั้นสุดท้าย' : 'Admin ยืนยันและอนุมัติผ่าน Audit workflow เดิม'}</p>
+              <p>{manager ? 'Supervisor / Manager ส่งคำขอ · ADMIN อนุมัติเป็นขั้นสุดท้าย' : 'Admin ยืนยันและอนุมัติผ่าน Audit workflow เดิม'}</p>
             </div>
             <button type="button" aria-label="ปิด" disabled={workflowBusy} onClick={() => setManualDialog(undefined)}><SmsIcon name="close" size={18} /></button>
           </header>
@@ -1427,7 +1423,7 @@ export function AttendanceSupervisorPage({ token, role, department, employeeAuth
           <footer>
             <button type="button" className="is-secondary" disabled={workflowBusy} onClick={() => setManualDialog(undefined)}>ยกเลิก</button>
             <button type="button" className="is-primary" disabled={workflowBusy} onClick={() => void saveManualConfirmation()}>
-              {workflowBusy ? 'กำลังบันทึก…' : admin ? 'บันทึกและอนุมัติ' : 'ส่งให้พิจารณาอนุมัติ'}
+              {workflowBusy ? 'กำลังบันทึก…' : admin ? 'บันทึกและอนุมัติ' : 'ส่งให้ ADMIN อนุมัติ'}
             </button>
           </footer>
         </section>
@@ -1448,7 +1444,7 @@ export function AttendanceSupervisorPage({ token, role, department, employeeAuth
 
           {adjustmentDialog.returnedComment && (
             <div className="attendance-supervisor-v4__returned-note">
-              <strong>ผู้ตรวจสอบส่งกลับให้แก้ไข</strong>
+              <strong>ADMIN ส่งกลับให้แก้ไข</strong>
               <span>{adjustmentDialog.returnedComment}</span>
             </div>
           )}
@@ -1457,7 +1453,7 @@ export function AttendanceSupervisorPage({ token, role, department, employeeAuth
             <SmsIcon name="shield" size={19} />
             <div>
               <strong>คำขอนี้ยังไม่เปลี่ยน Attendance</strong>
-              <span>ระบบจะเก็บ Before / After / Maker / Revision และรอการอนุมัติก่อนมีผล</span>
+              <span>ระบบจะเก็บ Before / After / Maker / Revision และรอ ADMIN อนุมัติก่อนมีผล</span>
             </div>
           </div>
 
@@ -1495,7 +1491,7 @@ export function AttendanceSupervisorPage({ token, role, department, employeeAuth
           <footer>
             <button type="button" className="is-secondary" disabled={workflowBusy} onClick={() => setAdjustmentDialog(undefined)}>ยกเลิก</button>
             <button type="button" className="is-primary" disabled={workflowBusy} onClick={() => void saveAdjustment()}>
-              {workflowBusy ? 'กำลังส่ง…' : adjustmentDialog.requestId ? 'บันทึก Revision และส่งใหม่' : 'ส่งคำขอให้พิจารณา'}
+              {workflowBusy ? 'กำลังส่ง…' : adjustmentDialog.requestId ? 'บันทึก Revision และส่งใหม่' : 'ส่งคำขอให้ ADMIN พิจารณา'}
             </button>
           </footer>
         </section>
@@ -1507,7 +1503,7 @@ export function AttendanceSupervisorPage({ token, role, department, employeeAuth
         <section ref={reviewDialogRef} className="attendance-supervisor-v4__workflow-modal is-review" role="dialog" aria-modal="true" aria-label="พิจารณาอนุมัติ Attendance" tabIndex={-1}>
           <header>
             <div>
-              <span>EXECUTIVE APPROVAL</span>
+              <span>ADMIN APPROVAL</span>
               <h3>
                 {reviewDialog.action === 'approve'
                   ? 'ยืนยันการอนุมัติ'
@@ -1537,7 +1533,7 @@ export function AttendanceSupervisorPage({ token, role, department, employeeAuth
 
           {reviewDialog.action !== 'approve' && (
             <label className="attendance-supervisor-v4__review-comment">
-              <span>ความเห็นจากผู้ตรวจสอบ *</span>
+              <span>ความเห็นจาก ADMIN *</span>
               <textarea
                 rows={4}
                 maxLength={1000}
