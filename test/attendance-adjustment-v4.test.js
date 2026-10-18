@@ -93,13 +93,17 @@ test('ADMIN, MANAGER, and SUPERVISOR may execute review authority while VIEWER i
   );
 });
 
-test('reviewers cannot approve requests they made or their own shifts', () => {
+test('reviewers cannot approve, return, or reject requests they made or their own shifts', () => {
   assert.throws(
     () => assertNoSelfApproval({ sub: 'maker', role: 'MANAGER' }, { makerUserId: 'maker' }, { employeeId: 'employee-1' }),
     (error) => error.statusCode === 403 && error.details?.code === 'ATTENDANCE_ADJUSTMENT_SELF_APPROVAL_FORBIDDEN'
   );
   assert.throws(
     () => assertNoSelfApproval({ sub: 'reviewer', role: 'SUPERVISOR', employeeAuthority: { id: 'employee-1' } }, { makerUserId: 'maker' }, { employeeId: 'employee-1' }),
+    (error) => error.statusCode === 403 && error.details?.code === 'ATTENDANCE_ADJUSTMENT_SELF_APPROVAL_FORBIDDEN'
+  );
+  assert.throws(
+    () => assertNoSelfApproval({ sub: 'admin-maker', role: 'ADMIN' }, { makerUserId: 'admin-maker' }, { employeeId: 'employee-2' }),
     (error) => error.statusCode === 403 && error.details?.code === 'ATTENDANCE_ADJUSTMENT_SELF_APPROVAL_FORBIDDEN'
   );
 });

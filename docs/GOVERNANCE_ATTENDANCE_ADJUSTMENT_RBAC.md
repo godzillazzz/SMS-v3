@@ -63,4 +63,8 @@
 
 ## Acceptance
 - เทสต์ทั้งหมดผ่าน · CI เขียว (validate + t22) บน SHA เดียว · SENTINEL APPROVED
-- ไม่มี schema/migration change · ไม่แตะ Production
+- ไม่มี schema change ใน Prisma
+- มี Data migration: `prisma/migrations/202610180001_cfg06_attendance_adjustment_all_roles/migration.sql` สำหรับปรับปรุงค่า default ใน `system_settings` ให้ครอบคลุม `["ADMIN","MANAGER","SUPERVISOR"]`
+- Rollback procedure: รัน SQL `UPDATE "system_settings" SET "value" = '["ADMIN"]', "updated_at" = NOW() WHERE "key" = 'APPROVAL_POLICY.ATTENDANCE_ADJUSTMENT_REQUEST.REVIEWER_ROLES';`
+- ผลกระทบ: อัปเดต 1 แถวในตาราง `system_settings`
+- ไม่แตะ Production จนกว่าจะได้รับคำสั่งอนุมัติจาก OWNER

@@ -139,20 +139,21 @@ if (!configured) {
   test('only explicit ADMIN-approved adjustment requests affect monthly governance and certification', async () => {
     await assert.rejects(
       () => adjustments.createDraft({
-        actor: { sub: crypto.randomUUID(), role: 'MANAGER', department: 'OTHER-DEPARTMENT' },
+        actor: { sub: crypto.randomUUID(), role: 'VIEWER' },
         assignmentId: ids.assignment,
         requestType: 'CONFIRM_WORK_PERFORMED',
         proposal: {
           checkInAt: '2099-02-10T00:00:00.000Z',
           checkOutAt: '2099-02-10T12:00:00.000Z'
         },
-        reason: 'Cross department must fail'
+        reason: 'Unlinked viewer must fail'
       }),
       (error) => error.details?.code === 'ATTENDANCE_ADJUSTMENT_SCOPE_FORBIDDEN'
     );
 
+    const maker = { sub: crypto.randomUUID(), role: 'SUPERVISOR' };
     const draft = await adjustments.createDraft({
-      actor,
+      actor: maker,
       assignmentId: ids.assignment,
       requestType: 'CONFIRM_WORK_PERFORMED',
       proposal: {
@@ -163,7 +164,7 @@ if (!configured) {
     });
     assert.equal(draft.status, 'DRAFT');
 
-    const pending = await adjustments.submit({ actor, id: draft.id });
+    const pending = await adjustments.submit({ actor: maker, id: draft.id });
     assert.equal(pending.status, 'PENDING_APPROVAL');
 
     const blockedPreview = await governance.preview('2099-02');

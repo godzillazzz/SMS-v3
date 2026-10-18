@@ -1326,7 +1326,7 @@ export function AttendanceSupervisorPage({ token, role, department, employeeAuth
             {detail.correctionAuthority === 'EFFECTIVE_ATTENDANCE_CORRECTION' && (
               <div className="attendance-supervisor-v4__legacy-warning">
                 <strong>Approved Attendance correction</strong>
-                <span>รายการนี้มี correction ที่ผ่าน governed request และ ADMIN approval แล้ว ค่า Effective คือ authority ปัจจุบัน</span>
+                <span>รายการนี้มี correction ที่ผ่าน governed request และการอนุมัติแล้ว ค่า Effective คือ authority ปัจจุบัน</span>
               </div>
             )}
 
@@ -1338,7 +1338,7 @@ export function AttendanceSupervisorPage({ token, role, department, employeeAuth
                 แก้ไขเวลาปฏิบัติงาน
               </button>
               <small>
-                การกดปุ่มจะสร้างคำขอเท่านั้น · Pending ไม่มีผลต่อ Attendance · ADMIN ต้องอนุมัติแยกต่างหาก
+                การกดปุ่มจะสร้างคำขอเท่านั้น · Pending ไม่มีผลต่อ Attendance · ต้องได้รับการอนุมัติโดยผู้มีอำนาจที่ไม่ใช่ผู้ยื่นคำขอ
               </small>
             </section>
           </>}

@@ -11,6 +11,7 @@ const express = require('express');
 const request = require('supertest');
 const Module = require('node:module');
 const path = require('node:path');
+const HttpError = require('../src/utils/http-error');
 
 let actor = { sub: 'employee-1', role: 'EMPLOYEE' };
 const authenticate = (req, _res, next) => { req.user = actor; next(); };
@@ -34,9 +35,18 @@ require.cache[serviceFilename] = {
     createAttendanceAdjustmentService: () => ({
       createDraft: async () => ({ id: '22222222-2222-4222-8222-222222222222', status: 'DRAFT' }),
       submit: async () => ({ id: '22222222-2222-4222-8222-222222222222', status: 'PENDING_APPROVAL' }),
-      approve: async () => ({ id: '22222222-2222-4222-8222-222222222222', status: 'APPROVED' }),
-      reject: async () => ({ id: '22222222-2222-4222-8222-222222222222', status: 'REJECTED' }),
-      returnForCorrection: async () => ({ id: '22222222-2222-4222-8222-222222222222', status: 'RETURNED_FOR_CORRECTION' })
+      approve: async ({ actor }) => {
+        if (actor?.sub === 'maker-self') throw new HttpError(403, 'A reviewer may not approve their own Attendance adjustment request.', { code: 'ATTENDANCE_ADJUSTMENT_SELF_APPROVAL_FORBIDDEN' });
+        return { id: '22222222-2222-4222-8222-222222222222', status: 'APPROVED' };
+      },
+      reject: async ({ actor }) => {
+        if (actor?.sub === 'maker-self') throw new HttpError(403, 'A reviewer may not approve their own Attendance adjustment request.', { code: 'ATTENDANCE_ADJUSTMENT_SELF_APPROVAL_FORBIDDEN' });
+        return { id: '22222222-2222-4222-8222-222222222222', status: 'REJECTED' };
+      },
+      returnForCorrection: async ({ actor }) => {
+        if (actor?.sub === 'maker-self') throw new HttpError(403, 'A reviewer may not approve their own Attendance adjustment request.', { code: 'ATTENDANCE_ADJUSTMENT_SELF_APPROVAL_FORBIDDEN' });
+        return { id: '22222222-2222-4222-8222-222222222222', status: 'RETURNED_FOR_CORRECTION' };
+      }
     })
   },
   children: [],
@@ -84,4 +94,11 @@ test('adjustment route: every executive and linked-employee role may create (mid
     actor = { sub: `${role.toLowerCase()}-1`, role, employeeAuthority: { id: 'employee-1' } };
     assert.equal((await post('/', draft)).status, 201, `${role} create must pass the route guard`);
   }
+});
+
+test('adjustment route: self approval is denied with 403 on approve, reject, and return', async () => {
+  actor = { sub: 'maker-self', role: 'ADMIN' };
+  assert.equal((await post(`/${requestId}/approve`)).status, 403, 'self approve must be 403');
+  assert.equal((await post(`/${requestId}/reject`, { comment: 'reject self' })).status, 403, 'self reject must be 403');
+  assert.equal((await post(`/${requestId}/return`, { comment: 'return self' })).status, 403, 'self return must be 403');
 });

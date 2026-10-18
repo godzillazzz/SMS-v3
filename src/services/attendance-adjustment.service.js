@@ -11,6 +11,7 @@ const {
   currentCorrectionsForAssignments,
   applyCurrentCorrections
 } = require('./attendance-correction.service');
+const { createApprovalPolicyService } = require('./approval-policy.service');
 const { bangkokToday } = require('../utils/bangkok-date');
 
 const TRANSACTION_OPTIONS = { isolationLevel: 'Serializable', maxWait: 5000, timeout: 10000 };
@@ -248,7 +249,8 @@ const requestSelect = Prisma.sql`
   LEFT JOIN users approver ON approver.id = r.approver_user_id
 `;
 
-function createAttendanceAdjustmentService({ prisma = prismaDefault, audit = auditDefault, clock = () => new Date() } = {}) {
+function createAttendanceAdjustmentService({ prisma = prismaDefault, audit = auditDefault, clock = () => new Date(), approvalPolicyService } = {}) {
+  const approvalPolicy = approvalPolicyService || (prisma?.systemSetting ? createApprovalPolicyService({ prisma, clock }) : null);
   async function getRequestRow(client, id, lock = false) {
     const rows = lock
       ? await client.$queryRaw(Prisma.sql`${requestSelect} WHERE r.id = ${id}::uuid FOR UPDATE OF r`)
@@ -579,8 +581,13 @@ function createAttendanceAdjustmentService({ prisma = prismaDefault, audit = aud
     const normalizedComment = reviewerComment(comment);
 
     return prisma.$transaction(async (tx) => {
+      if (approvalPolicy?.assertReviewer) {
+        await approvalPolicy.assertReviewer('ATTENDANCE_ADJUSTMENT_REQUEST', actor, tx);
+      }
       const request = await getRequestRow(tx, id, true);
       if (!request) throw http(404, 'ATTENDANCE_ADJUSTMENT_NOT_FOUND', 'Attendance adjustment request was not found.');
+      const assignment = await loadAssignment(tx, request.shiftAssignmentId);
+      assertNoSelfApproval(actor, request, assignment);
       if (request.status !== 'PENDING_APPROVAL') {
         throw http(409, 'ATTENDANCE_ADJUSTMENT_INVALID_TRANSITION', 'Only pending requests may be returned.');
       }
@@ -627,8 +634,13 @@ function createAttendanceAdjustmentService({ prisma = prismaDefault, audit = aud
     const now = clock();
 
     return prisma.$transaction(async (tx) => {
+      if (approvalPolicy?.assertReviewer) {
+        await approvalPolicy.assertReviewer('ATTENDANCE_ADJUSTMENT_REQUEST', actor, tx);
+      }
       const request = await getRequestRow(tx, id, true);
       if (!request) throw http(404, 'ATTENDANCE_ADJUSTMENT_NOT_FOUND', 'Attendance adjustment request was not found.');
+      const assignment = await loadAssignment(tx, request.shiftAssignmentId);
+      assertNoSelfApproval(actor, request, assignment);
       if (request.status !== 'PENDING_APPROVAL') {
         throw http(409, 'ATTENDANCE_ADJUSTMENT_INVALID_TRANSITION', 'Only pending requests may be rejected.');
       }
@@ -676,6 +688,9 @@ function createAttendanceAdjustmentService({ prisma = prismaDefault, audit = aud
     const now = clock();
 
     return prisma.$transaction(async (tx) => {
+      if (approvalPolicy?.assertReviewer) {
+        await approvalPolicy.assertReviewer('ATTENDANCE_ADJUSTMENT_REQUEST', actor, tx);
+      }
       const request = await getRequestRow(tx, id, true);
       if (!request) throw http(404, 'ATTENDANCE_ADJUSTMENT_NOT_FOUND', 'Attendance adjustment request was not found.');
       if (request.status !== 'PENDING_APPROVAL') {

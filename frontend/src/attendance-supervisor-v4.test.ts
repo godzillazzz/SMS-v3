@@ -120,7 +120,7 @@ describe('Attendance Supervisor UX V4', () => {
     expect(css).toContain('.attendance-supervisor-v4__manual-btn');
   });
 
-  it('adds a dedicated approval queue with explicit ADMIN approve return and reject actions', () => {
+  it('adds a dedicated approval queue with explicit executive reviewer approve return and reject actions', () => {
     expect(page).toContain("type Mode = 'daily' | 'history' | 'requests'");
     expect(page).toContain('คำขอแก้ไข');
     expect(page).toContain("admin ? 'คิวอนุมัติการลงเวลา' : 'คำขอแก้ไขการลงเวลา'");
@@ -130,6 +130,8 @@ describe('Attendance Supervisor UX V4', () => {
     expect(page).toContain('ส่งกลับให้แก้ไข');
     expect(page).toContain('ยืนยันไม่อนุมัติ');
     expect(page).toContain("reviewer && request.status === 'PENDING_APPROVAL'");
+    expect(page).not.toContain('ADMIN approval');
+    expect(page).not.toContain('ADMIN ต้องอนุมัติแยกต่างหาก');
   });
 
   it('keeps ordinary adjustment review explicit while allowing Admin to finalize manual retrospective confirmation', () => {
