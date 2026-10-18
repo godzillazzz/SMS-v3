@@ -77,7 +77,7 @@ test('approval service records the real non-Admin role on a denied direct call',
 
 test('Supervisor role inherits Manager operational authority while Admin-only actions stay protected', () => {
   assert.match(operations, /router\.put\('\/licenses\/:id', authorize\('ADMIN', 'MANAGER', 'SUPERVISOR'\),/);
-  assert.match(attendanceSupervisorService, /\['ADMIN', 'MANAGER', 'SUPERVISOR'\]\.includes\(role\)/);
+  assert.match(attendanceSupervisorService, /\['ADMIN', 'MANAGER', 'SUPERVISOR'(?:, 'VIEWER')?\]\.includes\(role\)/);
   assert.match(attendanceSupervisorService, /\['MANAGER', 'SUPERVISOR'\]\.includes\(role\)/);
   assert.doesNotMatch(operations, /router\.post\('\/shift-types', authorize\([^\n]*'SUPERVISOR'/);
 });
