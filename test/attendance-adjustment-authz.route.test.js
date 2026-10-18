@@ -61,17 +61,16 @@ async function post(path, body = {}) {
   return request(app).post(`/api/v1/attendance/adjustment-requests${path}`).send(body);
 }
 
-// CURRENT CONTRACT LOCK — asserts what the shipped middleware actually enforces.
-// Router-level authorize('ADMIN','MANAGER','SUPERVISOR') + ADMIN-only decision routes.
-// KNOWN GOVERNANCE GAP (recorded 17 Oct 2026): the OWNER directive requires SUPERVISOR to be
-// denied maker rights and EMPLOYEE to be able to self-submit. Today SUPERVISOR is allowed (201)
-// and EMPLOYEE is denied (403). Changing that is an RBAC change requiring explicit OWNER approval;
-// see the governance note in MASTER_HANDOFF.md.
+// ROUTE MATRIX LOCK — OWNER policy 18 Oct 2026 (docs/GOVERNANCE_ATTENDANCE_ADJUSTMENT_RBAC.md):
+// maker routes = ADMIN/MANAGER/SUPERVISOR/VIEWER · decision routes = ADMIN only.
+// This file proves the per-route authorize matrix. Service-level rules (7-day backdate,
+// VIEWER ownership, read scope, maker-only submit) are covered by the dedicated
+// attendance-adjustment service tests.
 test('adjustment route: decision actions are ADMIN-only', async () => {
   actor = { sub: 'admin-1', role: 'ADMIN' };
   assert.equal((await post(`/${requestId}/approve`)).status, 200, 'ADMIN approve positive control');
 
-  for (const role of ['MANAGER', 'SUPERVISOR']) {
+  for (const role of ['MANAGER', 'SUPERVISOR', 'VIEWER']) {
     actor = { sub: `${role.toLowerCase()}-1`, role };
     assert.equal((await post(`/${requestId}/approve`)).status, 403, `${role} approve must be denied`);
     assert.equal((await post(`/${requestId}/reject`)).status, 403, `${role} reject must be denied`);
@@ -79,13 +78,9 @@ test('adjustment route: decision actions are ADMIN-only', async () => {
   }
 });
 
-test('adjustment route: maker access is limited to ADMIN/MANAGER/SUPERVISOR today', async () => {
-  for (const role of ['ADMIN', 'MANAGER', 'SUPERVISOR']) {
-    actor = { sub: `${role.toLowerCase()}-1`, role };
-    assert.equal((await post('/', draft)).status, 201, `${role} create currently allowed`);
-  }
-  for (const role of ['EMPLOYEE', 'VIEWER']) {
-    actor = { sub: `${role.toLowerCase()}-1`, role };
-    assert.equal((await post('/', draft)).status, 403, `${role} create currently denied`);
+test('adjustment route: every executive and linked-employee role may create (middleware level)', async () => {
+  for (const role of ['ADMIN', 'MANAGER', 'SUPERVISOR', 'VIEWER']) {
+    actor = { sub: `${role.toLowerCase()}-1`, role, employeeAuthority: { id: 'employee-1' } };
+    assert.equal((await post('/', draft)).status, 201, `${role} create must pass the route guard`);
   }
 });
