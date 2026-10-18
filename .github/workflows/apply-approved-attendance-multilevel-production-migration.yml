@@ -22,7 +22,7 @@ env:
   EXPECTED_PROJECT_ID: prj_XwhNUOB2zLSPZ6UgQcfyOKBYJ75s
   EXPECTED_PROJECT_NAME: sms-v3-staging
   EXPECTED_CANONICAL_URL: https://sms-v3-staging-ten.vercel.app
-  EXPECTED_MIGRATION_PATH: prisma/migrations/202610180002_attendance_adjustment_multilevel_approval/migration.sql
+  EXPECTED_MIGRATION_PATH: prisma/migrations/202610180003_attendance_adjustment_status_restore_cancelled/migration.sql
 
 jobs:
   prepare:
@@ -71,7 +71,7 @@ jobs:
           for (const key of ['source_commit_sha', 'source_tree_sha']) {
             if (!/^[0-9a-f]{40}$/.test(manifest[key])) throw new Error(`Invalid ${key}`);
           }
-          if (manifest.migration_path !== 'prisma/migrations/202610180002_attendance_adjustment_multilevel_approval/migration.sql') {
+          if (manifest.migration_path !== 'prisma/migrations/202610180003_attendance_adjustment_status_restore_cancelled/migration.sql') {
             throw new Error('Unexpected ATT-CHAIN-ML migration path');
           }
           NODE
@@ -86,12 +86,10 @@ jobs:
           test -s /tmp/att-chain-ml-migration.sql
           # Constraint-only widening: no row data may be touched.
           ! grep -Eiq 'INSERT[[:space:]]+INTO|DELETE[[:space:]]+FROM|TRUNCATE|UPDATE[[:space:]]+"|DROP[[:space:]]+(TABLE|COLUMN|INDEX)|ALTER[[:space:]]+COLUMN' /tmp/att-chain-ml-migration.sql
-          test "$(grep -Ec 'ALTER TABLE "attendance_adjustment_(requests|events)"' /tmp/att-chain-ml-migration.sql)" -eq 4
-          grep -q "'PENDING_SUPERVISOR'" /tmp/att-chain-ml-migration.sql
-          grep -q "'PENDING_MANAGER'" /tmp/att-chain-ml-migration.sql
-          grep -q "'PENDING_ADMIN'" /tmp/att-chain-ml-migration.sql
-          grep -q "'REVIEWED'" /tmp/att-chain-ml-migration.sql
-          grep -q "'PENDING_APPROVAL'" /tmp/att-chain-ml-migration.sql
+          test "$(grep -Ec 'ALTER TABLE "attendance_adjustment_' /tmp/att-chain-ml-migration.sql)" -eq 2
+          for value in "'DRAFT'" "'PENDING_APPROVAL'" "'PENDING_SUPERVISOR'" "'PENDING_MANAGER'" "'PENDING_ADMIN'" "'RETURNED_FOR_CORRECTION'" "'APPROVED'" "'REJECTED'" "'CANCELLED'"; do
+            grep -q "$value" /tmp/att-chain-ml-migration.sql || { echo "missing $value in the status constraint"; exit 1; }
+          done
           CI_SUCCESS=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow CI --commit "$SOURCE_SHA" --limit 10 --json status,conclusion --jq '[.[] | select(.status=="completed" and .conclusion=="success")] | length')
           test "$CI_SUCCESS" -ge 1
           echo "source_sha=$SOURCE_SHA" >> "$GITHUB_OUTPUT"
@@ -102,7 +100,7 @@ jobs:
             echo "- Exact source SHA: $SOURCE_SHA"
             echo "- Exact tree SHA: $SOURCE_TREE"
             echo "- Migration: $MIGRATION_PATH"
-            echo '- Scope: CHECK constraints only (status + event_type), legacy values retained'
+            echo '- Scope: status CHECK only, restores CANCELLED and keeps every legacy value'
             echo '- Application deployment: disabled'
             echo '- Destructive rollback: disabled'
           } >> "$GITHUB_STEP_SUMMARY"
@@ -147,7 +145,7 @@ jobs:
           set -euo pipefail
           MIGRATION_PATH="${{ needs.prepare.outputs.migration_path }}"
           ! grep -Eiq 'INSERT[[:space:]]+INTO|DELETE[[:space:]]+FROM|TRUNCATE|DROP[[:space:]]+(TABLE|COLUMN|INDEX)|ALTER[[:space:]]+COLUMN' "$MIGRATION_PATH"
-          test "$(grep -Ec 'ALTER TABLE "attendance_adjustment_(requests|events)"' "$MIGRATION_PATH")" -eq 4
+          test "$(grep -Ec 'ALTER TABLE "attendance_adjustment_' "$MIGRATION_PATH")" -eq 2
           node scripts/ci/prisma-migration.js status --allow-pending
       - name: Apply approved ATT-CHAIN-ML migration only
         run: node scripts/ci/prisma-migration.js deploy
@@ -156,13 +154,16 @@ jobs:
         run: |
           set -euo pipefail
           node scripts/ci/prisma-migration.js status
-          node scripts/ci/verify-attendance-multilevel-constraints.js
+          # Verify the script that actually runs matches the reviewed commit exactly.
+          git fetch --no-tags origin "$GITHUB_SHA"
+          git show "$GITHUB_SHA:scripts/ci/verify-attendance-multilevel-constraints.js" >/tmp/verify-attendance-multilevel-constraints.js
+          node /tmp/verify-attendance-multilevel-constraints.js
       - name: Verify canonical application remains healthy
         shell: bash
         run: |
           set -euo pipefail
-          health=$(curl --fail --silent --show-error "https://sms-v3-staging-ten.vercel.app/api/v1/health")
-          ready=$(curl --fail --silent --show-error "https://sms-v3-staging-ten.vercel.app/api/v1/ready")
+          health=$(curl --fail --silent --show-error "$EXPECTED_CANONICAL_URL/api/v1/health")
+          ready=$(curl --fail --silent --show-error "$EXPECTED_CANONICAL_URL/api/v1/ready")
           node - "$health" "$ready" <<'NODE'
           const health = JSON.parse(process.argv[2]);
           const ready = JSON.parse(process.argv[3]);
@@ -174,7 +175,8 @@ jobs:
           {
             echo '### ATT-CHAIN-ML Production migration'
             echo '- Migration status: PASS'
-            echo '- Status/event_type constraints: VERIFIED'
+            echo '- Status constraint (CANCELLED + staged values): VERIFIED'
+            echo '- Event-type constraint (REVIEWED): VERIFIED'
             echo '- Canonical application health/readiness: PASS'
             echo '- Application deployment performed: NO'
             echo '- Destructive rollback performed: NO'

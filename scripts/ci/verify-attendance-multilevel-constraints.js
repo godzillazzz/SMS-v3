@@ -4,8 +4,8 @@
 // Read-only: it inspects pg_constraint definitions and never mutates data.
 const { PrismaClient } = require('@prisma/client');
 
-const REQUIRED_STATUSES = ['PENDING_APPROVAL', 'PENDING_SUPERVISOR', 'PENDING_MANAGER', 'PENDING_ADMIN'];
-const REQUIRED_EVENTS = ['CREATED', 'SUBMITTED', 'REVIEWED', 'RETURNED', 'REJECTED', 'APPROVED'];
+const REQUIRED_STATUSES = ['DRAFT', 'PENDING_APPROVAL', 'PENDING_SUPERVISOR', 'PENDING_MANAGER', 'PENDING_ADMIN', 'RETURNED_FOR_CORRECTION', 'APPROVED', 'REJECTED', 'CANCELLED'];
+const REQUIRED_EVENTS = ['CREATED', 'REVISED', 'SUBMITTED', 'REVIEWED', 'RETURNED', 'REJECTED', 'APPROVED', 'CANCELLED'];
 
 async function main() {
   const prisma = new PrismaClient();
@@ -19,8 +19,9 @@ async function main() {
         AND n.nspname = 'public'
         AND t.relname IN ('attendance_adjustment_requests', 'attendance_adjustment_events')
     `;
-    const requestRow = rows.find((row) => row.table_name === 'attendance_adjustment_requests');
-    const eventRow = rows.find((row) => row.table_name === 'attendance_adjustment_events');
+    // Match the exact constraint names: the same table carries several CHECK constraints.
+    const requestRow = rows.find((row) => row.constraint_name === 'attendance_adjustment_requests_status_check');
+    const eventRow = rows.find((row) => row.constraint_name === 'attendance_adjustment_events_type_check');
     if (!requestRow) throw new Error('attendance_adjustment_requests CHECK constraint not found');
     if (!eventRow) throw new Error('attendance_adjustment_events CHECK constraint not found');
     for (const status of REQUIRED_STATUSES) {
