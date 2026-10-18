@@ -38,13 +38,10 @@ function correctionReason(value) {
 function assertCorrectionActor(actor, assignment) {
   const role = String(actor?.role || '').toUpperCase();
   if (!['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(role)) throw http(403, 'ATTENDANCE_CORRECTION_FORBIDDEN', 'Attendance correction requires Manager or Admin authority.');
-  if (['MANAGER', 'SUPERVISOR'].includes(role)) {
-    const actorDepartment = String(actor?.department || '').trim();
-    const assignmentDepartment = String(assignment?.departmentSnapshot || assignment?.employee?.department || '').trim();
-    if (!actorDepartment || !assignmentDepartment || actorDepartment !== assignmentDepartment) {
-      throw http(403, 'ATTENDANCE_CORRECTION_SCOPE_FORBIDDEN', 'Manager may correct Attendance only for their own Department.');
-    }
-  }
+  // OWNER policy (18 Oct 2026): ADMIN/MANAGER/SUPERVISOR are cross-department executives.
+  // No department-based restriction is applied here; `authenticate` does not populate
+  // actor.department, so any department check would wrongly deny every executive.
+  if (!assignment) throw http(404, 'ATTENDANCE_CORRECTION_ASSIGNMENT_REQUIRED', 'A shift assignment is required.');
   return role;
 }
 
