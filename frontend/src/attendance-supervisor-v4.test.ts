@@ -16,7 +16,7 @@ describe('Attendance Supervisor UX V4', () => {
     expect(main).toContain("{ id: 'attendanceSupervisor', icon: 'dashboard', label: 'ศูนย์ควบคุมการลงเวลา' }");
     expect(routing).toContain("if (page === 'leavePending') return ['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(auth.user?.role || '') && !auth.isViewingAs");
     expect(routing).toContain("if (page === 'attendanceSupervisor') return ['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(auth.user?.role || '')");
-    expect(main).toContain("activePage === 'attendanceSupervisor' && auth.token && ['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(auth.user?.role || '') && !auth.isViewingAs");
+    expect(main).toContain("activePage === 'attendanceSupervisor' && auth.token && ['ADMIN', 'MANAGER', 'SUPERVISOR', 'VIEWER'].includes(auth.user?.role || '') && !auth.isViewingAs");
     expect(main).toContain('<AttendanceSupervisorPage');
     expect(main).toContain("activePage === 'attendance' && auth.token");
     expect(main).not.toContain("if (!pwaShell && ['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(auth.user?.role || ''))");
@@ -129,7 +129,7 @@ describe('Attendance Supervisor UX V4', () => {
     expect(page).toContain('อนุมัติและให้มีผล');
     expect(page).toContain('ส่งกลับให้แก้ไข');
     expect(page).toContain('ยืนยันไม่อนุมัติ');
-    expect(page).toContain("reviewer && request.status === 'PENDING_APPROVAL'");
+    expect(page).toContain('admin && request.status === \'PENDING_APPROVAL\'');
   });
 
   it('keeps ordinary adjustment review explicit while allowing Admin to finalize manual retrospective confirmation', () => {

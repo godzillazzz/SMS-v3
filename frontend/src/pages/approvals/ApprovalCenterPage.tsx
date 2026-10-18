@@ -54,7 +54,6 @@ type Summary = {
 type Props = {
   token: string;
   role: string;
-  currentUserId?: string;
   currentEmployeeId?: string;
   refreshKey?: number;
   onChanged(): void;
@@ -198,7 +197,6 @@ function urgencyText(item: ApprovalCenterItem) {
 export function ApprovalCenterPage({
   token,
   role,
-  currentUserId,
   currentEmployeeId,
   refreshKey = 0,
   onChanged,
@@ -286,13 +284,6 @@ export function ApprovalCenterPage({
     action: 'approve' | 'reject',
     reason = ''
   ) => {
-    if (item.type === 'ATTENDANCE_ADJUSTMENT_REQUEST'
-      && ((Boolean(currentUserId) && item.requestedBy?.id === currentUserId)
-        || (Boolean(currentEmployeeId) && item.employee?.id === currentEmployeeId))) {
-      setError('ห้ามอนุมัติคำขอของตนเอง');
-      return;
-    }
-
     if (item.type === 'EMPLOYEE_MASTER_CHANGE') {
       onOpenEmployeeChange(item.requestId);
       return;
@@ -395,16 +386,9 @@ export function ApprovalCenterPage({
     const selfLeave = item.type === 'LEAVE_REQUEST'
       && Boolean(currentEmployeeId)
       && item.employee?.id === currentEmployeeId;
-    const selfAttendanceAdjustment = item.type === 'ATTENDANCE_ADJUSTMENT_REQUEST'
-      && ((Boolean(currentUserId) && item.requestedBy?.id === currentUserId)
-        || (Boolean(currentEmployeeId) && item.employee?.id === currentEmployeeId));
 
     if (item.type === 'EMPLOYEE_MASTER_CHANGE') return null;
     if (item.type === 'SCHEDULE_APPROVAL') return null;
-
-    if (selfAttendanceAdjustment) {
-      return <span className="approval-self-leave">ห้ามอนุมัติคำขอของตนเอง</span>;
-    }
 
     if (selfLeave) {
     return <span className="approval-self-leave">

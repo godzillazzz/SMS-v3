@@ -53,14 +53,10 @@ function parseHistoryRange(filters = {}, fallback = new Date()) {
 
 function scopeForActor(actor, filters = {}) {
   const role = String(actor?.role || '').toUpperCase();
-  if (!['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(role)) throw http(403, 'ATTENDANCE_SUPERVISOR_FORBIDDEN', 'Attendance supervisor access requires Manager or Admin authority.');
-  if (['MANAGER', 'SUPERVISOR'].includes(role)) {
-    const department = String(actor?.department || '').trim();
-    if (!department) throw http(403, 'ATTENDANCE_SUPERVISOR_SCOPE_REQUIRED', 'Manager Attendance scope requires a Department.');
-    if (filters.department && filters.department !== department) throw http(403, 'ATTENDANCE_SUPERVISOR_SCOPE_FORBIDDEN', 'Manager cannot access another Department Attendance scope.');
-    return { role, department, employeeId: null };
-  }
-  return { role, department: filters.department || null, employeeId: filters.employeeId || null };
+  if (!['ADMIN', 'MANAGER', 'SUPERVISOR', 'VIEWER'].includes(role)) throw http(403, 'ATTENDANCE_SUPERVISOR_FORBIDDEN', 'Attendance supervisor access requires an authorized role.');
+  if (role === 'VIEWER' && !actor?.employeeAuthority?.id) throw http(403, 'ATTENDANCE_SUPERVISOR_SCOPE_REQUIRED', 'A linked employee account is required.');
+  if (['MANAGER', 'SUPERVISOR'].includes(role)) return { role, department: null, employeeId: null };
+  return { role, department: filters.department || null, employeeId: role === 'VIEWER' ? actor.employeeAuthority.id : filters.employeeId || null };
 }
 
 function eventByType(events, type) {
@@ -167,7 +163,8 @@ function employeeScopeWhere(scope, filters) {
     isActive: true,
     deletedAt: null,
     ...(scope.department ? { department: scope.department } : {}),
-    ...(scope.employeeId ? { id: scope.employeeId } : {})
+    ...(scope.employeeId ? { id: scope.employeeId } : {}),
+    ...(scope.role === 'VIEWER' ? { id: scope.employeeId || filters.employeeId } : {})
   };
   if (filters.employeeId && ['MANAGER', 'SUPERVISOR'].includes(scope.role)) where.id = filters.employeeId;
   return where;
@@ -437,6 +434,9 @@ function createAttendanceSupervisorService({ prisma = prismaDefault, clock = () 
     });
     if (!assignment) throw http(404, 'ATTENDANCE_ASSIGNMENT_NOT_FOUND', 'Attendance assignment was not found.');
     const department = assignment.departmentSnapshot || assignment.employee?.department || null;
+    if (scope.role === 'VIEWER' && String(assignment.employeeId) !== String(actor.employeeAuthority.id)) {
+      throw http(403, 'ATTENDANCE_SUPERVISOR_SCOPE_FORBIDDEN', 'Viewer may access only their own Attendance.');
+    }
     if (['MANAGER', 'SUPERVISOR'].includes(scope.role) && department !== scope.department) {
       throw http(403, 'ATTENDANCE_SUPERVISOR_SCOPE_FORBIDDEN', 'Manager cannot access another Department Attendance scope.');
     }

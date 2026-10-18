@@ -12,8 +12,7 @@ const {
   stableDigest,
   attendanceCertificationLockKey,
   assertMakerScope,
-  assertReviewerAuthority,
-  assertNoSelfApproval
+  assertAdmin
 } = require('../src/services/attendance-adjustment.service');
 
 const root = path.resolve(__dirname, '..');
@@ -83,24 +82,11 @@ test('Viewer requires employee authority and can adjust only its own shift', () 
   assert.throws(() => assertMakerScope({ sub: 'v', role: 'VIEWER', employeeAuthority: { id: 'employee-1' } }, { ...own, employeeId: 'employee-2' }, clock), (error) => error.statusCode === 403);
 });
 
-test('ADMIN, MANAGER, and SUPERVISOR may execute review authority while VIEWER is denied', () => {
-  for (const role of ['ADMIN', 'MANAGER', 'SUPERVISOR']) {
-    assert.equal(assertReviewerAuthority({ sub: role.toLowerCase(), role }), role);
-  }
+test('Only ADMIN may execute approval decisions', () => {
+  assert.doesNotThrow(() => assertAdmin({ sub: 'a', role: 'ADMIN' }));
   assert.throws(
-    () => assertReviewerAuthority({ sub: 'v', role: 'VIEWER' }),
-    (error) => error.statusCode === 403 && error.details?.code === 'ATTENDANCE_ADJUSTMENT_REVIEWER_REQUIRED'
-  );
-});
-
-test('reviewers cannot approve requests they made or their own shifts', () => {
-  assert.throws(
-    () => assertNoSelfApproval({ sub: 'maker', role: 'MANAGER' }, { makerUserId: 'maker' }, { employeeId: 'employee-1' }),
-    (error) => error.statusCode === 403 && error.details?.code === 'ATTENDANCE_ADJUSTMENT_SELF_APPROVAL_FORBIDDEN'
-  );
-  assert.throws(
-    () => assertNoSelfApproval({ sub: 'reviewer', role: 'SUPERVISOR', employeeAuthority: { id: 'employee-1' } }, { makerUserId: 'maker' }, { employeeId: 'employee-1' }),
-    (error) => error.statusCode === 403 && error.details?.code === 'ATTENDANCE_ADJUSTMENT_SELF_APPROVAL_FORBIDDEN'
+    () => assertAdmin({ sub: 'm', role: 'MANAGER' }),
+    (error) => error.statusCode === 403 && error.details?.code === 'ATTENDANCE_ADJUSTMENT_ADMIN_REQUIRED'
   );
 });
 
@@ -113,9 +99,9 @@ test('Governed adjustment API keeps public direct correction fail-closed', () =>
   const authorityMigration = read('prisma/migrations/202608270002_attendance_effective_correction_authority_v4/migration.sql');
 
   assert.match(index, /router\.use\('\/attendance\/adjustment-requests', attendanceAdjustmentRoutes\)/);
-  assert.match(adjustmentRoute, /router\.post\('\/:id\/approve', authorize\('ADMIN', 'MANAGER', 'SUPERVISOR'\)/);
-  assert.match(adjustmentRoute, /router\.post\('\/:id\/return', authorize\('ADMIN', 'MANAGER', 'SUPERVISOR'\)/);
-  assert.match(adjustmentRoute, /router\.post\('\/:id\/reject', authorize\('ADMIN', 'MANAGER', 'SUPERVISOR'\)/);
+  assert.match(adjustmentRoute, /router\.post\('\/:id\/approve', authorize\('ADMIN'\)/);
+  assert.match(adjustmentRoute, /router\.post\('\/:id\/return', authorize\('ADMIN'\)/);
+  assert.match(adjustmentRoute, /router\.post\('\/:id\/reject', authorize\('ADMIN'\)/);
   assert.match(legacyGovernanceRoute, /router\.post\('\/assignments\/:id\/corrections'[\s\S]*new HttpError\(404, 'Not found\.'\)/);
   assert.match(service, /status = 'PENDING_APPROVAL'/);
   assert.match(service, /INSERT INTO attendance_corrections/);
