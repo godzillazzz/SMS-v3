@@ -27,6 +27,26 @@
 
 **Incident record (18 Oct 2026):** three agent commits (`3c6ccbd6`, `1acc6e67`, `401375ff` + follow-ups `6a334048`/`1817e263`/`eaa1948f`/`0e19485c`) attempted to widen approval authority to MANAGER/SUPERVISOR and re-added a Prisma migration `202610180001_cfg06_attendance_adjustment_all_roles`. All were reverted (`ca103e57`, `6ec82e64`, `85591f70`, then a chain revert) — **HEAD has no such migration and decision routes are ADMIN-only**. The owner-facing rule stands: agents must not change authorization policy without explicit OWNER approval.
 
+## ACTIVE — R8 MULTI-LEVEL ATTENDANCE APPROVAL RELEASE — 18 October 2026 (Asia/Bangkok)
+
+**Latest live release (verified read-only):** Production canonical `https://sms-v3-staging-ten.vercel.app` is READY on Vercel deployment `dpl_7djFpJVzU4r1FjtKJy9i1w18RYzW`, release head `d0bd1db1`, application source `a0250b8b`. Deploy run `39117595604` = SUCCESS (steps 12–19); rollback checkpoint `dpl_7muKnT92uy5AWo8QxqxPakyPHWL9`. Live checks: `health=ok`, `ready=ready/database ok`, `x-vercel-id` execution region `hnd1`, `SENTINELS=20`, `CANONICAL_PRODUCTION_RUNTIME_VERIFY=PASS`, `CANONICAL_PRODUCTION_CORS_VERIFY=PASS`.
+
+**Owner policy in force (18 Oct 2026):** ADMIN, MANAGER and SUPERVISOR are executives of every department; a supervisor may key the confirmation for a subordinate; SUPERVISOR/MANAGER may backdate at most **3 days**; ADMIN has no time limit; **final approval and rejection belong to ADMIN only**.
+
+**Approval chain:** `PENDING_SUPERVISOR` → `PENDING_MANAGER` → `PENDING_ADMIN`. A supervisor-made request starts at the manager stage; a manager/admin-made one starts at the admin stage. Every stage may return the request for correction; only ADMIN may reject. Each hand-off writes a `REVIEWED` audit event whose `fromStatus` records the real source stage.
+
+**Server-side guards:** confirmed window ≤16h, check-in −4h/+8h from the shift start, check-out ±8h from the shift end. The employee enters times manually — the recorded times are reference only.
+
+**Incident — status constraint regression (found by LENS, fixed before release):** migration `202610180002` widened the status CHECK with the staged pending values but **dropped `CANCELLED`**. It had already been applied, and an applied migration cannot be edited (Prisma checksum), so `202610180003_attendance_adjustment_status_restore_cancelled` restores every legacy value. `test/attendance-adjustment.constraint-parity.test.js` now fails if any later migration shrinks the value set of either CHECK constraint.
+
+**Pre-applied migration governance (batch R8, `PRE_APPLIED_APPROVED_MIGRATION`):** `scripts/ci/verify-approved-production-migration.js` gained the `ATT-CHAIN-ML` profile which validates an exact **set** of migration files with a per-file sha256, and the deploy workflow now compares the changed prisma paths against that exact set. Evidence chain:
+- `39104089389` — applied `202610180002` (verification step failed on a missing helper; migration itself applied)
+- `39106024842` — applied `202610180003` (verification step failed on module resolution; migration itself applied)
+- `39106871944` — constraints verified live (both PASS)
+- `39116473165` — final push-triggered evidence used by the release (`UP_TO_DATE`, both constraints PASS)
+
+**Remaining gates (NOT VERIFIED):** remote browser E2E (T20), authenticated 4-role UAT, F003/F004, client-side telemetry T18/T24, T30a–T33 artifacts. These stay open until an approved Preview database is available.
+
 ## ACTIVE — TOKYO REGION RELEASE & OWNER-MEASURED T18/T24 LATENCY — 17 October 2026 (Asia/Bangkok)
 
 **Latest live release (verified read-only):** Production canonical `https://sms-v3-staging-ten.vercel.app` is READY on Vercel deployment `dpl_7muKnT92uy5AWo8QxqxPakyPHWL9`, application SHA `a0250b8b0ca8072104a4d3593012220c4fe2fb84`; governed [Production release workflow #39039639039](https://github.com/godzillazzz/SMS-v3/actions/runs/39039639039) completed SUCCESS with both prepare and approve jobs successful. Owner reported workflow verdicts `CANONICAL_PRODUCTION_RUNTIME_VERIFY=PASS`, `CORS_VERIFY=PASS`, and `ROLLBACK_CHECKPOINT_CURRENT=PASS`. Rollback checkpoint before this release: `dpl_9CxiMbXdmBqp6LJG8YHKcVXgL1JN` (source `f30bc45915acb8c87a94d2d8a2d0e90a86d6f16e`). Current application `vercel.json` pins API function to `regions:["hnd1"]` (Tokyo); Supabase Production-side project `jkexwnlxnxbemwavsebv` is provider region `ap-northeast-1` (Tokyo). Fresh read-only canonical `/api/v1/health` and `/api/v1/ready` returned HTTP 200 with `database=ok`.
