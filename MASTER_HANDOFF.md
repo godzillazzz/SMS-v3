@@ -2,6 +2,22 @@
 
 > **BRANCH LINEAGES (บังคับ ตั้งแต่ 17 ต.ค. 2569):** แอป + Production release = `fix/serverless-database-reliability` (integration) · UAT/verification harness = `main` · **ห้าม merge `main`→integration ทั้งก้อน** · **ห้ามปล่อย Production จาก `main`** · รายละเอียด + วิธี audit รายไตรมาส: [`docs/BRANCH_LINEAGES.md`](docs/BRANCH_LINEAGES.md)
 
+## ACTIVE — ATTENDANCE ADJUSTMENT AUTHORITY (OWNER policy 18 Oct 2026)
+
+**Owner policy (verbatim gist):** หัวหน้างาน ผู้จัดการ ADMIN เป็นผู้บริหารของทุกแผนก · หัวหน้างานคีย์ยืนยันการมาปฏิบัติงานให้ลูกน้องได้ · หัวหน้างานและผู้จัดการคีย์ย้อนหลังได้ไม่เกิน 7 วัน · ADMIN ไม่จำกัดเวลา · **"สุดท้ายต้องมาจบที่ admin"** = การอนุมัติขั้นสุดท้ายเป็นของ ADMIN เท่านั้น · พนักงาน (role `VIEWER` ที่ผูก employee) ยื่นยันของตัวเองได้ (ไม่เพิ่ม role/migration — `UserRole` = ADMIN/MANAGER/SUPERVISOR/VIEWER)
+
+| action | ADMIN | MANAGER | SUPERVISOR | VIEWER + linked employee |
+|---|---|---|---|---|
+| สร้าง/แก้/ส่ง คำขอ | ไม่จำกัดเวลา/แผนก | ≤ 7 วัน · ทุกแผนก | ≤ 7 วัน · ทุกแผนก | เฉพาะกะตัวเอง (≤ 7 วัน) |
+| อนุมัติ / ส่งกลับ / ปฏิเสธ | ✅ | ❌ 403 | ❌ 403 | ❌ 403 |
+| อ่านรายการ / รายละเอียด | ทุกแผนก | ทุกแผนก | ทุกแผนก | เฉพาะของตัวเอง |
+
+**Implementation:** `src/routes/attendance-adjustment.routes.js` (per-route authorize; decision routes `authorize('ADMIN')`) · `src/services/attendance-adjustment.service.js` (`assertMakerScope` with Bangkok 7-day cut-off, `assertReadable` separated from maker scope, `assertAdmin` unchanged) · `src/services/attendance-correction.service.js` (department restriction removed for executives) · `src/services/attendance-supervisor.service.js` (cross-department reads; linked VIEWER governance metadata)
+
+**Evidence:** 34+ targeted tests (route matrix, maker scope/boundary, read scope, maker-only submit/revise, correction scope, supervisor detail) · mutation proofs: backdate check, VIEWER ownership, VIEWER read scope, makerUserId check, correction department check — each removed guard makes the matching test fail · CI run `39094933162` on `dec90bb5` = SUCCESS (validate + t22).
+
+**Incident record (18 Oct 2026):** three agent commits (`3c6ccbd6`, `1acc6e67`, `401375ff` + follow-ups `6a334048`/`1817e263`/`eaa1948f`/`0e19485c`) attempted to widen approval authority to MANAGER/SUPERVISOR and re-added a Prisma migration `202610180001_cfg06_attendance_adjustment_all_roles`. All were reverted (`ca103e57`, `6ec82e64`, `85591f70`, then a chain revert) — **HEAD has no such migration and decision routes are ADMIN-only**. The owner-facing rule stands: agents must not change authorization policy without explicit OWNER approval.
+
 ## ACTIVE — TOKYO REGION RELEASE & OWNER-MEASURED T18/T24 LATENCY — 17 October 2026 (Asia/Bangkok)
 
 **Latest live release (verified read-only):** Production canonical `https://sms-v3-staging-ten.vercel.app` is READY on Vercel deployment `dpl_7muKnT92uy5AWo8QxqxPakyPHWL9`, application SHA `a0250b8b0ca8072104a4d3593012220c4fe2fb84`; governed [Production release workflow #39039639039](https://github.com/godzillazzz/SMS-v3/actions/runs/39039639039) completed SUCCESS with both prepare and approve jobs successful. Owner reported workflow verdicts `CANONICAL_PRODUCTION_RUNTIME_VERIFY=PASS`, `CORS_VERIFY=PASS`, and `ROLLBACK_CHECKPOINT_CURRENT=PASS`. Rollback checkpoint before this release: `dpl_9CxiMbXdmBqp6LJG8YHKcVXgL1JN` (source `f30bc45915acb8c87a94d2d8a2d0e90a86d6f16e`). Current application `vercel.json` pins API function to `regions:["hnd1"]` (Tokyo); Supabase Production-side project `jkexwnlxnxbemwavsebv` is provider region `ap-northeast-1` (Tokyo). Fresh read-only canonical `/api/v1/health` and `/api/v1/ready` returned HTTP 200 with `database=ok`.

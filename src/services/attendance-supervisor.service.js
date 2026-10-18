@@ -475,7 +475,8 @@ function createAttendanceSupervisorService({ prisma = prismaDefault, clock = () 
         })()
       })),
       governance: {
-        canCreateAdjustmentRequest: ['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(scope.role),
+        canCreateAdjustmentRequest: ['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(scope.role)
+          || (scope.role === 'VIEWER' && actor?.employeeAuthority?.id && String(assignment.employeeId) === String(actor.employeeAuthority.id)),
         canApproveAdjustmentRequest: scope.role === 'ADMIN',
         directOverrideEnabled: false,
         note: 'V4 adjustment requests must not change authoritative Attendance until ADMIN approval.'

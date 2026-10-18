@@ -261,3 +261,33 @@ test('detail exposes original/effective authority metadata and allows cross-depa
   const crossDepartment = await service.detail({ actor: { role: 'MANAGER', department: 'OTHER' }, assignmentId: 'detail-a' });
   assert.equal(crossDepartment.assignmentId, 'detail-a');
 });
+
+test('linked VIEWER governance metadata allows creating its own adjustment but never approving', async () => {
+  const row = shiftAssignment({
+    id: 'viewer-a', employeeId: 'emp-viewer', name: 'Viewer', department: 'OPS',
+    events: [event('CHECK_IN', '2026-08-25T00:00:00.000Z', 'viewer-a-site')]
+  });
+  const prisma = {
+    shiftAssignment: { findUnique: async () => row },
+    leaveRequest: { findMany: async () => [] },
+    securitySite: { findUnique: async () => null }
+  };
+  const service = createAttendanceSupervisorService({
+    prisma,
+    clock: () => new Date('2026-08-25T01:00:00.000Z'),
+    siteAuthorityService: { resolve: async ({ assignment }) => ({ site: assignment.securitySite }) }
+  });
+
+  const detail = await service.detail({
+    actor: { role: 'VIEWER', employeeAuthority: { id: 'emp-viewer' } },
+    assignmentId: 'viewer-a'
+  });
+
+  assert.equal(detail.governance.canCreateAdjustmentRequest, true);
+  assert.equal(detail.governance.canApproveAdjustmentRequest, false);
+
+  await assert.rejects(
+    () => service.detail({ actor: { role: 'VIEWER', employeeAuthority: { id: 'emp-other' } }, assignmentId: 'viewer-a' }),
+    (error) => (error.details?.code || error.code) === 'ATTENDANCE_SUPERVISOR_SCOPE_FORBIDDEN'
+  );
+});
