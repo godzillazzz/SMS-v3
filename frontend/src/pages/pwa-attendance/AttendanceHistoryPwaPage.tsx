@@ -16,6 +16,34 @@ type Props = { token: string; online: boolean };
 type RangeKey = 'today' | 'week' | 'month';
 
 const SELF_CONFIRM_WINDOW_DAYS = 7;
+const MAX_SHIFT_HOURS = 16;
+const EARLY_TOLERANCE_HOURS = 4;
+const LATE_TOLERANCE_HOURS = 8;
+const CHECKOUT_TOLERANCE_HOURS = 8;
+
+function hoursBetween(startIso: string, endIso: string) {
+  return (Date.parse(endIso) - Date.parse(startIso)) / 3_600_000;
+}
+
+function needsConfirmation(row: AttendanceSelfRow) {
+  // OWNER default (18 Oct 2026): confirmation is an exception path — only shifts with a
+  // recorded problem need the employee to confirm, otherwise the admin queue floods.
+  const flags = row.flags || [];
+  return flags.includes('MISSING_CHECK_IN')
+    || flags.includes('MISSING_CHECK_OUT')
+    || flags.includes('TIME_ABNORMAL')
+    || flags.includes('ABSENT')
+    || row.status === 'ABSENT'
+    || !row.checkInAt
+    || !row.checkOutAt;
+}
+
+function shiftCrossesMidnight(row: AttendanceSelfRow) {
+  const start = row.shift?.startTime || '';
+  const end = row.shift?.endTime || '';
+  if (!/^\d{2}:\d{2}$/.test(start) || !/^\d{2}:\d{2}$/.test(end)) return false;
+  return end <= start;
+}
 
 function bangkokToday() {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Bangkok', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
@@ -119,6 +147,7 @@ export function AttendanceHistoryPwaPage({ token, online }: Props) {
   const [confirmRow, setConfirmRow] = useState<AttendanceSelfRow>();
   const [confirmCheckIn, setConfirmCheckIn] = useState('');
   const [confirmCheckOut, setConfirmCheckOut] = useState('');
+  const [confirmNextDay, setConfirmNextDay] = useState(false);
   const [confirmReason, setConfirmReason] = useState('');
   const [confirmBusy, setConfirmBusy] = useState(false);
   const [confirmError, setConfirmError] = useState<string>();
@@ -158,7 +187,7 @@ export function AttendanceHistoryPwaPage({ token, online }: Props) {
   const today = bangkokToday();
   const canConfirm = (row: AttendanceSelfRow) => {
     const age = dayDiff(row.date, today);
-    return age >= 0 && age <= SELF_CONFIRM_WINDOW_DAYS && !requestsByAssignment[row.assignmentId];
+    return age >= 0 && age <= SELF_CONFIRM_WINDOW_DAYS && !requestsByAssignment[row.assignmentId] && needsConfirmation(row);
   };
 
   const openConfirm = (row: AttendanceSelfRow) => {
@@ -167,18 +196,58 @@ export function AttendanceHistoryPwaPage({ token, online }: Props) {
     // Recorded values stay visible as a reference line only — never prefilled.
     setConfirmCheckIn('');
     setConfirmCheckOut('');
+    setConfirmNextDay(shiftCrossesMidnight(row));
     setConfirmReason('');
     setConfirmError(undefined);
     setConfirmNotice(undefined);
   };
 
+  const previewRange = (() => {
+    if (!confirmRow || !confirmCheckIn || !confirmCheckOut) return null;
+    const startIso = bangkokDateTimeToIso(confirmRow.date, confirmCheckIn);
+    const endDate = confirmNextDay ? shiftDate(confirmRow.date, 1) : confirmRow.date;
+    const endIso = bangkokDateTimeToIso(endDate, confirmCheckOut);
+    if (!startIso || !endIso) return null;
+    return { startIso, endIso, hours: hoursBetween(startIso, endIso) };
+  })();
+
   const submitConfirm = async () => {
     if (!confirmRow) return;
-    const checkInAt = bangkokDateTimeToIso(confirmRow.date, confirmCheckIn);
-    const checkOutAt = bangkokDateTimeToIso(confirmRow.date, confirmCheckOut);
-    if (!checkInAt || !checkOutAt) {
+    const range = previewRange;
+    if (!range) {
       setConfirmError('กรุณาระบุเวลาเข้าและเวลาออกให้ครบ');
       return;
+    }
+    if (range.hours <= 0) {
+      setConfirmError('เวลาออกต้องอยู่หลังเวลาเข้า (ถ้าเป็นกะข้ามคืนให้ติ๊ก "ออกวันถัดไป")');
+      return;
+    }
+    if (range.hours > MAX_SHIFT_HOURS) {
+      setConfirmError(`ระยะเวลาทำงานต้องไม่เกิน ${MAX_SHIFT_HOURS} ชั่วโมง`);
+      return;
+    }
+    const shiftStart = confirmRow.shift?.startTime;
+    const shiftEnd = confirmRow.shift?.endTime;
+    if (/^\d{2}:\d{2}$/.test(shiftStart || '')) {
+      const plannedStart = bangkokDateTimeToIso(confirmRow.date, shiftStart as string);
+      if (plannedStart) {
+        const delta = hoursBetween(plannedStart, range.startIso);
+        if (delta < -EARLY_TOLERANCE_HOURS || delta > LATE_TOLERANCE_HOURS) {
+          setConfirmError(`เวลาเข้าต้องอยู่ภายใน ${EARLY_TOLERANCE_HOURS} ชม.ก่อน และ ${LATE_TOLERANCE_HOURS} ชม.หลังเวลาเริ่มกะ`);
+          return;
+        }
+      }
+    }
+    if (/^\d{2}:\d{2}$/.test(shiftEnd || '')) {
+      const plannedEndDate = (shiftEnd as string) <= (shiftStart || '') ? shiftDate(confirmRow.date, 1) : confirmRow.date;
+      const plannedEnd = bangkokDateTimeToIso(plannedEndDate, shiftEnd as string);
+      if (plannedEnd) {
+        const deltaOut = Math.abs(hoursBetween(range.endIso, plannedEnd));
+        if (deltaOut > CHECKOUT_TOLERANCE_HOURS) {
+          setConfirmError(`เวลาออกต้องอยู่ภายใน ${CHECKOUT_TOLERANCE_HOURS} ชั่วโมงจากเวลาเลิกกะ`);
+          return;
+        }
+      }
     }
     if (confirmReason.trim().length < 5) {
       setConfirmError('กรุณาระบุเหตุผลอย่างน้อย 5 ตัวอักษร');
@@ -190,7 +259,7 @@ export function AttendanceHistoryPwaPage({ token, online }: Props) {
       const created = await createAttendanceAdjustment(token, {
         assignmentId: confirmRow.assignmentId,
         requestType: 'CONFIRM_WORK_PERFORMED',
-        proposal: { checkInAt, checkOutAt },
+        proposal: { checkInAt: range.startIso, checkOutAt: range.endIso },
         reason: confirmReason.trim()
       }) as { id?: string; data?: { id?: string } };
       const requestId = created?.id || created?.data?.id;
@@ -298,10 +367,12 @@ export function AttendanceHistoryPwaPage({ token, online }: Props) {
           <button type="button" aria-label="ปิด" onClick={() => setConfirmRow(undefined)}>✕</button>
         </header>
         <p className="employee-v4-hint">
-          วันที่ {confirmRow.date} · กรอกเวลาที่ปฏิบัติงานจริง (เวลาไทย) · ย้อนหลังได้ไม่เกิน {SELF_CONFIRM_WINDOW_DAYS} วัน
+          กะ {confirmRow.shift?.code || confirmRow.shift?.name || 'ไม่ระบุกะ'} · {confirmRow.shift?.startTime || '—'}–{confirmRow.shift?.endTime || '—'}
+          {shiftCrossesMidnight(confirmRow) ? ' (ข้ามคืน)' : ''} · {confirmRow.date}
         </p>
+        <p className="employee-v4-hint">กรอกเวลาที่ปฏิบัติงานจริง (เวลาไทย) · ย้อนหลังได้ไม่เกิน {SELF_CONFIRM_WINDOW_DAYS} วัน</p>
         {(confirmRow.checkInAt || confirmRow.checkOutAt) && <p className="employee-v4-hint">
-          ระบบบันทึกไว้: เข้า {bangkokTimeInput(confirmRow.checkInAt) || '—'} · ออก {bangkokTimeInput(confirmRow.checkOutAt) || '—'}
+          ระบบบันทึกไว้: เข้า {bangkokTimeInput(confirmRow.checkInAt) || '—'} · ออก {bangkokTimeInput(confirmRow.checkOutAt) || '—'} (ข้อมูลอ้างอิง)
         </p>}
         <label>
           <span>เวลาเข้า (เวลาไทย)</span>
@@ -311,6 +382,16 @@ export function AttendanceHistoryPwaPage({ token, online }: Props) {
           <span>เวลาออก (เวลาไทย)</span>
           <input type="time" value={confirmCheckOut} onChange={(event) => setConfirmCheckOut(event.target.value)} />
         </label>
+        <label className="employee-v4-checkbox">
+          <input type="checkbox" checked={confirmNextDay} onChange={(event) => setConfirmNextDay(event.target.checked)} />
+          <span>ออกวันถัดไป (กะข้ามคืน)</span>
+        </label>
+        {previewRange && <p className="employee-v4-hint" aria-live="polite">
+          จะบันทึก: {new Intl.DateTimeFormat('th-TH', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Bangkok' }).format(new Date(previewRange.startIso))}
+          {' → '}
+          {new Intl.DateTimeFormat('th-TH', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Bangkok' }).format(new Date(previewRange.endIso))}
+          {' · '}{previewRange.hours > 0 ? `${previewRange.hours.toFixed(2)} ชม.` : 'เวลายังไม่ถูกต้อง'}
+        </p>}
         <label>
           <span>เหตุผล (อย่างน้อย 5 ตัวอักษร)</span>
           <textarea value={confirmReason} onChange={(event) => setConfirmReason(event.target.value)} rows={3} />
