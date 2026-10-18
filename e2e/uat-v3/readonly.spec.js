@@ -10,22 +10,33 @@ function requestOptions() {
   return loginPreflightRequestOptions(process.env, config.baseURL);
 }
 test.beforeAll(async () => {
-  const preflight = Object.fromEntries(roles.map((role) => [role, 'NOT_RUN']));
+  const preflight = Object.fromEntries(roles.map((role) => [role, { code: 'NOT_RUN' }]));
+  let loginAttempts = 0;
   try {
     config = readConfig();
     sessions = await preflightAccounts(
       () => request.newContext(requestOptions()),
       config,
-      ({ role, code }) => { if (roles.includes(role)) preflight[role] = code; }
+      (entry) => { if (roles.includes(entry.role)) preflight[entry.role] = entry; },
+      () => { loginAttempts++; }
     );
   } finally {
     // Only fixed role identifiers and coarse status codes are persisted.
     fs.mkdirSync('test-results/uat-v3-safe', { recursive: true });
-    fs.writeFileSync('test-results/uat-v3-safe/preflight.json', JSON.stringify(preflight));
+    fs.writeFileSync('test-results/uat-v3-safe/preflight.json', JSON.stringify({ ...preflight, __login_attempts_total: loginAttempts }));
   }
 });
 test.afterAll(() => sessions?.clear());
+test.afterEach(async ({ page }) => {
+  if (page) await page.unrouteAll({ behavior: 'ignoreErrors' }).catch(() => {});
+});
 for (const role of roles) {
+  test.describe.serial(role, () => {
+    test.beforeAll(async () => {
+      const cooldownMs = Number(process.env.UAT_ROLE_COOLDOWN_MS || 5000);
+      if (cooldownMs > 0) await new Promise((resolve) => setTimeout(resolve, cooldownMs));
+    });
+
   test(`${role}: real browser login and exact identity`, async ({ page }) => {
     const attempts = await installReadonlyBrowser(page, undefined, config.baseURL, { realLogin: true });
     await test.step('BROWSER_PAGE_READY', async () => {
@@ -44,10 +55,16 @@ for (const role of roles) {
     });
     await test.step('BROWSER_LOGIN_IDENTITY', async () => {
       // Never attach payload, tokens, DOM snapshots, passwords, or login screenshots.
-      expect(response.status()).toBe(200);
-      const payload = await response.json();
-      expect(payload.user?.role).toBe(role);
-      expect(payload.user?.id === sessions.get(role).user.id).toBe(true);
+      const status = response.status();
+      if (status !== 200) {
+        const retryAfter = response.headers()['retry-after'];
+        const retryAfterSeconds = /^\d+$/.test(retryAfter || '') ? retryAfter : '';
+        throw new Error(`UAT_LOGIN_HTTP_${status}` + (retryAfterSeconds ? `_RETRY_AFTER_${retryAfterSeconds}` : ''));
+      }
+      let payload;
+      try { payload = await response.json(); } catch { throw new Error('UAT_LOGIN_BODY_UNREADABLE'); }
+      if (payload.user?.role !== role) throw new Error('UAT_LOGIN_ROLE_MISMATCH');
+      if (payload.user?.id !== sessions.get(role).user.id) throw new Error('UAT_LOGIN_ID_MISMATCH');
     });
     await test.step('BROWSER_AUTH_TRANSITION', async () => {
       await expect(page.locator('form.login-form')).toHaveCount(0);
@@ -121,6 +138,10 @@ for (const role of roles) {
         const nav = page.locator('nav.nav-menu').first();
         await expect(nav).toBeVisible();
         const matrix = getRoleNavigationContract(role);
+        const expectedIds = new Set([...matrix.required, ...matrix.forbidden].map((item) => item.id));
+        const actualIds = await nav.locator('[data-navigation-id]').evaluateAll((items) => items.map((item) => item.getAttribute('data-navigation-id')));
+        const unknownIds = actualIds.filter((id) => !expectedIds.has(id));
+        expect(unknownIds, `Unexpected navigation ids: ${unknownIds.join(', ')}`).toEqual([]);
         for (const item of matrix.required) await expect(nav.locator(`[data-navigation-id="${item.id}"]`)).toBeVisible();
         for (const item of matrix.forbidden) await expect(nav.locator(`[data-navigation-id="${item.id}"]`)).toHaveCount(0);
         expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
@@ -128,4 +149,5 @@ for (const role of roles) {
       });
     }
   }
+  });
 }

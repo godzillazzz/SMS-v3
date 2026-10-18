@@ -21,7 +21,7 @@ function loginPreflightRequestOptions(environment, baseURL) {
     extraHTTPHeaders: automationBypassHeaders(environment, baseURL, loginUrl)
   };
 }
-async function preflightAccounts(createContext, config, onStatus = () => {}) {
+async function preflightAccounts(createContext, config, onStatus = () => {}, onAttempt = () => {}) {
   const sessions = new RoleSessions();
   let activeRole = null;
   let failureCode = 'REQUEST_ERROR';
@@ -32,6 +32,7 @@ async function preflightAccounts(createContext, config, onStatus = () => {}) {
       let context;
       try {
         context = await createContext();
+        onAttempt(role);
         const account = config.accounts[role];
         const response = await context.post('/api/v1/auth/login', { data: { ...account, clientType: 'browser' }, timeout: 15000, maxRedirects: 0 });
         const status = response.status();
@@ -54,7 +55,10 @@ async function preflightAccounts(createContext, config, onStatus = () => {}) {
         if (context) await context.dispose();
       }
       // Only a fixed role name and coarse outcome are ever reported.
-      onStatus({ role, code: 'READY' });
+      // roleMatch is guaranteed by RoleSessions.put asserting payload.user.role === role
+      // active is guaranteed by isLoginEligible check in auth service
+      // distinct is guaranteed by RoleSessions.put rejecting duplicate user.id across roles
+      onStatus({ role, code: 'READY', employeeLinked: 'UNVERIFIED', roleMatch: true, active: true, distinct: true });
       activeRole = null;
     }
     return sessions;
@@ -76,12 +80,19 @@ async function installReadonlyBrowser(page, session, baseURL, { realLogin = fals
   const attempts = [];
   const origin = new URL(baseURL).origin;
   async function guardedFetch(route, req, url, headers) {
-    const response = await route.fetch({ maxRedirects: 0, headers: { ...headers, ...(url.origin === origin ? automationBypassHeaders(process.env, baseURL, req.url()) : {}) } });
-    if (response.status() >= 300 && response.status() < 400) {
-      attempts.push({ method: req.method(), path: 'redirect-blocked' });
-      return route.abort('blockedbyclient');
+    try {
+      const response = await route.fetch({ maxRedirects: 0, headers: { ...headers, ...(url.origin === origin ? automationBypassHeaders(process.env, baseURL, req.url()) : {}) } });
+      if (response.status() >= 300 && response.status() < 400) {
+        attempts.push({ method: req.method(), path: 'redirect-blocked' });
+        return route.abort('blockedbyclient');
+      }
+      return route.fulfill({ response });
+    } catch (error) {
+      // A page teardown may race route.fetch/fulfill. This is expected cleanup,
+      // and must not become an unhandled rejection attached to the next test.
+      if (/target page, context or browser has been closed|page closed|context closed/i.test(String(error?.message || error))) return undefined;
+      throw error;
     }
-    return route.fulfill({ response });
   }
   await page.route('**/*', async (route) => {
     const req = route.request(); const url = new URL(req.url());

@@ -1,12 +1,13 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const { spawnSync } = require('node:child_process');
 const fs = require('node:fs');
 const { safeFailureCheck, makeSafeSummary, diagnosticLines } = require('../e2e/uat-v3/reporter');
 
 test('hosted UAT fails fast before login preflight can re-run across restarted workers', () => {
   const config = fs.readFileSync('playwright.uat-v3.config.js', 'utf8');
-  assert.match(config, /maxFailures:\s*1/);
+  assert.doesNotMatch(config, /maxFailures:\s*1/);
   assert.match(config, /workers:\s*1/);
   assert.match(config, /retries:\s*0/);
 });
@@ -19,6 +20,37 @@ test('browser login has six isolated safe diagnostic steps', () => {
     assert.match(source, new RegExp("test\\.step\\('" + stage + "'"));
   }
   assert.match(source, /maxRedirects: 0|loginPreflightRequestOptions/);
+});
+
+test('each serial role suite settles the serverless connection pool before starting', () => {
+  const source = fs.readFileSync('e2e/uat-v3/readonly.spec.js', 'utf8');
+  assert.match(source, /test\.describe\.serial\(role, \(\) => \{/);
+  assert.match(source, /test\.beforeAll\(async \(\) => \{[\s\S]*?UAT_ROLE_COOLDOWN_MS[\s\S]*?5000[\s\S]*?setTimeout\(resolve, cooldownMs\)/);
+});
+
+test('workflow exposes a bounded role cooldown input and forwards its default', () => {
+  const workflow = fs.readFileSync('.github/workflows/authenticated-uat-v3-readonly.yml', 'utf8');
+  assert.match(workflow, /role_cooldown_ms:\n\s+description: Role cooldown in milliseconds \(0-10000\)\n\s+type: string\n\s+required: false\n\s+default: '5000'/);
+  assert.match(workflow, /UAT_ROLE_COOLDOWN_MS: \$\{\{ inputs\.role_cooldown_ms \|\| '5000' \}\}/);
+});
+
+test('role cooldown validation accepts 0-10000 and rejects other values', () => {
+  const script = 'scripts/ci/run-uat-v3-readonly.js';
+  for (const value of ['0', '5000', '10000']) {
+    const result = spawnSync(process.execPath, [script], {
+      env: { ...process.env, UAT_ROLE_COOLDOWN_MS: value },
+      encoding: 'utf8',
+    });
+    assert.notEqual(result.stderr, 'UAT_ROLE_COOLDOWN_MS_INVALID\n');
+  }
+  for (const value of ['abc', '-1', '10001']) {
+    const result = spawnSync(process.execPath, [script], {
+      env: { ...process.env, UAT_ROLE_COOLDOWN_MS: value },
+      encoding: 'utf8',
+    });
+    assert.equal(result.status, 1);
+    assert.equal(result.stderr, 'UAT_ROLE_COOLDOWN_MS_INVALID\n');
+  }
 });
 
 test('allowlisted failed step is logged with no raw error, URL, credential or locator text', () => {

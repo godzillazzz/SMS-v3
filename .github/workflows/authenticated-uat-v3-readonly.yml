@@ -18,6 +18,11 @@ on:
         description: Reviewed immutable Preview deployment ID
         type: string
         required: true
+      role_cooldown_ms:
+        description: Role cooldown in milliseconds (0-10000)
+        type: string
+        required: false
+        default: '5000'
 permissions:
   contents: read
   actions: read
@@ -113,6 +118,7 @@ jobs:
           UAT_VIEWER_EMAIL: ${{ secrets.UAT_VIEWER_EMAIL }}
           UAT_VIEWER_PASSWORD: ${{ secrets.UAT_VIEWER_PASSWORD }}
           VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+          UAT_ROLE_COOLDOWN_MS: ${{ inputs.role_cooldown_ms || '5000' }}
         run: node scripts/ci/run-uat-v3-readonly.js
       - name: Upload only scanned sanitized result summary
         if: success() && steps.uat.outcome == 'success'

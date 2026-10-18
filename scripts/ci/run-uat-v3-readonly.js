@@ -5,6 +5,10 @@ const { readConfig, roles } = require('../../e2e/uat-v3/config');
 const { scanArtifact, sensitiveUatValues } = require('../../e2e/uat-v3/security');
 const { diagnosticLines } = require('../../e2e/uat-v3/reporter');
 try {
+  const rawCooldown = process.env.UAT_ROLE_COOLDOWN_MS ?? '5000';
+  if (!/^\d+$/.test(rawCooldown) || Number(rawCooldown) < 0 || Number(rawCooldown) > 10000) {
+    throw new Error('UAT_ROLE_COOLDOWN_MS_INVALID');
+  }
   readConfig();
   const file = 'test-results/uat-v3-safe/results.json';
   for (const path of [file, 'test-results/uat-v3-safe/preflight.json']) {
@@ -31,7 +35,8 @@ try {
   process.stdout.write('UAT_V3_READONLY=PASS\nUAT_ARTIFACT_LEAK_COUNT=0\nUAT_TESTS=24_PASS_0_FAIL_0_SKIP\n');
 } catch (error) {
   const code = ['UAT_CREDENTIALS_REQUIRED', 'UAT_ARTIFACT_LEAK', 'UAT_ROLE_ACCOUNTS_NOT_DISTINCT',
-    'UAT_IMMUTABLE_PREVIEW_REQUIRED', 'UAT_REPORT_MISSING', 'UAT_EVIDENCE_IDENTITY_MISMATCH']
+    'UAT_IMMUTABLE_PREVIEW_REQUIRED', 'UAT_REPORT_MISSING', 'UAT_EVIDENCE_IDENTITY_MISMATCH',
+    'UAT_ROLE_COOLDOWN_MS_INVALID']
     .includes(error.code || error.message) ? error.code || error.message : 'UAT_EXECUTION_FAILED';
   process.stderr.write(code + '\n');
   process.exitCode = 1;
