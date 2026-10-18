@@ -52,16 +52,16 @@ function requireAttendanceApi(_req, _res, next) {
     : next(new HttpError(404, 'Not found.'));
 }
 
-router.use(requireAttendanceApi, authenticate);
+router.use(requireAttendanceApi, authenticate, authorize('ADMIN', 'MANAGER', 'SUPERVISOR'));
 
-router.get('/', authorize('ADMIN', 'MANAGER', 'SUPERVISOR', 'EMPLOYEE'), async (req, res, next) => {
+router.get('/', async (req, res, next) => {
   try {
     const filters = listQuery.parse(req.query);
     res.json(await service.list({ actor: req.user, ...filters }));
   } catch (error) { next(error); }
 });
 
-router.post('/', authorize('ADMIN', 'MANAGER', 'EMPLOYEE'), async (req, res, next) => { // ATTENDANCE_ADJUSTMENT_GOVERNANCE_EXCEPTION — OWNER 17 Oct 2026: SUPERVISOR denied maker rights (docs/GOVERNANCE_ATTENDANCE_ADJUSTMENT_RBAC.md)
+router.post('/', async (req, res, next) => {
   try {
     const input = requestInput.parse(req.body);
     res.status(201).json({
@@ -76,13 +76,13 @@ router.post('/', authorize('ADMIN', 'MANAGER', 'EMPLOYEE'), async (req, res, nex
   } catch (error) { next(error); }
 });
 
-router.get('/:id', authorize('ADMIN', 'MANAGER', 'SUPERVISOR', 'EMPLOYEE'), async (req, res, next) => {
+router.get('/:id', async (req, res, next) => {
   try {
     res.json({ data: await service.get({ actor: req.user, id: uuid.parse(req.params.id) }) });
   } catch (error) { next(error); }
 });
 
-router.put('/:id', authorize('ADMIN', 'MANAGER', 'EMPLOYEE'), async (req, res, next) => { // ATTENDANCE_ADJUSTMENT_GOVERNANCE_EXCEPTION — OWNER 17 Oct 2026: SUPERVISOR denied maker rights (docs/GOVERNANCE_ATTENDANCE_ADJUSTMENT_RBAC.md)
+router.put('/:id', async (req, res, next) => {
   try {
     const input = revisionInput.parse(req.body);
     res.json({
@@ -97,7 +97,7 @@ router.put('/:id', authorize('ADMIN', 'MANAGER', 'EMPLOYEE'), async (req, res, n
   } catch (error) { next(error); }
 });
 
-router.post('/:id/submit', authorize('ADMIN', 'MANAGER', 'EMPLOYEE'), async (req, res, next) => { // ATTENDANCE_ADJUSTMENT_GOVERNANCE_EXCEPTION — OWNER 17 Oct 2026: SUPERVISOR denied maker rights (docs/GOVERNANCE_ATTENDANCE_ADJUSTMENT_RBAC.md)
+router.post('/:id/submit', async (req, res, next) => {
   try {
     z.object({}).strict().parse(req.body || {});
     res.json({ data: await service.submit({ actor: req.user, id: uuid.parse(req.params.id) }) });
