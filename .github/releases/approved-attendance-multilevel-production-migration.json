@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "migration_id": "ATT-CHAIN-ML",
+  "migration_manifest_path": ".github/releases/approved-attendance-multilevel-migration.json",
+  "applied_migration": "202610180003_attendance_adjustment_status_restore_cancelled",
+  "superseded_migration": "202610180002_attendance_adjustment_multilevel_approval",
+  "target_environment": "production",
+  "target_project_name": "sms-v3-staging",
+  "target_project_id": "prj_XwhNUOB2zLSPZ6UgQcfyOKBYJ75s",
+  "canonical_url": "https://sms-v3-staging-ten.vercel.app",
+  "evidence_run_id": 39106871944,
+  "evidence_run_url": "https://github.com/godzillazzz/SMS-v3/actions/runs/39106871944",
+  "evidence_run_status": "SUCCESS",
+  "prisma_migrate_status": "UP_TO_DATE",
+  "verified_constraints": {
+    "attendance_adjustment_requests_status_check": [
+      "DRAFT",
+      "PENDING_APPROVAL",
+      "PENDING_SUPERVISOR",
+      "PENDING_MANAGER",
+      "PENDING_ADMIN",
+      "RETURNED_FOR_CORRECTION",
+      "APPROVED",
+      "REJECTED",
+      "CANCELLED"
+    ],
+    "attendance_adjustment_events_type_check": [
+      "CREATED",
+      "REVISED",
+      "SUBMITTED",
+      "REVIEWED",
+      "RETURNED",
+      "REJECTED",
+      "APPROVED",
+      "CANCELLED"
+    ]
+  },
+  "constraint_verification": "PASS",
+  "canonical_health_readiness": "PASS",
+  "data_mutation": false,
+  "row_level_change": false,
+  "application_deploy_performed": false,
+  "destructive_rollback_performed": false,
+  "owner_approval_reference": "Owner approved the production migration gate on 18 Oct 2026"
+}
