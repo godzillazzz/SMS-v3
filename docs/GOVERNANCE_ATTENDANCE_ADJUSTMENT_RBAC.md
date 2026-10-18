@@ -15,7 +15,9 @@
 | action | ADMIN | MANAGER | SUPERVISOR | VIEWER + ผูก employee | VIEWER ไม่ผูก employee |
 |---|---|---|---|---|---|
 | สร้าง/แก้/ส่ง คำขอ (`CONFIRM_WORK_PERFORMED`, `ADJUST_WORK_TIME`) | ✅ ไม่จำกัดเวลา/แผนก | ✅ **ย้อนหลัง ≤ 3 วัน** / ทุกแผนก | ✅ **ย้อนหลัง ≤ 3 วัน** / ทุกแผนก | ✅ **เฉพาะกะตัวเอง** (≤ 3 วัน)* | ❌ 403 |
-| อนุมัติ / ส่งกลับ / ปฏิเสธ | ✅ | ❌ 403 | ❌ 403 | ❌ 403 | ❌ 403 |
+| ตรวจ/ส่งต่อขั้นถัดไป | ✅ (ทุกขั้น) | ✅ เฉพาะขั้นผู้จัดการ | ✅ เฉพาะขั้นหัวหน้างาน | ❌ |
+| ส่งกลับแก้ไข | ✅ ทุกขั้น | ✅ ขั้นตัวเอง | ✅ ขั้นตัวเอง | ❌ |
+| อนุมัติ / ปฏิเสธ (ขั้นสุดท้าย) | ✅ | ❌ 403 | ❌ 403 | ❌ 403 | ❌ 403 |
 | อ่านรายการ / ดูรายละเอียด | ทุกแผนก | ทุกแผนก | ทุกแผนก | เฉพาะของตัวเอง | ❌ 403 |
 
 \* **สมมติฐานที่ต้องยืนยัน:** พนักงานยื่นของตัวเองได้ภายใน 7 วันเช่นกัน (ถ้าต้องการไม่จำกัด แจ้งได้ — แก้ที่ค่าคงที่จุดเดียว)
@@ -30,7 +32,13 @@
    - `POST /`, `PUT /:id`, `POST /:id/submit` → `authorize('ADMIN','MANAGER','SUPERVISOR','VIEWER')`
    - `POST /:id/approve|reject|return` → `authorize('ADMIN')`
    - **ห้าม** ใช้ authorize ระดับ router ที่กลืน per-route
-3. **Service — maker authority** (`assertMakerScope`)
+3. **Approval chain (OWNER 18 ต.ค. 2569)** — พนักงานคีย์ → หัวหน้างาน (คนใดก็ได้) → ผู้จัดการ (คนใดก็ได้) → **ADMIN อนุมัติขั้นสุดท้าย**
+   - สถานะ: `PENDING_SUPERVISOR` → `PENDING_MANAGER` → `PENDING_ADMIN` → `APPROVED`
+   - ผู้คีย์เป็น SUPERVISOR → เริ่มที่ `PENDING_MANAGER` (ข้ามขั้นตัวเอง) · ผู้คีย์เป็น MANAGER/ADMIN → เริ่มที่ `PENDING_ADMIN`
+   - ทุกขั้น **ส่งกลับแก้ไขได้** (เฉพาะ reviewer ของขั้นนั้น หรือ ADMIN) · **ปฏิเสธได้เฉพาะ ADMIN**
+   - ทุกก้าวบันทึก event `REVIEWED` (ผู้ทำ + บทบาท + เวลา) เพื่อ audit
+   - Migration: `202610180002_attendance_adjustment_multilevel_approval` (ขยาย CHECK ของ status + event_type)
+4. **Service — maker authority** (`assertMakerScope`)
    - ADMIN: ผ่านเสมอ (ไม่จำกัดแผนก/เวลา)
    - MANAGER / SUPERVISOR: ผ่านทุกแผนก แต่ **`assignment.workDate` ต้องไม่เก่ากว่า 7 วัน** (เทียบวันตาม Asia/Bangkok กับ `clock()`); เกิน → 403 `ATTENDANCE_ADJUSTMENT_BACKDATE_FORBIDDEN`
    - VIEWER+employee: ผ่านเฉพาะ `assignment.employeeId === actor.employeeAuthority.id` และภายใน 7 วัน

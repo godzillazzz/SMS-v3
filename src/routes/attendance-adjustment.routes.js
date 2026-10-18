@@ -104,7 +104,20 @@ router.post('/:id/submit', authorize('ADMIN', 'MANAGER', 'SUPERVISOR', 'VIEWER')
   } catch (error) { next(error); }
 });
 
-router.post('/:id/return', authorize('ADMIN'), async (req, res, next) => {
+router.post('/:id/review', authorize('ADMIN', 'MANAGER', 'SUPERVISOR'), async (req, res, next) => {
+  try {
+    const input = commentInput.parse(req.body || {});
+    res.json({
+      data: await service.review({
+        actor: req.user,
+        id: uuid.parse(req.params.id),
+        comment: input.comment
+      })
+    });
+  } catch (error) { next(error); }
+});
+
+router.post('/:id/return', authorize('ADMIN', 'MANAGER', 'SUPERVISOR'), async (req, res, next) => {
   try {
     const input = commentInput.parse(req.body);
     res.json({

@@ -15,6 +15,7 @@ import {
 } from './attendance-supervisor-client';
 import {
   approveAttendanceAdjustment,
+  reviewAttendanceAdjustment,
   createAttendanceAdjustment,
   listAttendanceAdjustments,
   rejectAttendanceAdjustment,
@@ -161,7 +162,7 @@ type AdjustmentDialog = {
 };
 type ReviewDialog = {
   request: AttendanceAdjustmentRequest;
-  action: 'approve' | 'return' | 'reject';
+  action: 'approve' | 'return' | 'reject' | 'forward';
   comment: string;
 };
 
@@ -191,6 +192,9 @@ const STATUS_OPTIONS = [
 
 const REQUEST_STATUS_OPTIONS: Array<[AttendanceAdjustmentStatus | '', string]> = [
   ['', 'ทุกสถานะ'],
+  ['PENDING_SUPERVISOR', 'รอหัวหน้างานตรวจ'],
+  ['PENDING_MANAGER', 'รอผู้จัดการตรวจ'],
+  ['PENDING_ADMIN', 'รอ ADMIN อนุมัติ'],
   ['PENDING_APPROVAL', 'รอ ADMIN อนุมัติ'],
   ['RETURNED_FOR_CORRECTION', 'ส่งกลับให้แก้ไข'],
   ['DRAFT', 'แบบร่าง'],
@@ -317,6 +321,9 @@ function statusTone(status: string) {
 function requestStatusLabel(status: AttendanceAdjustmentStatus) {
   const map: Record<AttendanceAdjustmentStatus, string> = {
     DRAFT: 'แบบร่าง',
+    PENDING_SUPERVISOR: 'รอหัวหน้างานตรวจ',
+    PENDING_MANAGER: 'รอผู้จัดการตรวจ',
+    PENDING_ADMIN: 'รอ ADMIN อนุมัติ',
     PENDING_APPROVAL: 'รอ ADMIN อนุมัติ',
     RETURNED_FOR_CORRECTION: 'ส่งกลับให้แก้ไข',
     APPROVED: 'อนุมัติแล้ว',
@@ -328,7 +335,7 @@ function requestStatusLabel(status: AttendanceAdjustmentStatus) {
 
 function requestStatusTone(status: AttendanceAdjustmentStatus) {
   if (status === 'APPROVED') return 'good';
-  if (status === 'PENDING_APPROVAL') return 'warning';
+  if (status === 'PENDING_SUPERVISOR' || status === 'PENDING_MANAGER' || status === 'PENDING_APPROVAL' || status === 'PENDING_ADMIN') return 'warning';
   if (status === 'REJECTED') return 'danger';
   return 'neutral';
 }
@@ -859,7 +866,7 @@ export function AttendanceSupervisorPage({ token, role, department, employeeAuth
 
   const executeReview = async () => {
     if (!reviewDialog || workflowBusy) return;
-    if (reviewDialog.action !== 'approve' && reviewDialog.comment.trim().length < 3) {
+    if (!['approve', 'forward'].includes(reviewDialog.action) && reviewDialog.comment.trim().length < 3) {
       setWorkflowError('กรุณาระบุความเห็นอย่างน้อย 3 ตัวอักษร');
       return;
     }
@@ -867,7 +874,12 @@ export function AttendanceSupervisorPage({ token, role, department, employeeAuth
     setWorkflowBusy(true);
     setWorkflowError(undefined);
     try {
-      if (reviewDialog.action === 'approve') {
+      if (reviewDialog.action === 'forward') {
+        await reviewAttendanceAdjustment(token, reviewDialog.request.id, reviewDialog.comment.trim());
+        setRequestNotice(role === 'SUPERVISOR'
+          ? 'ส่งต่อให้ผู้จัดการพิจารณาแล้ว'
+          : 'ส่งต่อให้ ADMIN อนุมัติแล้ว');
+      } else if (reviewDialog.action === 'approve') {
         await approveAttendanceAdjustment(token, reviewDialog.request.id);
         setRequestNotice('ADMIN อนุมัติแล้ว · Effective Attendance ถูกสร้างจาก revision ที่อนุมัติ');
       } else if (reviewDialog.action === 'return') {
@@ -1196,7 +1208,51 @@ export function AttendanceSupervisorPage({ token, role, department, employeeAuth
                   </button>
                 )}
 
-                {admin && request.status === 'PENDING_APPROVAL' && <>
+                {role === 'SUPERVISOR' && request.status === 'PENDING_SUPERVISOR' && <>
+                  <button
+                    type="button"
+                    className="is-return"
+                    onClick={() => {
+                      setWorkflowError(undefined);
+                      setReviewDialog({ request, action: 'return', comment: '' });
+                    }}
+                  >
+                    ส่งกลับ
+                  </button>
+                  <button
+                    type="button"
+                    className="is-approve"
+                    onClick={() => {
+                      setWorkflowError(undefined);
+                      setReviewDialog({ request, action: 'forward', comment: '' });
+                    }}
+                  >
+                    ส่งต่อผู้จัดการ
+                  </button>
+                </>}
+                {role === 'MANAGER' && request.status === 'PENDING_MANAGER' && <>
+                  <button
+                    type="button"
+                    className="is-return"
+                    onClick={() => {
+                      setWorkflowError(undefined);
+                      setReviewDialog({ request, action: 'return', comment: '' });
+                    }}
+                  >
+                    ส่งกลับ
+                  </button>
+                  <button
+                    type="button"
+                    className="is-approve"
+                    onClick={() => {
+                      setWorkflowError(undefined);
+                      setReviewDialog({ request, action: 'forward', comment: '' });
+                    }}
+                  >
+                    ส่งต่อ ADMIN
+                  </button>
+                </>}
+                {admin && ['PENDING_ADMIN', 'PENDING_APPROVAL'].includes(request.status) && <>
                   <button
                     type="button"
                     className="is-return"

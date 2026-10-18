@@ -33,7 +33,10 @@ require.cache[serviceFilename] = {
   exports: {
     createAttendanceAdjustmentService: () => ({
       createDraft: async () => ({ id: '22222222-2222-4222-8222-222222222222', status: 'DRAFT' }),
-      submit: async () => ({ id: '22222222-2222-4222-8222-222222222222', status: 'PENDING_APPROVAL' }),
+      submit: async () => ({ id: '22222222-2222-4222-8222-222222222222', status: 'PENDING_SUPERVISOR' }),
+      review: async () => ({ id: '22222222-2222-4222-8222-222222222222', status: 'PENDING_MANAGER' }),
+      returnForCorrection: async () => ({ id: '22222222-2222-4222-8222-222222222222', status: 'RETURNED_FOR_CORRECTION' }),
+      reject: async () => ({ id: '22222222-2222-4222-8222-222222222222', status: 'REJECTED' }),
       approve: async () => ({ id: '22222222-2222-4222-8222-222222222222', status: 'APPROVED' })
     })
   },
@@ -66,16 +69,24 @@ async function post(path, body = {}) {
 // This file proves the per-route authorize matrix. Service-level rules (7-day backdate,
 // VIEWER ownership, read scope, maker-only submit) are covered by the dedicated
 // attendance-adjustment service tests.
-test('adjustment route: decision actions are ADMIN-only', async () => {
+test('adjustment route: approve and reject stay ADMIN-only while return/review are reviewer-scoped', async () => {
   actor = { sub: 'admin-1', role: 'ADMIN' };
   assert.equal((await post(`/${requestId}/approve`)).status, 200, 'ADMIN approve positive control');
+  assert.equal((await post(`/${requestId}/reject`, { comment: 'ไม่อนุมัติ' })).status, 200, 'ADMIN reject positive control');
+  assert.equal((await post(`/${requestId}/return`, { comment: 'กรุณาแก้ไข' })).status, 200, 'ADMIN return positive control');
 
-  for (const role of ['MANAGER', 'SUPERVISOR', 'VIEWER']) {
+  for (const role of ['MANAGER', 'SUPERVISOR']) {
     actor = { sub: `${role.toLowerCase()}-1`, role };
     assert.equal((await post(`/${requestId}/approve`)).status, 403, `${role} approve must be denied`);
-    assert.equal((await post(`/${requestId}/reject`)).status, 403, `${role} reject must be denied`);
-    assert.equal((await post(`/${requestId}/return`)).status, 403, `${role} return must be denied`);
+    assert.equal((await post(`/${requestId}/reject`, { comment: 'ไม่อนุมัติ' })).status, 403, `${role} reject must be denied`);
+    assert.equal((await post(`/${requestId}/return`, { comment: 'กรุณาแก้ไข' })).status, 200, `${role} may return at its stage`);
+    assert.equal((await post(`/${requestId}/review`, { comment: 'ตรวจแล้ว' })).status, 200, `${role} may forward at its stage`);
   }
+
+  actor = { sub: 'viewer-1', role: 'VIEWER' };
+  assert.equal((await post(`/${requestId}/approve`)).status, 403, 'VIEWER approve must be denied');
+  assert.equal((await post(`/${requestId}/review`, { comment: 'ตรวจแล้ว' })).status, 403, 'VIEWER review must be denied');
+  assert.equal((await post(`/${requestId}/return`, { comment: 'กรุณาแก้ไข' })).status, 403, 'VIEWER return must be denied');
 });
 
 test('adjustment route: every executive and linked-employee role may create (middleware level)', async () => {

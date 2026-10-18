@@ -4,6 +4,9 @@ import { attendanceAuthenticatedRequest } from '../../attendance-auth-request';
 
 export type AttendanceAdjustmentStatus =
   | 'DRAFT'
+  | 'PENDING_SUPERVISOR'
+  | 'PENDING_MANAGER'
+  | 'PENDING_ADMIN'
   | 'PENDING_APPROVAL'
   | 'RETURNED_FOR_CORRECTION'
   | 'APPROVED'
@@ -119,6 +122,13 @@ export function submitAttendanceAdjustment(token: string, id: string) {
   return call(`/attendance/adjustment-requests/${encodeURIComponent(id)}/submit`, token, {
     method: 'POST',
     body: '{}'
+  });
+}
+
+export function reviewAttendanceAdjustment(token: string, id: string, comment: string) {
+  return call(`/attendance/adjustment-requests/${encodeURIComponent(id)}/review`, token, {
+    method: 'POST',
+    body: JSON.stringify({ comment })
   });
 }
 

@@ -45,7 +45,7 @@ describe('WAVE 4C Attendance Supervisor authority guard', () => {
     expect(page).toContain("shiftDate(manualDialog.workDate, 1)");
     expect(page).toContain("if (new Date(checkOutAt) <= new Date(checkInAt))");
     expect(page).toContain("if (manualDialog.reason.trim().length < 5)");
-    expect(page).toContain("if (reviewDialog.action !== 'approve' && reviewDialog.comment.trim().length < 3)");
+    expect(page).toContain("!['approve', 'forward'].includes(reviewDialog.action) && reviewDialog.comment.trim().length < 3");
     expect(page).toContain("if (admin) {");
     expect(page).toContain("await approveAttendanceAdjustment(token, requestId)");
     expect(page).toContain("setRequestStatus('PENDING_APPROVAL')");

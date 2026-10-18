@@ -18,6 +18,28 @@ const REQUEST_TYPES = new Set(['CONFIRM_WORK_PERFORMED', 'ADJUST_WORK_TIME']);
 const EDITABLE_STATUSES = new Set(['DRAFT', 'RETURNED_FOR_CORRECTION']);
 // OWNER policy (18 Oct 2026): non-ADMIN makers may key at most 3 days back.
 const BACKDATE_WINDOW_DAYS = 3;
+// OWNER policy (18 Oct 2026): staged approval chain.
+// Employee -> any SUPERVISOR -> any MANAGER -> ADMIN final approval.
+const PENDING_SUPERVISOR = 'PENDING_SUPERVISOR';
+const PENDING_MANAGER = 'PENDING_MANAGER';
+const PENDING_ADMIN = 'PENDING_ADMIN';
+const LEGACY_PENDING = 'PENDING_APPROVAL';
+const PENDING_STATUSES = new Set([PENDING_SUPERVISOR, PENDING_MANAGER, PENDING_ADMIN, LEGACY_PENDING]);
+const REVIEW_STAGES = new Set([PENDING_SUPERVISOR, PENDING_MANAGER]);
+
+function nextStageForMaker(makerRole) {
+  // A reviewer never approves their own level: supervisor-made requests skip to the manager,
+  // manager-made requests go straight to the admin.
+  if (makerRole === 'SUPERVISOR') return PENDING_MANAGER;
+  if (makerRole === 'MANAGER' || makerRole === 'ADMIN') return PENDING_ADMIN;
+  return PENDING_SUPERVISOR;
+}
+
+function reviewerRoleFor(status) {
+  if (status === PENDING_SUPERVISOR) return 'SUPERVISOR';
+  if (status === PENDING_MANAGER) return 'MANAGER';
+  return 'ADMIN';
+}
 
 function attendanceCertificationLockKey(workDate) {
   const value = workDate instanceof Date ? workDate : new Date(workDate);
@@ -532,9 +554,11 @@ function createAttendanceAdjustmentService({ prisma = prismaDefault, audit = aud
       }
 
       const fromStatus = request.status;
+      // OWNER policy (18 Oct 2026): route to the first reviewer above the maker's level.
+      const nextStatus = nextStageForMaker(request.makerRoleSnapshot);
       await tx.$executeRaw(Prisma.sql`
         UPDATE attendance_adjustment_requests
-        SET status = 'PENDING_APPROVAL',
+        SET status = ${nextStatus},
             last_reviewer_comment = NULL,
             updated_at = ${clock()}
         WHERE id = ${id}::uuid
@@ -569,15 +593,80 @@ function createAttendanceAdjustmentService({ prisma = prismaDefault, audit = aud
     }, TRANSACTION_OPTIONS);
   }
 
+  async function review({ actor, id, comment } = {}) {
+    // OWNER policy (18 Oct 2026): forward one stage up the chain.
+    const actorRole = roleOf(actor);
+    if (!['SUPERVISOR', 'MANAGER', 'ADMIN'].includes(actorRole)) {
+      throw http(403, 'ATTENDANCE_ADJUSTMENT_REVIEWER_REQUIRED', 'Only executive roles may review Attendance adjustment requests.');
+    }
+    // A forwarding comment is optional; a return comment is mandatory (see returnForCorrection).
+    const normalizedComment = comment == null || String(comment).trim() === '' ? null : reviewerComment(comment);
+
+    return prisma.$transaction(async (tx) => {
+      const request = await getRequestRow(tx, id, true);
+      if (!request) throw http(404, 'ATTENDANCE_ADJUSTMENT_NOT_FOUND', 'Attendance adjustment request was not found.');
+      if (!REVIEW_STAGES.has(request.status)) {
+        throw http(409, 'ATTENDANCE_ADJUSTMENT_INVALID_TRANSITION', 'Only requests awaiting a reviewer may be forwarded.');
+      }
+      const requiredRole = reviewerRoleFor(request.status);
+      if (actorRole !== requiredRole && actorRole !== 'ADMIN') {
+        throw http(403, 'ATTENDANCE_ADJUSTMENT_STAGE_FORBIDDEN', 'Only the reviewer of the current stage may forward this request.');
+      }
+
+      const nextStatus = request.status === PENDING_SUPERVISOR ? PENDING_MANAGER : PENDING_ADMIN;
+      await tx.$executeRaw(Prisma.sql`
+        UPDATE attendance_adjustment_requests
+        SET status = ${nextStatus},
+            last_reviewer_comment = ${normalizedComment},
+            updated_at = ${clock()}
+        WHERE id = ${id}::uuid
+      `);
+      await tx.$executeRaw(Prisma.sql`
+        INSERT INTO attendance_adjustment_events (
+          request_id, event_type, revision, actor_user_id, actor_role_snapshot, comment
+        ) VALUES (
+          ${id}::uuid,
+          'REVIEWED',
+          ${request.currentRevision},
+          ${actor.sub}::uuid,
+          ${actorRole},
+          ${normalizedComment}
+        )
+      `);
+      await audit.log({
+        actorUserId: actor.sub,
+        action: 'UPDATE',
+        entityType: 'AttendanceAdjustmentRequest',
+        entityId: id,
+        metadata: {
+          event: 'REVIEWED',
+          fromStatus: request.status,
+          toStatus: nextStatus,
+          revision: request.currentRevision,
+          comment: normalizedComment
+        }
+      }, tx);
+      return getRequestRow(tx, id);
+    }, TRANSACTION_OPTIONS);
+  }
+
   async function returnForCorrection({ actor, id, comment } = {}) {
-    assertAdmin(actor);
+    // OWNER policy (18 Oct 2026): every stage may return for correction; the reviewer must be
+    // the role that owns the current stage (ADMIN may always return).
+    const actorRole = roleOf(actor);
+    if (!['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(actorRole)) {
+      throw http(403, 'ATTENDANCE_ADJUSTMENT_REVIEWER_REQUIRED', 'Only executive roles may review Attendance adjustment requests.');
+    }
     const normalizedComment = reviewerComment(comment);
 
     return prisma.$transaction(async (tx) => {
       const request = await getRequestRow(tx, id, true);
       if (!request) throw http(404, 'ATTENDANCE_ADJUSTMENT_NOT_FOUND', 'Attendance adjustment request was not found.');
-      if (request.status !== 'PENDING_APPROVAL') {
+      if (!PENDING_STATUSES.has(request.status)) {
         throw http(409, 'ATTENDANCE_ADJUSTMENT_INVALID_TRANSITION', 'Only pending requests may be returned.');
+      }
+      if (actorRole !== 'ADMIN' && actorRole !== reviewerRoleFor(request.status)) {
+        throw http(403, 'ATTENDANCE_ADJUSTMENT_STAGE_FORBIDDEN', 'Only the reviewer of the current stage may return this request.');
       }
 
       await tx.$executeRaw(Prisma.sql`
@@ -673,8 +762,8 @@ function createAttendanceAdjustmentService({ prisma = prismaDefault, audit = aud
     return prisma.$transaction(async (tx) => {
       const request = await getRequestRow(tx, id, true);
       if (!request) throw http(404, 'ATTENDANCE_ADJUSTMENT_NOT_FOUND', 'Attendance adjustment request was not found.');
-      if (request.status !== 'PENDING_APPROVAL') {
-        throw http(409, 'ATTENDANCE_ADJUSTMENT_INVALID_TRANSITION', 'Only pending requests may be approved.');
+      if (request.status !== PENDING_ADMIN && request.status !== LEGACY_PENDING) {
+        throw http(409, 'ATTENDANCE_ADJUSTMENT_INVALID_TRANSITION', 'Only requests that reached the administrator stage may be approved.');
       }
 
       await tx.$queryRaw(Prisma.sql`
@@ -846,6 +935,7 @@ function createAttendanceAdjustmentService({ prisma = prismaDefault, audit = aud
     createDraft,
     revise,
     submit,
+    review,
     returnForCorrection,
     reject,
     approve
@@ -864,5 +954,11 @@ module.exports = {
   authoritySnapshot,
   assertMakerScope,
   assertAdmin,
+  nextStageForMaker,
+  reviewerRoleFor,
+  PENDING_SUPERVISOR,
+  PENDING_MANAGER,
+  PENDING_ADMIN,
+  LEGACY_PENDING,
   createAttendanceAdjustmentService
 };

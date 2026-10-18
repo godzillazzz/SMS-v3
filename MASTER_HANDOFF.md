@@ -9,8 +9,11 @@
 | action | ADMIN | MANAGER | SUPERVISOR | VIEWER + linked employee |
 |---|---|---|---|---|
 | สร้าง/แก้/ส่ง คำขอ | ไม่จำกัดเวลา/แผนก | ≤ 3 วัน · ทุกแผนก | ≤ 3 วัน · ทุกแผนก | เฉพาะกะตัวเอง (≤ 3 วัน) |
-| อนุมัติ / ส่งกลับ / ปฏิเสธ | ✅ | ❌ 403 | ❌ 403 | ❌ 403 |
+| ตรวจ/ส่งต่อขั้นถัดไป | ✅ ทุกขั้น | ✅ ขั้นผู้จัดการ | ✅ ขั้นหัวหน้างาน | ❌ |
+| อนุมัติ / ปฏิเสธ (สุดท้าย) | ✅ | ❌ | ❌ | ❌ |
 | อ่านรายการ / รายละเอียด | ทุกแผนก | ทุกแผนก | ทุกแผนก | เฉพาะของตัวเอง |
+
+**Approval chain (OWNER 18 Oct 2026):** employee → any SUPERVISOR → any MANAGER → ADMIN final approval. Statuses `PENDING_SUPERVISOR`/`PENDING_MANAGER`/`PENDING_ADMIN` (migration `202610180002_attendance_adjustment_multilevel_approval`); a supervisor-made request starts at the manager stage, a manager-made one at the admin stage; every stage may return for correction, only ADMIN may reject; every hand-off writes a `REVIEWED` audit event.
 
 **Implementation:** `src/routes/attendance-adjustment.routes.js` (per-route authorize; decision routes `authorize('ADMIN')`) · `src/services/attendance-adjustment.service.js` (`assertMakerScope` with Bangkok 3-day cut-off, `assertReadable` separated from maker scope, `assertAdmin` unchanged) · `src/services/attendance-correction.service.js` (department restriction removed for executives) · `src/services/attendance-supervisor.service.js` (cross-department reads; linked VIEWER governance metadata)
 
