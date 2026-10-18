@@ -3,10 +3,15 @@
 /**
  * T30a / T30b / T31 / T32 / T33 / T19 visual audit artifact.
  *
- * The owner-approved UI work for these tasks shipped without an automated acceptance artifact. This
- * script produces one from the live deployment: it records the delivered source (PR merge commit and
- * files), then proves the shipped bundle actually contains every approved sentinel string, with a
- * sha256 per asset so the evidence can be re-checked later.
+ * The owner-approved UI work for these tasks shipped without an acceptance artifact. This script
+ * produces a **deployed bundle sentinel audit** from the live deployment: it records the delivered
+ * source (PR merge commit and files) and proves the shipped JavaScript bundle contains every approved
+ * sentinel string, with a sha256 per asset so the evidence can be re-checked later.
+ *
+ * Scope limit (stated so this is never mistaken for visual evidence): string presence in a bundle
+ * proves the code shipped, **not** that a surface renders, lays out or behaves correctly. Browser
+ * rendering, viewport and interaction evidence is a separate gate that needs an authenticated
+ * session.
  *
  * Read-only: it only performs GET requests against the canonical URL.
  *
@@ -22,6 +27,7 @@ const { DEFAULT_SENTINELS } = require('./verify-release-artifact');
 const manifest = require('../../frontend/src/release-runtime-sentinels.json');
 
 const ROOT = path.resolve(__dirname, '..', '..');
+const POST_RELEASE_DIR = 'docs/releases';
 const DEFAULT_BASE = 'https://sms-v3-staging-ten.vercel.app';
 const ROSTER_SYMBOLS = ['🪄', '✨', '🔒', '⚡'];
 
@@ -46,6 +52,21 @@ function git(args) {
 
 function sha256(buffer) {
   return crypto.createHash('sha256').update(buffer).digest('hex');
+}
+
+function postReleaseBinding(root = ROOT) {
+  const dir = path.join(root, POST_RELEASE_DIR);
+  if (!fs.existsSync(dir)) return null;
+  const files = fs.readdirSync(dir).filter((name) => name.endsWith('.json')).sort().reverse();
+  for (const file of files) {
+    try {
+      const record = JSON.parse(fs.readFileSync(path.join(dir, file), 'utf8'));
+      if (record?.record_type === 'POST_RELEASE_RECORD' && record.deployed) {
+        return { deploymentId: record.deployed.deployment_id, sourceSha: record.deployed.source_sha, record: `${POST_RELEASE_DIR}/${file}` };
+      }
+    } catch { /* ignore */ }
+  }
+  return null;
 }
 
 function assetPaths(html) {
@@ -137,10 +158,16 @@ async function main() {
 
   const missingSentinels = sentinelResults.filter((item) => !item.shipped);
   const missingSymbols = symbolResults.filter((item) => !item.shipped);
+  const binding = postReleaseBinding();
   const evidence = {
     generatedAt: new Date().toISOString(),
+    artifactType: 'DEPLOYED_BUNDLE_SENTINEL_AUDIT',
+    scopeLimit: 'Proves shipped bundle content only. No browser rendering, layout, viewport or interaction evidence.',
     canonicalUrl: base,
     sourceHead: head,
+    deploymentId: binding ? binding.deploymentId : null,
+    deployedSourceSha: binding ? binding.sourceSha : null,
+    postReleaseRecord: binding ? binding.record : null,
     assetCount: corpus.length,
     assetBytes: corpus.reduce((sum, item) => sum + item.bytes, 0),
     assets: corpus.map(({ asset, bytes, sha256: digest }) => ({ asset, bytes, sha256: digest })),
@@ -156,11 +183,14 @@ async function main() {
   fs.writeFileSync(path.join(ROOT, jsonPath), `${JSON.stringify(evidence, null, 2)}\n`);
 
   const lines = [];
-  lines.push('# T30a / T30b / T31 / T32 / T33 / T19 — visual audit artifact');
+  lines.push('# T30a / T30b / T31 / T32 / T33 / T19 — deployed bundle sentinel audit');
   lines.push('');
   lines.push(`Generated: ${evidence.generatedAt}`);
   lines.push(`Canonical: ${base}`);
   lines.push(`Source head: \`${head}\``);
+  lines.push(`Deployment: ${evidence.deploymentId || 'n/v'} · deployed source: ${evidence.deployedSourceSha ? `\`${evidence.deployedSourceSha.slice(0, 8)}\`` : 'n/v'}${binding ? ` · ${binding.record}` : ''}`);
+  lines.push('');
+  lines.push('> **Scope:** this artifact proves the shipped bundle contains the approved strings and symbols. It is **not** rendering, layout or interaction evidence — that gate needs an authenticated browser session.');
   lines.push(`Assets inspected: ${evidence.assetCount} (${(evidence.assetBytes / 1024).toFixed(0)} KiB)`);
   lines.push(`Result: **${evidence.result}**`);
   lines.push('');
@@ -188,7 +218,7 @@ async function main() {
   lines.push(`Machine-readable evidence: \`${jsonPath}\``);
   lines.push('');
 
-  const mdPath = 'docs/T30_T33_VISUAL_AUDIT.md';
+  const mdPath = 'docs/T30_T33_BUNDLE_SENTINEL_AUDIT.md';
   fs.writeFileSync(path.join(ROOT, mdPath), lines.join('\n'));
 
   console.log(`VISUAL_AUDIT_RESULT=${evidence.result}`);

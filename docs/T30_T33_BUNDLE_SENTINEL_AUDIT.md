@@ -1,8 +1,11 @@
-# T30a / T30b / T31 / T32 / T33 / T19 — visual audit artifact
+# T30a / T30b / T31 / T32 / T33 / T19 — deployed bundle sentinel audit
 
-Generated: 2026-10-18T23:45:26.289Z
+Generated: 2026-10-18T23:54:39.329Z
 Canonical: https://sms-v3-staging-ten.vercel.app
-Source head: `1c545bfc3bce8fc0dbf08f7f874fd67a8f1fe975`
+Source head: `bd5087b02ebc3dbc7af6a0d744698ef8bd82816d`
+Deployment: dpl_AjuwwRddeiq4WYZhB6S62GHYetea · deployed source: `f539ad8a` · docs/releases/R8-post-release-20261018.json
+
+> **Scope:** this artifact proves the shipped bundle contains the approved strings and symbols. It is **not** rendering, layout or interaction evidence — that gate needs an authenticated browser session.
 Assets inspected: 56 (2447 KiB)
 Result: **PASS**
 

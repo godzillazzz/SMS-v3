@@ -1,7 +1,12 @@
 {
-  "generatedAt": "2026-10-18T23:45:26.289Z",
+  "generatedAt": "2026-10-18T23:54:39.329Z",
+  "artifactType": "DEPLOYED_BUNDLE_SENTINEL_AUDIT",
+  "scopeLimit": "Proves shipped bundle content only. No browser rendering, layout, viewport or interaction evidence.",
   "canonicalUrl": "https://sms-v3-staging-ten.vercel.app",
-  "sourceHead": "1c545bfc3bce8fc0dbf08f7f874fd67a8f1fe975",
+  "sourceHead": "bd5087b02ebc3dbc7af6a0d744698ef8bd82816d",
+  "deploymentId": "dpl_AjuwwRddeiq4WYZhB6S62GHYetea",
+  "deployedSourceSha": "f539ad8a27df3a524ed3268d85a6ee122746b89a",
+  "postReleaseRecord": "docs/releases/R8-post-release-20261018.json",
   "assetCount": 56,
   "assetBytes": 2505890,
   "assets": [

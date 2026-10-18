@@ -1,0 +1,31 @@
+{
+  "record_type": "POST_RELEASE_RECORD",
+  "release_batch_id": "R8",
+  "release_id": "sms-v3-prod-f539ad8-20261018",
+  "approved_manifest": ".github/releases/approved-production.json",
+  "deployed": {
+    "deployment_id": "dpl_AjuwwRddeiq4WYZhB6S62GHYetea",
+    "source_sha": "f539ad8a27df3a524ed3268d85a6ee122746b89a",
+    "release_head_sha": "dddbd79e",
+    "deploy_run_id": 39144111178,
+    "conclusion": "SUCCESS",
+    "verified_at": "2026-10-19T00:37:00Z",
+    "checks": {
+      "unchanged_attendance_schema_readonly": "PASS",
+      "canonical_runtime_verify": "PASS",
+      "canonical_cors_verify": "PASS",
+      "sentinels": 23,
+      "auto_rollback_invoked": false
+    },
+    "live_probe": {
+      "health": "ok",
+      "ready": "ready/database ok",
+      "execution_region": "hnd1"
+    }
+  },
+  "previous_known_good": {
+    "deployment_id": "dpl_7djFpJVzU4r1FjtKJy9i1w18RYzW",
+    "source_sha": "9abe378dbc2eb9f181dcffd64bfcb1fd0aae6eb2"
+  },
+  "note": "The approved manifest keeps its pre-release rollback checkpoint immutable; the deployed state is recorded here so history is never overwritten."
+}

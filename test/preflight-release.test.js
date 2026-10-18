@@ -3,7 +3,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const { parseDeploymentId, policyChecks, BRANCH } = require('../scripts/ci/preflight-release');
+const { parseDeploymentId, policyChecks, canRepointCheckpoint, BRANCH } = require('../scripts/ci/preflight-release');
 
 const base = {
   commit_sha: 'a'.repeat(40),
@@ -48,4 +48,18 @@ test('an unknown policy fails closed', () => {
 test('run_migrations must always be false', () => {
   const checks = policyChecks({ ...base, run_migrations: true });
   assert.equal(checks.find(([name]) => name.includes('run_migrations'))[1], false);
+});
+
+test('never repoints the rollback checkpoint at the deployment this manifest produced', () => {
+  const manifest = { ...base };
+  const record = { record_type: 'POST_RELEASE_RECORD', deployed: { deployment_id: 'dpl_live', source_sha: base.commit_sha } };
+  const blocked = canRepointCheckpoint(manifest, { id: 'dpl_live' }, record);
+  assert.equal(blocked.ok, false, 'a released manifest must not be repointed at its own deployment');
+  assert.match(blocked.reason, /already deployed/);
+});
+
+test('allows repointing while preparing the next release', () => {
+  const manifest = { ...base, commit_sha: 'c'.repeat(40) };
+  const record = { record_type: 'POST_RELEASE_RECORD', deployed: { deployment_id: 'dpl_old', source_sha: 'd'.repeat(40) } };
+  assert.equal(canRepointCheckpoint(manifest, { id: 'dpl_live' }, record).ok, true);
 });

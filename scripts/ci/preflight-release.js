@@ -7,8 +7,12 @@
  * never touches Production data: it only reads git, the release manifests, GitHub run metadata and
  * the public health endpoints.
  *
- *   node scripts/ci/preflight-release.js                 # check only
- *   node scripts/ci/preflight-release.js --fix-rollback  # also rewrite the rollback checkpoint
+ *   node scripts/ci/preflight-release.js                        # check only
+ *   node scripts/ci/preflight-release.js --prepare-next-release # set the rollback checkpoint from
+ *                                                               # the live deployment (new release only)
+ *
+ * The rollback checkpoint is the deployment a new release would replace. It must never be repointed
+ * at a deployment this manifest itself produced: that erases the previous known-good state.
  */
 
 const fs = require('node:fs');
@@ -40,6 +44,29 @@ function loadManifest(root = ROOT, file = MANIFEST_PATH) {
 function parseDeploymentId(log) {
   const match = String(log || '').match(/Deployment ID:\s*(dpl_[A-Za-z0-9]+)/);
   return match ? match[1] : null;
+}
+
+function postReleaseRecord(root = ROOT) {
+  const dir = path.join(root, 'docs/releases');
+  if (!fs.existsSync(dir)) return null;
+  const files = fs.readdirSync(dir).filter((name) => name.endsWith('.json')).sort();
+  for (const file of files.reverse()) {
+    try {
+      const record = JSON.parse(fs.readFileSync(path.join(dir, file), 'utf8'));
+      if (record?.record_type === 'POST_RELEASE_RECORD') return record;
+    } catch { /* ignore malformed records */ }
+  }
+  return null;
+}
+
+/** Refuse to repoint the checkpoint at a deployment this manifest already produced. */
+function canRepointCheckpoint(manifest, live, record) {
+  if (!live?.id) return { ok: false, reason: 'live deployment unknown' };
+  if (!record?.deployed) return { ok: true };
+  if (record.deployed.deployment_id === live.id && manifest.commit_sha === record.deployed.source_sha) {
+    return { ok: false, reason: 'this manifest is already deployed; prepare a new release manifest' };
+  }
+  return { ok: true };
 }
 
 function policyChecks(manifest) {
@@ -133,7 +160,7 @@ async function liveHealth() {
 
 async function main() {
   const args = process.argv.slice(2);
-  const fixRollback = args.includes('--fix-rollback');
+  const prepareNext = args.includes('--prepare-next-release');
   const manifest = loadManifest();
   const head = git(['rev-parse', 'HEAD']);
   const checks = [];
@@ -184,17 +211,23 @@ async function main() {
 
   // 5. Rollback checkpoint equals the live canonical deployment
   const live = latestDeploymentId();
+  const record = postReleaseRecord();
   if (!live) {
     add('rollback checkpoint matches the live canonical deployment', false, 'could not read the deployment id from the last successful deploy log');
   } else if (live.id === manifest.rollback_deployment_id) {
     add('rollback checkpoint matches the live canonical deployment', true, live.id);
-  } else if (fixRollback) {
-    manifest.rollback_deployment_id = live.id;
-    manifest.production_canonical_deployment_id_before_release = live.id;
-    fs.writeFileSync(path.join(ROOT, MANIFEST_PATH), `${JSON.stringify(manifest, null, 2)}\n`);
-    add('rollback checkpoint matches the live canonical deployment', true, `corrected to ${live.id} (manifest rewritten)`);
+  } else if (prepareNext) {
+    const allowed = canRepointCheckpoint(manifest, live, record);
+    if (!allowed.ok) {
+      add('rollback checkpoint may be repointed for a new release', false, allowed.reason);
+    } else {
+      manifest.rollback_deployment_id = live.id;
+      manifest.production_canonical_deployment_id_before_release = live.id;
+      fs.writeFileSync(path.join(ROOT, MANIFEST_PATH), `${JSON.stringify(manifest, null, 2)}\n`);
+      add('rollback checkpoint matches the live canonical deployment', true, `set to ${live.id} for the next release`);
+    }
   } else {
-    add('rollback checkpoint matches the live canonical deployment', false, `manifest ${manifest.rollback_deployment_id} vs live ${live.id} — rerun with --fix-rollback`);
+    add('rollback checkpoint differs from the live canonical deployment', false, `manifest ${manifest.rollback_deployment_id} vs live ${live.id} — expected for an undeployed release; use --prepare-next-release when preparing one`);
   }
 
   // 6. Live endpoints
@@ -233,4 +266,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { parseDeploymentId, policyChecks, prismaDiffIsEmpty, isAncestor, quietDiff, BRANCH };
+module.exports = { parseDeploymentId, policyChecks, prismaDiffIsEmpty, isAncestor, quietDiff, canRepointCheckpoint, BRANCH };
