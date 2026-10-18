@@ -253,7 +253,7 @@ test('detail exposes original/effective authority metadata and allows cross-depa
   assert.equal(detail.assignmentId, 'detail-a');
   assert.equal(detail.rawEvents[0].id, 'event-detail-in');
   assert.equal(detail.governance.canCreateAdjustmentRequest, true);
-  assert.equal(detail.governance.canApproveAdjustmentRequest, false);
+  assert.equal(detail.governance.canApproveAdjustmentRequest, true);
   assert.equal(detail.governance.directOverrideEnabled, false);
 
   // OWNER policy (18 Oct 2026): executives read across departments, so a Manager from

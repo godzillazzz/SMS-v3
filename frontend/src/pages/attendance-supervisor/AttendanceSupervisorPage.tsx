@@ -437,6 +437,7 @@ export function AttendanceSupervisorPage({ token, role, department, employeeAuth
   const manager = ['MANAGER', 'SUPERVISOR'].includes(role);
   const viewer = role === 'VIEWER';
   const admin = role === 'ADMIN';
+  const reviewer = ['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(role);
 
   const [mode, setMode] = useState<Mode>('daily');
   const [date, setDate] = useState(today);
@@ -1196,7 +1197,7 @@ export function AttendanceSupervisorPage({ token, role, department, employeeAuth
                   </button>
                 )}
 
-                {admin && request.status === 'PENDING_APPROVAL' && <>
+                {reviewer && request.status === 'PENDING_APPROVAL' && <>
                   <button
                     type="button"
                     className="is-return"
