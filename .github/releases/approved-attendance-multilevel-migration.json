@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "migration_id": "ATT-CHAIN-ML",
+  "manifest_state": "APPROVED_FOR_OWNER_PRODUCTION_MIGRATION_DECISION",
+  "source_commit_sha": "c373605a57ad6f8aa1bf7ee5143e233f5f3b0ce3",
+  "source_tree_sha": "5bbde5af5b2425f99478d07f0ce5964877d4442a",
+  "migration_path": "prisma/migrations/202610180002_attendance_adjustment_multilevel_approval/migration.sql",
+  "migration_scope": "CHECK constraints only: attendance_adjustment_requests.status and attendance_adjustment_events.event_type",
+  "additive_only": true,
+  "data_mutation": false,
+  "row_level_change": false,
+  "legacy_status_retained": true,
+  "target_environment": "production",
+  "target_project_name": "sms-v3-staging",
+  "target_project_id": "prj_XwhNUOB2zLSPZ6UgQcfyOKBYJ75s",
+  "canonical_url": "https://sms-v3-staging-ten.vercel.app",
+  "owner_action": "APPROVE_PRODUCTION_MIGRATION_ONLY",
+  "application_deploy": false,
+  "destructive_rollback": false,
+  "owner_policy_reference": "OWNER order 18 Oct 2026: supervisor/manager may key backdated confirmation within 3 days, final approval ends at ADMIN; migration only widens the accepted status and event-type values."
+}
