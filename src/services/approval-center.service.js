@@ -221,7 +221,16 @@ function createApprovalCenterService({
 
     const attendanceAdjustmentTask = async () => {
       if (!allowed('ATTENDANCE_ADJUSTMENT_REQUEST')) return 0;
-      const result = await listAttendanceAdjustments({ actor, status: 'PENDING_APPROVAL', page: 1, pageSize: 1 }, prisma);
+      // OWNER policy (18 Oct 2026): staged approval chain — the badge must count the stage the
+      // current role can act on, and the ADMIN sees every stage that still needs a decision.
+      const actorRole = String(actor?.role || '').toUpperCase();
+      const statuses = actorRole === 'ADMIN'
+        ? ['PENDING_SUPERVISOR', 'PENDING_MANAGER', 'PENDING_ADMIN', 'PENDING_APPROVAL']
+        : actorRole === 'MANAGER' ? ['PENDING_MANAGER']
+          : actorRole === 'SUPERVISOR' ? ['PENDING_SUPERVISOR']
+            : [];
+      if (!statuses.length) return 0;
+      const result = await listAttendanceAdjustments({ actor, statuses, page: 1, pageSize: 1 }, prisma);
       return Number(result?.meta?.total || 0);
     };
 
@@ -433,7 +442,7 @@ function createApprovalCenterService({
     };
 
     const attendanceAdjustmentsTask = () => onlyType && onlyType !== 'ATTENDANCE_ADJUSTMENT_REQUEST' ? Promise.resolve({ data: [], meta: { total: 0 } }) : allowed('ATTENDANCE_ADJUSTMENT_REQUEST')
-      ? listAttendanceAdjustments({ actor, status: 'PENDING_APPROVAL', requestId: onlyRequestId, page: 1, pageSize: 100 }, prisma)
+      ? listAttendanceAdjustments({ actor, statuses: ['PENDING_SUPERVISOR', 'PENDING_MANAGER', 'PENDING_ADMIN', 'PENDING_APPROVAL'], requestId: onlyRequestId, page: 1, pageSize: 100 }, prisma)
       : Promise.resolve({ data: [], meta: { total: 0 } });
     const scheduleApprovalsTask = async () => {
       if (onlyType && onlyType !== 'SCHEDULE_APPROVAL') return [0, []];

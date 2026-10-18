@@ -205,7 +205,7 @@ if (!configured) {
     assert.equal(corrections.length, 0);
 
     const pending = await service.submit({ actor: manager, id: draft.id });
-    assert.equal(pending.status, 'PENDING_APPROVAL');
+    assert.equal(pending.status, 'PENDING_ADMIN');
 
     corrections = await currentCorrectionsForAssignments(prisma, [ids.assignment]);
     assert.equal(corrections.length, 0, 'pending request must not change authoritative Attendance');
@@ -292,7 +292,7 @@ if (!configured) {
       reason: 'Returned request must require a maker revision before resubmission'
     });
     const pending = await service.submit({ actor: manager, id: draft.id });
-    assert.equal(pending.status, 'PENDING_APPROVAL');
+    assert.equal(pending.status, 'PENDING_ADMIN');
     assert.equal(pending.currentRevision, 1);
 
     const returned = await service.returnForCorrection({
@@ -324,7 +324,7 @@ if (!configured) {
     assert.equal(revised.currentRevision, 2);
 
     const resubmitted = await service.submit({ actor: manager, id: draft.id });
-    assert.equal(resubmitted.status, 'PENDING_APPROVAL');
+    assert.equal(resubmitted.status, 'PENDING_ADMIN');
     assert.equal(resubmitted.currentRevision, 2);
 
     const detail = await service.get({ actor: manager, id: draft.id });
@@ -393,7 +393,7 @@ if (!configured) {
       FROM attendance_adjustment_requests
       WHERE id = ${draft.id}::uuid
     `);
-    assert.equal(row[0].status, 'PENDING_APPROVAL');
+    assert.equal(row[0].status, 'PENDING_ADMIN');
     assert.equal(row[0].approverUserId, null);
     assert.equal(row[0].approvedAt, null);
   });

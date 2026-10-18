@@ -332,7 +332,7 @@ function createAttendanceAdjustmentService({ prisma = prismaDefault, audit = aud
     }
   }
 
-  async function list({ actor, status = null, assignmentId = null, requestId = null, page = 1, pageSize = 25 } = {}) {
+  async function list({ actor, status = null, statuses = null, assignmentId = null, requestId = null, page = 1, pageSize = 25 } = {}) {
     const role = roleOf(actor);
     if (!['ADMIN', 'MANAGER', 'SUPERVISOR', 'VIEWER'].includes(role) || (role === 'VIEWER' && !actor?.employeeAuthority?.id)) throw http(403, 'ATTENDANCE_ADJUSTMENT_READ_FORBIDDEN', 'Attendance adjustment list requires an authorized role.');
 
@@ -344,7 +344,13 @@ function createAttendanceAdjustmentService({ prisma = prismaDefault, audit = aud
     const scope = role === 'VIEWER'
       ? Prisma.sql`AND sa.employee_id = ${actor.employeeAuthority.id}::uuid`
       : Prisma.empty;
-    const statusClause = normalizedStatus ? Prisma.sql`AND r.status = ${normalizedStatus}` : Prisma.empty;
+    // OWNER policy (18 Oct 2026): the queue spans several staged statuses in a single query.
+    const normalizedStatuses = Array.isArray(statuses)
+      ? statuses.map((value) => String(value || '').trim().toUpperCase()).filter(Boolean)
+      : null;
+    const statusClause = normalizedStatuses?.length
+      ? Prisma.sql`AND r.status IN (${Prisma.join(normalizedStatuses)})`
+      : normalizedStatus ? Prisma.sql`AND r.status = ${normalizedStatus}` : Prisma.empty;
     const assignmentClause = assignmentId ? Prisma.sql`AND r.shift_assignment_id = ${assignmentId}::uuid` : Prisma.empty;
     const requestClause = requestId ? Prisma.sql`AND r.id = ${requestId}::uuid` : Prisma.empty;
 

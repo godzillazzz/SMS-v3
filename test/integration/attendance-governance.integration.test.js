@@ -167,7 +167,7 @@ if (!configured) {
     assert.equal(draft.status, 'DRAFT');
 
     const pending = await adjustments.submit({ actor, id: draft.id });
-    assert.equal(pending.status, 'PENDING_APPROVAL');
+    assert.equal(pending.status, 'PENDING_ADMIN');
 
     const blockedPreview = await governance.preview('2099-02');
     const blockedRow = blockedPreview.rows.find((item) => item.assignmentId === ids.assignment);
@@ -189,7 +189,7 @@ if (!configured) {
     );
 
     const stillPendingBeforeUnlock = await adjustments.get({ actor, id: draft.id });
-    assert.equal(stillPendingBeforeUnlock.status, 'PENDING_APPROVAL');
+    assert.equal(stillPendingBeforeUnlock.status, 'PENDING_ADMIN');
     assert.equal(stillPendingBeforeUnlock.approverUserId, null);
 
     const firstUnlock = await governance.unlock({ actor, month: '2099-02', reason: 'Reopen to review pending Attendance evidence' });
@@ -232,7 +232,7 @@ if (!configured) {
     );
 
     const stillPending = await adjustments.get({ actor, id: laterDraft.id });
-    assert.equal(stillPending.status, 'PENDING_APPROVAL');
+    assert.equal(stillPending.status, 'PENDING_ADMIN');
     assert.equal(stillPending.approverUserId, null);
 
     const unlocked = await governance.unlock({ actor, month: '2099-02', reason: 'Reopen for verified correction' });
