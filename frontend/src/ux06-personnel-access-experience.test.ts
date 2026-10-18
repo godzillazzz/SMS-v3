@@ -220,6 +220,6 @@ describe('G04.2 UX-06 Personnel + Access experience contract', () => {
   });
 
   it('locks the authorized API source after T25 cross-tab refresh coordination', () => {
-    expect(apiSha256).toBe('af2d50e9b7f78f67b3e48d059b48afdc1144453aa662b01b6481345be49098e4');
+    expect(apiSha256).toBe('91d05b7e6a11a9be1059f3c65caa4de7ec7a20826890bf18752bb094ed357004');
   });
 });

@@ -424,8 +424,14 @@ returnLeaveRequestForCorrection: (token: string, id: string, reason: string) => 
 };
 
 async function callMultipart(path: string, token: string, body: FormData) {
-  const response = await fetch(`${baseUrl}${path}`, { method: 'POST', body, credentials: 'include', headers: { Authorization: `Bearer ${token}` } });
+  // A challenge never reaches the application, so retrying the upload cannot duplicate it; an
+  // ambiguous 5xx or transport failure is not retried (see request-resilience).
+  const response = await fetchWithResilience(`${baseUrl}${path}`, { method: 'POST', body, credentials: 'include', headers: { Authorization: `Bearer ${token}` } });
   const payload = await response.json().catch(() => ({}));
-  if (!response.ok) throw new ApiRequestError(payload.error || 'Request failed.', response.status, responseRequestId(response, payload));
+  if (!response.ok) throw new ApiRequestError(
+    isPlatformChallenge(response) ? PLATFORM_CHALLENGE_MESSAGE : payload.error || 'Request failed.',
+    response.status,
+    responseRequestId(response, payload)
+  );
   return payload;
 }

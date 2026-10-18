@@ -81,6 +81,6 @@ describe('G04.2 VF-07.1 Owner brand + login hero correction', () => {
     expect(css).toMatch(/\.auth-brand \.brand-logo \{[\s\S]*?width: 44px;[\s\S]*?height: 44px;/);
   });
   it('locks the authorized API source after T25 cross-tab refresh coordination', () => {
-    expect(crypto.createHash('sha256').update(apiBytes).digest('hex')).toBe('af2d50e9b7f78f67b3e48d059b48afdc1144453aa662b01b6481345be49098e4');
+    expect(crypto.createHash('sha256').update(apiBytes).digest('hex')).toBe('91d05b7e6a11a9be1059f3c65caa4de7ec7a20826890bf18752bb094ed357004');
   });
 });
