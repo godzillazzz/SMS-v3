@@ -156,8 +156,7 @@ jobs:
         run: |
           set -euo pipefail
           node scripts/ci/prisma-migration.js status
-          npm ci --omit=dev >/dev/null 2>&1 || true
-          NODE_PATH="$PWD/node_modules" node scripts/ci/verify-attendance-multilevel-constraints.js
+          node scripts/ci/verify-attendance-multilevel-constraints.js
       - name: Verify canonical application remains healthy
         shell: bash
         run: |
