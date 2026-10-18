@@ -173,8 +173,9 @@ test('already applied and valid execution skips deploy but still proves post inv
 });
 test('source candidate map is immutable Git-only and does not import Preview evidence', () => {
   const manifest = JSON.parse(fs.readFileSync('scripts/ci/g06-production-migration-candidates.json'));
-  assert.equal(manifest.application.sha,'500aaa53d60d6835cccec16c79ca25de00ab06c6');
-  assert.equal(manifest.canonicalCandidates.length,18);
+  // Re-pinned 18 Oct 2026 after migrations 002/003 entered Production (see the candidate map).
+  assert.equal(manifest.application.sha,'9abe378dbc2eb9f181dcffd64bfcb1fd0aae6eb2');
+  assert.equal(manifest.canonicalCandidates.length,20);
   assert(!JSON.stringify(manifest).includes('evidenceRun'));
   assert(!JSON.stringify(manifest).includes('checksum'));
   for (const item of [...manifest.canonicalCandidates,...manifest.optionalHistoricalMigrations]) for (const pin of item.candidates) {
