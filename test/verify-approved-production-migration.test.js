@@ -41,8 +41,8 @@ test('valid ATT-CHAIN-ML migration set manifest passes verification', () => {
   ]);
   assert.equal(result.migrationPolicy, 'ADDITIVE_ATTENDANCE_MULTILEVEL_APPROVAL_STATUS_CHECK_ONLY_NO_BACKFILL');
   assert.equal(result.postVerifyScript, 'scripts/ci/verify-attendance-multilevel-constraints.js');
-  assert.equal(result.currentProductionDeploymentId, 'dpl_9CxiMbXdmBqp6LJG8YHKcVXgL1JN');
-  assert.equal(result.currentProductionApplicationSha, 'f30bc45915acb8c87a94d2d8a2d0e90a86d6f16e');
+  assert.equal(result.currentProductionDeploymentId, 'dpl_7muKnT92uy5AWo8QxqxPakyPHWL9');
+  assert.equal(result.currentProductionApplicationSha, 'a0250b8b0ca8072104a4d3593012220c4fe2fb84');
   assert.equal(result.dataBackfill, false);
   assert.equal(result.schemaChanged, false);
   assert.equal(result.statementCount, 6);
