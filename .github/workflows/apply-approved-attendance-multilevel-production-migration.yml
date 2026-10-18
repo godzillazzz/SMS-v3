@@ -8,6 +8,7 @@ on:
     paths:
       - .github/workflows/apply-approved-attendance-multilevel-production-migration.yml
       - .github/releases/approved-attendance-multilevel-migration.json
+      - .github/releases/approved-attendance-multilevel-production-migration.json
 
 permissions:
   contents: read
