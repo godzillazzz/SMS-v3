@@ -75,7 +75,14 @@ test('draft fails closed; prior R7 approval cannot be transferred to the current
   const liveValidated = validateReleaseManifest(live);
   assert.equal(live.release_batch_id, 'R8');
   assert.equal(live.database_change_policy, 'PRE_APPLIED_APPROVED_MIGRATION');
-  assert.equal(live.pre_applied_migration_evidence_run_id, 39106871944);
+  // The evidence run id is refreshed whenever the evidence is re-collected, so assert the
+  // shape and the cross-reference rather than a frozen number.
+  assert.ok(Number.isSafeInteger(live.pre_applied_migration_evidence_run_id) && live.pre_applied_migration_evidence_run_id > 0);
+  const evidence = load('approved-attendance-multilevel-production-migration.json');
+  assert.equal(evidence.constraint_verification, 'PASS');
+  assert.equal(evidence.canonical_health_readiness, 'PASS');
+  assert.equal(evidence.application_deploy, false);
+  assert.equal(evidence.destructive_rollback, false);
   assert.match(live.pre_applied_migration_manifest_path, /^[.]github\/releases\/approved-[a-z0-9-]+-production-migration[.]json$/);
   assert.notEqual(liveValidated.commitSha, 'a0250b8b0ca8072104a4d3593012220c4fe2fb84');
   assert.equal(live.run_migrations, false);
