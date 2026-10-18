@@ -163,8 +163,10 @@ export function AttendanceHistoryPwaPage({ token, online }: Props) {
 
   const openConfirm = (row: AttendanceSelfRow) => {
     setConfirmRow(row);
-    setConfirmCheckIn(bangkokTimeInput(row.checkInAt));
-    setConfirmCheckOut(bangkokTimeInput(row.checkOutAt));
+    // OWNER decision (18 Oct 2026): the employee types the times themselves.
+    // Recorded values stay visible as a reference line only — never prefilled.
+    setConfirmCheckIn('');
+    setConfirmCheckOut('');
     setConfirmReason('');
     setConfirmError(undefined);
     setConfirmNotice(undefined);
@@ -296,8 +298,11 @@ export function AttendanceHistoryPwaPage({ token, online }: Props) {
           <button type="button" aria-label="ปิด" onClick={() => setConfirmRow(undefined)}>✕</button>
         </header>
         <p className="employee-v4-hint">
-          วันที่ {confirmRow.date} · ระบบบันทึกเวลาไว้แล้ว แก้ไขได้หากไม่ตรงกับเวลาที่ปฏิบัติงานจริง (ย้อนหลังได้ไม่เกิน {SELF_CONFIRM_WINDOW_DAYS} วัน)
+          วันที่ {confirmRow.date} · กรอกเวลาที่ปฏิบัติงานจริง (เวลาไทย) · ย้อนหลังได้ไม่เกิน {SELF_CONFIRM_WINDOW_DAYS} วัน
         </p>
+        {(confirmRow.checkInAt || confirmRow.checkOutAt) && <p className="employee-v4-hint">
+          ระบบบันทึกไว้: เข้า {bangkokTimeInput(confirmRow.checkInAt) || '—'} · ออก {bangkokTimeInput(confirmRow.checkOutAt) || '—'}
+        </p>}
         <label>
           <span>เวลาเข้า (เวลาไทย)</span>
           <input type="time" value={confirmCheckIn} onChange={(event) => setConfirmCheckIn(event.target.value)} />
