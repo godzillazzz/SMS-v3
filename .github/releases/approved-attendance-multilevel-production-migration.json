@@ -1,13 +1,30 @@
 {
   "schema_version": 1,
   "migration_id": "ATT-CHAIN-ML",
-  "migration_manifest_path": ".github/releases/approved-attendance-multilevel-migration.json",
-  "applied_migration": "202610180003_attendance_adjustment_status_restore_cancelled",
-  "superseded_migration": "202610180002_attendance_adjustment_multilevel_approval",
+  "manifest_state": "APPROVED_FOR_OWNER_PRODUCTION_MIGRATION_DECISION",
+  "source_commit_sha": "e541e2aa850d156d75b1b8b82f42fed58733c797",
+  "source_tree_sha": "726e88b54852b1205034722f543a6923c039e212",
+  "migration_names": [
+    "202610180002_attendance_adjustment_multilevel_approval",
+    "202610180003_attendance_adjustment_status_restore_cancelled"
+  ],
+  "migration_paths": [
+    "prisma/migrations/202610180002_attendance_adjustment_multilevel_approval/migration.sql",
+    "prisma/migrations/202610180003_attendance_adjustment_status_restore_cancelled/migration.sql"
+  ],
+  "migration_policy": "ADDITIVE_ATTENDANCE_MULTILEVEL_APPROVAL_STATUS_CHECK_ONLY_NO_BACKFILL",
+  "post_verify_script": "scripts/ci/verify-attendance-multilevel-constraints.js",
+  "current_production_deployment_id": "dpl_9CxiMbXdmBqp6LJG8YHKcVXgL1JN",
+  "current_production_application_sha": "f30bc45915acb8c87a94d2d8a2d0e90a86d6f16e",
   "target_environment": "production",
   "target_project_name": "sms-v3-staging",
   "target_project_id": "prj_XwhNUOB2zLSPZ6UgQcfyOKBYJ75s",
+  "target_org_id": "team_nemCExHbZ8EAhSgsvefHPAEz",
   "canonical_url": "https://sms-v3-staging-ten.vercel.app",
+  "owner_action": "APPROVE_PRODUCTION_MIGRATION_ONLY",
+  "data_backfill": false,
+  "application_deploy": false,
+  "destructive_rollback": false,
   "evidence_run_id": 39106871944,
   "evidence_run_url": "https://github.com/godzillazzz/SMS-v3/actions/runs/39106871944",
   "evidence_run_status": "SUCCESS",
@@ -37,9 +54,5 @@
   },
   "constraint_verification": "PASS",
   "canonical_health_readiness": "PASS",
-  "data_mutation": false,
-  "row_level_change": false,
-  "application_deploy_performed": false,
-  "destructive_rollback_performed": false,
   "owner_approval_reference": "Owner approved the production migration gate on 18 Oct 2026"
 }

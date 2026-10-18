@@ -138,17 +138,23 @@ jobs:
               git merge-base --is-ancestor "$CURRENT_PRODUCTION_SOURCE_SHA" "$MIGRATION_SOURCE_SHA"
               git merge-base --is-ancestor "$MIGRATION_SOURCE_SHA" "$TARGET_SHA"
               git diff --quiet "$MIGRATION_SOURCE_SHA" "$TARGET_SHA" -- prisma/schema.prisma prisma/migrations
-              git diff --quiet "$MIGRATION_SOURCE_SHA" "$GITHUB_SHA" -- prisma/schema.prisma "$MIGRATION_PATH"
+              readarray -t migration_path_list <<< "$MIGRATION_PATH"
+              git diff --quiet "$MIGRATION_SOURCE_SHA" "$GITHUB_SHA" -- prisma/schema.prisma "${migration_path_list[@]}"
 
               changed_prisma=$(git diff --name-only "$CURRENT_PRODUCTION_SOURCE_SHA" "$MIGRATION_SOURCE_SHA" -- prisma/schema.prisma prisma/migrations | sort)
               if [[ "$PRISMA_SCHEMA_CHANGED" = "true" ]]; then
-                expected_prisma=$(printf '%s\n%s\n' "$MIGRATION_PATH" 'prisma/schema.prisma' | sort)
+                expected_prisma=$(printf '%s\n%s\n' "$MIGRATION_PATH" 'prisma/schema.prisma' | sed '/^$/d' | sort)
               else
-                expected_prisma=$(printf '%s\n' "$MIGRATION_PATH" | sort)
+                expected_prisma=$(printf '%s\n' "$MIGRATION_PATH" | sed '/^$/d' | sort)
               fi
               test "$changed_prisma" = "$expected_prisma"
 
               case "$PRE_APPLIED_MIGRATION_MANIFEST_PATH" in
+                .github/releases/approved-attendance-multilevel-production-migration.json)
+                  EVIDENCE_WORKFLOW_NAME='Apply Approved Attendance Multi-Level Approval Production Migration'
+                  EVIDENCE_WORKFLOW_PATH='.github/workflows/apply-approved-attendance-multilevel-production-migration.yml'
+                  EVIDENCE_WORKFLOW_EVENT='push'
+                  ;;
                 .github/releases/approved-attendance-time-policy-production-migration.json)
                   EVIDENCE_WORKFLOW_NAME='Apply Approved Attendance Time Policy Production Migration'
                   EVIDENCE_WORKFLOW_PATH='.github/workflows/apply-approved-attendance-time-policy-production-migration.yml'
@@ -360,8 +366,11 @@ jobs:
           const verifier = require('/tmp/verify-approved-production-migration.js');
           const manifest = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
           const result = verifier.validateMigrationManifest(manifest, { root: process.cwd(), verifySql: false });
-          const sql = fs.readFileSync(result.migrationPath, 'utf8');
-          verifier.validateSqlForMigration(result.migrationId, sql);
+          const paths = result.migrationPaths || [result.migrationPath];
+          for (const p of paths) {
+            const sql = fs.readFileSync(p, 'utf8');
+            verifier.validateSqlForMigration(result.migrationId, sql);
+          }
           process.stdout.write([
             `source_sha=${result.sourceCommitSha}`,
             `source_tree=${result.sourceTreeSha}`,

@@ -80,13 +80,27 @@ const MIGRATIONS = Object.freeze({
     sqlSha256: '0cb317e8c243793321f3b3d5cad7f23b845d595f8373f9b62edab1c31c79c82f',
     dataBackfill: false,
     schemaChanged: true
+  }),
+  'ATT-CHAIN-ML': Object.freeze({
+    migrationNames: Object.freeze([
+      '202610180002_attendance_adjustment_multilevel_approval',
+      '202610180003_attendance_adjustment_status_restore_cancelled'
+    ]),
+    migrationPolicy: 'ADDITIVE_ATTENDANCE_MULTILEVEL_APPROVAL_STATUS_CHECK_ONLY_NO_BACKFILL',
+    postVerifyScript: 'scripts/ci/verify-attendance-multilevel-constraints.js',
+    sqlSha256: Object.freeze({
+      '202610180002_attendance_adjustment_multilevel_approval': '7ac7e3f595d494bb301ee3962b9b1c589545b9098388a5484b798631411909af',
+      '202610180003_attendance_adjustment_status_restore_cancelled': 'a1ed523e3c914d915aeddaf0544af0f4b857bd39e69dc29508477ee21b9f9ee4'
+    }),
+    dataBackfill: false,
+    schemaChanged: false
   })
 });
 
 const SHA = /^[0-9a-f]{40}$/;
 const DEPLOYMENT = /^dpl_[A-Za-z0-9]+$/;
 const MIGRATION_NAME = /^\d{12,14}_[A-Za-z0-9][A-Za-z0-9_-]*$/;
-const SAFE_SCRIPT = /^scripts\/ci\/verify-[a-z0-9-]+-production-migration\.js$/;
+const SAFE_SCRIPT = /^scripts\/ci\/verify-(?:[a-z0-9-]+-production-migration|attendance-multilevel-constraints)\.js$/;
 
 function assert(condition, message) {
   if (!condition) throw new Error(`production migration guard: ${message}`);
@@ -420,7 +434,70 @@ function validateMdg01bSql(sql) {
   return { statementCount: 15, controlledUpdateCount: 3 };
 }
 
-function validateSqlForMigration(migrationId, sql) {
+function validateAttChainMl002Sql(sql) {
+  const source = String(sql || '');
+  assert(!/\b(?:INSERT\s+INTO|UPDATE\s+|DELETE\s+FROM|TRUNCATE\b|DROP\s+(?:TABLE|COLUMN|INDEX))\b/i.test(source), '002 data mutation or destructive SQL is forbidden');
+  const normalizedSql = source.replace(/\r\n/g, '\n');
+  const sqlSha256 = crypto.createHash('sha256').update(normalizedSql, 'utf8').digest('hex');
+  assert(sqlSha256 === MIGRATIONS['ATT-CHAIN-ML'].sqlSha256['202610180002_attendance_adjustment_multilevel_approval'], '002 SQL sha256 mismatch');
+
+  for (const status of ['PENDING_SUPERVISOR', 'PENDING_MANAGER', 'PENDING_ADMIN', 'PENDING_APPROVAL']) {
+    assert(new RegExp(`'${status}'`).test(source), `002 missing ${status}`);
+  }
+  assert(/'REVIEWED'/.test(source), '002 missing REVIEWED');
+  return { statementCount: 4, controlledUpdateCount: 0 };
+}
+
+function validateAttChainMl003Sql(sql) {
+  const source = String(sql || '');
+  assert(!/\b(?:INSERT\s+INTO|UPDATE\s+|DELETE\s+FROM|TRUNCATE\b|DROP\s+(?:TABLE|COLUMN|INDEX))\b/i.test(source), '003 data mutation or destructive SQL is forbidden');
+  const normalizedSql = source.replace(/\r\n/g, '\n');
+  const sqlSha256 = crypto.createHash('sha256').update(normalizedSql, 'utf8').digest('hex');
+  assert(sqlSha256 === MIGRATIONS['ATT-CHAIN-ML'].sqlSha256['202610180003_attendance_adjustment_status_restore_cancelled'], '003 SQL sha256 mismatch');
+
+  const requiredStatuses = [
+    'DRAFT',
+    'PENDING_APPROVAL',
+    'PENDING_SUPERVISOR',
+    'PENDING_MANAGER',
+    'PENDING_ADMIN',
+    'RETURNED_FOR_CORRECTION',
+    'APPROVED',
+    'REJECTED',
+    'CANCELLED'
+  ];
+  for (const status of requiredStatuses) {
+    assert(new RegExp(`'${status}'`).test(source), `003 missing ${status}`);
+  }
+  return { statementCount: 2, controlledUpdateCount: 0 };
+}
+
+function validateAttChainMlSql(sql, migrationName) {
+  if (migrationName === '202610180002_attendance_adjustment_multilevel_approval') {
+    return validateAttChainMl002Sql(sql);
+  }
+  if (migrationName === '202610180003_attendance_adjustment_status_restore_cancelled') {
+    return validateAttChainMl003Sql(sql);
+  }
+  if (typeof sql === 'object' && sql !== null) {
+    const s002 = validateAttChainMl002Sql(sql['202610180002_attendance_adjustment_multilevel_approval']);
+    const s003 = validateAttChainMl003Sql(sql['202610180003_attendance_adjustment_status_restore_cancelled']);
+    return {
+      statementCount: s002.statementCount + s003.statementCount,
+      controlledUpdateCount: s002.controlledUpdateCount + s003.controlledUpdateCount
+    };
+  }
+  if (typeof sql === 'string') {
+    if (sql.includes('attendance_adjustment_events_type_check') || sql.includes('REVIEWED')) {
+      return validateAttChainMl002Sql(sql);
+    }
+    return validateAttChainMl003Sql(sql);
+  }
+  throw new Error('production migration guard: unsupported ATT-CHAIN-ML SQL input');
+}
+
+function validateSqlForMigration(migrationId, sql, migrationName) {
+  if (migrationId === 'ATT-CHAIN-ML') return validateAttChainMlSql(sql, migrationName);
   if (migrationId === 'G06-TIME-POLICY') {
     assert(crypto.createHash('sha256').update(String(sql).replace(/\r\n/g, '\n')).digest('hex') === MIGRATIONS[migrationId].sqlSha256, 'G06 time-policy SQL identity mismatch');
     return { statementCount: 12, controlledUpdateCount: 0 };
@@ -444,9 +521,43 @@ function validateMigrationManifest(input, { root = process.cwd(), verifySql = tr
   assert(profile, 'unsupported migration_id');
   assert(SHA.test(input.source_commit_sha || ''), 'invalid source_commit_sha');
   assert(SHA.test(input.source_tree_sha || ''), 'invalid source_tree_sha');
-  assert(MIGRATION_NAME.test(input.migration_name || ''), 'invalid migration_name');
-  assert(input.migration_name === profile.migrationName, 'unexpected migration_name');
-  assert(input.migration_path === `prisma/migrations/${input.migration_name}/migration.sql`, 'migration_path mismatch');
+
+  const isChain = Array.isArray(profile.migrationNames);
+  if (isChain) {
+    assert(Array.isArray(input.migration_names), 'migration_names must be an array');
+    assert(input.migration_names.length === profile.migrationNames.length, 'migration_names count mismatch');
+    for (let i = 0; i < profile.migrationNames.length; i++) {
+      assert(MIGRATION_NAME.test(input.migration_names[i] || ''), 'invalid migration_name in migration_names');
+      assert(input.migration_names[i] === profile.migrationNames[i], 'unexpected migration_name in migration_names');
+    }
+    const expectedPaths = profile.migrationNames.map((name) => `prisma/migrations/${name}/migration.sql`);
+    if (input.migration_paths) {
+      assert(Array.isArray(input.migration_paths), 'migration_paths must be an array');
+      assert(input.migration_paths.length === expectedPaths.length, 'migration_paths count mismatch');
+      for (let i = 0; i < expectedPaths.length; i++) {
+        assert(input.migration_paths[i] === expectedPaths[i], 'migration_paths mismatch');
+      }
+    }
+    if (input.migration_name) {
+      assert(
+        input.migration_name === profile.migrationNames.join(',') ||
+        input.migration_name === profile.migrationNames[profile.migrationNames.length - 1],
+        'unexpected migration_name'
+      );
+    }
+    if (input.migration_path) {
+      assert(
+        expectedPaths.includes(input.migration_path) ||
+        input.migration_path === expectedPaths.join(','),
+        'migration_path mismatch'
+      );
+    }
+  } else {
+    assert(MIGRATION_NAME.test(input.migration_name || ''), 'invalid migration_name');
+    assert(input.migration_name === profile.migrationName, 'unexpected migration_name');
+    assert(input.migration_path === `prisma/migrations/${input.migration_name}/migration.sql`, 'migration_path mismatch');
+  }
+
   assert(input.migration_policy === profile.migrationPolicy, 'migration_policy mismatch');
   assert(SAFE_SCRIPT.test(input.post_verify_script || ''), 'invalid post_verify_script');
   assert(input.post_verify_script === profile.postVerifyScript, 'unexpected post_verify_script');
@@ -464,19 +575,40 @@ function validateMigrationManifest(input, { root = process.cwd(), verifySql = tr
 
   let sqlStats = { statementCount: 0, controlledUpdateCount: 0 };
   if (verifySql) {
-    const migrationFile = path.join(root, ...input.migration_path.split('/'));
-    assert(fs.existsSync(migrationFile), 'migration SQL file missing');
-    sqlStats = validateSqlForMigration(input.migration_id, fs.readFileSync(migrationFile, 'utf8'));
+    if (isChain) {
+      for (const name of profile.migrationNames) {
+        const migrationPath = `prisma/migrations/${name}/migration.sql`;
+        const migrationFile = path.join(root, ...migrationPath.split('/'));
+        assert(fs.existsSync(migrationFile), `migration SQL file missing: ${migrationPath}`);
+        const sql = fs.readFileSync(migrationFile, 'utf8');
+        const stats = validateSqlForMigration(input.migration_id, sql, name);
+        sqlStats.statementCount += (stats.statementCount || 0);
+        sqlStats.controlledUpdateCount += (stats.controlledUpdateCount || 0);
+      }
+    } else {
+      const migrationFile = path.join(root, ...input.migration_path.split('/'));
+      assert(fs.existsSync(migrationFile), 'migration SQL file missing');
+      sqlStats = validateSqlForMigration(input.migration_id, fs.readFileSync(migrationFile, 'utf8'));
+    }
     const verifierFile = path.join(root, ...input.post_verify_script.split('/'));
     assert(fs.existsSync(verifierFile), 'post verify script missing');
   }
+
+  const migrationPaths = isChain
+    ? profile.migrationNames.map((name) => `prisma/migrations/${name}/migration.sql`)
+    : [input.migration_path];
+  const migrationNames = isChain
+    ? [...profile.migrationNames]
+    : [input.migration_name];
 
   return Object.freeze({
     migrationId: input.migration_id,
     sourceCommitSha: input.source_commit_sha,
     sourceTreeSha: input.source_tree_sha,
-    migrationName: input.migration_name,
-    migrationPath: input.migration_path,
+    migrationName: isChain ? migrationNames.join(',') : input.migration_name,
+    migrationNames: Object.freeze(migrationNames),
+    migrationPath: isChain ? migrationPaths[migrationPaths.length - 1] : input.migration_path,
+    migrationPaths: Object.freeze(migrationPaths),
     migrationPolicy: input.migration_policy,
     postVerifyScript: input.post_verify_script,
     currentProductionDeploymentId: input.current_production_deployment_id,
@@ -493,13 +625,21 @@ function validateMigrationManifest(input, { root = process.cwd(), verifySql = tr
 }
 
 function outputLines(result) {
-  return [
+  const lines = [
     'PRODUCTION_MIGRATION_MANIFEST_GUARD=PASS',
     `migration_id=${result.migrationId}`,
     `source_commit_sha=${result.sourceCommitSha}`,
     `source_tree_sha=${result.sourceTreeSha}`,
-    `migration_name=${result.migrationName}`,
-    `migration_path=${result.migrationPath}`,
+    `migration_name=${result.migrationName}`
+  ];
+  if (result.migrationPaths && result.migrationPaths.length > 1) {
+    for (const p of result.migrationPaths) {
+      lines.push(`migration_path=${p}`);
+    }
+  } else {
+    lines.push(`migration_path=${result.migrationPath}`);
+  }
+  lines.push(
     `migration_policy=${result.migrationPolicy}`,
     `post_verify_script=${result.postVerifyScript}`,
     `current_production_deployment_id=${result.currentProductionDeploymentId}`,
@@ -512,7 +652,8 @@ function outputLines(result) {
     `prisma_schema_changed=${result.schemaChanged}`,
     `sql_statement_count=${result.statementCount}`,
     `controlled_update_count=${result.controlledUpdateCount}`
-  ];
+  );
+  return lines;
 }
 
 function main() {
@@ -537,6 +678,9 @@ module.exports = {
   validateG06SimpleAttendanceSql,
   validateEmpUxSql,
   validateMdg01bSql,
+  validateAttChainMl002Sql,
+  validateAttChainMl003Sql,
+  validateAttChainMlSql,
   validateSqlForMigration,
   validateMigrationManifest
 };
