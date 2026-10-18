@@ -42,9 +42,11 @@ test('Bangkok date authority does not depend on UTC calendar date', () => {
   assert.equal(bangkokDateText(new Date('2026-08-24T18:00:00.000Z')), '2026-08-25');
 });
 
-test('Manager is locked to own Department and Admin may filter Department', () => {
-  assert.deepEqual(scopeForActor({ role: 'MANAGER', department: 'OPS' }, {}), { role: 'MANAGER', department: 'OPS', employeeId: null });
-  assert.throws(() => scopeForActor({ role: 'MANAGER', department: 'OPS' }, { department: 'OTHER' }), /another Department/);
+test('Executives read across departments while Admin may still filter Department', () => {
+  // OWNER policy (18 Oct 2026): SUPERVISOR/MANAGER/ADMIN are cross-department executives.
+  assert.deepEqual(scopeForActor({ role: 'MANAGER', department: 'OPS' }, {}), { role: 'MANAGER', department: null, employeeId: null });
+  assert.deepEqual(scopeForActor({ role: 'MANAGER', department: 'OPS' }, { department: 'OTHER' }), { role: 'MANAGER', department: null, employeeId: null });
+  assert.deepEqual(scopeForActor({ role: 'SUPERVISOR' }, { department: 'OTHER' }), { role: 'SUPERVISOR', department: null, employeeId: null });
   assert.deepEqual(scopeForActor({ role: 'ADMIN' }, { department: 'OPS' }), { role: 'ADMIN', department: 'OPS', employeeId: null });
 });
 
@@ -221,11 +223,11 @@ test('history returns paginated supervisor rows without writing Attendance state
   assert.equal(result.rows.length, 1);
   assert.equal(result.meta.total, 2);
   assert.equal(result.meta.totalPages, 2);
-  assert.equal(result.scope.department, 'OPS');
+  assert.equal(result.scope.department, null);
   assert.equal(result.rows[0].correctionAuthority, 'RAW_ATTENDANCE_EVENT');
 });
 
-test('detail is Manager department-scoped and exposes original/effective authority metadata', async () => {
+test('detail exposes original/effective authority metadata and allows cross-department executives', async () => {
   const row = shiftAssignment({
     id: 'detail-a', employeeId: 'emp-a', name: 'Alpha', department: 'OPS',
     events: [event('CHECK_IN', '2026-08-25T00:00:00.000Z', 'detail-a-site')]
@@ -254,8 +256,8 @@ test('detail is Manager department-scoped and exposes original/effective authori
   assert.equal(detail.governance.canApproveAdjustmentRequest, false);
   assert.equal(detail.governance.directOverrideEnabled, false);
 
-  await assert.rejects(
-    () => service.detail({ actor: { role: 'MANAGER', department: 'OTHER' }, assignmentId: 'detail-a' }),
-    /another Department/
-  );
+  // OWNER policy (18 Oct 2026): executives read across departments, so a Manager from
+  // another department may open the detail (department scoping no longer applies).
+  const crossDepartment = await service.detail({ actor: { role: 'MANAGER', department: 'OTHER' }, assignmentId: 'detail-a' });
+  assert.equal(crossDepartment.assignmentId, 'detail-a');
 });

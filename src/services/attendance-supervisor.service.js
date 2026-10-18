@@ -437,8 +437,11 @@ function createAttendanceSupervisorService({ prisma = prismaDefault, clock = () 
     if (scope.role === 'VIEWER' && String(assignment.employeeId) !== String(actor.employeeAuthority.id)) {
       throw http(403, 'ATTENDANCE_SUPERVISOR_SCOPE_FORBIDDEN', 'Viewer may access only their own Attendance.');
     }
-    if (['MANAGER', 'SUPERVISOR'].includes(scope.role) && department !== scope.department) {
-      throw http(403, 'ATTENDANCE_SUPERVISOR_SCOPE_FORBIDDEN', 'Manager cannot access another Department Attendance scope.');
+    // OWNER policy (18 Oct 2026): MANAGER/SUPERVISOR are cross-department executives, so
+    // `scope.department` is null for them. Only enforce when a department scope is set
+    // explicitly (e.g. an Admin filter).
+    if (['MANAGER', 'SUPERVISOR'].includes(scope.role) && scope.department && department !== scope.department) {
+      throw http(403, 'ATTENDANCE_SUPERVISOR_SCOPE_FORBIDDEN', 'Attendance detail is limited to the requested Department scope.');
     }
 
     const [leaves, correctionsByAssignment] = await Promise.all([
