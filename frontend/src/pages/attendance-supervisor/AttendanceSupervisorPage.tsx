@@ -1147,6 +1147,9 @@ export function AttendanceSupervisorPage({ token, role, department, employeeAuth
           {requests.map((request) => {
             const proposal = proposalLine(request);
             const canRevise = request.status === 'RETURNED_FOR_CORRECTION' && request.makerUserId === userId;
+            const canReview = reviewer && request.status === 'PENDING_APPROVAL'
+              && request.makerUserId !== userId
+              && request.employeeId !== employeeAuthorityId;
             return <article className="attendance-supervisor-v4__request-card" key={request.id}>
               <header>
                 <div>
@@ -1197,7 +1200,7 @@ export function AttendanceSupervisorPage({ token, role, department, employeeAuth
                   </button>
                 )}
 
-                {reviewer && request.status === 'PENDING_APPROVAL' && <>
+                {canReview && <>
                   <button
                     type="button"
                     className="is-return"
@@ -1326,7 +1329,7 @@ export function AttendanceSupervisorPage({ token, role, department, employeeAuth
             {detail.correctionAuthority === 'EFFECTIVE_ATTENDANCE_CORRECTION' && (
               <div className="attendance-supervisor-v4__legacy-warning">
                 <strong>Approved Attendance correction</strong>
-                <span>รายการนี้มี correction ที่ผ่าน governed request และการอนุมัติแล้ว ค่า Effective คือ authority ปัจจุบัน</span>
+                <span>รายการนี้มี correction ที่ผ่าน governed request และผู้บริหารที่มีสิทธิ์ซึ่งไม่ใช่ผู้ยื่นคำขออนุมัติแล้ว ค่า Effective คือ authority ปัจจุบัน</span>
               </div>
             )}
 
@@ -1338,7 +1341,7 @@ export function AttendanceSupervisorPage({ token, role, department, employeeAuth
                 แก้ไขเวลาปฏิบัติงาน
               </button>
               <small>
-                การกดปุ่มจะสร้างคำขอเท่านั้น · Pending ไม่มีผลต่อ Attendance · ต้องได้รับการอนุมัติโดยผู้มีอำนาจที่ไม่ใช่ผู้ยื่นคำขอ
+                การกดปุ่มจะสร้างคำขอเท่านั้น · Pending ไม่มีผลต่อ Attendance · ผู้บริหารที่มีสิทธิ์ซึ่งไม่ใช่ผู้ยื่นคำขอต้องอนุมัติแยกต่างหาก
               </small>
             </section>
           </>}

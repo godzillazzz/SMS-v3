@@ -131,19 +131,26 @@ function assertMakerScope(actor, assignment, clock = () => new Date()) {
   return role;
 }
 
+function assertAdmin(actor) {
+  return assertReviewerAuthority(actor);
+}
+
 function assertReviewerAuthority(actor) {
   const role = roleOf(actor);
-  if (!['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(role)) {
-    throw http(403, 'ATTENDANCE_ADJUSTMENT_REVIEWER_REQUIRED', 'Reviewer authority is required to approve, return, or reject Attendance adjustment requests.');
-  }
   if (!actor?.sub) throw http(403, 'ATTENDANCE_ADJUSTMENT_ACTOR_REQUIRED', 'Authenticated actor identity is required.');
+  if (!['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(role)) {
+    throw http(403, 'ATTENDANCE_ADJUSTMENT_REVIEWER_REQUIRED', 'Only executive roles (Admin, Manager, Supervisor) may review Attendance adjustment requests.');
+  }
   return role;
 }
 
-function assertNoSelfApproval(actor, request, assignment) {
-  if (String(request?.makerUserId || '') === String(actor?.sub || '')
-    || String(assignment?.employeeId || '') === String(actor?.employeeAuthority?.id || '')) {
-    throw http(403, 'ATTENDANCE_ADJUSTMENT_SELF_APPROVAL_FORBIDDEN', 'A reviewer may not approve their own Attendance adjustment request or shift.');
+function assertNoSelfApproval(actor, request, assignment = null) {
+  if (request.makerUserId && String(request.makerUserId) === String(actor.sub)) {
+    throw http(403, 'ATTENDANCE_ADJUSTMENT_SELF_APPROVAL_FORBIDDEN', 'Approvers may not approve, return, or reject their own Attendance adjustment requests.');
+  }
+  const employeeId = assignment?.employeeId || request.assignment?.employeeId;
+  if (actor.employeeAuthority?.id && employeeId && String(employeeId) === String(actor.employeeAuthority.id)) {
+    throw http(403, 'ATTENDANCE_ADJUSTMENT_SELF_APPROVAL_FORBIDDEN', 'Approvers may not approve, return, or reject adjustments for their own shifts.');
   }
 }
 
@@ -777,7 +784,7 @@ function createAttendanceAdjustmentService({ prisma = prismaDefault, audit = aud
             ${correctedAt},
             ${request.reason},
             ${request.makerUserId}::uuid,
-            ${request.makerRoleSnapshot},
+            ${reviewerRole},
             ${id}::uuid,
             ${request.currentRevision},
             ${actor.sub}::uuid,
@@ -884,6 +891,7 @@ module.exports = {
   stableDigest,
   authoritySnapshot,
   assertMakerScope,
+  assertAdmin,
   assertReviewerAuthority,
   assertNoSelfApproval,
   createAttendanceAdjustmentService
