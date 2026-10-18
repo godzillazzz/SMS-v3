@@ -369,11 +369,13 @@ function KPI({
 function AttendanceMobileCard({
   row,
   mode,
+  canCreateAdjustmentRequest,
   onOpenAdjustment,
   onOpenDetail
 }: {
   row: AttendanceRow;
   mode: 'daily' | 'history';
+  canCreateAdjustmentRequest: boolean;
   onOpenAdjustment(row: AttendanceRow): void;
   onOpenDetail(assignmentId: string): void;
 }) {
@@ -411,14 +413,14 @@ function AttendanceMobileCard({
     </div>
 
     <footer className="attendance-supervisor-v4__row-actions">
-      <button
+      {canCreateAdjustmentRequest && <button
         type="button"
         className="attendance-supervisor-v4__onbehalf-btn"
         onClick={() => onOpenAdjustment(row)}
         aria-label={`ลงเวลาแทน ${row.employeeName}`}
       >
         ลงเวลาแทน
-      </button>
+      </button>}
       <button
         type="button"
         className="attendance-supervisor-v4__detail-btn"
@@ -433,8 +435,9 @@ function AttendanceMobileCard({
 
 export function AttendanceSupervisorPage({ token, role, department, userId, onOpenAttendanceReport, initialRequestId, onInitialRequestHandled, onApprovalQueueChanged }: Props) {
   const today = bangkokDateText();
-  const manager = ['MANAGER', 'SUPERVISOR'].includes(role);
+  const manager = ['MANAGER'].includes(role);
   const admin = role === 'ADMIN';
+  const canCreateAdjustmentRequest = admin || manager || role === 'EMPLOYEE';
 
   const [mode, setMode] = useState<Mode>('daily');
   const [date, setDate] = useState(today);
@@ -947,14 +950,14 @@ export function AttendanceSupervisorPage({ token, role, department, userId, onOp
             </td>
             <td>
               <div className="attendance-supervisor-v4__row-actions">
-                <button
-                  type="button"
-                  className="attendance-supervisor-v4__onbehalf-btn"
-                  onClick={() => openRowAdjustment(row)}
-                  aria-label={`ลงเวลาแทน ${row.employeeName}`}
+                {canCreateAdjustmentRequest && <button
+                type="button"
+                className="attendance-supervisor-v4__onbehalf-btn"
+                onClick={() => openRowAdjustment(row)}
+                aria-label={`ลงเวลาแทน ${row.employeeName}`}
                 >
-                  ลงเวลาแทน
-                </button>
+                ลงเวลาแทน
+                </button>}
                 <button
                   type="button"
                   className="attendance-supervisor-v4__detail-btn"
@@ -978,7 +981,7 @@ export function AttendanceSupervisorPage({ token, role, department, userId, onOp
     {loading ? <DataTableSkeletonCards count={3} cardClassName="attendance-supervisor-v4__mobile-card data-mobile-card" /> : error ? (
       <DataTableState variant="error" title="ไม่สามารถแสดงข้อมูล Attendance ได้" description={error} action={{ label: 'ลองใหม่', onClick: refresh }} />
     ) : rows.length ? rows.map((row) => (
-      <AttendanceMobileCard key={row.assignmentId} row={row} mode={mode === 'history' ? 'history' : 'daily'} onOpenAdjustment={openRowAdjustment} onOpenDetail={(assignmentId) => void openDetail(assignmentId)} />
+      <AttendanceMobileCard key={row.assignmentId} row={row} mode={mode === 'history' ? 'history' : 'daily'} canCreateAdjustmentRequest={canCreateAdjustmentRequest} onOpenAdjustment={openRowAdjustment} onOpenDetail={(assignmentId) => void openDetail(assignmentId)} />
     )) : (
       <DataTableState variant="empty" title={attendanceStateTitle} description="ลองปรับตัวกรองเพื่อค้นหารายการเพิ่มเติม" />
     )}
@@ -986,9 +989,9 @@ export function AttendanceSupervisorPage({ token, role, department, userId, onOp
 
   return <section className="attendance-supervisor-v4 nexus-attendance-ops layout-page-surface" aria-label="ศูนย์ควบคุมการลงเวลา">
     <PageHeader kicker="การควบคุมการลงเวลา" title="ศูนย์ควบคุมการลงเวลา" description={manager ? `ขอบเขต Supervisor / Manager: ${department || 'ไม่ระบุ Department'}` : 'Admin มองเห็นทุก Department ตามสิทธิ์'} actions={<div className="attendance-supervisor-v4__hero-controls">
-        <button type="button" className="attendance-supervisor-v4__manual-btn" onClick={openManualConfirmation}>
+        {canCreateAdjustmentRequest && <button type="button" className="attendance-supervisor-v4__manual-btn" onClick={openManualConfirmation}>
           <SmsIcon name="attendance" size={17} />คีย์ยืนยันมาปฏิบัติงานย้อนหลัง
-        </button>
+        </button>}
         <div className="attendance-supervisor-v4__tabs" role="group" aria-label="มุมมองศูนย์ควบคุมการลงเวลา">
           {admin && onOpenAttendanceReport && <button type="button" onClick={onOpenAttendanceReport} title="เปิดรายงานการลงเวลาประจำเดือน"><SmsIcon name="report" size={17} />ส่งออกรายงาน</button>}
           <button type="button" aria-pressed={mode === 'daily'} className={mode === 'daily' ? 'active' : ''} onClick={() => setMode('daily')}>
@@ -1331,7 +1334,7 @@ export function AttendanceSupervisorPage({ token, role, department, userId, onOp
               </div>
             )}
 
-            <section className="attendance-supervisor-v4__governance-actions">
+            {canCreateAdjustmentRequest && <section className="attendance-supervisor-v4__governance-actions">
               <button type="button" onClick={() => openNewAdjustment('CONFIRM_WORK_PERFORMED')}>
                 ยืนยันปฏิบัติงาน
               </button>
@@ -1341,7 +1344,7 @@ export function AttendanceSupervisorPage({ token, role, department, userId, onOp
               <small>
                 การกดปุ่มจะสร้างคำขอเท่านั้น · Pending ไม่มีผลต่อ Attendance · ADMIN ต้องอนุมัติแยกต่างหาก
               </small>
-            </section>
+            </section>}
           </>}
         </aside>
       </div>

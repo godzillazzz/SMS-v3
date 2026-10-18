@@ -112,12 +112,19 @@ async function loadAssignment(client, assignmentId) {
 
 function assertMakerScope(actor, assignment) {
   const role = roleOf(actor);
-  if (!['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(role)) {
+  if (!['ADMIN', 'MANAGER', 'EMPLOYEE'].includes(role)) {
     throw http(403, 'ATTENDANCE_ADJUSTMENT_FORBIDDEN', 'Attendance adjustment request requires Manager or Admin authority.');
   }
   if (!actor?.sub) throw http(403, 'ATTENDANCE_ADJUSTMENT_ACTOR_REQUIRED', 'Authenticated actor identity is required.');
 
-  if (['MANAGER', 'SUPERVISOR'].includes(role)) {
+  if (role === 'EMPLOYEE') {
+    const actorEmployeeId = actor.employeeId || actor.employeeAuthority?.id;
+    if (!actorEmployeeId || String(actorEmployeeId) !== String(assignment.employeeId)) {
+      throw http(403, 'ATTENDANCE_ADJUSTMENT_SCOPE_FORBIDDEN', 'Employee may request Attendance changes only for their own assignment.');
+    }
+  }
+
+  if (['MANAGER'].includes(role)) {
     const actorDepartment = String(actor.department || '').trim();
     const assignmentDepartment = String(assignment.departmentSnapshot || assignment.employee?.department || '').trim();
     if (!actorDepartment || actorDepartment !== assignmentDepartment) {
@@ -248,6 +255,13 @@ function createAttendanceAdjustmentService({ prisma = prismaDefault, audit = aud
     if (!request) throw http(404, 'ATTENDANCE_ADJUSTMENT_NOT_FOUND', 'Attendance adjustment request was not found.');
     const role = roleOf(actor);
     if (role === 'ADMIN') return;
+    if (role === 'EMPLOYEE') {
+      const actorEmployeeId = actor.employeeId || actor.employeeAuthority?.id;
+      if (!actorEmployeeId || String(actorEmployeeId) !== String(request.employeeId)) {
+        throw http(403, 'ATTENDANCE_ADJUSTMENT_SCOPE_FORBIDDEN', 'Employee may read only their own Attendance adjustment requests.');
+      }
+      return;
+    }
     if (!['MANAGER', 'SUPERVISOR'].includes(role)) throw http(403, 'ATTENDANCE_ADJUSTMENT_READ_FORBIDDEN', 'Attendance adjustment access denied.');
     const assignment = await loadAssignment(client, request.shiftAssignmentId);
     assertMakerScope(actor, assignment);
@@ -255,7 +269,7 @@ function createAttendanceAdjustmentService({ prisma = prismaDefault, audit = aud
 
   async function list({ actor, status = null, assignmentId = null, requestId = null, page = 1, pageSize = 25 } = {}) {
     const role = roleOf(actor);
-    if (!['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(role)) {
+    if (!['ADMIN', 'MANAGER', 'SUPERVISOR', 'EMPLOYEE'].includes(role)) {
       throw http(403, 'ATTENDANCE_ADJUSTMENT_READ_FORBIDDEN', 'Attendance adjustment list requires Manager or Admin authority.');
     }
 
@@ -264,7 +278,13 @@ function createAttendanceAdjustmentService({ prisma = prismaDefault, audit = aud
     const normalizedStatus = status ? String(status).trim().toUpperCase() : null;
     const offset = (safePage - 1) * safePageSize;
 
-    const scope = ['MANAGER', 'SUPERVISOR'].includes(role)
+    const actorEmployeeId = actor.employeeId || actor.employeeAuthority?.id;
+    if (role === 'EMPLOYEE' && !actorEmployeeId) {
+      throw http(403, 'ATTENDANCE_ADJUSTMENT_SCOPE_FORBIDDEN', 'Employee identity is required to read Attendance adjustment requests.');
+    }
+    const scope = role === 'EMPLOYEE'
+      ? Prisma.sql`AND sa.employee_id = ${actorEmployeeId || ''}::uuid`
+      : ['MANAGER', 'SUPERVISOR'].includes(role)
       ? Prisma.sql`AND COALESCE(sa.department_snapshot, e.department) = ${String(actor.department || '').trim()}`
       : Prisma.empty;
     const statusClause = normalizedStatus ? Prisma.sql`AND r.status = ${normalizedStatus}` : Prisma.empty;

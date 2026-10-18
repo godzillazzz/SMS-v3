@@ -72,6 +72,20 @@ test('Manager may make requests only inside own Department while Admin may make 
   );
 });
 
+test('Employee may make requests only for their own assignment and Supervisor is denied', () => {
+  const own = { employeeId: 'employee-1', departmentSnapshot: 'OPS', employee: { department: 'OPS' } };
+  const other = { employeeId: 'employee-2', departmentSnapshot: 'OPS', employee: { department: 'OPS' } };
+  assert.equal(assertMakerScope({ sub: 'e', role: 'EMPLOYEE', employeeId: 'employee-1' }, own), 'EMPLOYEE');
+  assert.throws(
+    () => assertMakerScope({ sub: 'e', role: 'EMPLOYEE', employeeId: 'employee-1' }, other),
+    (error) => error.statusCode === 403 && error.details?.code === 'ATTENDANCE_ADJUSTMENT_SCOPE_FORBIDDEN'
+  );
+  assert.throws(
+    () => assertMakerScope({ sub: 's', role: 'SUPERVISOR', department: 'OPS' }, own),
+    (error) => error.statusCode === 403 && error.details?.code === 'ATTENDANCE_ADJUSTMENT_FORBIDDEN'
+  );
+});
+
 test('Only ADMIN may execute approval decisions', () => {
   assert.doesNotThrow(() => assertAdmin({ sub: 'a', role: 'ADMIN' }));
   assert.throws(

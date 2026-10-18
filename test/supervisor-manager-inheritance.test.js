@@ -24,6 +24,8 @@ test('internal SUPERVISOR key retains the former Supervisor superset of internal
       const isManagerRoleArray = /\[['"]ADMIN['"],\s*['"]MANAGER['"]\]|\[['"]MANAGER['"],\s*['"]ADMIN['"]\]/.test(line);
       const isDirectManagerRoleCheck = /(?:^|[^\w])(?:[\w?.]+\.)?role\s*[!=]==?\s*['"]MANAGER['"]/.test(line);
       const intentionalPolicyToggle = relative === 'frontend/src/components/ApprovalAuthorityMatrixPanel.tsx';
+      const intentionalAttendanceAdjustment = relative === 'src/routes/attendance-adjustment.routes.js'
+        && line.includes('ATTENDANCE_ADJUSTMENT_GOVERNANCE_EXCEPTION');
       const intentionalApprovalDispatch = relative === 'src/services/approval-center.service.js' && line.includes("if (role === 'MANAGER') return managerCanApproveLeave");
       const intentionalScheduleApproval = relative === 'src/routes/operations.routes.js' && line.includes('schedule/approve-month')
         || relative === 'src/routes/operations.routes.js' && line.includes('schedule-approvals/:id')
@@ -33,7 +35,7 @@ test('internal SUPERVISOR key retains the former Supervisor superset of internal
         || relative === 'src/services/schedule.service.js' && line.includes('actorUser.role')
         || relative === 'frontend/src/main.tsx' && line.includes('schedule: [')
         || relative === 'frontend/src/main.tsx' && line.includes('approval-banner');
-      if ((isManagerAuthorize || isManagerRoleArray || isDirectManagerRoleCheck) && !line.includes('SUPERVISOR') && !intentionalPolicyToggle && !intentionalApprovalDispatch && !intentionalScheduleApproval) {
+      if ((isManagerAuthorize || isManagerRoleArray || isDirectManagerRoleCheck) && !line.includes('SUPERVISOR') && !intentionalPolicyToggle && !intentionalApprovalDispatch && !intentionalScheduleApproval && !intentionalAttendanceAdjustment) {
         violations.push(`${relative}:${index + 1}:${line.trim()}`);
       }
     }
