@@ -86,11 +86,14 @@ const simpleDeviceInput = z.object({
 }).strict();
 const selfieInput = z.object({
   mimeType: z.enum(['image/jpeg', 'image/png']),
-  base64: z.string().min(8).max(1400000)
+  base64: z.string().min(8).max(1400000),
+  captureMode: z.enum(['LIVE_CAMERA', 'GALLERY']).optional(),
+  overlay: z.object({ capturedAt: z.string().datetime({ offset: true }) }).strict().optional()
 }).strict();
 const simpleEventInput = z.object({
   captureId: uuid,
   selfie: selfieInput.optional(),
+  selfieNonce: z.string().regex(/^[0-9a-f]{64}$/i).optional(),
   eventIntent: z.enum(['CHECK_IN', 'CHECK_OUT']),
   shiftAssignmentId: uuid,
   capturedAt: z.string().datetime({ offset: true }),
@@ -201,8 +204,13 @@ function createAttendanceRoutes({ environment = process.env, authenticateMiddlew
     try { res.json({ data: await simpleAttendance.bootstrap({ actor: req.user }) }); } catch (error) { next(error); }
   });
 
+  router.post('/simple/selfie-challenge', async (req, res, next) => {
+    try { z.object({}).strict().parse(req.body || {}); res.status(201).json({ data: await simpleAttendance.createSelfieChallenge({ actor: req.user }) }); } catch (error) { next(error); }
+  });
+
   router.post('/simple/events', async (req, res, next) => {
     try {
+      if (String(req.headers['content-type'] || '').toLowerCase().includes('multipart/form-data')) throw new HttpError(422, 'Foreign Attendance selfie must be JSON base64.', { code: 'ATTENDANCE_FOREIGN_SELFIE_MULTIPART_FORBIDDEN' });
       const input = simpleEventInput.parse(req.body);
       res.status(201).json({ data: await simpleAttendance.submit({ actor: req.user, input, requestUserAgent: req.headers['user-agent'] || null }) });
     } catch (error) { next(error); }

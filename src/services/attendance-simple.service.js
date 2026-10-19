@@ -105,6 +105,9 @@ function signedEventPayload(input) {
     publicKeySpkiBase64: String(input.device?.publicKeySpkiBase64 || ''),
     keyAlgorithm: String(input.device?.keyAlgorithm || ''),
     deviceSignals: input.device?.signals || {},
+    selfieNonce: input.selfieNonce || null,
+    selfieCaptureMode: input.selfie?.captureMode || null,
+    selfieOverlayCapturedAt: input.selfie?.overlay?.capturedAt ? new Date(input.selfie.overlay.capturedAt).toISOString() : null,
     offlineBundleHash: input.offlineBundle ? sha256(String(input.offlineBundle)) : null
   };
 }
@@ -410,6 +413,23 @@ function createAttendanceSimpleService({
       }
       riskFlags.push(...binding.reviewFlags);
       if (binding.binding === 'FOREIGN') riskFlags.push('FOREIGN_DEVICE_SELFIE');
+      let selfieChallenge = null;
+      let selfieMetadata = null;
+      if (binding.binding === 'FOREIGN') {
+        const nonce = String(input.selfieNonce || '');
+        const challengeStoreAvailable = tx.attendanceDeviceChallenge && typeof tx.attendanceDeviceChallenge.findFirst === 'function';
+        if (challengeStoreAvailable && (!nonce || input.selfie?.captureMode !== 'LIVE_CAMERA')) throw http(422, 'ATTENDANCE_FOREIGN_DEVICE_SELFIE_LIVE_REQUIRED', 'Foreign device selfie must be captured live with a valid nonce.');
+        const overlayCapturedAt = new Date(input.selfie?.overlay?.capturedAt || input.capturedAt);
+        if (challengeStoreAvailable && (Number.isNaN(overlayCapturedAt.getTime()) || Math.abs(now.getTime() - overlayCapturedAt.getTime()) > 120000)) throw http(422, 'ATTENDANCE_SELFIE_OVERLAY_STALE', 'Selfie capture overlay is stale.', { reason: 'STALE' });
+        if (challengeStoreAvailable) {
+          selfieChallenge = await tx.attendanceDeviceChallenge.findFirst({ where: { employeeId: identity.employeeId, purpose: 'ATTENDANCE_EVENT', challengeHash: sha256(nonce), consumedAt: null, expiresAt: { gt: now } } });
+          if (!selfieChallenge) throw http(422, 'ATTENDANCE_SELFIE_NONCE_INVALID', 'Selfie nonce is invalid, expired, consumed, or belongs to another employee.');
+          const consumed = await tx.attendanceDeviceChallenge.updateMany({ where: { id: selfieChallenge.id, employeeId: identity.employeeId, purpose: 'ATTENDANCE_EVENT', consumedAt: null, expiresAt: { gt: now } }, data: { consumedAt: now } });
+          if (consumed.count !== 1) throw http(422, 'ATTENDANCE_SELFIE_NONCE_INVALID', 'Selfie nonce is invalid, expired, consumed, or belongs to another employee.');
+          riskFlags.push('SELFIE_LIVE_VERIFIED');
+          selfieMetadata = { captureMode: 'LIVE_CAMERA', capturedAt: overlayCapturedAt.toISOString(), nonceVerified: true };
+        }
+      }
       const uniqueRiskFlags = [...new Set(riskFlags)];
       let selfieRow = null;
       if (selfieFile) {
@@ -431,6 +451,7 @@ function createAttendanceSimpleService({
         }
       }
       const snapshot = deviceSnapshot(binding, input.device?.signals || {}, material);
+      if (selfieMetadata) snapshot.selfie = selfieMetadata;
       const policy = await policies.getPolicy(tx);
       const delayMs = Math.max(0, now.getTime() - capturedAt.getTime());
 
@@ -606,7 +627,11 @@ function createAttendanceSimpleService({
     });
   }
 
-  return { bootstrap, submit, requestDeviceMove, listPending, reviewPending, verifyBundle };
+  async function createSelfieChallenge({ actor }) {
+    return attendanceDevice.createSelfieChallenge({ actor });
+  }
+
+  return { bootstrap, submit, createSelfieChallenge, requestDeviceMove, listPending, reviewPending, verifyBundle };
 }
 
 module.exports = {

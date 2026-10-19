@@ -8,6 +8,7 @@ const HttpError = require('../utils/http-error');
 const ACTIVE_REQUEST_STATUSES = ['PENDING_APPROVAL', 'RETURNED_FOR_CORRECTION'];
 const SUPPORTED_KEY_ALGORITHMS = new Set(['ECDSA_P256_SHA256']);
 const CHALLENGE_TTL_MS = 5 * 60 * 1000;
+const SELFIE_CHALLENGE_TTL_MS = 120 * 1000;
 
 function http(statusCode, code, message) { return new HttpError(statusCode, message, { code }); }
 function cleanText(value, max = 1000) { const text = value == null ? null : String(value).trim(); return text ? text.slice(0, max) : null; }
@@ -96,6 +97,16 @@ function createAttendanceDeviceService({ prisma = prismaDefault, audit = auditDe
         return { challengeId: row.id, challenge, expiresAt, keyAlgorithm: request.candidateDevice.keyAlgorithm };
       });
     } catch (error) { throw mapConflict(error); }
+  }
+
+  async function createSelfieChallenge({ actor }) {
+    const now = clock();
+    const nonce = randomBytes(32).toString('hex');
+    const employee = await loadLinkedEmployee(prisma, actor);
+    const expiresAt = new Date(now.getTime() + SELFIE_CHALLENGE_TTL_MS);
+    await prisma.attendanceDeviceChallenge.updateMany({ where: { employeeId: employee.id, purpose: 'ATTENDANCE_EVENT', consumedAt: null }, data: { consumedAt: now } });
+    await prisma.attendanceDeviceChallenge.create({ data: { employeeId: employee.id, purpose: 'ATTENDANCE_EVENT', challengeHash: challengeHash(nonce), expiresAt } });
+    return { nonce, expiresAt };
   }
 
   async function verifyProof({ actor, requestId, challengeId, challenge, signatureBase64 }) {
@@ -293,7 +304,7 @@ function createAttendanceDeviceService({ prisma = prismaDefault, audit = auditDe
     });
   }
 
-  return { getMyState, createRequest, createProofChallenge, verifyProof, listRequests, listAdminOverview, revokeCurrent, approve, returnForCorrection, resubmit, reject, cancel };
+  return { getMyState, createRequest, createProofChallenge, createSelfieChallenge, verifyProof, listRequests, listAdminOverview, revokeCurrent, approve, returnForCorrection, resubmit, reject, cancel };
 }
 
 module.exports = { ACTIVE_REQUEST_STATUSES, SUPPORTED_KEY_ALGORITHMS, CHALLENGE_TTL_MS, challengeHash, fingerprint, createAttendanceDeviceService };
