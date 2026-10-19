@@ -90,7 +90,7 @@ function signedEventPayload(input) {
   const capturedAt = new Date(input.capturedAt);
   const locationAt = new Date(input.location?.capturedAt);
   if (Number.isNaN(capturedAt.getTime()) || Number.isNaN(locationAt.getTime())) throw http(400, 'ATTENDANCE_CAPTURED_AT_INVALID', 'Attendance capture time is invalid.');
-  return {
+  const payload = {
     version: SIMPLE_EVENT_VERSION,
     captureId: normalizedUuid(input.captureId, 'ATTENDANCE_CAPTURE_ID_INVALID'),
     eventIntent: String(input.eventIntent || '').trim().toUpperCase(),
@@ -105,12 +105,15 @@ function signedEventPayload(input) {
     publicKeySpkiBase64: String(input.device?.publicKeySpkiBase64 || ''),
     keyAlgorithm: String(input.device?.keyAlgorithm || ''),
     deviceSignals: input.device?.signals || {},
-    selfieNonce: input.selfieNonce || null,
-    selfieChecksum: input.selfie ? (input.selfie.checksum || crypto.createHash('sha256').update(normalizeSelfie(input.selfie).buffer).digest('hex')) : null,
-    selfieCaptureMode: input.selfie?.captureMode || null,
-    selfieOverlayCapturedAt: input.selfie?.overlay?.capturedAt ? new Date(input.selfie.overlay.capturedAt).toISOString() : null,
     offlineBundleHash: input.offlineBundle ? sha256(String(input.offlineBundle)) : null
   };
+  if (input.selfie || input.selfieNonce) {
+    payload.selfieNonce = input.selfieNonce || null;
+    payload.selfieChecksum = input.selfie ? (input.selfie.checksum || crypto.createHash('sha256').update(normalizeSelfie(input.selfie).buffer).digest('hex')) : null;
+    payload.selfieCaptureMode = input.selfie?.captureMode || null;
+    payload.selfieOverlayCapturedAt = input.selfie?.overlay?.capturedAt ? new Date(input.selfie.overlay.capturedAt).toISOString() : null;
+  }
+  return payload;
 }
 function integrityRiskFlags(signals = {}) {
   const flags = [];

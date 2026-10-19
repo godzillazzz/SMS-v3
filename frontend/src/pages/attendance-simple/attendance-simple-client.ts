@@ -60,6 +60,8 @@ export type SimpleEventInput = {
     signatureBase64: string;
   };
   offlineBundle?: string | null;
+  selfie?: { mimeType: 'image/jpeg' | 'image/png'; base64: string; checksum?: string; captureMode?: 'LIVE_CAMERA' | 'GALLERY'; overlay?: { capturedAt: string } };
+  selfieNonce?: string | null;
 };
 
 export type SimpleEventResult = {
@@ -112,6 +114,12 @@ const ATTENDANCE_SIMPLE_ERROR_MESSAGES: Record<string, string> = {
   ATTENDANCE_LOCATION_STALE: 'ตำแหน่ง GPS หมดอายุแล้ว กรุณาลองอีกครั้ง',
   ATTENDANCE_LOCATION_ASSURANCE_INSUFFICIENT: 'ยังยืนยันตำแหน่งไม่ได้ กรุณาลองอีกครั้งหรือติดต่อหัวหน้างาน',
   ATTENDANCE_DEVICE_PROOF_INVALID: 'ยืนยันอุปกรณ์ไม่สำเร็จ กรุณาลองอีกครั้ง',
+  ATTENDANCE_DEVICE_SIGNATURE_INVALID: 'การยืนยันความถูกต้องของอุปกรณ์ไม่ผ่าน กรุณาลองใหม่อีกครั้ง',
+  ATTENDANCE_FOREIGN_DEVICE_SELFIE_REQUIRED: 'การใช้อุปกรณ์อื่นจำเป็นต้องถ่ายภาพเซลฟี่เพื่อยืนยันตัวตน',
+  ATTENDANCE_SELFIE_CHECKSUM_MISMATCH: 'ข้อมูลภาพเซลฟี่ไม่ตรงกับข้อมูลยืนยัน กรุณาถ่ายภาพใหม่',
+  ATTENDANCE_FOREIGN_DEVICE_SELFIE_LIVE_REQUIRED: 'กรุณาถ่ายภาพเซลฟี่สดจากกล้องหน้าเพื่อยืนยันตัวตน',
+  ATTENDANCE_SELFIE_NONCE_INVALID: 'รหัสยืนยันเซลฟี่หมดอายุหรือไม่ถูกต้อง กรุณาลองใหม่',
+  ATTENDANCE_SELFIE_OVERLAY_STALE: 'ข้อมูลภาพเซลฟี่หมดอายุ กรุณาถ่ายภาพใหม่',
   ATTENDANCE_OFFLINE_BUNDLE_STALE: 'สิทธิ์ลงเวลา Offline หมดอายุหรือไม่ตรงกับกะปัจจุบัน กรุณาเชื่อมต่ออินเทอร์เน็ต',
   ATTENDANCE_OFFLINE_SITE_NOT_AUTHORIZED: 'ไม่สามารถลงเวลา Offline ที่สถานที่นี้ได้ กรุณาเชื่อมต่ออินเทอร์เน็ต',
   ATTENDANCE_OFFLINE_SITE_INACTIVE: 'สถานที่ทำงานนี้ไม่ได้เปิดใช้งาน กรุณาติดต่อหัวหน้างาน'
@@ -160,6 +168,16 @@ async function payload(response: Response) {
     });
   }
   return body?.data;
+}
+
+export async function simpleAttendanceSelfieChallenge(token: string): Promise<{ nonce: string; expiresAt: string }> {
+  const response = await attendanceAuthenticatedRequest('/attendance/simple/selfie-challenge', token, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({})
+  });
+  return await payload(response) as { nonce: string; expiresAt: string };
 }
 
 export async function simpleAttendanceBootstrap(token: string): Promise<SimpleBootstrap> {

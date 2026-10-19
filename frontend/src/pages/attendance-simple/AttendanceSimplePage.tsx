@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   simpleAttendanceBootstrap,
+  simpleAttendanceSelfieChallenge,
   simpleAttendanceMoveRequest,
   simpleAttendanceSubmit,
   type AttendanceSimpleErrorDetails,
@@ -9,6 +10,7 @@ import {
   type SimpleEventResult
 } from './attendance-simple-client';
 import { RequestErrorReference, toRequestErrorState } from '../../request-error';
+import { ATTACHMENT_POLICIES, canvasToOptimizedJpeg } from '../../lib/attachment-optimizer';
 import { SmsIcon } from '../../components/SmsIcon';
 import { PageHeader, SectionCard } from '../../components/layout';
 import { formatThaiDateTime } from '../../thai-date-time';
@@ -134,7 +136,7 @@ async function signedEvent(identity: DeviceIdentity, base: Omit<SimpleEventInput
     platformHint: platformHint(),
     signals
   };
-  const payload = {
+  const payload: Record<string, unknown> = {
     version: 'SMS_ATTENDANCE_SIMPLE_EVENT_V1',
     captureId: base.captureId,
     eventIntent: base.eventIntent,
@@ -150,6 +152,12 @@ async function signedEvent(identity: DeviceIdentity, base: Omit<SimpleEventInput
     keyAlgorithm: identity.keyAlgorithm,
     deviceSignals: signals,
     offlineBundleHash: base.offlineBundle ? await sha256Hex(base.offlineBundle) : null
+  };
+  if (base.selfie || base.selfieNonce) {
+    payload.selfieNonce = base.selfieNonce || null;
+    payload.selfieChecksum = base.selfie?.checksum || (base.selfie?.base64 ? await sha256Hex(base.selfie.base64) : null);
+    payload.selfieCaptureMode = base.selfie?.captureMode || null;
+    payload.selfieOverlayCapturedAt = base.selfie?.overlay?.capturedAt ? new Date(base.selfie.overlay.capturedAt).toISOString() : null;
   };
   return {
     ...base,
@@ -183,6 +191,12 @@ export function AttendanceSimplePage({
   const [bootstrapRetry, setBootstrapRetry] = useState(0);
   const [requestErrorCode, setRequestErrorCode] = useState<string>();
   const [requestErrorId, setRequestErrorId] = useState<string>();
+  const [selfie, setSelfie] = useState<SimpleEventInput['selfie'] | null>(null);
+  const [selfieNonce, setSelfieNonce] = useState<string | null>(null);
+  const [cameraOpen, setCameraOpen] = useState(false);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
   const queueSyncInFlight = useRef(false);
 
   const refreshQueueCount = useCallback(async () => {
@@ -297,7 +311,31 @@ export function AttendanceSimplePage({
     return bootstrap.activeDevice.credentialFingerprint === fingerprint ? 'PRIMARY' : 'FOREIGN';
   }, [bootstrap, fingerprint]);
 
-  const recordAttendance = async () => {
+  const stopCamera = useCallback(() => {
+    streamRef.current?.getTracks().forEach((track) => track.stop());
+    streamRef.current = null;
+    if (videoRef.current) videoRef.current.srcObject = null;
+  }, []);
+
+  useEffect(() => () => stopCamera(), [stopCamera]);
+
+  const openSelfieCamera = useCallback(async () => {
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setTone('danger'); setMessage('เบราว์เซอร์นี้ไม่รองรับกล้องหน้า'); return;
+    }
+    setCameraOpen(true);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: { ideal: 720 }, height: { ideal: 960 } }, audio: false });
+      streamRef.current = stream;
+      if (videoRef.current) { videoRef.current.srcObject = stream; await videoRef.current.play(); }
+    } catch (error) {
+      stopCamera(); setCameraOpen(false); setTone('danger');
+      setMessage(error instanceof DOMException && error.name === 'NotAllowedError' ? 'กรุณาอนุญาตกล้องหน้าเพื่อยืนยันตัวตน' : 'ไม่สามารถเปิดกล้องหน้าได้ กรุณาลองใหม่');
+    }
+  }, [stopCamera]);
+
+  const recordAttendance = async (capturedSelfie = selfie, capturedSelfieNonce = selfieNonce) => {
+    if (bindingState === 'FOREIGN' && !capturedSelfie) { await openSelfieCamera(); return; }
     if (readOnly || busy || !identity || !bootstrap) return;
     setBusy(true);
     setLastResult(null);
@@ -334,7 +372,8 @@ export function AttendanceSimplePage({
         shiftAssignmentId: bootstrap.assignment.id,
         capturedAt,
         location,
-        offlineBundle
+        offlineBundle,
+        ...(capturedSelfie ? { selfie: capturedSelfie, selfieNonce: capturedSelfieNonce } : {})
       });
 
       if (!online || !token) {
@@ -393,6 +432,34 @@ export function AttendanceSimplePage({
     } finally {
       setBusy(false);
     }
+  };
+
+  const captureSelfie = async () => {
+    if (!token || !videoRef.current || !canvasRef.current || busy) return;
+    try {
+      const video = videoRef.current;
+      const canvas = canvasRef.current;
+      const scale = Math.min(1, ATTACHMENT_POLICIES.ATTENDANCE_FACE.maxEdge / Math.max(video.videoWidth, video.videoHeight));
+      canvas.width = Math.max(1, Math.round(video.videoWidth * scale));
+      canvas.height = Math.max(1, Math.round(video.videoHeight * scale));
+      const context = canvas.getContext('2d', { alpha: false });
+      if (!context) throw new Error('ไม่สามารถเตรียมภาพสดได้');
+      context.drawImage(video, 0, 0, canvas.width, canvas.height);
+      const blob = await canvasToOptimizedJpeg(canvas, 'ATTENDANCE_FACE');
+      const base64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result).split(',')[1] || '');
+        reader.onerror = () => reject(new Error('อ่านภาพสดไม่สำเร็จ'));
+        reader.readAsDataURL(blob);
+      });
+      const challenge = await simpleAttendanceSelfieChallenge(token);
+      const capturedAt = new Date().toISOString();
+      const nextSelfie = { mimeType: 'image/jpeg' as const, base64, captureMode: 'LIVE_CAMERA' as const, overlay: { capturedAt } };
+      setSelfie(nextSelfie); setSelfieNonce(challenge.nonce); setCameraOpen(false); stopCamera();
+      await recordAttendance(nextSelfie, challenge.nonce);
+    } catch (error) {
+      setTone('danger'); setMessage(error instanceof Error ? error.message : 'ถ่ายภาพยืนยันตัวตนไม่สำเร็จ กรุณาลองใหม่');
+    } finally { setBusy(false); }
   };
 
   const requestMove = async () => {
@@ -489,6 +556,14 @@ export function AttendanceSimplePage({
                 : null;
 
   return <section className="attendance-simple layout-page-surface" aria-label="ลงเวลา">
+    {cameraOpen && <div role="dialog" aria-modal="true" aria-label="ถ่ายภาพยืนยันตัวตน" className="attendance-simple__camera-modal">
+      <div className="attendance-simple__camera-panel">
+        <h2>ยืนยันตัวตนด้วยเซลฟี่สด</h2>
+        <video ref={videoRef} autoPlay playsInline muted aria-label="กล้องหน้า" />
+        <canvas ref={canvasRef} hidden />
+        <div><button type="button" onClick={() => void captureSelfie()} disabled={busy}>ถ่ายภาพยืนยันตัวตน</button><button type="button" onClick={() => { stopCamera(); setCameraOpen(false); }} disabled={busy}>ยกเลิก</button></div>
+      </div>
+    </div>}
     <PageHeader
       kicker="ลงเวลาประจำวัน"
       title="ลงเวลา"
