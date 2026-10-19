@@ -335,11 +335,35 @@ model AttendanceDeviceEnrollment {
   currentForRequests       AttendanceDeviceChangeRequest[]  @relation("CurrentAttendanceDevice")
   faceVerificationSessions FaceVerificationSession[]
   faceVerificationReceipts FaceVerificationReceipt[]
+  deviceSelfies            AttendanceDeviceSelfie[]
 
   @@index([employeeId, status])
   @@index([createdByUserId, createdAt])
   @@index([approvedByUserId])
   @@map("attendance_device_enrollments")
+}
+
+model AttendanceDeviceSelfie {
+  id               String                     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  employeeId       String                     @map("employee_id") @db.Uuid
+  enrollmentId     String                     @map("enrollment_id") @db.Uuid
+  captureId        String                     @unique @map("capture_id") @db.Uuid
+  storageProvider  String                     @map("storage_provider") @db.VarChar(50)
+  storageBucket    String                     @map("storage_bucket") @db.VarChar(255)
+  storageObjectKey String                     @unique @map("storage_object_key") @db.VarChar(500)
+  mimeType         String                     @map("mime_type") @db.VarChar(100)
+  sizeBytes        Int                        @map("size_bytes")
+  checksum         String                     @db.Char(64)
+  capturedAt       DateTime                   @map("captured_at")
+  retentionUntil   DateTime                   @map("retention_until")
+  purgedAt         DateTime?                  @map("purged_at")
+  createdAt        DateTime                   @default(now()) @map("created_at")
+  employee         Employee                   @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  enrollment       AttendanceDeviceEnrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+
+  @@index([employeeId, capturedAt])
+  @@index([purgedAt])
+  @@map("attendance_device_selfies")
 }
 
 model AttendanceDeviceChallenge {
@@ -472,6 +496,7 @@ model Employee {
   faceVerificationReceipts    FaceVerificationReceipt[]
   attendanceSessions          AttendanceSession[]
   attendanceEvidence          AttendanceEvidence[]
+  deviceSelfies               AttendanceDeviceSelfie[]
 
   scheduleRosterSnapshots ScheduleRosterSnapshot[]
 

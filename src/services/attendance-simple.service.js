@@ -16,6 +16,8 @@ const {
   createAttendanceTimePolicyService
 } = require('./attendance-time-policy.service');
 const { bangkokParts, isOvernightAssignment, actionableAssignment } = require('./attendance-verification-context.service');
+const { createSupabaseAttendanceDeviceSelfieStorage, normalizeSelfie, RETENTION_DAYS } = require('./attendance-device-selfie-storage.service');
+const { createAttendanceDeviceService } = require('./attendance-device.service');
 
 const SIMPLE_EVENT_VERSION = 'SMS_ATTENDANCE_SIMPLE_EVENT_V1';
 const OFFLINE_BUNDLE_VERSION = 'SMS_ATTENDANCE_OFFLINE_BUNDLE_V2';
@@ -130,8 +132,12 @@ function createAttendanceSimpleService({
   prisma = prismaDefault, audit = auditDefault, clock = () => new Date(),
   siteEvidenceService = null, siteAuthorityService = null, policyService = null,
   timePolicyService = null,
-  bundleSecret = () => process.env.JWT_SECRET
+  bundleSecret = () => process.env.JWT_SECRET,
+  selfieStorage = null,
+  deviceService = null
 } = {}) {
+  const deviceSelfieStorage = selfieStorage || createSupabaseAttendanceDeviceSelfieStorage();
+  const attendanceDevice = deviceService || createAttendanceDeviceService({ prisma, audit, clock });
   const siteEvidence = siteEvidenceService || createAttendanceSiteEvidenceService({ prisma, clock });
   const siteAuthority = siteAuthorityService || createSecuritySiteAuthorityService({ prisma });
   const policies = policyService || createAttendancePolicyService({ prisma });
@@ -391,10 +397,39 @@ function createAttendanceSimpleService({
       validateAttendanceTime({ assignment, eventIntent: action, effectiveAt, policy: resolvedTimePolicy.values });
       const timePolicySnapshot = timePolicySnapshotFor(resolvedTimePolicy);
       const timeClassification = classifyAttendanceEventTime({ assignment, eventIntent: action, effectiveAt, policy: resolvedTimePolicy.values });
+      const activeBeforeBind = await tx.attendanceDeviceEnrollment.findFirst({ where: { employeeId: identity.employeeId, status: 'ACTIVE' }, orderBy: { activatedAt: 'desc' } });
+      if (activeBeforeBind && activeBeforeBind.credentialFingerprint !== material.fingerprint && !input.selfie) {
+        throw http(422, 'ATTENDANCE_FOREIGN_DEVICE_SELFIE_REQUIRED', 'A selfie is required when using a foreign Attendance device.');
+      }
       const binding = await bindOrObserveDevice(tx, { actor, identity, material,
         device: { ...input.device, userAgentSnapshot: requestUserAgent || input.device?.userAgentSnapshot || null }, now });
+      let selfieFile = null;
+      if (binding.binding === 'FOREIGN') {
+        if (!input.selfie) throw http(422, 'ATTENDANCE_FOREIGN_DEVICE_SELFIE_REQUIRED', 'A selfie is required when using a foreign Attendance device.');
+        selfieFile = normalizeSelfie(input.selfie);
+      }
       riskFlags.push(...binding.reviewFlags);
+      if (binding.binding === 'FOREIGN') riskFlags.push('FOREIGN_DEVICE_SELFIE');
       const uniqueRiskFlags = [...new Set(riskFlags)];
+      let selfieRow = null;
+      if (selfieFile) {
+        const stored = await deviceSelfieStorage.put({ employeeId: identity.employeeId, captureId: input.captureId, selfie: selfieFile });
+        selfieRow = await tx.attendanceDeviceSelfie.create({ data: {
+          employeeId: identity.employeeId, enrollmentId: binding.enrollment.id, captureId: input.captureId,
+          storageProvider: stored.provider, storageBucket: stored.bucket, storageObjectKey: stored.objectKey,
+          mimeType: stored.mimeType, sizeBytes: stored.sizeBytes, checksum: stored.checksum,
+          capturedAt, retentionUntil: new Date(capturedAt.getTime() + RETENTION_DAYS * 86400000)
+        } });
+        const active = await tx.attendanceDeviceEnrollment.findFirst({ where: { employeeId: identity.employeeId, status: 'ACTIVE' }, orderBy: { activatedAt: 'desc' } });
+        if (active) {
+          const pending = await tx.attendanceDeviceChangeRequest.findFirst({ where: { employeeId: identity.employeeId, candidateDeviceEnrollmentId: binding.enrollment.id, status: 'PENDING_APPROVAL' } });
+          if (!pending) await tx.attendanceDeviceChangeRequest.create({ data: {
+            employeeId: identity.employeeId, requestType: 'REPLACEMENT', requestedByUserId: actor.sub,
+            candidateDeviceEnrollmentId: binding.enrollment.id, currentDeviceEnrollmentId: active.id,
+            reason: 'Foreign device selfie review'
+          } });
+        }
+      }
       const snapshot = deviceSnapshot(binding, input.device?.signals || {}, material);
       const policy = await policies.getPolicy(tx);
       const delayMs = Math.max(0, now.getTime() - capturedAt.getTime());

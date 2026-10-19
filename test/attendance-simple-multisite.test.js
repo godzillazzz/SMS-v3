@@ -41,6 +41,8 @@ function harness({ sites = null, activePrimary = null, timePolicyValues = null }
     events: new Map(),
     pending: new Map(),
     audits: [],
+    selfies: [],
+    deviceChangeRequests: [],
     timePolicyResolutions: []
   };
   const employee = { id: ids.employee, employeeCode: 'UAT-TEST', displayName: 'Attendance Test', firstName: 'Attendance', lastName: 'Test', department: 'SECURITY', isActive: true, deletedAt: null };
@@ -93,6 +95,13 @@ function harness({ sites = null, activePrimary = null, timePolicyValues = null }
         return row;
       }
     },
+    attendanceDeviceSelfie: {
+      create: async ({ data }) => { const row = { id: crypto.randomUUID(), ...data }; state.selfies.push(row); return row; }
+    },
+    attendanceDeviceChangeRequest: {
+      findFirst: async () => null,
+      create: async ({ data }) => { const row = { id: crypto.randomUUID(), status: 'PENDING_APPROVAL', ...data }; state.deviceChangeRequests.push(row); return row; }
+    },
     $transaction: async (callback) => callback(prisma)
   };
   const audit = { log: async (entry) => { state.audits.push(entry); } };
@@ -104,8 +113,11 @@ function harness({ sites = null, activePrimary = null, timePolicyValues = null }
       return { values: timePolicyValues, source: { policyId: 'time-policy-test', scopeType: 'SHIFT_TYPE', scopeId: ids.shift, effectiveFrom: new Date('2026-10-01T00:00:00.000Z') } };
     }
   } : undefined;
+  const selfieStorage = {
+    put: async ({ captureId, selfie }) => ({ provider: 'test', bucket: 'test-bucket', objectKey: `selfie/${captureId}`, mimeType: selfie.mimeType, sizeBytes: selfie.buffer.length, checksum: 'a'.repeat(64) })
+  };
   const service = createAttendanceSimpleService({ prisma, audit, clock: () => state.now, siteAuthorityService, siteEvidenceService,
-    policyService: { getPolicy: async () => policy }, timePolicyService, bundleSecret: () => 'test-only-offline-signing-secret-at-least-32-bytes' });
+    policyService: { getPolicy: async () => policy }, timePolicyService, selfieStorage, bundleSecret: () => 'test-only-offline-signing-secret-at-least-32-bytes' });
   return { state, prisma, service, assignment };
 }
 
@@ -115,7 +127,9 @@ function keyMaterial() {
   return { pair, publicKeySpkiBase64 };
 }
 
-function signedInput({ pair, publicKeySpkiBase64, location, offlineBundle = null, captureId = crypto.randomUUID(), capturedAt = now, eventIntent = 'CHECK_IN', claimedActualSiteId = undefined }) {
+const TEST_SELFIE = { mimeType: 'image/jpeg', base64: '/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAP//////////////////////////2wBDAf//////////////////////////wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAX/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIQAxAAAAH/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/9oACAEBAAEFAqf/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oACAEDAQE/AX//xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oACAECAQE/AX//xAAUEAEAAAAAAAAAAAAAAAAAAAAA/9oACAEBAAY/Av/EABQQAQAAAAAAAAAAAAAAAAAAABD/2gAIAQEAAT8h/9k=' };
+
+function signedInput({ pair, publicKeySpkiBase64, location, offlineBundle = null, captureId = crypto.randomUUID(), capturedAt = now, eventIntent = 'CHECK_IN', claimedActualSiteId = undefined, selfie = undefined }) {
   const input = {
     captureId, eventIntent, shiftAssignmentId: ids.assignment, capturedAt: capturedAt.toISOString(),
     location: { ...location, capturedAt: location.capturedAt || capturedAt.toISOString() },
@@ -126,6 +140,7 @@ function signedInput({ pair, publicKeySpkiBase64, location, offlineBundle = null
     offlineBundle
   };
   if (claimedActualSiteId !== undefined) input.actualSiteId = claimedActualSiteId;
+  if (selfie !== undefined) input.selfie = selfie;
   const signature = crypto.sign('sha256', Buffer.from(canonicalJson(signedEventPayload(input)), 'utf8'), {
     key: pair.privateKey, dsaEncoding: 'ieee-p1363'
   });
@@ -204,7 +219,7 @@ test('delayed offline support attendance stays uncounted until ADMIN confirms an
   const { pair, publicKeySpkiBase64 } = keyMaterial();
   const capturedAt = new Date(now.getTime() + 60 * 1000);
   h.state.now = new Date(now.getTime() + 30 * 60 * 1000);
-  const input = signedInput({ pair, publicKeySpkiBase64, location: { ...locB(), capturedAt: capturedAt.toISOString() }, capturedAt, offlineBundle: bootstrap.offline.bundle });
+  const input = signedInput({ pair, publicKeySpkiBase64, location: { ...locB(), capturedAt: capturedAt.toISOString() }, capturedAt, offlineBundle: bootstrap.offline.bundle, selfie: TEST_SELFIE });
   const pending = await h.service.submit({ actor: { sub: ids.user, role: 'VIEWER' }, input });
   assert.equal(pending.counted, false);
   assert.equal(pending.status, 'PENDING_CONFIRMATION');
@@ -281,7 +296,7 @@ test('SUPPORT_SITE, DEVICE_MISMATCH and LATE survive together', async () => {
   const h = harness({ activePrimary: { id: crypto.randomUUID(), employeeId: ids.employee, status: 'ACTIVE', credentialFingerprint: 'different-primary' } });
   h.state.devices.push(h.state.activePrimary);
   const key = keyMaterial();
-  const result = await h.service.submit({ actor: { sub: ids.user }, input: signedInput({ ...key, location: locB() }) });
+  const result = await h.service.submit({ actor: { sub: ids.user }, input: signedInput({ ...key, location: locB(), selfie: TEST_SELFIE }) });
   assert.equal(result.counted, true);
   assert.equal(result.event.locationEvidence.workSiteContext, 'SUPPORT_SITE');
   assert.equal(result.event.punctuality, 'LATE');

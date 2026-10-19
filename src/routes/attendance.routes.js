@@ -84,8 +84,13 @@ const simpleDeviceInput = z.object({
   signals: simpleDeviceSignalsInput,
   signatureBase64: z.string().min(16).max(4096)
 }).strict();
+const selfieInput = z.object({
+  mimeType: z.enum(['image/jpeg', 'image/png']),
+  base64: z.string().min(8).max(1400000)
+}).strict();
 const simpleEventInput = z.object({
   captureId: uuid,
+  selfie: selfieInput.optional(),
   eventIntent: z.enum(['CHECK_IN', 'CHECK_OUT']),
   shiftAssignmentId: uuid,
   capturedAt: z.string().datetime({ offset: true }),

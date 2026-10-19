@@ -216,6 +216,7 @@ function createAttendanceDeviceService({ prisma = prismaDefault, audit = auditDe
       return await prisma.$transaction(async (tx) => {
         const request = await tx.attendanceDeviceChangeRequest.findUnique({ where: { id: requestId }, include: { candidateDevice: true, employee: { select: { id: true, isActive: true, deletedAt: true } } } });
         if (!request) throw http(404, 'ATTENDANCE_DEVICE_REQUEST_NOT_FOUND', 'Attendance device request not found.');
+        if (request.status === 'APPROVED') return safeRequest(request);
         if (request.status !== 'PENDING_APPROVAL') throw http(409, 'ATTENDANCE_DEVICE_REQUEST_NOT_ACTIONABLE', 'Only pending device requests can be approved.');
         if (!request.employee.isActive || request.employee.deletedAt) throw http(409, 'INACTIVE_EMPLOYEE_OPERATION', 'Inactive employees cannot activate an Attendance device.');
         if (request.candidateDevice.status !== 'PENDING_APPROVAL' || !request.candidateDevice.proofVerifiedAt) throw http(409, 'ATTENDANCE_DEVICE_PROOF_REQUIRED', 'Verified device-key proof is required before approval.');
@@ -224,9 +225,10 @@ function createAttendanceDeviceService({ prisma = prismaDefault, audit = auditDe
         const active = await tx.attendanceDeviceEnrollment.findFirst({ where: { employeeId: request.employeeId, status: 'ACTIVE' }, orderBy: { activatedAt: 'desc' } });
         if (request.requestType === 'INITIAL' && active) throw http(409, 'ATTENDANCE_DEVICE_STALE_REQUEST', 'An active device already exists.');
         if (request.requestType === 'REPLACEMENT' && (!active || active.id !== request.currentDeviceEnrollmentId)) throw http(409, 'ATTENDANCE_DEVICE_STALE_REQUEST', 'The active device changed after this request was submitted.');
-        if (active) await tx.attendanceDeviceEnrollment.update({ where: { id: active.id }, data: { status: 'REVOKED', revokedAt: now, revokedReason: 'ADMIN_APPROVED_REPLACEMENT' } });
+        if (active) await tx.attendanceDeviceEnrollment.update({ where: { id: active.id }, data: { status: 'REVOKED', revokedAt: now, revokedReason: 'DEVICE_TRANSFER_SUPERSEDED' } });
         const candidate = await tx.attendanceDeviceEnrollment.update({ where: { id: request.candidateDeviceEnrollmentId }, data: { status: 'ACTIVE', activatedAt: now, approvedByUserId: actor.sub, revokedAt: null, revokedReason: null }, include: { approvedBy: { select: { id: true, displayName: true, role: true } } } });
-        await audit.log({ actorUserId: actor.sub, action: 'UPDATE', entityType: 'AttendanceDeviceChangeRequest', entityId: request.id, metadata: { event: 'FINAL_APPROVE', requestType: request.requestType, employeeId: request.employeeId, previousDeviceEnrollmentId: active?.id || null, activeDeviceEnrollmentId: candidate.id, requestedByUserId: request.requestedByUserId } }, tx);
+        await audit.log({ actorUserId: actor.sub, action: 'UPDATE', entityType: 'AttendanceDeviceChangeRequest', entityId: request.id, metadata: { event: 'DEVICE_TRANSFER_APPROVED', requestType: request.requestType, employeeId: request.employeeId, fromEnrollmentId: active?.id || null, toEnrollmentId: candidate.id, adminUserId: actor.sub, requestId: request.id, eventCaptureIds: [] } }, tx);
+        await audit.log({ actorUserId: actor.sub, action: 'UPDATE', entityType: 'AttendanceDeviceChangeRequest', entityId: request.id, metadata: { event: 'FINAL_APPROVE', requestType: request.requestType, employeeId: request.employeeId, fromEnrollmentId: active?.id || null, toEnrollmentId: candidate.id, requestId: request.id } }, tx);
         const approved = await tx.attendanceDeviceChangeRequest.findUnique({ where: { id: request.id }, include: { candidateDevice: { include: { approvedBy: { select: { id: true, displayName: true, role: true } } } }, reviewedBy: { select: { id: true, displayName: true, role: true } } } });
         return safeRequest(approved);
       });
