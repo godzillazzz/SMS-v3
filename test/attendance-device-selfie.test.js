@@ -89,6 +89,44 @@ test('reconcileOrphans deletes old objects without rows and keeps objects with r
   assert.equal(deleted.length, 1); assert.match(deleted[0], /orphan\.jpg/); assert.equal(audits[0].metadata.event, 'ATTENDANCE_SELFIE_ORPHAN_RECONCILED');
 });
 
+test('listObjects recursively lists nested folders and paginates every page', async () => {
+  const calls = [];
+  const files = Array.from({ length: 150 }, (_, index) => ({ id: `file-${index}`, name: `capture-${index}.jpg`, updated_at: '2026-12-31T00:00:00.000Z' }));
+  const storage = createSupabaseAttendanceDeviceSelfieStorage({
+    environment: { SUPABASE_URL: 'https://private.example.test', SUPABASE_SERVICE_ROLE_KEY: 'secret', ATTENDANCE_DEVICE_SELFIE_BUCKET: 'attendance-selfies', SELFIE_PATH_SECRET: 'strong-random-path-secret-0123456789' },
+    fetchImpl: async (url, options) => {
+      const payload = JSON.parse(options.body); calls.push(payload);
+      if (payload.prefix === 'attendance-selfie/') return { ok: true, json: async () => [{ name: 'employee-hash' }] };
+      if (payload.prefix === 'attendance-selfie/employee-hash/') return { ok: true, json: async () => [{ name: 'capture-folder' }] };
+      if (payload.prefix === 'attendance-selfie/employee-hash/capture-folder/') return { ok: true, json: async () => files.slice(payload.offset, payload.offset + payload.limit) };
+      throw new Error(`unexpected prefix ${payload.prefix}`);
+    }
+  });
+  const result = await storage.listObjects();
+  assert.equal(result.objects.length, 150);
+  assert.equal(result.objects[0].path, 'attendance-selfie/employee-hash/capture-folder/capture-0.jpg');
+  assert.equal(result.objects[149].id, 'file-149');
+  assert.equal(result.truncated, false);
+  assert.deepEqual(calls.filter((call) => call.prefix.endsWith('capture-folder/')).map((call) => call.offset), [0, 100]);
+});
+
+test('listObjects stops at 5000 objects and reports truncated', async () => {
+  let requests = 0;
+  const storage = createSupabaseAttendanceDeviceSelfieStorage({
+    environment: { SUPABASE_URL: 'https://private.example.test', SUPABASE_SERVICE_ROLE_KEY: 'secret', ATTENDANCE_DEVICE_SELFIE_BUCKET: 'attendance-selfies', SELFIE_PATH_SECRET: 'strong-random-path-secret-0123456789' },
+    fetchImpl: async (url, options) => {
+      requests += 1;
+      const payload = JSON.parse(options.body);
+      if (payload.prefix === 'attendance-selfie/') return { ok: true, json: async () => [{ name: 'employee-hash' }] };
+      return { ok: true, json: async () => Array.from({ length: 100 }, (_, index) => ({ id: `${payload.offset + index}`, name: `capture-${payload.offset + index}.jpg` })) };
+    }
+  });
+  const result = await storage.listObjects();
+  assert.equal(result.objects.length, 5000);
+  assert.equal(result.truncated, true);
+  assert.equal(requests, 51);
+});
+
 test('device transfer routes are authenticated and ADMIN-only for list/approve/reject', () => {
   const source = fs.readFileSync('src/routes/attendance-device-transfer.routes.js', 'utf8');
   assert.match(source, /router\.use\(authenticate, authorize\('ADMIN'\)\)/);

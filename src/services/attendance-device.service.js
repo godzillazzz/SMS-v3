@@ -33,7 +33,7 @@ function safeRequester(row) { return row ? { id: row.id, displayName: row.displa
 function safeAudit(row) {
   if (!row) return null;
   const source = row.metadata && typeof row.metadata === 'object' && !Array.isArray(row.metadata) ? row.metadata : {};
-  const allowed = new Set(['event', 'employeeId', 'requestType', 'deviceEnrollmentId', 'candidateDeviceEnrollmentId', 'previousDeviceEnrollmentId', 'activeDeviceEnrollmentId', 'requestedByUserId', 'proofPreviouslyVerified', 'keyAlgorithm', 'credentialFingerprint', 'reason', 'revokedAt', 'cancelledRequestId', 'requestId', 'currentEnrollmentId', 'adminUserId', 'rejectedAt', 'rejectedEventCount', 'excludedCaptureIds']);
+  const allowed = new Set(['event', 'employeeId', 'requestType', 'deviceEnrollmentId', 'candidateDeviceEnrollmentId', 'previousDeviceEnrollmentId', 'activeDeviceEnrollmentId', 'requestedByUserId', 'proofPreviouslyVerified', 'keyAlgorithm', 'credentialFingerprint', 'reason', 'revokedAt', 'cancelledRequestId', 'requestId', 'candidateEnrollmentId', 'currentEnrollmentId', 'status', 'reviewedByUserId', 'reviewedAt', 'adminUserId', 'rejectedAt', 'rejectedEventCount', 'excludedCaptureIds']);
   const metadata = Object.fromEntries(Object.entries(source).filter(([key]) => allowed.has(key)));
   return { id: row.id, actorUserId: row.actorUserId, action: row.action, entityType: row.entityType, entityId: row.entityId, metadata, createdAt: row.createdAt, actor: safeRequester(row.actor) };
 }
