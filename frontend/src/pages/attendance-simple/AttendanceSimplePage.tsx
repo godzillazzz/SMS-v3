@@ -438,11 +438,14 @@ export function AttendanceSimplePage({
       setMessage(failure.message);
     } finally {
       setBusy(false);
+      setSelfie(null);
+      setSelfieNonce(null);
     }
   };
 
   const captureSelfie = async () => {
     if (!token || !videoRef.current || !canvasRef.current || busy) return;
+    setBusy(true);
     try {
       const video = videoRef.current;
       const canvas = canvasRef.current;
@@ -452,6 +455,8 @@ export function AttendanceSimplePage({
       const context = canvas.getContext('2d', { alpha: false });
       if (!context) throw new Error('ไม่สามารถเตรียมภาพสดได้');
       context.drawImage(video, 0, 0, canvas.width, canvas.height);
+      stopCamera();
+      setCameraOpen(false);
       const blob = await canvasToOptimizedJpeg(canvas, 'ATTENDANCE_FACE');
       const checksum = await sha256Hex(new Uint8Array(await blob.arrayBuffer()));
       const base64 = await new Promise<string>((resolve, reject) => {
@@ -463,11 +468,14 @@ export function AttendanceSimplePage({
       const challenge = await simpleAttendanceSelfieProof(token);
       const capturedAt = new Date().toISOString();
       const nextSelfie = { mimeType: 'image/jpeg' as const, base64, checksum, captureMode: 'LIVE_CAMERA' as const, overlay: { capturedAt } };
-      setSelfie(nextSelfie); setSelfieNonce(challenge.nonce); setCameraOpen(false); stopCamera();
+      setSelfie(nextSelfie); setSelfieNonce(challenge.nonce);
       await recordAttendance(nextSelfie, challenge.nonce);
     } catch (error) {
       setTone('danger'); setMessage(error instanceof Error ? error.message : 'ถ่ายภาพยืนยันตัวตนไม่สำเร็จ กรุณาลองใหม่');
-    } finally { setBusy(false); }
+    } finally {
+      stopCamera();
+      setBusy(false);
+    }
   };
 
   const requestMove = async () => {
