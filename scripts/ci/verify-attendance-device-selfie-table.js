@@ -11,6 +11,7 @@ const REQUIRED_INDEXES = [
   'attendance_device_selfies_purged_at_idx'
 ];
 const REQUIRED_FKS = ['attendance_device_selfies_employee_id_fkey', 'attendance_device_selfies_enrollment_id_fkey'];
+const FORBIDDEN_PRIVILEGES = ['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'TRUNCATE', 'REFERENCES', 'TRIGGER'];
 
 async function main() {
   const prisma = new PrismaClient();
@@ -31,11 +32,14 @@ async function main() {
       SELECT rolname FROM pg_roles WHERE rolname IN ('anon', 'authenticated')
     `;
     for (const role of roles.map((row) => row.rolname)) {
-      const privileges = await prisma.$queryRawUnsafe(
-        `SELECT has_table_privilege($1, 'public.attendance_device_selfies', 'SELECT') AS allowed`,
-        role
-      );
-      if (privileges[0]?.allowed === true) throw new Error(`${role} has SELECT privilege on attendance_device_selfies`);
+      for (const priv of FORBIDDEN_PRIVILEGES) {
+        const privileges = await prisma.$queryRawUnsafe(
+          `SELECT has_table_privilege($1, 'public.attendance_device_selfies', $2) AS allowed`,
+          role,
+          priv
+        );
+        if (privileges[0]?.allowed === true) throw new Error(`${role} has ${priv} privilege on attendance_device_selfies`);
+      }
     }
 
     const indexes = await prisma.$queryRaw`
