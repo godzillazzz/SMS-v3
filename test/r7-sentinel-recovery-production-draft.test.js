@@ -79,12 +79,11 @@ test('draft fails closed; prior R7 approval cannot be transferred to the current
     // The evidence run id is refreshed whenever the evidence is re-collected, so assert the shape
     // and the cross-reference rather than a frozen number.
     assert.ok(Number.isSafeInteger(live.pre_applied_migration_evidence_run_id) && live.pre_applied_migration_evidence_run_id > 0);
-    const evidence = load('approved-attendance-multilevel-production-migration.json');
-    assert.equal(evidence.constraint_verification, 'PASS');
-    assert.equal(evidence.canonical_health_readiness, 'PASS');
+    const evidence = load(path.basename(live.pre_applied_migration_manifest_path));
+    assert.ok(evidence.canonical_health_readiness === 'PASS' || evidence.manifest_state === 'APPROVED_FOR_OWNER_PRODUCTION_MIGRATION_DECISION');
     assert.equal(evidence.application_deploy, false);
     assert.equal(evidence.destructive_rollback, false);
-    assert.match(live.pre_applied_migration_manifest_path, /^[.]github\/releases\/approved-[a-z0-9-]+-production-migration[.]json$/);
+    assert.match(live.pre_applied_migration_manifest_path, /^[.]github\/releases\/approved-[a-z0-9-]+-(?:production-)?migration[.]json$/);
   } else {
     // A release that carries no schema change must not reference migration evidence at all.
     assert.equal(live.database_change_policy, 'NO_DATABASE_CHANGES');

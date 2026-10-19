@@ -150,7 +150,7 @@ jobs:
               test "$changed_prisma" = "$expected_prisma"
 
               case "$PRE_APPLIED_MIGRATION_MANIFEST_PATH" in
-                .github/releases/approved-attendance-device-selfie-migration.json)
+                .github/releases/approved-attendance-device-selfie-production-migration.json|.github/releases/approved-attendance-device-selfie-migration.json)
                   EVIDENCE_WORKFLOW_NAME='Apply Approved Attendance Device Selfie Production Migration'
                   EVIDENCE_WORKFLOW_PATH='.github/workflows/apply-approved-attendance-device-selfie-production-migration.yml'
                   EVIDENCE_WORKFLOW_EVENT='push'

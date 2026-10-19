@@ -230,7 +230,7 @@ async function main() {
     add('evidence run is on the release branch', Boolean(run && run.head_branch === BRANCH), run ? `branch=${run.head_branch}` : '');
     if (run && run.head_sha) {
       add('evidence head is an ancestor of the dispatch SHA', isAncestor(run.head_sha, head), `evidence head ${run.head_sha.slice(0, 8)}`);
-      add('evidence artefacts are unchanged since that run', quietDiff(run.head_sha, head));
+      add('evidence artefacts are unchanged since that run', quietDiff(run.head_sha, head, manifest));
     }
   }
 
@@ -274,14 +274,23 @@ async function main() {
   if (failed.length) process.exitCode = 1;
 }
 
-function quietDiff(fromSha, toSha) {
-  try {
-    execFileSync('git', ['diff', '--quiet', fromSha, toSha, '--',
-      '.github/releases/approved-attendance-multilevel-production-migration.json',
-      '.github/workflows/apply-approved-attendance-multilevel-production-migration.yml',
+function quietDiff(fromSha, toSha, manifest) {
+  let paths = [
+    '.github/releases/approved-attendance-multilevel-production-migration.json',
+    '.github/workflows/apply-approved-attendance-multilevel-production-migration.yml',
+    'scripts/ci/verify-approved-production-migration.js',
+    'scripts/ci/verify-attendance-multilevel-constraints.js'
+  ];
+  if (manifest && (manifest.pre_applied_migration_manifest_path === '.github/releases/approved-attendance-device-selfie-production-migration.json' || manifest.pre_applied_migration_manifest_path === '.github/releases/approved-attendance-device-selfie-migration.json')) {
+    paths = [
+      '.github/releases/approved-attendance-device-selfie-production-migration.json',
+      '.github/workflows/apply-approved-attendance-device-selfie-production-migration.yml',
       'scripts/ci/verify-approved-production-migration.js',
-      'scripts/ci/verify-attendance-multilevel-constraints.js'
-    ], { cwd: ROOT, stdio: 'ignore' });
+      'scripts/ci/verify-attendance-device-selfie-table.js'
+    ];
+  }
+  try {
+    execFileSync('git', ['diff', '--quiet', fromSha, toSha, '--', ...paths], { cwd: ROOT, stdio: 'ignore' });
     return true;
   } catch {
     return false;
