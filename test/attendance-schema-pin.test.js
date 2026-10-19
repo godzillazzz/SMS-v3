@@ -27,6 +27,11 @@ const preapplied = require('../scripts/ci/verify-preapplied-attendance-policy-re
 const { PREDECESSOR, TARGET } = require('../scripts/ci/verify-attendance-time-policy-production-migration');
 
 const digest = (bytes) => crypto.createHash('sha256').update(bytes).digest('hex');
+// Reporter-agnostic summary parsing: Node prints TAP on non-TTY stdout (CI) and spec otherwise.
+function reportedCount(output, label) {
+  const match = String(output).match(new RegExp(`^(?:ℹ|#) ${label} (\\d+)$`, 'm'));
+  return match ? Number(match[1]) : null;
+}
 const git = (...args) => execFileSync('git', args, { cwd: ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
 const gitShow = (sha, file) => execFileSync('git', ['show', `${sha}:${file}`], { cwd: ROOT, stdio: ['ignore', 'pipe', 'pipe'] });
 const readRepoFile = (relative) => fs.readFileSync(path.join(ROOT, relative), 'utf8');
@@ -273,12 +278,13 @@ test('existing production reconciliation suite stays green with the lifecycle ch
   const env = { ...process.env };
   // The parent test runner exports an IPC context; a nested runner needs its own reporter stream.
   delete env.NODE_TEST_CONTEXT;
-  const result = spawnSync(process.execPath, ['--test', 'test/production-attendance-history-reconciliation.test.js'],
+  // Explicit reporter: Node picks TAP for non-TTY stdout, which would hide the summary counters.
+  const result = spawnSync(process.execPath, ['--test', '--test-reporter=spec', 'test/production-attendance-history-reconciliation.test.js'],
     { cwd: ROOT, encoding: 'utf8', timeout: 120000, env });
   const output = `${result.stdout || ''}${result.stderr || ''}`;
   assert.equal(result.status, 0, output);
-  assert.match(String(result.stdout), /^ℹ fail 0$/m);
-  assert.match(String(result.stdout), /^ℹ pass [1-9]\d*$/m);
+  assert.equal(reportedCount(result.stdout, 'fail'), 0, output);
+  assert(reportedCount(result.stdout, 'pass') > 0, output);
   const existing = readRepoFile('test/production-attendance-history-reconciliation.test.js');
   assert(existing.includes('sources:s,client:{}'), 'the injected sources/client seam fixtures stay unchanged');
 });

@@ -22,6 +22,12 @@ const retiredSchema = execFileSync('git', ['show', `${RETIRED_SOURCE_SHA}:${SCHE
 const retiredDigest = crypto.createHash('sha256').update(retiredSchema).digest('hex');
 const { ATTENDANCE_SCHEMA_SHA256 } = require('../scripts/ci/attendance-schema-pin');
 
+// Reporter-agnostic summary parsing: Node prints TAP on non-TTY stdout (CI) and spec otherwise.
+function reportedCount(output, label) {
+  const match = String(output).match(new RegExp(`^(?:ℹ|#) ${label} (\\d+)$`, 'm'));
+  return match ? Number(match[1]) : null;
+}
+
 test('replacing the reviewed pin with the retired digest makes the pin suite fail with the governed-update instruction', (t) => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sms-pin-mutation-'));
   const scratch = path.join(dir, 'clone');
@@ -41,11 +47,13 @@ test('replacing the reviewed pin with the retired digest makes the pin suite fai
 
   const env = { ...process.env };
   delete env.NODE_TEST_CONTEXT;
-  const result = spawnSync(process.execPath, ['--test', PIN_TEST], { cwd: scratch, encoding: 'utf8', timeout: 180000, env });
+  // Explicit reporter: Node picks TAP for non-TTY stdout (CI runners), which hides the summary.
+  const result = spawnSync(process.execPath, ['--test', '--test-reporter=spec', PIN_TEST],
+    { cwd: scratch, encoding: 'utf8', timeout: 180000, env });
   const output = `${result.stdout || ''}${result.stderr || ''}`;
   assert.notEqual(result.status, 0, `mutated pin must fail the pin suite\n${output}`);
-  assert.match(String(result.stdout), /^ℹ fail [1-9]\d*$/m, output);
-  assert.match(String(result.stdout), /^ℹ pass \d+$/m, output);
+  assert(reportedCount(result.stdout, 'fail') > 0, output);
+  assert(reportedCount(result.stdout, 'pass') > 0, output);
   assert(output.includes('ATTENDANCE_SCHEMA_SHA256'), 'failure must name the governed constant');
   assert(output.includes('governed evidence and tests'), 'failure must instruct the governed commit update');
   assert(output.includes('scripts/ci/attendance-schema-pin.js'));
