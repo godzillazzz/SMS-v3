@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import axe from 'axe-core';
+import { readinessTimeout } from '../support/readiness';
 
 const admin = {
   id: 'fixture-admin',
@@ -68,7 +69,7 @@ async function signInToSyntheticDashboard(page: Page, width: number, height: num
   await page.locator('#password').fill('fixture-password');
   await expect(page.locator('#email')).toHaveValue(admin.email);
   await expect(page.locator('#password')).toHaveValue('fixture-password');
-  const loginResponse = page.waitForResponse((response) => new URL(response.url()).pathname === '/api/v1/auth/login' && response.request().method() === 'POST');
+  const loginResponse = page.waitForResponse((response) => new URL(response.url()).pathname === '/api/v1/auth/login' && response.request().method() === 'POST', { timeout: readinessTimeout() });
   await page.locator('#auth-login-form button[type="submit"]').click();
   expect((await loginResponse).status()).toBe(200);
   await expect(page.getByRole('heading', { name: 'ภาพรวมระบบ' })).toBeVisible();

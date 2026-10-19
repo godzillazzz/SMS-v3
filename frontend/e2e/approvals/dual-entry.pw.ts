@@ -1,4 +1,5 @@
 import { expect, test, type Page, type TestInfo } from '@playwright/test';
+import { readinessTimeout } from '../support/readiness';
 
 async function signIn(page: Page, target: string, role: 'ADMIN' | 'MANAGER' | 'SUPERVISOR') {
   await page.route('**/api/v1/**', (route) => {
@@ -28,7 +29,7 @@ async function signIn(page: Page, target: string, role: 'ADMIN' | 'MANAGER' | 'S
   await expect(page.locator('.nexus-public #auth-login-form')).toBeVisible();
   await page.locator('#email').fill(`${role.toLowerCase()}@example.test`);
   await page.locator('#password').fill('fixture-password');
-  const loginResponse = page.waitForResponse((response) => new URL(response.url()).pathname === '/api/v1/auth/login' && response.request().method() === 'POST');
+  const loginResponse = page.waitForResponse((response) => new URL(response.url()).pathname === '/api/v1/auth/login' && response.request().method() === 'POST', { timeout: readinessTimeout() });
   await page.locator('#auth-login-form button[type="submit"]').click();
   expect((await loginResponse).status()).toBe(200);
 }

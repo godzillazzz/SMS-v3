@@ -1,4 +1,5 @@
 import { expect, test, type Page, type TestInfo } from '@playwright/test';
+import { readinessTimeout } from '../support/readiness';
 
 const emptyByType = {
   EMPLOYEE_MASTER_CHANGE: 0,
@@ -69,7 +70,7 @@ async function signIn(
     body: JSON.stringify({ accessToken: 'fixture-access-token', user: { id: 'fixture-user', email: `${role.toLowerCase()}@example.test`, displayName: `${role} Fixture`, role } })
   }));
   await page.route('**/api/v1/auth/passkeys/config', request => request.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ enabled: false }) }));
-  const summaryResponse = expectSummary ? page.waitForResponse(response => new URL(response.url()).pathname === '/api/v1/approval-center/summary') : undefined;
+  const summaryResponse = expectSummary ? page.waitForResponse(response => new URL(response.url()).pathname === '/api/v1/approval-center/summary', { timeout: readinessTimeout() }) : undefined;
   await page.goto(route);
   if (summaryResponse) await summaryResponse;
   await expect(page.locator('.app-shell')).toBeVisible();

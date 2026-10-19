@@ -1,4 +1,5 @@
 import { expect, test, type Page, type TestInfo } from '@playwright/test';
+import { readinessTimeout } from '../support/readiness';
 
 const dashboardSummary = {
   totalEmployees: 0,
@@ -41,12 +42,7 @@ function json(route: Parameters<Parameters<Page['route']>[1]>[0], payload: unkno
 type RequestRecord = { path: string; lifecycle: string; started: number; responded?: number };
 const SUMMARY_DELAY_MS = 1500;
 const SUMMARY_TTL_MS = 2000;
-const READY_TIMEOUT_MS = Number.parseInt(process.env.PW_READY_TIMEOUT_MS ?? '60000', 10);
 const READY_POLL_INTERVALS = [100, 250, 500, 1000];
-
-function readinessTimeout(): number {
-  return Number.isFinite(READY_TIMEOUT_MS) && READY_TIMEOUT_MS >= 30_000 ? READY_TIMEOUT_MS : 60_000;
-}
 
 async function installFixture(page: Page, role: 'ADMIN' | 'MANAGER' | 'SUPERVISOR' | 'VIEWER' = 'ADMIN') {
   const requests: RequestRecord[] = [];
@@ -124,11 +120,11 @@ async function signIn(page: Page, fixture: { requests: RequestRecord[]; intercep
   await page.locator('#password').fill('synthetic-password');
   const loginResponse = page.waitForResponse(response => {
     return new URL(response.url()).pathname === '/api/v1/auth/login';
-  }, { timeout: 10_000 });
+  }, { timeout: readinessTimeout() });
   const dashboardResponse = page.waitForResponse(response => {
     const path = new URL(response.url()).pathname;
     return response.ok() && (path === '/api/v1/dashboard' || path === '/api/v1/dashboard/summary');
-  });
+  }, { timeout: readinessTimeout() });
   await page.locator('#auth-login-form button[type="submit"]').click();
   const login = await loginResponse;
   fixture.assertInstalled();

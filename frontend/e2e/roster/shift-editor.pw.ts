@@ -1,10 +1,11 @@
 import { expect, test, type Page, type TestInfo } from '@playwright/test';
+import { readinessTimeout } from '../support/readiness';
 
 async function openEditor(page: Page, role: 'ADMIN' | 'MANAGER', license: 'VALID' | 'MISSING' | 'EXPIRED') {
   const writes: string[] = [];
   const employee = { id: 'fixture-employee', employeeCode: 'UAT001', displayName: 'Sermpong UAT', department: 'AN1', isActive: true, shifts: [] };
   const types = ['D', 'N', 'OFF', 'AL'].map(code => ({ id: code, code, name: code === 'D' ? 'Day Shift' : code, isActive: true, startTime: '08:00', endTime: '16:00' }));
-  const licensesRead = page.waitForResponse(r => new URL(r.url()).pathname === '/api/v1/licenses');
+  const licensesRead = page.waitForResponse(r => new URL(r.url()).pathname === '/api/v1/licenses', { timeout: readinessTimeout() });
   await page.route('**/api/v1/**', route => {
     const request = route.request();
     const pathname = new URL(request.url()).pathname;
