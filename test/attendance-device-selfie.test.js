@@ -118,6 +118,30 @@ test('reconcile reports batch limit and skips recent/unknown timestamps', async 
   assert.equal(audits[0].metadata.limitReached, 'RECONCILE_LIMIT'); assert.equal(audits[0].metadata.skippedRecent, 1); assert.equal(deleted.length, 1);
 });
 
+test('reconcileOrphans honors olderThanMs zero and keeps the default age', async () => {
+  const now = new Date('2027-01-01T00:00:00.000Z');
+  const object = { id: '1', name: 'thirty-minutes-old.jpg', updated_at: '2026-12-31T23:30:00.000Z' };
+  const makeStorage = (deleted) => createSupabaseAttendanceDeviceSelfieStorage({
+    environment: { SUPABASE_URL: 'https://private.example.test', SUPABASE_SERVICE_ROLE_KEY: 'secret', ATTENDANCE_DEVICE_SELFIE_BUCKET: 'attendance-selfies', SELFIE_PATH_SECRET: 'strong-random-path-secret-0123456789' },
+    prisma: { attendanceDeviceSelfie: { findMany: async () => [] } },
+    fetchImpl: async (url, options) => {
+      if (url.includes('/object/list/')) return { ok: true, json: async () => [object] };
+      if (options.method === 'DELETE') { deleted.push(url); return { ok: true, json: async () => ({}) }; }
+      return { ok: true, json: async () => ({}) };
+    }
+  });
+  const deletedWithZero = [];
+  const zeroResult = await makeStorage(deletedWithZero).reconcileOrphans({ now, olderThanMs: 0 });
+  assert.equal(zeroResult.deleted, 1);
+  assert.equal(zeroResult.skippedRecent, 0);
+  assert.equal(deletedWithZero.length, 1);
+  const deletedWithDefault = [];
+  const defaultResult = await makeStorage(deletedWithDefault).reconcileOrphans({ now });
+  assert.equal(defaultResult.deleted, 0);
+  assert.equal(defaultResult.skippedRecent, 1);
+  assert.equal(deletedWithDefault.length, 0);
+});
+
 test('reconcile audit records the real depth limit', async () => {
   const audits = [];
   const prisma = { attendanceDeviceSelfie: { findMany: async () => [] } };

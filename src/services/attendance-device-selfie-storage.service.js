@@ -129,7 +129,9 @@ function createSupabaseAttendanceDeviceSelfieStorage({ environment = process.env
     const batchLimit = Math.max(0, Math.min(Number(limit) || MAX_ORPHAN_LIMIT, MAX_ORPHAN_LIMIT));
     const batchLimited = listing.objects.length > batchLimit;
     const objects = listing.objects.slice(0, batchLimit);
-    const threshold = now.getTime() - Math.max(0, Number(olderThanMs) || DEFAULT_ORPHAN_AGE_MS);
+    const ageMs = olderThanMs === null || olderThanMs === undefined ? DEFAULT_ORPHAN_AGE_MS : Number(olderThanMs);
+    if (!Number.isFinite(ageMs) || ageMs < 0) throw http(400, 'ATTENDANCE_SELFIE_RECONCILE_AGE_INVALID', 'Attendance selfie orphan age must be a finite non-negative number.');
+    const threshold = now.getTime() - ageMs;
     let skippedRecent = 0;
     let skippedUnknown = 0;
     const candidates = objects.filter((object) => {

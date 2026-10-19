@@ -206,6 +206,53 @@ test('device request audit projection shares the canonical contract for created 
   assert.equal(Object.prototype.hasOwnProperty.call(projected.metadata, 'outsideContract'), false);
 });
 
+test('device request audit writer emits canonical metadata for every required action', async () => {
+  const contract = new Set(DEVICE_REQUEST_AUDIT_FIELDS);
+  const assertWriterMetadata = (entry, event, expected) => {
+    assert.equal(entry.metadata.event, event);
+    assert.ok(Object.keys(entry.metadata).every((key) => contract.has(key)), `${event} emitted a non-canonical audit field`);
+    assert.deepEqual(Object.keys(entry.metadata).filter((key) => !contract.has(key)), []);
+    for (const [key, value] of Object.entries(expected)) assert.deepEqual(entry.metadata[key], value);
+  };
+
+  const createdHarness = harness();
+  await createCandidate(createdHarness.service, keyMaterial());
+  assertWriterMetadata(createdHarness.state.audits.find((entry) => entry.metadata.event === 'CREATED'), 'CREATED', {
+    requestId: ids.request, employeeId: ids.employee, requestType: 'INITIAL', candidateEnrollmentId: ids.candidate,
+    currentEnrollmentId: null, requestedByUserId: ids.employeeUser
+  });
+
+  const approvedHarness = harness();
+  const approvedMaterial = keyMaterial();
+  await createCandidate(approvedHarness.service, approvedMaterial);
+  await proveCandidate(approvedHarness.service, approvedMaterial);
+  await approvedHarness.service.approve({ actor: adminActor, requestId: ids.request });
+  assertWriterMetadata(approvedHarness.state.audits.find((entry) => entry.metadata.event === 'APPROVED'), 'APPROVED', {
+    requestId: ids.request, employeeId: ids.employee, candidateEnrollmentId: ids.candidate,
+    activeDeviceEnrollmentId: ids.candidate, adminUserId: ids.admin, reviewedByUserId: ids.admin, status: 'APPROVED'
+  });
+  assertWriterMetadata(approvedHarness.state.audits.find((entry) => entry.metadata.event === 'FINAL_APPROVE'), 'FINAL_APPROVE', {
+    requestId: ids.request, employeeId: ids.employee, candidateEnrollmentId: ids.candidate,
+    activeDeviceEnrollmentId: ids.candidate, adminUserId: ids.admin, reviewedByUserId: ids.admin, status: 'APPROVED'
+  });
+
+  const rejectedHarness = harness();
+  await createCandidate(rejectedHarness.service, keyMaterial());
+  await rejectedHarness.service.reject({ actor: adminActor, requestId: ids.request, reason: 'ไม่ผ่านการตรวจสอบ' });
+  assertWriterMetadata(rejectedHarness.state.audits.find((entry) => entry.metadata.event === 'REJECTED'), 'REJECTED', {
+    requestId: ids.request, employeeId: ids.employee, status: 'REJECTED', candidateEnrollmentId: ids.candidate,
+    adminUserId: ids.admin, reason: 'ไม่ผ่านการตรวจสอบ', rejectedEventCount: 0, excludedCaptureIds: []
+  });
+
+  const cancelledHarness = harness();
+  await createCandidate(cancelledHarness.service, keyMaterial());
+  await cancelledHarness.service.cancel({ actor: employeeActor, requestId: ids.request, reason: 'ไม่ใช้เครื่องนี้แล้ว' });
+  assertWriterMetadata(cancelledHarness.state.audits.find((entry) => entry.metadata.event === 'CANCELLED'), 'CANCELLED', {
+    requestId: ids.request, employeeId: ids.employee, status: 'CANCELLED', requestedByUserId: ids.employeeUser,
+    reason: 'ไม่ใช้เครื่องนี้แล้ว'
+  });
+});
+
 test('admin final approval activates exactly the verified first device', async () => {
   const material = keyMaterial(); const { state, service } = harness(); await createCandidate(service, material); await proveCandidate(service, material);
   const candidateEnrollmentIdBeforeApproval = state.enrollments[0].id;
