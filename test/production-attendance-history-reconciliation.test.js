@@ -5,6 +5,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const os = require('node:os');
 const crypto = require('node:crypto');
+const { execFileSync } = require('node:child_process');
 const { auditHistory, physicalClass, planFor, buildBundle, statusMatches, candidateVariants, safeCrlfCandidate, run } = require('../scripts/ci/reconcile-production-attendance-migrations');
 const { PREDECESSOR, TARGET } = require('../scripts/ci/verify-attendance-time-policy-production-migration');
 const OLD = '202607160000_initial_schema';
@@ -173,8 +174,13 @@ test('already applied and valid execution skips deploy but still proves post inv
 });
 test('source candidate map is immutable Git-only and does not import Preview evidence', () => {
   const manifest = JSON.parse(fs.readFileSync('scripts/ci/g06-production-migration-candidates.json'));
-  // Re-pinned 18 Oct 2026 after migrations 002/003 entered Production (see the candidate map).
-  assert.equal(manifest.application.sha,'9abe378dbc2eb9f181dcffd64bfcb1fd0aae6eb2');
+  // Re-pinned 19 Oct 2026 to the Production R8.1 application commit: it is an ancestor of the
+  // deployed Production source and carries exactly the same Prisma schema and migrations.
+  assert.equal(manifest.application.sha,'ce721ee780e105b64e2d9c9fd59beaf31dba4eec');
+  assert.equal(manifest.application.tree, execFileSync('git',['rev-parse',`${manifest.application.sha}^{tree}`],{encoding:'utf8'}).trim());
+  const productionSource = '82d692fa58eaa78a6abbc675f1972e1a16a5276b';
+  assert.doesNotThrow(() => execFileSync('git',['merge-base','--is-ancestor',manifest.application.sha,productionSource],{stdio:'ignore'}),'baseline must be in Production history');
+  assert.doesNotThrow(() => execFileSync('git',['diff','--quiet',manifest.application.sha,productionSource,'--','prisma/schema.prisma','prisma/migrations'],{stdio:'ignore'}),'baseline must be schema-identical to Production');
   assert.equal(manifest.canonicalCandidates.length,18);
   assert(!JSON.stringify(manifest).includes('evidenceRun'));
   assert(!JSON.stringify(manifest).includes('checksum'));

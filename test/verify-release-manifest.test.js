@@ -2,6 +2,8 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+const crypto = require('node:crypto');
+const { execFileSync } = require('node:child_process');
 
 const { validateReleaseManifest } = require('../scripts/ci/verify-release-manifest');
 
@@ -256,4 +258,50 @@ test('R7 draft fails closed if rollback, migration, project or manifest authoriz
   ]) {
     assert.throws(() => validateReleaseManifest({...source, [key]: value}), /release manifest guard/);
   }
+});
+
+test('fails closed when the canonical checkpoint metadata contradicts the rollback checkpoint', () => {
+  const manifest = validManifest();
+  manifest.production_canonical_deployment_id_before_release = manifest.rollback_deployment_id;
+  manifest.production_canonical_source_sha_before_release = manifest.current_production_source_sha;
+  assert.equal(validateReleaseManifest(manifest).rollbackDeploymentId, manifest.rollback_deployment_id);
+  assert.throws(
+    () => validateReleaseManifest({ ...manifest, production_canonical_deployment_id_before_release: 'dpl_OtherDeployment' }),
+    /rollback_deployment_id must equal production_canonical_deployment_id_before_release/
+  );
+  assert.throws(
+    () => validateReleaseManifest({ ...manifest, production_canonical_source_sha_before_release: 'e'.repeat(40) }),
+    /current_production_source_sha must equal production_canonical_source_sha_before_release/
+  );
+});
+
+test('archived R8.1 manifest is a byte-identical copy of the dispatched file and stays bound to the R8.1 record', () => {
+  const archivePath = '.github/releases/r8.1-production-manifest-approved-20261019.json';
+  const dispatchSha = 'fb74e591e93406a4ae70fd3c288c13c138e0afe7';
+  // The archive is the post-dispatch evidence copy, not a re-approvable pre-dispatch manifest: it is
+  // proven immutable by blob identity with the dispatched manifest in Git history.
+  const archivedBlob = execFileSync('git', ['hash-object', archivePath], { encoding: 'utf8' }).trim();
+  const dispatchedBlob = execFileSync('git', ['rev-parse', `${dispatchSha}:.github/releases/approved-production.json`], { encoding: 'utf8' }).trim();
+  assert.equal(archivedBlob, dispatchedBlob);
+  assert.equal(archivedBlob, '8bfe2671b00c143d3daffec66990fc40e7284954');
+  const d = JSON.parse(fs.readFileSync(archivePath, 'utf8'));
+  assert.equal(d.production_release_go_no_go, 'DISPATCHED_AND_VERIFIED_SEE_POST_RELEASE_RECORD');
+  assert.equal(d.release_id, 'sms-v3-prod-82d692f-20261019');
+  assert.equal(d.commit_sha, '82d692fa58eaa78a6abbc675f1972e1a16a5276b');
+  assert.equal(d.tree_sha, 'dfed196bf55f80f2821331d3b50cf0688364ee51');
+  assert.equal(d.rollback_deployment_id, 'dpl_AjuwwRddeiq4WYZhB6S62GHYetea');
+  assert.equal(d.production_canonical_deployment_id_before_release, d.rollback_deployment_id);
+  assert.equal(d.production_canonical_source_sha_before_release, d.current_production_source_sha);
+  assert.equal(execFileSync('git', ['rev-parse', `${d.commit_sha}^{tree}`], { encoding: 'utf8' }).trim(), d.tree_sha);
+
+  const record = JSON.parse(fs.readFileSync('docs/releases/R8.1-post-release-20261019.json', 'utf8'));
+  const sha256 = crypto.createHash('sha256').update(fs.readFileSync(archivePath)).digest('hex');
+  assert.equal(record.archived_manifest_path, archivePath);
+  assert.equal(record.archived_manifest_sha256, sha256);
+  assert.equal(record.release_id, d.release_id);
+  assert.equal(record.deployed.source_sha, d.commit_sha);
+  assert.equal(record.deployed.deployment_id, 'dpl_BCX2U3CRidPSsMAsTk4XTKqqVF3U');
+  assert.equal(record.deployed.deploy_run_id, 39208696955);
+  assert.equal(record.previous_known_good.deployment_id, d.rollback_deployment_id);
+  assert.equal(record.previous_known_good.source_sha, d.current_production_source_sha);
 });

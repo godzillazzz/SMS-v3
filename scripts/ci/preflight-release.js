@@ -18,6 +18,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
+const { validateRecord } = require('./verify-post-release-record');
 
 const ROOT = path.resolve(__dirname, '..', '..');
 const MANIFEST_PATH = '.github/releases/approved-production.json';
@@ -64,6 +65,91 @@ function postReleaseRecords(root = ROOT) {
   return records;
 }
 
+/**
+ * Orders the post-release history canonically: newest `deployed.verified_at` first, then the higher
+ * deploy run id. File names, directory order and git order never decide the canonical deployment.
+ * Fails closed on records that do not satisfy the record contract, duplicates, ambiguous ties and a
+ * history chain that contradicts itself.
+ */
+function orderPostReleaseRecords(entries) {
+  const list = Array.isArray(entries) ? entries : entries ? [entries] : [];
+  const ordered = [];
+  for (const entry of list) {
+    const deployed = entry?.record?.deployed || {};
+    try {
+      validateRecord(entry.record);
+    } catch (error) {
+      return { ok: false, reason: `record ${entry.file} violates the post-release contract: ${error.message}`, ordered: [] };
+    }
+    const verifiedAt = Date.parse(deployed.verified_at);
+    if (!Number.isFinite(verifiedAt)) return { ok: false, reason: `record ${entry.file} has no usable verified_at`, ordered: [] };
+    if (!Number.isSafeInteger(deployed.deploy_run_id) || deployed.deploy_run_id <= 0) {
+      return { ok: false, reason: `record ${entry.file} has no usable deploy_run_id`, ordered: [] };
+    }
+    ordered.push({
+      file: entry.file,
+      record: entry.record,
+      deploymentId: deployed.deployment_id,
+      sourceSha: deployed.source_sha,
+      verifiedAt,
+      runId: deployed.deploy_run_id
+    });
+  }
+
+  const seen = new Map();
+  for (const item of ordered) {
+    if (seen.has(item.deploymentId)) {
+      return { ok: false, reason: `duplicate post-release records claim ${item.deploymentId}`, ordered: [] };
+    }
+    seen.set(item.deploymentId, item.file);
+  }
+
+  ordered.sort((a, b) => (b.verifiedAt - a.verifiedAt) || (b.runId - a.runId) || a.deploymentId.localeCompare(b.deploymentId));
+
+  for (let index = 1; index < ordered.length; index += 1) {
+    const newer = ordered[index - 1];
+    const older = ordered[index];
+    if (newer.verifiedAt === older.verifiedAt && newer.runId === older.runId) {
+      return { ok: false, reason: `ambiguous post-release ordering between ${newer.deploymentId} and ${older.deploymentId}`, ordered: [] };
+    }
+    const previous = newer.record.previous_known_good || {};
+    if (previous.deployment_id !== older.deploymentId || previous.source_sha !== older.sourceSha) {
+      return { ok: false, reason: `conflicting post-release history: ${newer.deploymentId} claims ${previous.deployment_id || 'no predecessor'}, expected ${older.deploymentId}`, ordered: [] };
+    }
+  }
+
+  return { ok: true, ordered };
+}
+
+/** The single canonical (latest verified) post-release record, or a fail-closed reason. */
+function selectCanonicalRecord(entries) {
+  const ordering = orderPostReleaseRecords(entries);
+  if (!ordering.ok) return { ok: false, reason: ordering.reason, canonical: null, ordered: [] };
+  return { ok: true, reason: '', canonical: ordering.ordered[0] || null, ordered: ordering.ordered };
+}
+
+/**
+ * The canonical record is the only authority for "what Production runs now": its deployment, source
+ * SHA and the manifest's rollback checkpoint must describe the same deployment.
+ */
+function checkpointBinding(manifest, canonical) {
+  if (!canonical) return { ok: false, reason: 'no verified post-release record exists yet' };
+  const problems = [];
+  if (canonical.deploymentId !== manifest.rollback_deployment_id) {
+    problems.push(`canonical deployment ${canonical.deploymentId} is not the manifest checkpoint ${manifest.rollback_deployment_id}`);
+  }
+  if (manifest.production_canonical_deployment_id_before_release && manifest.production_canonical_deployment_id_before_release !== canonical.deploymentId) {
+    problems.push(`production_canonical_deployment_id_before_release ${manifest.production_canonical_deployment_id_before_release} is not ${canonical.deploymentId}`);
+  }
+  if (canonical.sourceSha !== manifest.current_production_source_sha) {
+    problems.push(`canonical source ${canonical.sourceSha} is not current_production_source_sha ${manifest.current_production_source_sha}`);
+  }
+  if (manifest.production_canonical_source_sha_before_release && manifest.production_canonical_source_sha_before_release !== canonical.sourceSha) {
+    problems.push(`production_canonical_source_sha_before_release ${manifest.production_canonical_source_sha_before_release} is not ${canonical.sourceSha}`);
+  }
+  return problems.length ? { ok: false, reason: problems.join('; ') } : { ok: true, reason: '' };
+}
+
 function recordBinding(manifest, entry) {
   const record = entry.record || {};
   const deployed = record.deployed || {};
@@ -73,20 +159,34 @@ function recordBinding(manifest, entry) {
 }
 
 /**
- * Refuse to repoint the checkpoint at a deployment this manifest already produced.
- * Fails closed when several records bind to the manifest or their metadata disagree.
+ * Refuse to repoint the checkpoint at a deployment this manifest already produced, and refuse to move
+ * the checkpoint backwards to an older verified release. Fails closed when several records bind to
+ * the manifest or their metadata disagree.
  */
 function canRepointCheckpoint(manifest, live, records) {
   if (!live?.id) return { ok: false, reason: 'live deployment unknown' };
   const list = Array.isArray(records) ? records : records ? [records] : [];
   const bound = list.filter((entry) => recordBinding(manifest, entry));
   if (bound.length > 1) return { ok: false, reason: 'multiple post-release records bind to this manifest' };
-  if (bound.length === 0) return { ok: true };
-  const deployed = bound[0].record.deployed || {};
-  if (deployed.deployment_id !== live.id) {
-    return { ok: false, reason: `record deployment ${deployed.deployment_id} is not the live deployment ${live.id}` };
+  if (bound.length === 1) {
+    const deployed = bound[0].record.deployed || {};
+    if (deployed.deployment_id !== live.id) {
+      return { ok: false, reason: `record deployment ${deployed.deployment_id} is not the live deployment ${live.id}` };
+    }
+    return { ok: false, reason: 'this manifest is already deployed; prepare a new release manifest' };
   }
-  return { ok: false, reason: 'this manifest is already deployed; prepare a new release manifest' };
+  const ordering = orderPostReleaseRecords(list);
+  if (ordering.ok && ordering.ordered.length) {
+    const liveIndex = ordering.ordered.findIndex((item) => item.deploymentId === live.id);
+    const checkpointIndex = ordering.ordered.findIndex((item) => item.deploymentId === manifest.rollback_deployment_id);
+    if (liveIndex === -1) {
+      return { ok: false, reason: `live deployment ${live.id} is not a verified post-release record` };
+    }
+    if (checkpointIndex !== -1 && liveIndex > checkpointIndex) {
+      return { ok: false, reason: `refusing to move the rollback checkpoint backwards from ${manifest.rollback_deployment_id} to ${live.id}` };
+    }
+  }
+  return { ok: true };
 }
 
 function policyChecks(manifest) {
@@ -144,16 +244,12 @@ function evidenceRun(runId) {
   }
 }
 
+/**
+ * Fallback used only while no verified post-release record exists (the very first governed release):
+ * read the deployment id from the last successful deploy run log. Once a record exists the canonical
+ * record is the sole authority and this log scan is never consulted.
+ */
 function latestDeploymentId() {
-  const records = postReleaseRecords();
-  const checkpoint = records.find((entry) => entry.record?.deployed?.deployment_id);
-  if (checkpoint && checkpoint.record && checkpoint.record.deployed && checkpoint.record.deployed.deployment_id) {
-    return {
-      id: checkpoint.record.deployed.deployment_id,
-      runId: checkpoint.record.deployed.deploy_run_id || null,
-      source: checkpoint.file
-    };
-  }
   try {
     const raw = gh(['run', 'list', '--workflow', DEPLOY_WORKFLOW, '--limit', '20', '--json', 'databaseId,conclusion']);
     const runs = JSON.parse(raw || '[]').filter((run) => run.conclusion === 'success');
@@ -161,7 +257,7 @@ function latestDeploymentId() {
       try {
         const log = execFileSync('gh', ['run', 'view', String(run.databaseId), '--log'], { cwd: ROOT, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
         const id = parseDeploymentId(log);
-        if (id) return { id, runId: run.databaseId };
+        if (id) return { id, runId: run.databaseId, source: 'deploy-run-log' };
       } catch {
         /* try the next run */
       }
@@ -238,9 +334,24 @@ async function main() {
   add('CI is green for commit_sha', Boolean(successfulCiRun(targetSha)), targetSha.slice(0, 8));
   add('CI is green for the dispatch SHA (HEAD)', Boolean(successfulCiRun(head)), head.slice(0, 8));
 
-  // 5. Rollback checkpoint equals the live canonical deployment
-  const live = latestDeploymentId();
+  // 5. Canonical post-release history, the rollback checkpoint and the live deployment
   const records = postReleaseRecords();
+  const selection = selectCanonicalRecord(records);
+  add('post-release history is unambiguous', selection.ok, selection.ok ? `${selection.ordered.length} verified record(s)` : selection.reason);
+  let live = null;
+  if (selection.ok && selection.canonical) {
+    live = {
+      id: selection.canonical.deploymentId,
+      sourceSha: selection.canonical.sourceSha,
+      runId: selection.canonical.runId,
+      verifiedAt: selection.canonical.verifiedAt,
+      source: selection.canonical.file
+    };
+    const binding = checkpointBinding(manifest, selection.canonical);
+    add('canonical post-release record binds current_production_source_sha and the checkpoint', binding.ok, binding.ok ? `${live.id} ${live.sourceSha.slice(0, 8)}` : binding.reason);
+  } else if (selection.ok) {
+    live = latestDeploymentId();
+  }
   if (!live) {
     add('rollback checkpoint matches the live canonical deployment', false, 'could not read the deployment id from the last successful deploy log');
   } else if (live.id === manifest.rollback_deployment_id) {
@@ -252,6 +363,10 @@ async function main() {
     } else {
       manifest.rollback_deployment_id = live.id;
       manifest.production_canonical_deployment_id_before_release = live.id;
+      if (live.sourceSha) {
+        manifest.current_production_source_sha = live.sourceSha;
+        manifest.production_canonical_source_sha_before_release = live.sourceSha;
+      }
       fs.writeFileSync(path.join(ROOT, MANIFEST_PATH), `${JSON.stringify(manifest, null, 2)}\n`);
       add('rollback checkpoint matches the live canonical deployment', true, `set to ${live.id} for the next release`);
     }
@@ -304,4 +419,16 @@ if (require.main === module) {
   });
 }
 
-module.exports = { parseDeploymentId, policyChecks, prismaDiffIsEmpty, isAncestor, quietDiff, canRepointCheckpoint, BRANCH };
+module.exports = {
+  parseDeploymentId,
+  policyChecks,
+  prismaDiffIsEmpty,
+  isAncestor,
+  quietDiff,
+  canRepointCheckpoint,
+  checkpointBinding,
+  orderPostReleaseRecords,
+  postReleaseRecords,
+  selectCanonicalRecord,
+  BRANCH
+};

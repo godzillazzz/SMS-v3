@@ -49,6 +49,12 @@ function validateReleaseManifest(input) {
   assert(shaPattern.test(input.current_production_source_sha || ''), 'invalid current_production_source_sha');
   assert(input.current_production_source_ref === EXPECTED.currentProductionSourceRef, 'current_production_source_ref mismatch');
   assert(deploymentPattern.test(input.rollback_deployment_id || ''), 'invalid rollback_deployment_id');
+  if (input.production_canonical_deployment_id_before_release != null || input.production_canonical_source_sha_before_release != null) {
+    assert(deploymentPattern.test(input.production_canonical_deployment_id_before_release || ''), 'invalid production_canonical_deployment_id_before_release');
+    assert(shaPattern.test(input.production_canonical_source_sha_before_release || ''), 'invalid production_canonical_source_sha_before_release');
+    assert(input.production_canonical_deployment_id_before_release === input.rollback_deployment_id, 'rollback_deployment_id must equal production_canonical_deployment_id_before_release');
+    assert(input.production_canonical_source_sha_before_release === input.current_production_source_sha, 'current_production_source_sha must equal production_canonical_source_sha_before_release');
+  }
   assert(input.target_project_name === EXPECTED.projectName, 'target_project_name mismatch');
   assert(input.target_project_id === EXPECTED.projectId, 'target_project_id mismatch');
   assert(input.target_org_id === EXPECTED.orgId, 'target_org_id mismatch');

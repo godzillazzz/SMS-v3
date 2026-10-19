@@ -1,0 +1,40 @@
+{
+  "record_type": "POST_RELEASE_RECORD",
+  "release_batch_id": "R8.1",
+  "release_id": "sms-v3-prod-82d692f-20261019",
+  "approved_manifest": ".github/releases/approved-production.json",
+  "archived_manifest_path": ".github/releases/r8.1-production-manifest-approved-20261019.json",
+  "archived_manifest_sha256": "508c0a023c68ea3dcbb39d40fd8494f74ee7ab7bf705e2f3955f8f7d5c9b1107",
+  "deployed": {
+    "deployment_id": "dpl_BCX2U3CRidPSsMAsTk4XTKqqVF3U",
+    "source_sha": "82d692fa58eaa78a6abbc675f1972e1a16a5276b",
+    "release_head_sha": "fb74e591e93406a4ae70fd3c288c13c138e0afe7",
+    "deploy_run_id": 39208696955,
+    "conclusion": "SUCCESS",
+    "verified_at": "2026-10-19T06:29:26Z",
+    "checks": {
+      "immutable_candidate_ready": "PASS",
+      "canonical_promotion": "PASS",
+      "canonical_runtime_verify": "PASS",
+      "canonical_cors_verify": "PASS",
+      "sentinels": 20,
+      "auto_rollback_invoked": false
+    },
+    "run_started_at": "2026-10-19T06:13:43Z",
+    "run_completed_at": "2026-10-19T06:29:29Z"
+  },
+  "evidence": {
+    "deploy_run_url": "https://github.com/godzillazzz/SMS-v3/actions/runs/39208696955",
+    "github_deployment_id": 7167201241,
+    "github_deployment_environment": "Production",
+    "github_deployment_created_at": "2026-10-19T06:27:47Z",
+    "verified_at_source": "GitHub Actions run 39208696955, job 'Approve Production', step 'Verify immutable candidate, explicitly promote, then verify canonical Production' completed_at",
+    "manifest_sha256_matches_run_summary": "508c0a023c68ea3dcbb39d40fd8494f74ee7ab7bf705e2f3955f8f7d5c9b1107"
+  },
+  "previous_known_good": {
+    "deployment_id": "dpl_AjuwwRddeiq4WYZhB6S62GHYetea",
+    "source_sha": "f539ad8a27df3a524ed3268d85a6ee122746b89a"
+  },
+  "release_head_sha": "fb74e591e93406a4ae70fd3c288c13c138e0afe7",
+  "note": "Immutable record of the second R8 deployment. The manifest dispatched at fb74e591 still carried release_batch_id R8 (release_id sms-v3-prod-82d692f-20261019); it is recorded here as R8.1 to distinguish it from the earlier f539ad8 deployment. The archived manifest is a byte-identical copy of the file at the dispatch SHA (git blob 8bfe2671b00c143d3daffec66990fc40e7284954)."
+}

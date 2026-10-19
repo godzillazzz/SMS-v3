@@ -2,8 +2,9 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
 
-const { parseDeploymentId, policyChecks, canRepointCheckpoint, BRANCH } = require('../scripts/ci/preflight-release');
+const { parseDeploymentId, policyChecks, canRepointCheckpoint, selectCanonicalRecord, checkpointBinding, postReleaseRecords, BRANCH } = require('../scripts/ci/preflight-release');
 
 const base = {
   commit_sha: 'a'.repeat(40),
@@ -110,4 +111,153 @@ test('fails closed when the bound record points at a deployment that is not live
   const result = canRepointCheckpoint(manifest, { id: 'dpl_live' }, [record]);
   assert.equal(result.ok, false);
   assert.match(result.reason, /not the live deployment/);
+});
+
+// --- F2: canonical post-release resolution ------------------------------------------------
+const R8_SOURCE = 'f539ad8a27df3a524ed3268d85a6ee122746b89a';
+const R81_SOURCE = '82d692fa58eaa78a6abbc675f1972e1a16a5276b';
+const NEXT_SOURCE = 'ba27962a05dae70168497ca02a0f267de9d54762';
+const R8_DEPLOYMENT = 'dpl_AjuwwRddeiq4WYZhB6S62GHYetea';
+const R81_DEPLOYMENT = 'dpl_BCX2U3CRidPSsMAsTk4XTKqqVF3U';
+const PRE_R8_DEPLOYMENT = 'dpl_7djFpJVzU4r1FjtKJy9i1w18RYzW';
+
+function makeRecord({ file, releaseId, deploymentId, sourceSha, runId, verifiedAt, previous }) {
+  return {
+    file,
+    record: {
+      record_type: 'POST_RELEASE_RECORD',
+      approved_manifest: '.github/releases/approved-production.json',
+      release_id: releaseId,
+      release_head_sha: 'd'.repeat(40),
+      deployed: {
+        deployment_id: deploymentId,
+        source_sha: sourceSha,
+        deploy_run_id: runId,
+        conclusion: 'SUCCESS',
+        verified_at: verifiedAt
+      },
+      previous_known_good: previous
+    }
+  };
+}
+
+const r8 = makeRecord({
+  file: 'docs/releases/R8-post-release-20261018.json',
+  releaseId: 'sms-v3-prod-f539ad8-20261018',
+  deploymentId: R8_DEPLOYMENT,
+  sourceSha: R8_SOURCE,
+  runId: 39144111178,
+  verifiedAt: '2026-10-18T23:35:00Z',
+  previous: { deployment_id: PRE_R8_DEPLOYMENT, source_sha: '9abe378dbc2eb9f181dcffd64bfcb1fd0aae6eb2' }
+});
+
+const r81 = makeRecord({
+  file: 'docs/releases/R8.1-post-release-20261019.json',
+  releaseId: 'sms-v3-prod-82d692f-20261019',
+  deploymentId: R81_DEPLOYMENT,
+  sourceSha: R81_SOURCE,
+  runId: 39208696955,
+  verifiedAt: '2026-10-19T06:29:26Z',
+  previous: { deployment_id: R8_DEPLOYMENT, source_sha: R8_SOURCE }
+});
+
+const r82Manifest = {
+  release_id: 'sms-v3-prod-ba27962-20261019',
+  commit_sha: NEXT_SOURCE,
+  current_production_source_sha: R81_SOURCE,
+  rollback_deployment_id: R81_DEPLOYMENT,
+  production_canonical_deployment_id_before_release: R81_DEPLOYMENT,
+  production_canonical_source_sha_before_release: R81_SOURCE
+};
+
+test('canonical post-release resolution selects R8.1 over R8 regardless of filename order', () => {
+  for (const entries of [[r8, r81], [r81, r8]]) {
+    const selection = selectCanonicalRecord(entries);
+    assert.equal(selection.ok, true);
+    assert.equal(selection.canonical.deploymentId, R81_DEPLOYMENT);
+    assert.equal(selection.canonical.sourceSha, R81_SOURCE);
+  }
+  // A reverse-lexicographic file name for R8.1 (which sorts before R8-*) must not win.
+  const misleading = [
+    { ...r8, file: 'docs/releases/AAA-r8.json' },
+    { ...r81, file: 'docs/releases/ZZZ-r81.json' }
+  ];
+  assert.equal(selectCanonicalRecord(misleading).canonical.deploymentId, R81_DEPLOYMENT);
+});
+
+test('canonical post-release resolution fails closed on duplicate deployment records', () => {
+  const duplicate = makeRecord({
+    file: 'docs/releases/R8.1-post-release-copy.json',
+    releaseId: 'sms-v3-prod-82d692f-20261019',
+    deploymentId: R81_DEPLOYMENT,
+    sourceSha: R81_SOURCE,
+    runId: 39208696956,
+    verifiedAt: '2026-10-19T06:30:00Z',
+    previous: { deployment_id: R8_DEPLOYMENT, source_sha: R8_SOURCE }
+  });
+  const selection = selectCanonicalRecord([r8, r81, duplicate]);
+  assert.equal(selection.ok, false);
+  assert.match(selection.reason, /duplicate/);
+});
+
+test('canonical post-release resolution fails closed on ambiguous ordering', () => {
+  const rival = makeRecord({
+    file: 'docs/releases/rival.json',
+    releaseId: 'sms-v3-prod-rival-20261019',
+    deploymentId: 'dpl_Rival000000000000000000000000',
+    sourceSha: 'ce721ee780e105b64e2d9c9fd59beaf31dba4eec',
+    runId: 39208696955,
+    verifiedAt: '2026-10-19T06:29:26Z',
+    previous: { deployment_id: R81_DEPLOYMENT, source_sha: R81_SOURCE }
+  });
+  const selection = selectCanonicalRecord([r8, r81, rival]);
+  assert.equal(selection.ok, false);
+  assert.match(selection.reason, /ambiguous/);
+});
+
+test('canonical post-release resolution fails closed on a conflicting history chain', () => {
+  const rewritten = {
+    ...r81,
+    record: {
+      ...r81.record,
+      previous_known_good: { deployment_id: PRE_R8_DEPLOYMENT, source_sha: '9abe378dbc2eb9f181dcffd64bfcb1fd0aae6eb2' }
+    }
+  };
+  const selection = selectCanonicalRecord([r8, rewritten]);
+  assert.equal(selection.ok, false);
+  assert.match(selection.reason, /conflicting post-release history/);
+});
+
+test('the canonical record binds the manifest checkpoint and current production source', () => {
+  const selection = selectCanonicalRecord([r8, r81]);
+  assert.equal(checkpointBinding(r82Manifest, selection.canonical).ok, true);
+
+  const stale = { ...r82Manifest, rollback_deployment_id: R8_DEPLOYMENT, production_canonical_deployment_id_before_release: R8_DEPLOYMENT, current_production_source_sha: R8_SOURCE, production_canonical_source_sha_before_release: R8_SOURCE };
+  const binding = checkpointBinding(stale, selection.canonical);
+  assert.equal(binding.ok, false);
+  assert.match(binding.reason, /canonical deployment/);
+  assert.match(binding.reason, /current_production_source_sha/);
+});
+
+test('prepare-next-release may repoint forward but never back to an older verified record', () => {
+  const records = [r8, r81];
+  assert.equal(canRepointCheckpoint(r82Manifest, { id: R81_DEPLOYMENT }, records).ok, true);
+  const backwards = canRepointCheckpoint(r82Manifest, { id: R8_DEPLOYMENT }, records);
+  assert.equal(backwards.ok, false);
+  assert.match(backwards.reason, /backwards/);
+  const unknown = canRepointCheckpoint(r82Manifest, { id: 'dpl_Unknown000000000000000000000000' }, records);
+  assert.equal(unknown.ok, false);
+  assert.match(unknown.reason, /not a verified post-release record/);
+});
+
+test('the committed R8 history and R8.2 manifest resolve to the dpl_BCX2 canonical deployment', () => {
+  const selection = selectCanonicalRecord(postReleaseRecords());
+  assert.equal(selection.ok, true, selection.reason);
+  assert.equal(selection.canonical.deploymentId, R81_DEPLOYMENT);
+  assert.equal(selection.canonical.sourceSha, R81_SOURCE);
+  assert.equal(selection.ordered.length, 2);
+  const manifest = JSON.parse(fs.readFileSync('.github/releases/approved-production.json', 'utf8'));
+  const binding = checkpointBinding(manifest, selection.canonical);
+  assert.equal(binding.ok, true, binding.reason);
+  assert.equal(manifest.database_change_policy, 'NO_DATABASE_CHANGES');
 });
