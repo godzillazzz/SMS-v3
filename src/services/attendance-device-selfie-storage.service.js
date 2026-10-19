@@ -114,7 +114,7 @@ function createSupabaseAttendanceDeviceSelfieStorage({ environment = process.env
             continue;
           }
           if (objects.length >= maxObjects) { truncated = true; limitReached = 'MAX_OBJECTS'; return; }
-          objects.push({ path, updatedAt: entry.updated_at || entry.updatedAt || entry.created_at || entry.createdAt || null, id: entry.id });
+          objects.push({ path, updatedAt: entry.updated_at || entry.updatedAt || null, id: entry.id });
           if (objects.length >= maxObjects) { truncated = true; limitReached = 'MAX_OBJECTS'; return; }
         }
         if (page.length < pageSize) return;
@@ -126,9 +126,17 @@ function createSupabaseAttendanceDeviceSelfieStorage({ environment = process.env
   }
   async function reconcileOrphans({ olderThanMs = DEFAULT_ORPHAN_AGE_MS, limit = 1000, now = clock() } = {}) {
     const listing = await listObjects({ prefix: 'attendance-selfie/' });
-    const objects = listing.objects.slice(0, Math.max(0, Math.min(Number(limit) || MAX_ORPHAN_LIMIT, MAX_ORPHAN_LIMIT)));
+    const batchLimit = Math.max(0, Math.min(Number(limit) || MAX_ORPHAN_LIMIT, MAX_ORPHAN_LIMIT));
+    const batchLimited = listing.objects.length > batchLimit;
+    const objects = listing.objects.slice(0, batchLimit);
     const threshold = now.getTime() - Math.max(0, Number(olderThanMs) || DEFAULT_ORPHAN_AGE_MS);
-    const candidates = objects.filter((object) => Number.isFinite(Date.parse(object.updatedAt)) && Date.parse(object.updatedAt) <= threshold);
+    let skippedRecent = 0;
+    let skippedUnknown = 0;
+    const candidates = objects.filter((object) => {
+      if (!object.updatedAt || !Number.isFinite(Date.parse(object.updatedAt))) { skippedUnknown += 1; return false; }
+      if (Date.parse(object.updatedAt) > threshold) { skippedRecent += 1; return false; }
+      return true;
+    });
     if (!prisma?.attendanceDeviceSelfie || typeof prisma.attendanceDeviceSelfie.findMany !== 'function') {
       throw http(503, 'ATTENDANCE_SELFIE_RECONCILE_UNAVAILABLE', 'Attendance selfie reconciliation is unavailable.');
     }
@@ -144,12 +152,12 @@ function createSupabaseAttendanceDeviceSelfieStorage({ environment = process.env
       if (keptKeys.has(object.path)) { kept += 1; continue; }
       try { await remove({ objectKey: object.path }); deleted += 1; } catch (error) { failed += 1; safeLog(logger, 'ATTENDANCE_SELFIE_ORPHAN_RECONCILED', { objectKey: object.path, success: false, errorCode: error?.details?.code || error?.code || 'UNKNOWN' }); }
     }
-    const result = { scanned: objects.length, deleted, kept, failed };
-    Object.defineProperties(result, {
-      truncated: { value: listing.truncated, enumerable: false },
-      limitReached: { value: listing.limitReached || null, enumerable: false }
-    });
-    await audit?.log({ actorUserId: null, action: 'DELETE', entityType: 'AttendanceDeviceSelfie', entityId: null, metadata: { event: 'ATTENDANCE_SELFIE_ORPHAN_RECONCILED', scanned: result.scanned, deleted: result.deleted, kept: result.kept, failed: result.failed, truncated: result.truncated, limitReached: result.limitReached } });
+    const result = {
+      scanned: objects.length, deleted, kept, failed, skippedRecent, skippedUnknown,
+      truncated: listing.truncated || batchLimited,
+      limitReached: batchLimited ? 'RECONCILE_LIMIT' : (listing.limitReached || null)
+    };
+    await audit?.log({ actorUserId: null, action: 'DELETE', entityType: 'AttendanceDeviceSelfie', entityId: null, metadata: { event: 'ATTENDANCE_SELFIE_ORPHAN_RECONCILED', scanned: result.scanned, deleted: result.deleted, kept: result.kept, failed: result.failed, skippedRecent: result.skippedRecent, skippedUnknown: result.skippedUnknown, truncated: result.truncated, limitReached: result.limitReached } });
     return result;
   }
   async function purgeExpiredSelfies({ now = clock(), limit = 100 } = {}) {

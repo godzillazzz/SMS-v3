@@ -81,12 +81,13 @@ test('reconcileOrphans deletes old objects without rows and keeps objects with r
   const now = new Date('2027-01-01T00:00:00.000Z'); const deleted = []; const audits = [];
   const prisma = { attendanceDeviceSelfie: { findMany: async () => [{ storageObjectKey: 'attendance-selfie/hash/kept.jpg' }] } };
   const storage = createSupabaseAttendanceDeviceSelfieStorage({ environment: { SUPABASE_URL: 'https://private.example.test', SUPABASE_SERVICE_ROLE_KEY: 'secret', ATTENDANCE_DEVICE_SELFIE_BUCKET: 'attendance-selfies', SELFIE_PATH_SECRET: 'strong-random-path-secret-0123456789' }, prisma, audit: { log: async (entry) => audits.push(entry) }, clock: () => now, fetchImpl: async (url, options) => {
-    if (url.includes('/object/list/')) return { ok: true, json: async () => [{ id: '1', name: 'hash/orphan.jpg', created_at: '2026-12-31T00:00:00.000Z' }, { id: '2', name: 'hash/kept.jpg', created_at: '2026-12-31T00:00:00.000Z' }] };
+    if (url.includes('/object/list/')) return { ok: true, json: async () => [{ id: '1', name: 'hash/orphan.jpg', updated_at: '2026-12-31T00:00:00.000Z' }, { id: '2', name: 'hash/kept.jpg', updated_at: '2026-12-31T00:00:00.000Z' }] };
     if (options.method === 'DELETE') { deleted.push(url); return { ok: true, json: async () => ({}) }; }
     return { ok: true, json: async () => ({ public: false }) };
   } });
-  assert.deepEqual(await storage.reconcileOrphans({ now, olderThanMs: 60 * 60 * 1000 }), { scanned: 2, deleted: 1, kept: 1, failed: 0 });
+  assert.deepEqual(await storage.reconcileOrphans({ now, olderThanMs: 60 * 60 * 1000 }), { scanned: 2, deleted: 1, kept: 1, failed: 0, skippedRecent: 0, skippedUnknown: 0, truncated: false, limitReached: null });
   assert.equal(deleted.length, 1); assert.match(deleted[0], /orphan\.jpg/); assert.equal(audits[0].metadata.event, 'ATTENDANCE_SELFIE_ORPHAN_RECONCILED');
+  assert.equal(audits[0].metadata.skippedRecent, 0); assert.equal(audits[0].metadata.skippedUnknown, 0);
 });
 
 test('reconcileOrphans fails closed when the selfie row query is unavailable', async () => {
@@ -95,6 +96,26 @@ test('reconcileOrphans fails closed when the selfie row query is unavailable', a
     fetchImpl: async (url) => url.includes('/object/list/') ? { ok: true, json: async () => [] } : { ok: true, json: async () => ({}) }
   });
   await assert.rejects(() => storage.reconcileOrphans(), (error) => error.statusCode === 503 && error.details.code === 'ATTENDANCE_SELFIE_RECONCILE_UNAVAILABLE');
+});
+
+test('reconcile reports batch limit and skips recent/unknown timestamps', async () => {
+  const now = new Date('2027-01-01T00:00:00.000Z'); const deleted = []; const audits = [];
+  const storage = createSupabaseAttendanceDeviceSelfieStorage({
+    environment: { SUPABASE_URL: 'https://private.example.test', SUPABASE_SERVICE_ROLE_KEY: 'secret', ATTENDANCE_DEVICE_SELFIE_BUCKET: 'attendance-selfies', SELFIE_PATH_SECRET: 'strong-random-path-secret-0123456789' },
+    prisma: { attendanceDeviceSelfie: { findMany: async () => [] } }, audit: { log: async (entry) => audits.push(entry) },
+    fetchImpl: async (url, options) => {
+      if (url.includes('/object/list/')) return { ok: true, json: async () => [
+        { id: '1', name: 'old.jpg', updated_at: '2026-12-01T00:00:00.000Z' },
+        { id: '2', name: 'recent.jpg', updated_at: '2026-12-31T23:30:00.000Z' },
+        { id: '3', name: 'unknown.jpg' }
+      ] };
+      if (options.method === 'DELETE') { deleted.push(url); return { ok: true, json: async () => ({}) }; }
+      return { ok: true, json: async () => ({}) };
+    }
+  });
+  const result = await storage.reconcileOrphans({ now, olderThanMs: 60 * 60 * 1000, limit: 2 });
+  assert.deepEqual(result, { scanned: 2, deleted: 1, kept: 0, failed: 0, skippedRecent: 1, skippedUnknown: 0, truncated: true, limitReached: 'RECONCILE_LIMIT' });
+  assert.equal(audits[0].metadata.limitReached, 'RECONCILE_LIMIT'); assert.equal(audits[0].metadata.skippedRecent, 1); assert.equal(deleted.length, 1);
 });
 
 test('reconcile audit records the real depth limit', async () => {
