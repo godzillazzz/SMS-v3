@@ -23,6 +23,8 @@ function validManifest() {
     source_branch: 'fix/serverless-database-reliability',
     run_migrations: false,
     owner_action: 'APPROVE_PRODUCTION_ONLY',
+    production_dispatch_authorized: false,
+    production_release_go_no_go: 'OWNER_PRODUCTION_DECISION_REQUIRED_NO_DISPATCH_AUTHORIZED',
     rollback_policy: 'AUTO_ROLLBACK_ON_POST_DEPLOY_VERIFY_FAILURE',
     database_change_policy: 'NO_DATABASE_CHANGES',
     production_environment_change_policy: 'NO_ENVIRONMENT_CHANGES',
@@ -66,6 +68,12 @@ test('fails closed when migration execution is requested by an unsupported manif
   const manifest = validManifest();
   manifest.run_migrations = true;
   assert.throws(() => validateReleaseManifest(manifest), /run_migrations must be false/);
+});
+
+test('fails closed when production_release_go_no_go is invalid before Owner authorization', () => {
+  const manifest = validManifest();
+  manifest.production_release_go_no_go = 'DISPATCHED_AND_VERIFIED_SEE_POST_RELEASE_RECORD';
+  assert.throws(() => validateReleaseManifest(manifest), /production_release_go_no_go must be OWNER_PRODUCTION_DECISION_REQUIRED_NO_DISPATCH_AUTHORIZED/);
 });
 
 test('fails closed when rollback safety policy is weakened', () => {

@@ -40,6 +40,10 @@ function validateReleaseManifest(input) {
   assert(input.schema_version === EXPECTED.schemaVersion, 'unsupported schema_version');
   assert(releaseIdPattern.test(input.release_id || ''), 'invalid release_id');
   assert(input.manifest_state === 'APPROVED_FOR_OWNER_PRODUCTION_DECISION', 'manifest_state is not approved for Owner decision');
+  if (input.manifest_state === 'APPROVED_FOR_OWNER_PRODUCTION_DECISION' && input.production_dispatch_authorized === false) {
+    assert(input.production_release_go_no_go === 'OWNER_PRODUCTION_DECISION_REQUIRED_NO_DISPATCH_AUTHORIZED',
+      'production_release_go_no_go must be OWNER_PRODUCTION_DECISION_REQUIRED_NO_DISPATCH_AUTHORIZED before Owner authorization');
+  }
   assert(shaPattern.test(input.commit_sha || ''), 'invalid commit_sha');
   assert(shaPattern.test(input.tree_sha || ''), 'invalid tree_sha');
   assert(shaPattern.test(input.current_production_source_sha || ''), 'invalid current_production_source_sha');

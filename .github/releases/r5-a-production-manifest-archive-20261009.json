@@ -83,6 +83,7 @@
   "release_batch_id": "R5-A",
   "owner_batch_frozen_sha_approval": "PENDING_NOT_AUTHORIZED",
   "production_dispatch_authorized": false,
+  "production_release_go_no_go": "OWNER_PRODUCTION_DECISION_REQUIRED_NO_DISPATCH_AUTHORIZED",
   "application_merge_shas": {
     "541": "6413f161bd93ac6392715a7e1b36d87d29dd5a75",
     "543": "51c5c828689ce543067c687e204eba7918577bb9"
