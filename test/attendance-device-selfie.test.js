@@ -89,6 +89,35 @@ test('reconcileOrphans deletes old objects without rows and keeps objects with r
   assert.equal(deleted.length, 1); assert.match(deleted[0], /orphan\.jpg/); assert.equal(audits[0].metadata.event, 'ATTENDANCE_SELFIE_ORPHAN_RECONCILED');
 });
 
+test('reconcileOrphans fails closed when the selfie row query is unavailable', async () => {
+  const storage = createSupabaseAttendanceDeviceSelfieStorage({
+    environment: { SUPABASE_URL: 'https://private.example.test', SUPABASE_SERVICE_ROLE_KEY: 'secret', ATTENDANCE_DEVICE_SELFIE_BUCKET: 'attendance-selfies', SELFIE_PATH_SECRET: 'strong-random-path-secret-0123456789' },
+    fetchImpl: async (url) => url.includes('/object/list/') ? { ok: true, json: async () => [] } : { ok: true, json: async () => ({}) }
+  });
+  await assert.rejects(() => storage.reconcileOrphans(), (error) => error.statusCode === 503 && error.details.code === 'ATTENDANCE_SELFIE_RECONCILE_UNAVAILABLE');
+});
+
+test('reconcile audit records the real depth limit', async () => {
+  const audits = [];
+  const prisma = { attendanceDeviceSelfie: { findMany: async () => [] } };
+  const storage = createSupabaseAttendanceDeviceSelfieStorage({
+    environment: { SUPABASE_URL: 'https://private.example.test', SUPABASE_SERVICE_ROLE_KEY: 'secret', ATTENDANCE_DEVICE_SELFIE_BUCKET: 'attendance-selfies', SELFIE_PATH_SECRET: 'strong-random-path-secret-0123456789' },
+    prisma, audit: { log: async (entry) => audits.push(entry) },
+    fetchImpl: async (url, options) => {
+      const payload = JSON.parse(options.body);
+      if (payload.prefix === 'attendance-selfie/') return { ok: true, json: async () => [{ name: 'a' }] };
+      if (payload.prefix === 'attendance-selfie/a/') return { ok: true, json: async () => [{ name: 'b' }] };
+      if (payload.prefix === 'attendance-selfie/a/b/') return { ok: true, json: async () => [{ name: 'c' }] };
+      if (payload.prefix === 'attendance-selfie/a/b/c/') return { ok: true, json: async () => [{ name: 'd' }] };
+      throw new Error('unexpected prefix');
+    }
+  });
+  const result = await storage.reconcileOrphans({ olderThanMs: 0 });
+  assert.equal(result.truncated, true);
+  assert.equal(result.limitReached, 'MAX_DEPTH');
+  assert.equal(audits[0].metadata.limitReached, 'MAX_DEPTH');
+});
+
 test('listObjects recursively lists nested folders and paginates every page', async () => {
   const calls = [];
   const files = Array.from({ length: 150 }, (_, index) => ({ id: `file-${index}`, name: `capture-${index}.jpg`, updated_at: '2026-12-31T00:00:00.000Z' }));

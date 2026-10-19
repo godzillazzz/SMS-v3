@@ -85,6 +85,7 @@ function createSupabaseAttendanceDeviceSelfieStorage({ environment = process.env
     const maxObjects = 5000;
     const objects = [];
     let truncated = false;
+    let limitReached = null;
 
     const listPage = async (currentPrefix, offset) => {
       const response = await fetchImpl(`${url}/storage/v1/object/list/${encodeURIComponent(bucket)}`, {
@@ -106,25 +107,37 @@ function createSupabaseAttendanceDeviceSelfieStorage({ environment = process.env
           const path = `${currentPrefix}${entry.name}`;
           if (isFolder(entry)) {
             if (depth < 3) await visit(`${path.replace(/\/$/, '')}/`, depth + 1);
+            else {
+              truncated = true;
+              limitReached = 'MAX_DEPTH';
+            }
             continue;
           }
-          if (objects.length >= maxObjects) { truncated = true; return; }
+          if (objects.length >= maxObjects) { truncated = true; limitReached = 'MAX_OBJECTS'; return; }
           objects.push({ path, updatedAt: entry.updated_at || entry.updatedAt || entry.created_at || entry.createdAt || null, id: entry.id });
-          if (objects.length >= maxObjects) { truncated = true; return; }
+          if (objects.length >= maxObjects) { truncated = true; limitReached = 'MAX_OBJECTS'; return; }
         }
         if (page.length < pageSize) return;
         offset += page.length;
       }
     };
     await visit(prefix, 0);
-    return { objects, truncated };
+    return { objects, truncated, limitReached };
   }
   async function reconcileOrphans({ olderThanMs = DEFAULT_ORPHAN_AGE_MS, limit = 1000, now = clock() } = {}) {
     const listing = await listObjects({ prefix: 'attendance-selfie/' });
     const objects = listing.objects.slice(0, Math.max(0, Math.min(Number(limit) || MAX_ORPHAN_LIMIT, MAX_ORPHAN_LIMIT)));
     const threshold = now.getTime() - Math.max(0, Number(olderThanMs) || DEFAULT_ORPHAN_AGE_MS);
     const candidates = objects.filter((object) => Number.isFinite(Date.parse(object.updatedAt)) && Date.parse(object.updatedAt) <= threshold);
-    const rows = prisma?.attendanceDeviceSelfie?.findMany ? await prisma.attendanceDeviceSelfie.findMany({ where: { storageObjectKey: { in: candidates.map((object) => object.path) } }, select: { storageObjectKey: true } }) : [];
+    if (!prisma?.attendanceDeviceSelfie || typeof prisma.attendanceDeviceSelfie.findMany !== 'function') {
+      throw http(503, 'ATTENDANCE_SELFIE_RECONCILE_UNAVAILABLE', 'Attendance selfie reconciliation is unavailable.');
+    }
+    let rows;
+    try {
+      rows = await prisma.attendanceDeviceSelfie.findMany({ where: { storageObjectKey: { in: candidates.map((object) => object.path) } }, select: { storageObjectKey: true } });
+    } catch (error) {
+      throw http(503, 'ATTENDANCE_SELFIE_RECONCILE_UNAVAILABLE', 'Attendance selfie reconciliation is unavailable.');
+    }
     const keptKeys = new Set(rows.map((row) => row.storageObjectKey));
     let deleted = 0; let kept = 0; let failed = 0;
     for (const object of candidates) {
@@ -132,8 +145,11 @@ function createSupabaseAttendanceDeviceSelfieStorage({ environment = process.env
       try { await remove({ objectKey: object.path }); deleted += 1; } catch (error) { failed += 1; safeLog(logger, 'ATTENDANCE_SELFIE_ORPHAN_RECONCILED', { objectKey: object.path, success: false, errorCode: error?.details?.code || error?.code || 'UNKNOWN' }); }
     }
     const result = { scanned: objects.length, deleted, kept, failed };
-    Object.defineProperty(result, 'truncated', { value: listing.truncated, enumerable: false });
-    await audit?.log({ actorUserId: null, action: 'DELETE', entityType: 'AttendanceDeviceSelfie', entityId: null, metadata: { event: 'ATTENDANCE_SELFIE_ORPHAN_RECONCILED', ...result, truncated: listing.truncated } });
+    Object.defineProperties(result, {
+      truncated: { value: listing.truncated, enumerable: false },
+      limitReached: { value: listing.limitReached || null, enumerable: false }
+    });
+    await audit?.log({ actorUserId: null, action: 'DELETE', entityType: 'AttendanceDeviceSelfie', entityId: null, metadata: { event: 'ATTENDANCE_SELFIE_ORPHAN_RECONCILED', scanned: result.scanned, deleted: result.deleted, kept: result.kept, failed: result.failed, truncated: result.truncated, limitReached: result.limitReached } });
     return result;
   }
   async function purgeExpiredSelfies({ now = clock(), limit = 100 } = {}) {

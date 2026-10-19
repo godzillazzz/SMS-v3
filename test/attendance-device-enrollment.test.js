@@ -2,7 +2,7 @@ process.env.NODE_ENV = 'test';
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const crypto = require('crypto');
-const { createAttendanceDeviceService, challengeHash } = require('../src/services/attendance-device.service');
+const { createAttendanceDeviceService, challengeHash, DEVICE_REQUEST_AUDIT_FIELDS, safeAudit } = require('../src/services/attendance-device.service');
 
 const ids = {
   employee: '11111111-1111-4111-8111-111111111111', employeeUser: '22222222-2222-4222-8222-222222222222',
@@ -197,6 +197,13 @@ test('wrong private key fails closed and consumes challenge', async () => {
   const signature = crypto.sign('sha256', Buffer.from(options.challenge,'base64url'), { key: wrong.privateKey, dsaEncoding: 'ieee-p1363' });
   await assert.rejects(() => service.verifyProof({ actor: employeeActor, requestId: ids.request, challengeId: options.challengeId, challenge: options.challenge, signatureBase64: signature.toString('base64') }), (e) => e.statusCode === 400 && e.details.code === 'ATTENDANCE_DEVICE_PROOF_INVALID');
   assert.ok(state.challenges[0].consumedAt); assert.equal(state.enrollments[0].proofVerifiedAt, null);
+});
+
+test('device request audit projection shares the canonical contract for created approved and rejected actions', () => {
+  const source = { ...Object.fromEntries(DEVICE_REQUEST_AUDIT_FIELDS.map((field) => [field, field])), outsideContract: true };
+  const projected = safeAudit({ id: 'audit', action: 'UPDATE', entityType: 'AttendanceDeviceChangeRequest', metadata: source });
+  assert.deepEqual(Object.keys(projected.metadata), DEVICE_REQUEST_AUDIT_FIELDS);
+  assert.equal(Object.prototype.hasOwnProperty.call(projected.metadata, 'outsideContract'), false);
 });
 
 test('admin final approval activates exactly the verified first device', async () => {

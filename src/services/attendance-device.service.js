@@ -10,6 +10,13 @@ const SUPPORTED_KEY_ALGORITHMS = new Set(['ECDSA_P256_SHA256']);
 const CHALLENGE_TTL_MS = 5 * 60 * 1000;
 const SELFIE_CHALLENGE_TTL_MS = 120 * 1000;
 const DEVICE_TRANSFER_REJECTED = 'DEVICE_TRANSFER_REJECTED';
+const DEVICE_REQUEST_AUDIT_FIELDS = Object.freeze([
+  'event', 'requestId', 'employeeId', 'requestType', 'status',
+  'candidateEnrollmentId', 'currentEnrollmentId', 'adminUserId', 'reviewedByUserId', 'reviewedAt',
+  'reason', 'rejectedAt', 'rejectedEventCount', 'excludedCaptureIds',
+  'deviceEnrollmentId', 'previousDeviceEnrollmentId', 'activeDeviceEnrollmentId', 'requestedByUserId'
+]);
+const DEVICE_REQUEST_AUDIT_FIELD_SET = new Set(DEVICE_REQUEST_AUDIT_FIELDS);
 
 function http(statusCode, code, message) { return new HttpError(statusCode, message, { code }); }
 function cleanText(value, max = 1000) { const text = value == null ? null : String(value).trim(); return text ? text.slice(0, max) : null; }
@@ -33,8 +40,7 @@ function safeRequester(row) { return row ? { id: row.id, displayName: row.displa
 function safeAudit(row) {
   if (!row) return null;
   const source = row.metadata && typeof row.metadata === 'object' && !Array.isArray(row.metadata) ? row.metadata : {};
-  const allowed = new Set(['event', 'employeeId', 'requestType', 'deviceEnrollmentId', 'candidateDeviceEnrollmentId', 'previousDeviceEnrollmentId', 'activeDeviceEnrollmentId', 'requestedByUserId', 'proofPreviouslyVerified', 'keyAlgorithm', 'credentialFingerprint', 'reason', 'revokedAt', 'cancelledRequestId', 'requestId', 'candidateEnrollmentId', 'currentEnrollmentId', 'status', 'reviewedByUserId', 'reviewedAt', 'adminUserId', 'rejectedAt', 'rejectedEventCount', 'excludedCaptureIds']);
-  const metadata = Object.fromEntries(Object.entries(source).filter(([key]) => allowed.has(key)));
+  const metadata = Object.fromEntries(Object.entries(source).filter(([key]) => DEVICE_REQUEST_AUDIT_FIELD_SET.has(key)));
   return { id: row.id, actorUserId: row.actorUserId, action: row.action, entityType: row.entityType, entityId: row.entityId, metadata, createdAt: row.createdAt, actor: safeRequester(row.actor) };
 }
 function safeRequest(row, projection = {}) { return row ? { id: row.id, requestId: row.id, employeeId: row.employeeId, requestType: row.requestType, candidateEnrollmentId: row.candidateDeviceEnrollmentId, currentEnrollmentId: row.currentDeviceEnrollmentId, status: row.status, reviewedByUserId: row.reviewedByUserId ?? null, reviewedAt: row.reviewedAt ?? null, rejectedEventCount: projection.rejectedEventCount ?? row.rejectedEventCount ?? 0, excludedCaptureIds: projection.excludedCaptureIds ?? row.excludedCaptureIds ?? [], requestedByUserId: row.requestedByUserId, candidateDeviceEnrollmentId: row.candidateDeviceEnrollmentId, currentDeviceEnrollmentId: row.currentDeviceEnrollmentId, reason: row.reason, reviewerComment: row.reviewerComment, returnedAt: row.returnedAt, cancelledAt: row.cancelledAt, createdAt: row.createdAt, updatedAt: row.updatedAt, candidateDevice: row.candidateDevice ? safeEnrollment(row.candidateDevice) : undefined, employee: safeEmployee(row.employee), requestedBy: safeRequester(row.requestedBy), reviewedBy: safeRequester(row.reviewedBy) } : null; }
@@ -80,7 +86,7 @@ function createAttendanceDeviceService({ prisma = prismaDefault, audit = auditDe
         if (actionable) throw http(409, 'ATTENDANCE_DEVICE_REQUEST_ALREADY_ACTIVE', 'An Attendance device request is already active.');
         const candidate = await tx.attendanceDeviceEnrollment.create({ data: { employeeId: employee.id, publicKey, keyAlgorithm, credentialFingerprint, displayName: name, platformHint: cleanText(platformHint, 100), userAgentSnapshot: cleanText(userAgentSnapshot, 500), status: 'PENDING_APPROVAL', createdByUserId: actor.sub } });
         const request = await tx.attendanceDeviceChangeRequest.create({ data: { employeeId: employee.id, requestType: active ? 'REPLACEMENT' : 'INITIAL', requestedByUserId: actor.sub, candidateDeviceEnrollmentId: candidate.id, currentDeviceEnrollmentId: active?.id || null, reason: cleanText(reason) }, include: { candidateDevice: true } });
-        await audit.log({ actorUserId: actor.sub, action: 'CREATE', entityType: 'AttendanceDeviceChangeRequest', entityId: request.id, metadata: { event: 'SUBMIT', requestType: request.requestType, employeeId: employee.id, candidateDeviceEnrollmentId: candidate.id, credentialFingerprint, keyAlgorithm } }, tx);
+        await audit.log({ actorUserId: actor.sub, action: 'CREATE', entityType: 'AttendanceDeviceChangeRequest', entityId: request.id, metadata: { event: 'CREATED', requestId: request.id, requestType: request.requestType, employeeId: employee.id, candidateEnrollmentId: candidate.id, currentEnrollmentId: active?.id || null, requestedByUserId: actor.sub, reason: cleanText(reason) } }, tx);
         return safeRequest(request);
       });
     } catch (error) { throw mapConflict(error); }
@@ -248,8 +254,9 @@ function createAttendanceDeviceService({ prisma = prismaDefault, audit = auditDe
           const reviewReasons = reviewReasonList(event.reviewReasons).filter((reason) => reason !== DEVICE_TRANSFER_REJECTED);
           await tx.attendanceEvent.update({ where: { id: event.id }, data: { reviewRequired: reviewReasons.length > 0 || (event.reviewRequired && !Array.isArray(event.reviewReasons)), reviewReasons: reviewReasons.length ? reviewReasons : null } });
         }
-        await audit.log({ actorUserId: actor.sub, action: 'UPDATE', entityType: 'AttendanceDeviceChangeRequest', entityId: request.id, metadata: { event: 'DEVICE_TRANSFER_APPROVED', requestType: request.requestType, employeeId: request.employeeId, fromEnrollmentId: active?.id || null, toEnrollmentId: candidate.id, adminUserId: actor.sub, requestId: request.id, eventCaptureIds: [] } }, tx);
-        await audit.log({ actorUserId: actor.sub, action: 'UPDATE', entityType: 'AttendanceDeviceChangeRequest', entityId: request.id, metadata: { event: 'FINAL_APPROVE', requestType: request.requestType, employeeId: request.employeeId, fromEnrollmentId: active?.id || null, toEnrollmentId: candidate.id, requestId: request.id } }, tx);
+        const approvalMetadata = { requestId: request.id, requestType: request.requestType, employeeId: request.employeeId, candidateEnrollmentId: candidate.id, currentEnrollmentId: active?.id || null, previousDeviceEnrollmentId: active?.id || null, activeDeviceEnrollmentId: candidate.id, adminUserId: actor.sub, reviewedByUserId: actor.sub, reviewedAt: now, status: 'APPROVED' };
+        await audit.log({ actorUserId: actor.sub, action: 'UPDATE', entityType: 'AttendanceDeviceChangeRequest', entityId: request.id, metadata: { ...approvalMetadata, event: 'APPROVED' } }, tx);
+        await audit.log({ actorUserId: actor.sub, action: 'UPDATE', entityType: 'AttendanceDeviceChangeRequest', entityId: request.id, metadata: { ...approvalMetadata, event: 'FINAL_APPROVE' } }, tx);
         const approved = await tx.attendanceDeviceChangeRequest.findUnique({ where: { id: request.id }, include: { candidateDevice: { include: { approvedBy: { select: { id: true, displayName: true, role: true } } } }, reviewedBy: { select: { id: true, displayName: true, role: true } } } });
         return safeRequest(approved, { rejectedEventCount: 0, excludedCaptureIds: [] });
       });
@@ -300,7 +307,13 @@ function createAttendanceDeviceService({ prisma = prismaDefault, audit = auditDe
         await tx.attendanceEvent.update({ where: { id: event.id }, data: { reviewRequired: true, reviewReasons: addReviewReason(event.reviewReasons, DEVICE_TRANSFER_REJECTED) } });
       }
       await audit.log({ actorUserId: actor.sub, action: 'UPDATE', entityType: 'AttendanceDeviceChangeRequest', entityId: request.id, metadata: {
-        event: 'DEVICE_TRANSFER_REJECTED', requestId: request.id, employeeId: request.employeeId,
+        event: 'REJECTED', requestId: request.id, employeeId: request.employeeId, status: 'REJECTED',
+        candidateEnrollmentId: request.candidateDeviceEnrollmentId, currentEnrollmentId: request.currentDeviceEnrollmentId,
+        adminUserId: actor.sub, reason: text, rejectedAt: now, rejectedEventCount: events.length,
+        excludedCaptureIds: events.map((event) => event.captureId)
+      } }, tx);
+      await audit.log({ actorUserId: actor.sub, action: 'UPDATE', entityType: 'AttendanceDeviceChangeRequest', entityId: request.id, metadata: {
+        event: 'DEVICE_TRANSFER_REJECTED', requestId: request.id, employeeId: request.employeeId, status: 'REJECTED',
         candidateEnrollmentId: request.candidateDeviceEnrollmentId, currentEnrollmentId: request.currentDeviceEnrollmentId,
         adminUserId: actor.sub, reason: text, rejectedAt: now, rejectedEventCount: events.length,
         excludedCaptureIds: events.map((event) => event.captureId)
@@ -327,4 +340,4 @@ function createAttendanceDeviceService({ prisma = prismaDefault, audit = auditDe
   return { getMyState, createRequest, createProofChallenge, createSelfieChallenge, verifyProof, listRequests, listAdminOverview, revokeCurrent, approve, returnForCorrection, resubmit, reject, cancel };
 }
 
-module.exports = { ACTIVE_REQUEST_STATUSES, SUPPORTED_KEY_ALGORITHMS, CHALLENGE_TTL_MS, challengeHash, fingerprint, createAttendanceDeviceService };
+module.exports = { ACTIVE_REQUEST_STATUSES, SUPPORTED_KEY_ALGORITHMS, CHALLENGE_TTL_MS, DEVICE_REQUEST_AUDIT_FIELDS, challengeHash, fingerprint, safeAudit, createAttendanceDeviceService };
