@@ -73,7 +73,7 @@ jobs:
             if (!/^[0-9a-f]{40}$/.test(manifest[key])) throw new Error(`Invalid ${key}`);
           }
           if (manifest.migration_path !== 'prisma/migrations/202610190001_attendance_device_selfie/migration.sql') {
-            throw new Error('Unexpected ATT-CHAIN-ML migration path');
+            throw new Error('Unexpected DEVICE2-SELFIE migration path');
           }
           NODE
           SOURCE_SHA=$(node -p "require('./$MANIFEST_PATH').source_commit_sha")

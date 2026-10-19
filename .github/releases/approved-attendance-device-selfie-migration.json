@@ -23,5 +23,6 @@
   "data_backfill": false,
   "application_deploy": false,
   "destructive_rollback": false,
-  "owner_policy_reference": "OWNER order 19 Oct 2026: second device allowed with mandatory live selfie, ADMIN approval revokes the first device, rejection makes the shift absent."
+  "owner_policy_reference": "OWNER order 19 Oct 2026: second device allowed with mandatory live selfie, ADMIN approval revokes the first device, rejection makes the shift absent.",
+  "additive_only": true
 }
