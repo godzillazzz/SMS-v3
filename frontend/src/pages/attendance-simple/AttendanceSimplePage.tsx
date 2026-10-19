@@ -453,6 +453,7 @@ export function AttendanceSimplePage({
       if (!context) throw new Error('ไม่สามารถเตรียมภาพสดได้');
       context.drawImage(video, 0, 0, canvas.width, canvas.height);
       const blob = await canvasToOptimizedJpeg(canvas, 'ATTENDANCE_FACE');
+      const checksum = await sha256Hex(new Uint8Array(await blob.arrayBuffer()));
       const base64 = await new Promise<string>((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = () => resolve(String(reader.result).split(',')[1] || '');
@@ -461,7 +462,7 @@ export function AttendanceSimplePage({
       });
       const challenge = await simpleAttendanceSelfieChallenge(token);
       const capturedAt = new Date().toISOString();
-      const nextSelfie = { mimeType: 'image/jpeg' as const, base64, captureMode: 'LIVE_CAMERA' as const, overlay: { capturedAt } };
+      const nextSelfie = { mimeType: 'image/jpeg' as const, base64, checksum, captureMode: 'LIVE_CAMERA' as const, overlay: { capturedAt } };
       setSelfie(nextSelfie); setSelfieNonce(challenge.nonce); setCameraOpen(false); stopCamera();
       await recordAttendance(nextSelfie, challenge.nonce);
     } catch (error) {
