@@ -185,18 +185,26 @@ export function AttendanceSimplePage({
   const [tone, setTone] = useState<StatusTone>('neutral');
   const [lastResult, setLastResult] = useState<SimpleEventResult | null>(null);
   const [siteContext, setSiteContext] = useState<DisplaySiteContext | null>(null);
-  const [pendingSiteCapture, setPendingSiteCapture] = useState<{ location: Awaited<ReturnType<typeof getLocation>>; context: NonNullable<ReturnType<typeof gpsGeofenceDecision>['actualSite']> } | null>(null);
+  const [pendingSiteCapture, setPendingSiteCapture] = useState<{
+    location: Awaited<ReturnType<typeof getLocation>>;
+    context: NonNullable<ReturnType<typeof gpsGeofenceDecision>['actualSite']>;
+    selfie?: SimpleEventInput['selfie'] | null;
+    selfieNonce?: string | null;
+    nonceIssuedAt?: string | null;
+  } | null>(null);
   const [moveBusy, setMoveBusy] = useState(false);
   const [bootstrapRetry, setBootstrapRetry] = useState(0);
   const [requestErrorCode, setRequestErrorCode] = useState<string>();
   const [requestErrorId, setRequestErrorId] = useState<string>();
   const [selfie, setSelfie] = useState<SimpleEventInput['selfie'] | null>(null);
   const [selfieNonce, setSelfieNonce] = useState<string | null>(null);
+  const [nonceIssuedAt, setNonceIssuedAt] = useState<string | null>(null);
   const [cameraOpen, setCameraOpen] = useState(false);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const queueSyncInFlight = useRef(false);
+  const cameraOpeningRef = useRef(false);
 
   const refreshQueueCount = useCallback(async () => {
     setQueueCount(await encryptedQueueCount().catch(() => 0));
@@ -329,7 +337,10 @@ export function AttendanceSimplePage({
 
   const openSelfieCamera = useCallback(async () => {
     if (bindingState === 'FOREIGN' && bootstrap?.pendingDeviceRequest?.status === 'PENDING_APPROVAL') return;
+    if (cameraOpeningRef.current || cameraOpen || busy) return;
+    cameraOpeningRef.current = true;
     if (!navigator.mediaDevices?.getUserMedia) {
+      cameraOpeningRef.current = false;
       setTone('danger'); setMessage('เบราว์เซอร์นี้ไม่รองรับกล้องหน้า'); return;
     }
     setCameraOpen(true);
@@ -340,12 +351,30 @@ export function AttendanceSimplePage({
     } catch (error) {
       stopCamera(); setCameraOpen(false); setTone('danger');
       setMessage(error instanceof DOMException && error.name === 'NotAllowedError' ? 'กรุณาอนุญาตกล้องหน้าเพื่อยืนยันตัวตน' : 'ไม่สามารถเปิดกล้องหน้าได้ กรุณาลองใหม่');
+    } finally {
+      cameraOpeningRef.current = false;
     }
-  }, [bindingState, bootstrap, stopCamera]);
+  }, [bindingState, bootstrap, busy, cameraOpen, stopCamera]);
 
   const recordAttendance = async (capturedSelfie = selfie, capturedSelfieNonce = selfieNonce) => {
     if (bindingState === 'FOREIGN' && bootstrap?.pendingDeviceRequest?.status === 'PENDING_APPROVAL') return;
-    if (bindingState === 'FOREIGN' && !capturedSelfie) { await openSelfieCamera(); return; }
+    const pendingSelfie = pendingSiteCapture?.selfie || null;
+    const pendingNonce = pendingSiteCapture?.selfieNonce || null;
+    const pendingNonceAge = pendingSiteCapture?.nonceIssuedAt
+      ? Date.now() - new Date(pendingSiteCapture.nonceIssuedAt).getTime()
+      : nonceIssuedAt
+        ? Date.now() - new Date(nonceIssuedAt).getTime()
+        : 0;
+    if (pendingSelfie && pendingNonce && pendingNonceAge > 110000) {
+      setPendingSiteCapture((current) => current ? { ...current, selfie: null, selfieNonce: null, nonceIssuedAt: null } : current);
+      setSelfie(null); setSelfieNonce(null);
+      setTone('warning'); setMessage('ภาพยืนยันหมดอายุ (เกิน 2 นาที) กรุณาถ่ายใหม่');
+      await openSelfieCamera();
+      return;
+    }
+    const effectiveSelfie = capturedSelfie || pendingSelfie;
+    const effectiveNonce = capturedSelfieNonce || pendingNonce;
+    if (bindingState === 'FOREIGN' && !effectiveSelfie) { await openSelfieCamera(); return; }
     if (readOnly || busy || !identity || !bootstrap) return;
     setBusy(true);
     setLastResult(null);
@@ -353,6 +382,7 @@ export function AttendanceSimplePage({
     setRequestErrorId(undefined);
     setTone('neutral');
     setMessage('กำลังตรวจ GPS/GEOFENCE…');
+    let submissionStarted = false;
     try {
       const pendingAgeMs = pendingSiteCapture ? Date.now() - new Date(pendingSiteCapture.location.capturedAt).getTime() : Infinity;
       const reusePending = pendingSiteCapture !== null && pendingAgeMs >= 0 && pendingAgeMs <= 180000;
@@ -365,7 +395,7 @@ export function AttendanceSimplePage({
         setSiteContext({ assignedSite: { id: localDecision.assignedSite.id, code: localDecision.assignedSite.code, name: localDecision.assignedSite.name || '' },
           actualSite: localDecision.actualSite ? { id: localDecision.actualSite.id, code: localDecision.actualSite.code, name: localDecision.actualSite.name || '' } : null,
           workSiteContext: localDecision.workSiteContext });
-        setPendingSiteCapture({ location, context: localDecision.actualSite });
+        setPendingSiteCapture({ location, context: localDecision.actualSite, selfie: capturedSelfie, selfieNonce: capturedSelfieNonce, nonceIssuedAt: capturedSelfie ? new Date().toISOString() : null });
         setTone('warning');
         setMessage(`พบตำแหน่งที่ ${siteDisplayName(localDecision.actualSite)} · ต่างจาก Site ตามตาราง · ระบบจะเก็บ Site จริงไว้และส่งรายการให้ตรวจ · กดอีกครั้งเพื่อยืนยัน`);
         return;
@@ -383,9 +413,10 @@ export function AttendanceSimplePage({
         capturedAt,
         location,
         offlineBundle,
-        ...(capturedSelfie ? { selfie: capturedSelfie, selfieNonce: capturedSelfieNonce } : {})
+        ...(effectiveSelfie ? { selfie: effectiveSelfie, selfieNonce: effectiveNonce } : {})
       });
 
+      submissionStarted = true;
       if (!online || !token) {
         const maxAccuracy = Number(bootstrap.offline.maxAccuracyMeters || 0);
         if (maxAccuracy > 0 && location.accuracyMeters > maxAccuracy) throw new Error('GPS accuracy ยังไม่ดีพอสำหรับการลงเวลา Offline');
@@ -433,7 +464,7 @@ export function AttendanceSimplePage({
         }
       }
     } catch (error) {
-      setPendingSiteCapture(null);
+      if (submissionStarted) setPendingSiteCapture(null);
       const failure = attendanceFailure(error, 'ไม่สามารถลงเวลาได้ กรุณาลองใหม่หรือติดต่อหัวหน้างาน');
       setRequestErrorCode(failure.code);
       setRequestErrorId(failure.requestId);
@@ -441,8 +472,11 @@ export function AttendanceSimplePage({
       setMessage(failure.message);
     } finally {
       setBusy(false);
-      setSelfie(null);
-      setSelfieNonce(null);
+      if (submissionStarted) {
+        setPendingSiteCapture(null);
+        setSelfie(null);
+        setSelfieNonce(null);
+      }
     }
   };
 
@@ -586,7 +620,14 @@ export function AttendanceSimplePage({
         <h2>ยืนยันตัวตนด้วยเซลฟี่สด</h2>
         <video ref={videoRef} autoPlay playsInline muted aria-label="กล้องหน้า" />
         <canvas ref={canvasRef} hidden />
-        <div><button type="button" onClick={() => void captureSelfie()} disabled={busy}>ถ่ายภาพยืนยันตัวตน</button><button type="button" aria-label="ปิดหน้าต่างกล้อง" onClick={() => { stopCamera(); setCameraOpen(false); }} disabled={busy}>ปิด</button></div>
+        <div className="attendance-simple__camera-actions">
+          <button type="button" className="attendance-simple__camera-capture" onClick={() => void captureSelfie()} disabled={busy} aria-label="ถ่ายภาพยืนยันตัวตน" title="ถ่ายภาพยืนยันตัวตน">
+            <svg aria-hidden="true" viewBox="0 0 24 24" focusable="false"><path d="M4 8.5h3l1.4-2h5.2l1.4 2h3A1.5 1.5 0 0 1 19.5 10v8A1.5 1.5 0 0 1 18 19.5H6A1.5 1.5 0 0 1 4.5 18v-8A1.5 1.5 0 0 1 4 8.5Z"/><circle cx="12" cy="14" r="3.2"/></svg>
+          </button>
+          <button type="button" className="attendance-simple__camera-cancel" aria-label="ยกเลิกการถ่ายภาพ" title="ยกเลิกการถ่ายภาพ" onClick={() => { stopCamera(); setCameraOpen(false); }} disabled={busy}>
+            <svg aria-hidden="true" viewBox="0 0 24 24" focusable="false"><path d="m7 7 10 10M17 7 7 17"/></svg>
+          </button>
+        </div>
       </div>
     </div>}
     <PageHeader

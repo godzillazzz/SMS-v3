@@ -78,9 +78,13 @@
 .attendance-simple__camera-panel { width:min(520px,100%); max-height:min(92vh,760px); overflow:auto; overscroll-behavior:contain; padding:20px; border:1px solid #48667d; border-radius:18px; background:#091b29; box-shadow:0 24px 80px rgba(0,0,0,.5); display:grid; gap:14px; }
 .attendance-simple__camera-panel h2 { margin:0; color:#f0f6fc; font-size:20px; }
 .attendance-simple__camera-panel video { width:100%; max-height:65vh; object-fit:cover; border-radius:14px; background:#000; }
-.attendance-simple__camera-panel > div { display:flex; justify-content:flex-end; gap:10px; flex-wrap:wrap; }
-.attendance-simple__camera-panel button { min-height:44px; border:1px solid #2a64a7; border-radius:10px; background:#0b5dcc; color:#fff; padding:8px 14px; font:inherit; font-weight:750; }
-.attendance-simple__camera-panel button:last-child { background:transparent; border-color:#7890a2; }
+.attendance-simple__camera-panel { position:relative; }
+.attendance-simple__camera-actions { position:relative; min-height:56px; display:flex; justify-content:center; align-items:center; }
+.attendance-simple__camera-panel button { min-width:44px; min-height:44px; border:1px solid #2a64a7; border-radius:999px; background:#0b5dcc; color:#fff; padding:10px; font:inherit; font-weight:750; display:grid; place-items:center; }
+.attendance-simple__camera-panel button:focus-visible { outline:3px solid #ffd166; outline-offset:3px; }
+.attendance-simple__camera-panel button svg { width:24px; height:24px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
+.attendance-simple__camera-cancel { position:absolute; top:12px; right:12px; z-index:2; color:#fff; background:#b42318 !important; border-color:#ffb4ab !important; }
+@media (max-width:420px) { .attendance-simple__camera-modal { padding:8px; } .attendance-simple__camera-panel { padding:14px; } .attendance-simple__camera-panel video { max-height:60vh; } }
 
 .attendance-simple__technical { border-top:1px solid #1e3b50; padding-top:10px; color:var(--attendance-simple-text-muted); font-size:11px; }
 .attendance-simple__technical summary { cursor:pointer; font-weight:700; }
