@@ -34,6 +34,30 @@ test('storage upload uses private bucket check, HMAC path, random suffix, and pr
   assert.equal(calls[1].options.headers['x-upsert'], 'false');
 });
 
+test('retention purge removes only expired selfies and marks purgedAt', async () => {
+  const now = new Date('2027-01-01T00:00:00.000Z');
+  const expired = { id: 'expired', employeeId: 'employee-1', storageObjectKey: 'expired.jpg', retentionUntil: new Date('2026-12-31T23:59:59.000Z'), purgedAt: null };
+  const current = { id: 'current', employeeId: 'employee-1', storageObjectKey: 'current.jpg', retentionUntil: new Date('2027-01-02T00:00:00.000Z'), purgedAt: null };
+  const removed = [];
+  const updates = [];
+  const prisma = { attendanceDeviceSelfie: {
+    findMany: async ({ where }) => { assert.deepEqual(where, { retentionUntil: { lt: now }, purgedAt: null }); return [expired]; },
+    update: async ({ where, data }) => { updates.push({ where, data }); expired.purgedAt = data.purgedAt; return expired; }
+  } };
+  const storage = createSupabaseAttendanceDeviceSelfieStorage({
+    environment: { SUPABASE_URL: 'https://private.example.test', SUPABASE_SERVICE_ROLE_KEY: 'secret', ATTENDANCE_DEVICE_SELFIE_BUCKET: 'attendance-selfies', SELFIE_PATH_SECRET: 'path-secret' },
+    prisma,
+    fetchImpl: async (url, options) => { if (options?.method === 'DELETE') removed.push(url); return { ok: true, status: 200, json: async () => ({ public: false }) }; },
+    clock: () => now
+  });
+  const result = await storage.purgeExpiredSelfies({ now });
+  assert.deepEqual(result, { inspected: 1, purged: 1, failed: 0 });
+  assert.equal(removed.length, 1);
+  assert.equal(updates.length, 1);
+  assert.deepEqual(updates[0], { where: { id: 'expired' }, data: { purgedAt: now } });
+  assert.equal(current.purgedAt, null);
+});
+
 test('private bucket check fails closed when bucket is public or unavailable', async () => {
   for (const body of [{ public: true }, null]) {
     const storage = createSupabaseAttendanceDeviceSelfieStorage({

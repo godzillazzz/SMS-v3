@@ -28,7 +28,7 @@ function site({ id, code, name, latitude, longitude, radius = 100, active = true
   return { id, code, name, latitude, longitude, geofenceRadiusMeters: radius, isActive: active };
 }
 
-function harness({ sites = null, activePrimary = null, timePolicyValues = null } = {}) {
+function harness({ sites = null, activePrimary = null, timePolicyValues = null, selfieStorage = null, failTransactionOnce = false } = {}) {
   const state = {
     now: new Date(now),
     sites: sites || [
@@ -74,7 +74,7 @@ function harness({ sites = null, activePrimary = null, timePolicyValues = null }
         if (where.sessionId_eventType) return [...state.events.values()].find((row) => row.sessionId === where.sessionId_eventType.sessionId && row.eventType === where.sessionId_eventType.eventType) || null;
         return null;
       },
-      create: async ({ data }) => { const row = { id: crypto.randomUUID(), ...data }; state.events.set(row.captureId, row); return row; }
+      create: async ({ data }) => { if (failTransactionOnce) { failTransactionOnce = false; throw new Error('database transaction failure'); } const row = { id: crypto.randomUUID(), ...data }; state.events.set(row.captureId, row); return row; }
     },
     attendancePendingEvent: {
       findUnique: async ({ where }) => where.captureId ? state.pending.get(where.captureId) || null : [...state.pending.values()].find((row) => row.id === where.id) || null,
@@ -113,11 +113,11 @@ function harness({ sites = null, activePrimary = null, timePolicyValues = null }
       return { values: timePolicyValues, source: { policyId: 'time-policy-test', scopeType: 'SHIFT_TYPE', scopeId: ids.shift, effectiveFrom: new Date('2026-10-01T00:00:00.000Z') } };
     }
   } : undefined;
-  const selfieStorage = {
+  const defaultSelfieStorage = {
     put: async ({ captureId, selfie }) => ({ provider: 'test', bucket: 'test-bucket', objectKey: `selfie/${captureId}`, mimeType: selfie.mimeType, sizeBytes: selfie.buffer.length, checksum: 'a'.repeat(64) })
   };
   const service = createAttendanceSimpleService({ prisma, audit, clock: () => state.now, siteAuthorityService, siteEvidenceService,
-    policyService: { getPolicy: async () => policy }, timePolicyService, selfieStorage, bundleSecret: () => 'test-only-offline-signing-secret-at-least-32-bytes' });
+    policyService: { getPolicy: async () => policy }, timePolicyService, selfieStorage: selfieStorage || defaultSelfieStorage, bundleSecret: () => 'test-only-offline-signing-secret-at-least-32-bytes' });
   return { state, prisma, service, assignment };
 }
 
@@ -303,4 +303,22 @@ test('SUPPORT_SITE, DEVICE_MISMATCH and LATE survive together', async () => {
   assert.equal(result.event.reviewRequired, true);
   assert.ok(result.event.reviewReasons.includes('ASSIST_OTHER_SITE'));
   assert.ok(result.event.reviewReasons.includes('DEVICE_MISMATCH'));
+});
+
+test('storage compensation preserves the original transaction error and retry with same captureId succeeds', async () => {
+  const calls = [];
+  const storage = {
+    put: async ({ captureId }) => { const objectKey = `selfie/${captureId}/${calls.length}`; calls.push(['put', objectKey]); return { provider: 'test', bucket: 'test', objectKey, mimeType: 'image/jpeg', sizeBytes: 8, checksum: 'a'.repeat(64) }; },
+    remove: async ({ objectKey }) => { calls.push(['remove', objectKey]); }
+  };
+  const h = harness({ activePrimary: { id: crypto.randomUUID(), employeeId: ids.employee, status: 'ACTIVE', credentialFingerprint: 'different-primary' }, selfieStorage: storage, failTransactionOnce: true });
+  h.state.devices.push(h.state.activePrimary);
+  const key = keyMaterial();
+  const captureId = crypto.randomUUID();
+  const input = signedInput({ ...key, captureId, location: locB(), selfie: TEST_SELFIE });
+  await assert.rejects(() => h.service.submit({ actor: { sub: ids.user }, input }), { message: 'database transaction failure' });
+  assert.deepEqual(calls.map(([kind]) => kind), ['put', 'remove']);
+  const retry = await h.service.submit({ actor: { sub: ids.user }, input });
+  assert.equal(retry.counted, true);
+  assert.equal(calls.filter(([kind]) => kind === 'put').length, 2);
 });
