@@ -6,6 +6,7 @@ const os = require('node:os');
 const crypto = require('node:crypto');
 const { execFileSync, spawnSync } = require('node:child_process');
 const INSPECT = require('./verify-attendance-time-policy-production-migration');
+const { assertAttendanceSchemaPin, isAttendanceSchemaPinError } = require('./attendance-schema-pin');
 const { PREDECESSOR, TARGET } = INSPECT;
 const SAFE_NAME = /^\d{12,14}_[A-Za-z0-9][A-Za-z0-9_-]*$/;
 function sha256(bytes) { return crypto.createHash('sha256').update(bytes).digest('hex'); }
@@ -87,7 +88,8 @@ function loadSources(root, manifest) {
   assert(git(root, ['rev-parse','HEAD']).trim() === manifest.application.sha
     && git(root, ['rev-parse','HEAD^{tree}']).trim() === manifest.application.tree, 'APPLICATION_SOURCE_MISMATCH');
   const schema = fs.readFileSync(path.join(root,'prisma/schema.prisma'));
-  assert(sha256(schema) === '4f0c0b129b8b52826ddca8ddb03ddbd678ef25ea96fa22aa1928e406e4112d03', 'SCHEMA_PIN_MISMATCH');
+  // Reviewed pin only: a stale pin fails closed with the coded token before any database read.
+  assertAttendanceSchemaPin(schema);
   const pins = new Map([[PREDECESSOR,'0cb317e8c243793321f3b3d5cad7f23b845d595f8373f9b62edab1c31c79c82f'],[TARGET,'5822719590321945832adf87647ca448773f5eff8cb40b7d35ccdd8cf5f443ee']]);
   const canonical = new Map();
   const candidates = new Map();
@@ -288,6 +290,17 @@ function statusMatches(result, pending) {
 function fingerprint(rows) {
   return sha256(JSON.stringify([...rows].sort((a,b) => JSON.stringify(a).localeCompare(JSON.stringify(b)))));
 }
+// Closed allowlist: only a category is ever reported, never raw error text, stack, path,
+// query, credential or digest.
+function failureCategory(error) {
+  if (isAttendanceSchemaPinError(error)) return 'SCHEMA_PIN_MISMATCH';
+  const sqlCode = String(error?.meta?.code || error?.code || '');
+  return ['42501','P1010'].includes(sqlCode) ? 'SCHEMA_READ_PERMISSION_DENIED'
+    : ['57014','P1002','ETIMEDOUT'].includes(sqlCode) ? 'SCHEMA_QUERY_TIMEOUT'
+    : ['42P01','42703','3F000'].includes(sqlCode) ? 'SCHEMA_OBJECT_NOT_FOUND'
+    : ['P1001','P1017','ECONNREFUSED','ECONNRESET'].includes(sqlCode) ? 'SCHEMA_CONNECTION_FAILED'
+    : 'INVARIANT_OR_QUERY_FAIL_CLOSED';
+}
 async function run(options = {}) {
   const env = options.env || process.env, log = options.log || console.log;
   const root = options.root || process.cwd();
@@ -306,15 +319,24 @@ async function run(options = {}) {
       expectedCommitRef:'fix/serverless-database-reliability',expectedTarget:'production',requireReady:true
     });
   });
+  const observe = options.observe || readFacts;
+  const createClient = options.createClient || (() => new (require('@prisma/client').PrismaClient)({ datasources: { db: { url: env.DIRECT_URL } } }));
   // Nothing reads DB before the target guard. Credentials are never logged.
   await guard(); log('PRODUCTION_TARGET_GUARD=PASS');
-  const manifest = options.manifest || JSON.parse(fs.readFileSync(env.PRODUCTION_CANDIDATE_MANIFEST,'utf8'));
-  assert(manifest.application.sha === env.SOURCE_SHA && manifest.application.tree === env.SOURCE_TREE,'SOURCE_INPUT_MISMATCH');
-  const sources = options.sources || loadSources(root,manifest);
-  const client = options.client || new (require('@prisma/client').PrismaClient)({ datasources: { db: { url: env.DIRECT_URL } } });
-  const observe = options.observe || readFacts;
-  let applyAttempted = false, stage = 'READ_ONLY_PREFLIGHT';
+  // Every resource this execution owns lives inside this lifecycle, so a failed pin or query can
+  // never leave an unreleased client behind and never reaches the database without the pin.
+  let client = null, owned = false, applyAttempted = false, stage = 'PINNED_SOURCE_LOAD';
   try {
+    const manifest = options.manifest || JSON.parse(fs.readFileSync(env.PRODUCTION_CANDIDATE_MANIFEST,'utf8'));
+    assert(manifest.application.sha === env.SOURCE_SHA && manifest.application.tree === env.SOURCE_TREE,'SOURCE_INPUT_MISMATCH');
+    // Manifest identity and the reviewed schema pin are proved from immutable Git-tracked source
+    // while the stage is PINNED_SOURCE_LOAD, before any client or query exists.
+    const sources = options.sources || (options.loadSources || loadSources)(root, manifest);
+    log('PINNED_SOURCE_LOAD=PASS');
+    stage = 'DATABASE_CLIENT_INIT';
+    client = options.client || createClient();
+    owned = !options.client;
+    stage = 'READ_ONLY_PREFLIGHT';
     const facts = await observe(client,sources,log);
     assert(['PLAN_NO_DATABASE_CHANGE','PLAN_APPLY_001_THEN_002','PLAN_APPLY_002_ONLY'].includes(facts.plan),'PREFLIGHT_FAIL_CLOSED');
     const schema = (options.bundle || buildBundle)(root,sources,facts,env.RUNNER_TEMP);
@@ -341,16 +363,17 @@ async function run(options = {}) {
     return post;
   } catch (error) {
     log('PRODUCTION_RECONCILIATION_FAILURE_STAGE='+stage);
-    const sqlCode = String(error?.meta?.code || error?.code || '');
-    const category = ['42501','P1010'].includes(sqlCode) ? 'SCHEMA_READ_PERMISSION_DENIED'
-      : ['57014','P1002','ETIMEDOUT'].includes(sqlCode) ? 'SCHEMA_QUERY_TIMEOUT'
-      : ['42P01','42703','3F000'].includes(sqlCode) ? 'SCHEMA_OBJECT_NOT_FOUND'
-      : ['P1001','P1017','ECONNREFUSED','ECONNRESET'].includes(sqlCode) ? 'SCHEMA_CONNECTION_FAILED'
-      : 'INVARIANT_OR_QUERY_FAIL_CLOSED';
-    log('PRODUCTION_RECONCILIATION_FAILURE_CATEGORY='+category);
+    log('PRODUCTION_RECONCILIATION_FAILURE_CATEGORY='+failureCategory(error));
     log('DATABASE_MUTATION_ATTEMPTED='+ (applyAttempted ? 'YES_OR_PARTIAL' : 'NO'));
     throw error;
-  } finally { if (!options.client) await client.$disconnect(); }
+  } finally {
+    // Only a client this execution created is released; an injected client stays with its owner.
+    // Disconnect diagnostics are never echoed.
+    if (owned && client && typeof client.$disconnect === 'function') {
+      try { await client.$disconnect(); }
+      catch { log('DATABASE_CLIENT_DISCONNECT=FAIL_CLOSED'); }
+    }
+  }
 }
 if (require.main === module) run().catch(() => { console.error('PRODUCTION_RECONCILIATION=FAIL_CLOSED'); process.exitCode = 1; });
-module.exports = { loadSources, auditHistory, ledgerClass, physicalClass, planFor, readFacts, buildBundle, statusMatches, safeCrlfCandidate, candidateVariants, fingerprint, run };
+module.exports = { loadSources, auditHistory, ledgerClass, physicalClass, planFor, readFacts, buildBundle, statusMatches, safeCrlfCandidate, candidateVariants, fingerprint, failureCategory, run };

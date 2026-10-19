@@ -218,7 +218,7 @@ jobs:
                 "$POST_VERIFY_SCRIPT"
 
               if test "$PRE_APPLIED_MIGRATION_MANIFEST_PATH" = '.github/releases/approved-attendance-time-policy-production-migration.json'; then
-                git diff --quiet "$EVIDENCE_HEAD" "$GITHUB_SHA" -- scripts/ci/verify-g06-simple-attendance-production-migration.js scripts/ci/reconcile-production-attendance-migrations.js scripts/ci/g06-production-migration-candidates.json
+                git diff --quiet "$EVIDENCE_HEAD" "$GITHUB_SHA" -- scripts/ci/verify-g06-simple-attendance-production-migration.js scripts/ci/reconcile-production-attendance-migrations.js scripts/ci/g06-production-migration-candidates.json scripts/ci/attendance-schema-pin.js
               fi
 
               gh api "repos/$GITHUB_REPOSITORY/actions/runs/$PRE_APPLIED_MIGRATION_EVIDENCE_RUN_ID/jobs?per_page=100" >/tmp/pre-applied-jobs.json
@@ -237,6 +237,11 @@ jobs:
               exit 1
               ;;
           esac
+          # The reviewed attendance schema pin must be the same blob in the target application
+          # source and in the dispatched release-control plane: NO_DATABASE_CHANGES loads it from
+          # the target checkout while PRE_APPLIED copies it from $GITHUB_SHA.
+          test -n "$(git rev-parse "$TARGET_SHA:scripts/ci/attendance-schema-pin.js")"
+          test "$(git rev-parse "$TARGET_SHA:scripts/ci/attendance-schema-pin.js")" = "$(git rev-parse "$GITHUB_SHA:scripts/ci/attendance-schema-pin.js")"
           test -z "$(git status --porcelain)"
 
       - name: Require successful exact-SHA CI evidence
@@ -401,7 +406,7 @@ jobs:
               git show "$GITHUB_SHA:$POST_VERIFY_SCRIPT" >/tmp/pre-applied-post-verify.js
               if test "$PRE_APPLIED_MIGRATION_MANIFEST_PATH" = '.github/releases/approved-attendance-time-policy-production-migration.json'; then
                 git show "$GITHUB_SHA:scripts/ci/verify-g06-simple-attendance-production-migration.js" >/tmp/verify-g06-simple-attendance-production-migration.js
-                for tool in reconcile-production-attendance-migrations.js verify-attendance-time-policy-production-migration.js verify-preapplied-attendance-policy-readonly.js; do
+                for tool in reconcile-production-attendance-migrations.js verify-attendance-time-policy-production-migration.js verify-preapplied-attendance-policy-readonly.js attendance-schema-pin.js; do
                   git show "$GITHUB_SHA:scripts/ci/$tool" >"/tmp/$tool"
                 done
                 git show "$GITHUB_SHA:scripts/ci/g06-production-migration-candidates.json" >/tmp/g06-production-migration-candidates.json
@@ -426,6 +431,8 @@ jobs:
         run: |
           set -euo pipefail
           git diff --quiet "$CURRENT_PRODUCTION_SOURCE_SHA" "$TARGET_SHA" -- prisma/schema.prisma prisma/migrations
+          # The reviewed schema pin is loaded from the checked-out TARGET application source.
+          test -f scripts/ci/attendance-schema-pin.js
           git show "$GITHUB_SHA:scripts/ci/g06-production-migration-candidates.json" >/tmp/unchanged-attendance-history.json
           node - <<'NODE'
           const fs = require('node:fs');

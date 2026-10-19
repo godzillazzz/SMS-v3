@@ -11,6 +11,7 @@ on:
       - scripts/ci/verify-approved-production-migration.js
       - scripts/ci/verify-attendance-time-policy-production-migration.js
       - scripts/ci/reconcile-production-attendance-migrations.js
+      - scripts/ci/attendance-schema-pin.js
       - scripts/ci/g06-production-migration-candidates.json
 
 permissions:
@@ -96,6 +97,9 @@ jobs:
 
           ci_success=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow CI --commit "$SOURCE_SHA" --limit 20 --json status,conclusion --jq '[.[] | select(.status=="completed" and .conclusion=="success")] | length')
           test "$ci_success" -ge 1
+          # The retired manifest source (500aaa53) predates the reviewed attendance schema pin:
+          # this flow can only fail closed and must never be approved to reach a database mutation.
+          git cat-file -e "$GITHUB_SHA:scripts/ci/attendance-schema-pin.js"
           test -z "$(git status --porcelain)"
 
       - name: Require successful exact release-control CI before Owner gate
@@ -185,6 +189,7 @@ jobs:
           git show "$GITHUB_SHA:$POST_VERIFY_SCRIPT" >/tmp/post-verify-production-migration.js
           git show "$GITHUB_SHA:$POST_VERIFY_SCRIPT" >/tmp/verify-attendance-time-policy-production-migration.js
           git show "$GITHUB_SHA:scripts/ci/reconcile-production-attendance-migrations.js" >/tmp/reconcile-production-attendance-migrations.js
+          git show "$GITHUB_SHA:scripts/ci/attendance-schema-pin.js" >/tmp/attendance-schema-pin.js
           git show "$GITHUB_SHA:scripts/ci/g06-production-migration-candidates.json" >/tmp/g06-production-migration-candidates.json
           git show "$GITHUB_SHA:scripts/ci/verify-g06-simple-attendance-production-migration.js" >/tmp/verify-g06-simple-attendance-production-migration.js
           node - <<'NODE'
@@ -198,9 +203,16 @@ jobs:
           NODE
           node - <<'NODE'
           const fs = require('node:fs');
-          const crypto = require('node:crypto');
+          const { assertAttendanceSchemaPin } = require('/tmp/attendance-schema-pin.js');
           const schema = fs.readFileSync('prisma/schema.prisma');
-          if (crypto.createHash('sha256').update(schema).digest('hex') !== '4f0c0b129b8b52826ddca8ddb03ddbd678ef25ea96fa22aa1928e406e4112d03') throw new Error('Pinned Prisma schema mismatch');
+          // This retired flow checks out its historical manifest source, whose schema predates the
+          // reviewed pin. The copied helper must reject it here, before any database mutation.
+          try {
+            assertAttendanceSchemaPin(schema);
+          } catch (error) {
+            console.error('PRISMA_SCHEMA_PIN=' + (error && error.code === 'SCHEMA_PIN_MISMATCH' ? 'SCHEMA_PIN_MISMATCH' : 'FAIL_CLOSED'));
+            process.exit(1);
+          }
           const text = schema.toString();
           if (!/effectiveFrom[^\n]*@db\.Timestamptz\(6\)/.test(text) || !/createdAt[^\n]*@db\.Timestamptz\(6\)/.test(text)) throw new Error('Timestamp mapping mismatch');
           console.log('PRISMA_MAPPING_NATIVE_TIMESTAMP=PASS');
