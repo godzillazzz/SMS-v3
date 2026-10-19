@@ -109,7 +109,7 @@ const simpleMoveInput = z.object({
   signatureBase64: z.string().min(16).max(4096),
   displayName: z.string().trim().min(1).max(120).optional(),
   platformHint: z.string().trim().max(100).nullable().optional(),
-  reason: z.string().trim().min(3).max(1000)
+  reason: z.string().trim().min(3).max(1000).nullable().optional()
 }).strict();
 const simplePendingReviewInput = z.object({ comment: z.string().trim().min(3).max(1000) }).strict();
 const livePhotoUpload = multer({ storage: multer.memoryStorage(), limits: { files: 1 + ACTIVE_FACE_CHALLENGE_FRAME_COUNT, fields: 0, parts: 2 + ACTIVE_FACE_CHALLENGE_FRAME_COUNT, fileSize: ATTACHMENT_PROFILES.ATTENDANCE_FACE.imageHardLimitBytes } }).fields([
@@ -202,7 +202,7 @@ function createAttendanceRoutes({ environment = process.env, authenticateMiddlew
   router.use(requirePreviewAttendance, authenticateMiddleware);
 
   router.get('/simple/bootstrap', async (req, res, next) => {
-    try { res.json({ data: await simpleAttendance.bootstrap({ actor: req.user }) }); } catch (error) { next(error); }
+    try { res.json({ data: await simpleAttendance.bootstrap({ actor: req.user, deviceFingerprint: req.headers['x-attendance-device-fingerprint'] || null }) }); } catch (error) { next(error); }
   });
 
   router.post('/simple/selfie-challenge', async (req, res, next) => {

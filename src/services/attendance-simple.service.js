@@ -230,15 +230,22 @@ function createAttendanceSimpleService({
     return payload;
   }
 
-  async function bootstrap({ actor }) {
+  async function bootstrap({ actor, deviceFingerprint = null }) {
     const now = clock();
     const identity = await resolveIdentity(prisma, actor);
     const assignment = await resolveCurrentAssignment(prisma, identity.employeeId, now);
     if (!actionableAssignment(assignment)) throw http(409, 'ATTENDANCE_SHIFT_NOT_ACTIONABLE', 'The current shift is not eligible for Attendance.');
-    const [approval, existingSession, policy] = await Promise.all([
+    const [approval, existingSession, policy, pendingDeviceRequest] = await Promise.all([
       approvedSchedule(prisma, assignment),
       prisma.attendanceSession.findUnique({ where: { shiftAssignmentId: assignment.id } }),
-      policies.getPolicy(prisma)
+      policies.getPolicy(prisma),
+      deviceFingerprint
+        ? prisma.attendanceDeviceChangeRequest.findFirst({
+          where: { employeeId: identity.employeeId, status: 'PENDING_APPROVAL', candidateDevice: { credentialFingerprint: String(deviceFingerprint) } },
+          orderBy: { createdAt: 'desc' },
+          select: { id: true, status: true, createdAt: true, candidateDevice: { select: { credentialFingerprint: true } } }
+        })
+        : Promise.resolve(null)
     ]);
     const authority = await siteAuthority.resolve({ assignment, employee: identity.employee, existingSession }, prisma);
     const eventIntent = await eventIntentForAssignment(prisma, identity, assignment);
@@ -265,6 +272,12 @@ function createAttendanceSimpleService({
       assignment: { id: assignment.id, workDate: workDateText(assignment.workDate), shift: payload.shift, site: payload.site },
       eligibleSites,
       activeDevice,
+      pendingDeviceRequest: pendingDeviceRequest ? {
+        id: pendingDeviceRequest.id,
+        status: pendingDeviceRequest.status,
+        requestedAt: pendingDeviceRequest.createdAt,
+        candidateFingerprint: pendingDeviceRequest.candidateDevice?.credentialFingerprint || null
+      } : null,
       offline: { bundle: issueBundle(payload), issuedAt: payload.issuedAt, expiresAt: payload.expiresAt, confirmAfterMs: policy.offlineConfirmAfterMs, maxAccuracyMeters: policy.maxAccuracyMeters } };
   }
 
@@ -535,8 +548,7 @@ function createAttendanceSimpleService({
   async function requestDeviceMove({ actor, input, requestUserAgent = null }) {
     const identity = await resolveIdentity(prisma, actor);
     const material = parsePublicKey({ publicKeySpkiBase64: input.publicKeySpkiBase64, keyAlgorithm: input.keyAlgorithm });
-    const reason = cleanText(input.reason);
-    if (!reason || reason.length < 3) throw http(400, 'ATTENDANCE_DEVICE_REPLACEMENT_REASON_REQUIRED', 'A replacement reason of at least 3 characters is required.');
+    const reason = 'ยืนยันด้วย selfie สดจากเครื่องใหม่';
     const requestId = normalizedUuid(input.requestId, 'ATTENDANCE_DEVICE_MOVE_REQUEST_ID_INVALID');
     verifySignature(material.key, { version: MOVE_REQUEST_VERSION, requestId,
       publicKeySpkiBase64: String(input.publicKeySpkiBase64 || ''), keyAlgorithm: String(input.keyAlgorithm || ''), reason }, input.signatureBase64);

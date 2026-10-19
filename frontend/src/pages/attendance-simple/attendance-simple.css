@@ -71,9 +71,16 @@
 
 .attendance-simple__move { padding:16px; border:1px solid #8b6728; border-radius:14px; background:#241d0f; display:grid; gap:10px; }
 .attendance-simple__move p { margin:0; color:#c7b997; font-size:12px; line-height:1.55; }
-.attendance-simple__move textarea { min-height:74px; resize:vertical; border:1px solid #635433; border-radius:10px; background:#0d1720; color:#edf4fa; padding:10px; font:inherit; }
 .attendance-simple__move button, .attendance-simple__footer button { min-height:42px; border:1px solid #2a64a7; border-radius:10px; background:#0b5dcc; color:white; padding:8px 12px; font:inherit; font-weight:750; }
 .attendance-simple__move button:disabled { opacity:.5; }
+
+.attendance-simple__camera-modal { position:fixed; inset:0; z-index:1000; display:grid; place-items:center; padding:16px; background:rgba(0,0,0,.78); overscroll-behavior:contain; }
+.attendance-simple__camera-panel { width:min(520px,100%); max-height:min(92vh,760px); overflow:auto; overscroll-behavior:contain; padding:20px; border:1px solid #48667d; border-radius:18px; background:#091b29; box-shadow:0 24px 80px rgba(0,0,0,.5); display:grid; gap:14px; }
+.attendance-simple__camera-panel h2 { margin:0; color:#f0f6fc; font-size:20px; }
+.attendance-simple__camera-panel video { width:100%; max-height:65vh; object-fit:cover; border-radius:14px; background:#000; }
+.attendance-simple__camera-panel > div { display:flex; justify-content:flex-end; gap:10px; flex-wrap:wrap; }
+.attendance-simple__camera-panel button { min-height:44px; border:1px solid #2a64a7; border-radius:10px; background:#0b5dcc; color:#fff; padding:8px 14px; font:inherit; font-weight:750; }
+.attendance-simple__camera-panel button:last-child { background:transparent; border-color:#7890a2; }
 
 .attendance-simple__technical { border-top:1px solid #1e3b50; padding-top:10px; color:var(--attendance-simple-text-muted); font-size:11px; }
 .attendance-simple__technical summary { cursor:pointer; font-weight:700; }

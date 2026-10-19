@@ -31,6 +31,7 @@ export type SimpleBootstrap = {
   };
   eligibleSites: SimpleSite[];
   activeDevice: { id: string; credentialFingerprint: string; displayName: string; activatedAt?: string | null } | null;
+  pendingDeviceRequest: { id: string; status: 'PENDING_APPROVAL'; requestedAt: string; candidateFingerprint: string } | null;
   offline: { bundle: string; issuedAt: string; expiresAt: string; confirmAfterMs: number; maxAccuracyMeters: number };
 };
 
@@ -180,10 +181,11 @@ export async function simpleAttendanceSelfieProof(token: string): Promise<{ nonc
   return await payload(response) as { nonce: string; expiresAt: string };
 }
 
-export async function simpleAttendanceBootstrap(token: string): Promise<SimpleBootstrap> {
+export async function simpleAttendanceBootstrap(token: string, deviceFingerprint?: string | null): Promise<SimpleBootstrap> {
   const response = await attendanceAuthenticatedRequest('/attendance/simple/bootstrap', token, {
     method: 'GET',
-    credentials: 'include'
+    credentials: 'include',
+    headers: deviceFingerprint ? { 'X-Attendance-Device-Fingerprint': deviceFingerprint } : undefined
   });
   return await payload(response) as SimpleBootstrap;
 }
@@ -205,7 +207,7 @@ export async function simpleAttendanceMoveRequest(token: string, input: {
   signatureBase64: string;
   displayName?: string;
   platformHint?: string | null;
-  reason: string;
+  reason?: string;
 }) {
   const response = await attendanceAuthenticatedRequest('/attendance/simple/device/move-request', token, {
     method: 'POST',

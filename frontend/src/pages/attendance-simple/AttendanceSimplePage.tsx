@@ -186,7 +186,6 @@ export function AttendanceSimplePage({
   const [lastResult, setLastResult] = useState<SimpleEventResult | null>(null);
   const [siteContext, setSiteContext] = useState<DisplaySiteContext | null>(null);
   const [pendingSiteCapture, setPendingSiteCapture] = useState<{ location: Awaited<ReturnType<typeof getLocation>>; context: NonNullable<ReturnType<typeof gpsGeofenceDecision>['actualSite']> } | null>(null);
-  const [moveReason, setMoveReason] = useState('');
   const [moveBusy, setMoveBusy] = useState(false);
   const [bootstrapRetry, setBootstrapRetry] = useState(0);
   const [requestErrorCode, setRequestErrorCode] = useState<string>();
@@ -203,9 +202,9 @@ export function AttendanceSimplePage({
     setQueueCount(await encryptedQueueCount().catch(() => 0));
   }, []);
 
-  const loadBootstrap = useCallback(async () => {
+  const loadBootstrap = useCallback(async (deviceFingerprintOverride?: string | null) => {
     if (online && token) {
-      const fresh = await simpleAttendanceBootstrap(token);
+      const fresh = await simpleAttendanceBootstrap(token, deviceFingerprintOverride);
       await storeEncryptedBootstrap(fresh);
       setBootstrap(fresh);
       return fresh;
@@ -232,7 +231,7 @@ export function AttendanceSimplePage({
           if (result.counted || result.status === 'PENDING_CONFIRMATION') {
             acknowledged = true;
             setBootstrap(null);
-            const fresh = await simpleAttendanceBootstrap(token);
+            const fresh = await simpleAttendanceBootstrap(token, fingerprint);
             await storeEncryptedBootstrap(fresh);
             setBootstrap(fresh);
             await removeQueued(row.captureId);
@@ -274,7 +273,9 @@ export function AttendanceSimplePage({
         setIdentity(nextIdentity);
         setFingerprint(await deviceFingerprint(nextIdentity));
         await refreshQueueCount();
-        const nextBootstrap = await loadBootstrap();
+        const nextFingerprint = await deviceFingerprint(nextIdentity);
+        setFingerprint(nextFingerprint);
+        const nextBootstrap = await loadBootstrap(nextFingerprint);
         if (!active) return;
         setBootstrap(nextBootstrap);
         setRequestErrorCode(undefined);
@@ -327,6 +328,7 @@ export function AttendanceSimplePage({
   useEffect(() => () => stopCamera(), [stopCamera]);
 
   const openSelfieCamera = useCallback(async () => {
+    if (bindingState === 'FOREIGN' && bootstrap?.pendingDeviceRequest?.status === 'PENDING_APPROVAL') return;
     if (!navigator.mediaDevices?.getUserMedia) {
       setTone('danger'); setMessage('เบราว์เซอร์นี้ไม่รองรับกล้องหน้า'); return;
     }
@@ -339,9 +341,10 @@ export function AttendanceSimplePage({
       stopCamera(); setCameraOpen(false); setTone('danger');
       setMessage(error instanceof DOMException && error.name === 'NotAllowedError' ? 'กรุณาอนุญาตกล้องหน้าเพื่อยืนยันตัวตน' : 'ไม่สามารถเปิดกล้องหน้าได้ กรุณาลองใหม่');
     }
-  }, [stopCamera]);
+  }, [bindingState, bootstrap, stopCamera]);
 
   const recordAttendance = async (capturedSelfie = selfie, capturedSelfieNonce = selfieNonce) => {
+    if (bindingState === 'FOREIGN' && bootstrap?.pendingDeviceRequest?.status === 'PENDING_APPROVAL') return;
     if (bindingState === 'FOREIGN' && !capturedSelfie) { await openSelfieCamera(); return; }
     if (readOnly || busy || !identity || !bootstrap) return;
     setBusy(true);
@@ -422,7 +425,7 @@ export function AttendanceSimplePage({
       }
       if (result.counted) {
         try {
-          const fresh = await simpleAttendanceBootstrap(token);
+          const fresh = await simpleAttendanceBootstrap(token, fingerprint);
           await storeEncryptedBootstrap(fresh);
           setBootstrap(fresh);
         } catch {
@@ -479,11 +482,11 @@ export function AttendanceSimplePage({
   };
 
   const requestMove = async () => {
-    if (!token || !online || !identity || moveBusy || moveReason.trim().length < 3) return;
+    if (!token || !online || !identity || moveBusy) return;
     setMoveBusy(true);
     try {
       const requestId = uuid();
-      const reason = moveReason.trim();
+      const reason = 'ยืนยันด้วย selfie สดจากเครื่องใหม่';
       const payload = {
         version: 'SMS_ATTENDANCE_DEVICE_MOVE_V1',
         requestId,
@@ -497,12 +500,15 @@ export function AttendanceSimplePage({
         keyAlgorithm: identity.keyAlgorithm,
         signatureBase64: await signPayload(identity, payload),
         displayName: 'อุปกรณ์ลงเวลา',
-        platformHint: platformHint(),
-        reason
+        platformHint: platformHint()
       });
       setTone('warning');
       setMessage('ส่งคำขอย้ายเครื่องแล้ว · รอ ADMIN อนุมัติ เครื่องหลักเดิมยังไม่ถูกยกเลิก');
-      setMoveReason('');
+      try {
+        const fresh = await simpleAttendanceBootstrap(token, fingerprint);
+        await storeEncryptedBootstrap(fresh);
+        setBootstrap(fresh);
+      } catch { /* keep the submitted state visible if refresh is temporarily unavailable */ }
     } catch (error) {
       const failure = attendanceFailure(error, 'ส่งคำขอย้ายเครื่องไม่สำเร็จ กรุณาลองใหม่หรือติดต่อผู้ดูแลระบบ');
       setRequestErrorId(failure.requestId);
@@ -543,10 +549,13 @@ export function AttendanceSimplePage({
   const accountBlockCodes = ['ATTENDANCE_EMPLOYEE_LINK_REQUIRED', 'ATTENDANCE_DEVICE_EMPLOYEE_LINK_REQUIRED', 'INACTIVE_EMPLOYEE_OPERATION'];
   const scheduleBlockCodes = ['ATTENDANCE_ASSIGNMENT_REQUIRED', 'ATTENDANCE_SCHEDULE_NOT_APPROVED', 'ATTENDANCE_SHIFT_NOT_ACTIONABLE'];
   const clockBlockedByServer = [...deviceBlockCodes, ...accountBlockCodes, ...scheduleBlockCodes].includes(requestErrorCode || '');
-  const clockDisabled = readOnly || busy || !identity || !bootstrap || clockBlockedByServer;
+  const pendingDeviceApproval = bindingState === 'FOREIGN' && bootstrap?.pendingDeviceRequest?.status === 'PENDING_APPROVAL';
+  const clockDisabled = readOnly || busy || !identity || !bootstrap || clockBlockedByServer || pendingDeviceApproval;
   const disabledGuidance = readOnly
     ? { message: 'โหมดดูแทนไม่สามารถลงเวลาได้ กรุณาออกจากโหมดดูแทนก่อนลงเวลา' }
-    : busy
+    : pendingDeviceApproval
+      ? { message: `รอ ADMIN อนุมัติการย้ายเครื่อง · ยื่นเมื่อ ${formatReceiptTime(bootstrap?.pendingDeviceRequest?.requestedAt)}` }
+      : busy
       ? { message: 'กำลังตรวจตำแหน่งหรือบันทึกรายการ กรุณารอให้เสร็จก่อน' }
       : accountBlockCodes.includes(requestErrorCode || '')
         ? { message: message || 'บัญชีนี้ยังไม่พร้อมสำหรับการลงเวลา กรุณาติดต่อผู้ดูแลระบบ' }
@@ -577,7 +586,7 @@ export function AttendanceSimplePage({
         <h2>ยืนยันตัวตนด้วยเซลฟี่สด</h2>
         <video ref={videoRef} autoPlay playsInline muted aria-label="กล้องหน้า" />
         <canvas ref={canvasRef} hidden />
-        <div><button type="button" onClick={() => void captureSelfie()} disabled={busy}>ถ่ายภาพยืนยันตัวตน</button><button type="button" onClick={() => { stopCamera(); setCameraOpen(false); }} disabled={busy}>ยกเลิก</button></div>
+        <div><button type="button" onClick={() => void captureSelfie()} disabled={busy}>ถ่ายภาพยืนยันตัวตน</button><button type="button" aria-label="ปิดหน้าต่างกล้อง" onClick={() => { stopCamera(); setCameraOpen(false); }} disabled={busy}>ปิด</button></div>
       </div>
     </div>}
     <PageHeader
@@ -667,9 +676,8 @@ export function AttendanceSimplePage({
     </SectionCard>}
 
     {bindingState === 'FOREIGN' && <SectionCard className="attendance-simple__move" kicker="อุปกรณ์ลงเวลา" title="ขอย้ายเครื่องหลัก" description="รายการลงเวลาจากอุปกรณ์อื่นจะถูกส่งให้ตรวจสอบตามสิทธิ์เดิม">
-      <p>การลงเวลายังทำได้แต่รายการจะถูกส่งให้ตรวจ การย้ายเครื่องต้องให้ ADMIN อนุมัติและมี Audit log</p>
-      <textarea value={moveReason} onChange={(event) => setMoveReason(event.target.value)} maxLength={1000} placeholder="เหตุผลที่ย้ายเครื่อง เช่น เปลี่ยนโทรศัพท์เครื่องหลัก" />
-      <button type="button" disabled={!online || !token || moveBusy || moveReason.trim().length < 3} onClick={() => void requestMove()}>
+      <p>การลงเวลาจากเครื่องใหม่ต้องยืนยันด้วย selfie สด และการย้ายเครื่องต้องให้ ADMIN อนุมัติ</p>
+      <button type="button" disabled={!online || !token || moveBusy} onClick={() => void requestMove()}>
         {moveBusy ? 'กำลังส่ง…' : 'ขอให้ ADMIN อนุมัติย้ายเครื่อง'}
       </button>
     </SectionCard>}
