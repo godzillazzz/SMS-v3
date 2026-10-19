@@ -209,6 +209,7 @@ function parseArgs(argv) {
   for (let index = 0; index < argv.length; index += 1) {
     const token = argv[index];
     if (token === '--contract-only') { result.contractOnly = true; continue; }
+    if (token === '--verify-vercel-production-env') { result.verifyVercelProductionEnv = true; continue; }
     if (!token.startsWith('--')) continue;
     const [rawKey, inline] = token.slice(2).split('=', 2);
     const key = rawKey.replace(/-([a-z])/g, (_, letter) => letter.toUpperCase());

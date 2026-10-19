@@ -53,6 +53,10 @@ jobs:
           fetch-depth: 0
 
       - name: Verify Production attendance selfie environment contract
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          EXPECTED_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
         run: node scripts/ci/verify-environment-contract.js --verify-vercel-production-env
 
       - name: Verify environment governance contract definition
