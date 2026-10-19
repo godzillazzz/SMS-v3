@@ -116,7 +116,15 @@ test('R5-B draft remains rejected and current R7.1 control still requires separa
 test('R5-B draft matches official target, rollback, and policy schema without granting authorization', () => {
   const d = release('r5-b-production-manifest-draft.json');
   // In-memory projection only; the actual draft is immutable and rejected above.
-  const projected = {...d, manifest_state: 'APPROVED_FOR_OWNER_PRODUCTION_DECISION', owner_action: 'APPROVE_PRODUCTION_ONLY'};
+  // The projection must state the pre-dispatch invariants explicitly: approval for the Owner
+  // decision never grants dispatch authorization.
+  const projected = {
+    ...d,
+    manifest_state: 'APPROVED_FOR_OWNER_PRODUCTION_DECISION',
+    owner_action: 'APPROVE_PRODUCTION_ONLY',
+    production_dispatch_authorized: false,
+    production_release_go_no_go: 'OWNER_PRODUCTION_DECISION_REQUIRED_NO_DISPATCH_AUTHORIZED',
+  };
   const parsed = validateReleaseManifest(projected);
   assert.equal(parsed.commitSha, APP);
   assert.equal(parsed.treeSha, TREE);
