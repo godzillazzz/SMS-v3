@@ -26,5 +26,7 @@
   "owner_policy_reference": "OWNER order 19 Oct 2026: second device allowed with mandatory live selfie, ADMIN approval revokes the first device, rejection makes the shift absent.",
   "additive_only": true,
   "data_mutation": false,
-  "legacy_status_retained": true
+  "legacy_status_retained": true,
+  "migration_name": "202610190001_attendance_device_selfie",
+  "migration_path": "prisma/migrations/202610190001_attendance_device_selfie/migration.sql"
 }
