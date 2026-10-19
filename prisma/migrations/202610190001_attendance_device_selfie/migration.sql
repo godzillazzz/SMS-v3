@@ -24,3 +24,16 @@ CREATE INDEX "attendance_device_selfies_purged_at_idx" ON "attendance_device_sel
 
 ALTER TABLE "attendance_device_selfies" ADD CONSTRAINT "attendance_device_selfies_employee_id_fkey" FOREIGN KEY ("employee_id") REFERENCES "employees"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 ALTER TABLE "attendance_device_selfies" ADD CONSTRAINT "attendance_device_selfies_enrollment_id_fkey" FOREIGN KEY ("enrollment_id") REFERENCES "attendance_device_enrollments"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+ALTER TABLE public."attendance_device_selfies" ENABLE ROW LEVEL SECURITY;
+
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN
+    EXECUTE 'REVOKE ALL ON TABLE public."attendance_device_selfies" FROM anon';
+  END IF;
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN
+    EXECUTE 'REVOKE ALL ON TABLE public."attendance_device_selfies" FROM authenticated';
+  END IF;
+END
+$$;

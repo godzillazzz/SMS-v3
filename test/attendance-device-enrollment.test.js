@@ -253,6 +253,23 @@ test('device request audit writer emits canonical metadata for every required ac
   });
 });
 
+test('canonical audit metadata is enforced for correction, resubmission, and transfer rejection actions', async () => {
+  const contract = new Set(DEVICE_REQUEST_AUDIT_FIELDS);
+  const scenarios = [
+    ['RETURN_FOR_CORRECTION', async (service) => service.returnForCorrection({ actor: adminActor, requestId: ids.request, comment: 'แก้ไข' })],
+    ['RESUBMIT', async (service) => { await service.returnForCorrection({ actor: adminActor, requestId: ids.request, comment: 'แก้ไข' }); return service.resubmit({ actor: employeeActor, requestId: ids.request, reason: 'แก้ไขแล้ว' }); }],
+    ['DEVICE_TRANSFER_REJECTED', async (service) => service.reject({ actor: adminActor, requestId: ids.request, reason: 'ไม่ผ่าน' })]
+  ];
+  for (const [event, run] of scenarios) {
+    const scenario = harness();
+    await createCandidate(scenario.service, keyMaterial());
+    await run(scenario.service);
+    const entries = scenario.state.audits.filter((entry) => entry.metadata?.event === event);
+    assert.ok(entries.length > 0, `${event} audit missing`);
+    for (const entry of entries) assert.ok(Object.keys(entry.metadata).every((key) => contract.has(key)), `${event} emitted non-canonical metadata`);
+  }
+});
+
 test('admin final approval activates exactly the verified first device', async () => {
   const material = keyMaterial(); const { state, service } = harness(); await createCandidate(service, material); await proveCandidate(service, material);
   const candidateEnrollmentIdBeforeApproval = state.enrollments[0].id;

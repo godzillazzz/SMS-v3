@@ -7,7 +7,7 @@ const crypto = require('node:crypto');
 const fs = require('node:fs');
 const { normalizeSelfie, config, createSupabaseAttendanceDeviceSelfieStorage } = require('../src/services/attendance-device-selfie-storage.service');
 
-const JPEG = Buffer.from('/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAP//////////////////////////2wBDAf//////////////////////////wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAX/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIQAxAAAAH/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/9oACAEBAAEFAqf/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oACAEDAQE/AX//xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oACAEBAAY/Av/EABQQAQAAAAAAAAAAAAAAAAAAABD/2gAIAQEAAT8h/9k=', 'base64');
+const JPEG = Buffer.from('/9j/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAf/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFQEBAQAAAAAAAAAAAAAAAAAABgj/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIRAxEAPwCdABykX//Z', 'base64');
 const selfie = () => ({ mimeType: 'image/jpeg', buffer: JPEG });
 
 test('FOREIGN selfie storage requires configured private storage and validates JPEG/PNG bytes', () => {
@@ -36,7 +36,7 @@ test('storage upload uses private bucket check, HMAC path, random suffix, and pr
 
 test('retention purge removes only expired selfies and marks purgedAt', async () => {
   const now = new Date('2027-01-01T00:00:00.000Z');
-  const expired = { id: 'expired', employeeId: 'employee-1', storageObjectKey: 'expired.jpg', retentionUntil: new Date('2026-12-31T23:59:59.000Z'), purgedAt: null };
+  const expired = { id: 'expired', employeeId: 'employee-1', storageObjectKey: 'attendance-selfie/hash/expired.jpg', retentionUntil: new Date('2026-12-31T23:59:59.000Z'), purgedAt: null };
   const current = { id: 'current', employeeId: 'employee-1', storageObjectKey: 'current.jpg', retentionUntil: new Date('2027-01-02T00:00:00.000Z'), purgedAt: null };
   const removed = [];
   const updates = [];

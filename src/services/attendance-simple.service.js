@@ -106,6 +106,7 @@ function signedEventPayload(input) {
     keyAlgorithm: String(input.device?.keyAlgorithm || ''),
     deviceSignals: input.device?.signals || {},
     selfieNonce: input.selfieNonce || null,
+    selfieChecksum: input.selfie ? (input.selfie.checksum || crypto.createHash('sha256').update(normalizeSelfie(input.selfie).buffer).digest('hex')) : null,
     selfieCaptureMode: input.selfie?.captureMode || null,
     selfieOverlayCapturedAt: input.selfie?.overlay?.capturedAt ? new Date(input.selfie.overlay.capturedAt).toISOString() : null,
     offlineBundleHash: input.offlineBundle ? sha256(String(input.offlineBundle)) : null
@@ -412,6 +413,7 @@ function createAttendanceSimpleService({
       if (binding.binding === 'FOREIGN') {
         if (!input.selfie) throw http(422, 'ATTENDANCE_FOREIGN_DEVICE_SELFIE_REQUIRED', 'A selfie is required when using a foreign Attendance device.');
         selfieFile = normalizeSelfie(input.selfie);
+        if (selfieFile.checksum !== signedPayload.selfieChecksum) throw http(422, 'ATTENDANCE_SELFIE_CHECKSUM_MISMATCH', 'Attendance selfie does not match the signed capture.');
       }
       riskFlags.push(...binding.reviewFlags);
       if (binding.binding === 'FOREIGN') riskFlags.push('FOREIGN_DEVICE_SELFIE');

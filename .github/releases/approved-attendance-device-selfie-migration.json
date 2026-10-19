@@ -28,5 +28,6 @@
   "data_mutation": false,
   "legacy_status_retained": true,
   "migration_name": "202610190001_attendance_device_selfie",
-  "migration_path": "prisma/migrations/202610190001_attendance_device_selfie/migration.sql"
+  "migration_path": "prisma/migrations/202610190001_attendance_device_selfie/migration.sql",
+  "migration_sha256": "db5a12dc3dfcffadfbb20562c07905fd082e59a80c379258bc9ff1c48945d4cf"
 }

@@ -103,7 +103,7 @@ function logStatusDiagnostics(diagnostics, log) {
   log('RAW_DATABASE_OUTPUT_EMITTED=false');
 }
 
-function runMigrationCommand(mode, { env = process.env, run = spawnSync, log = console.log, error = console.error, allowPending = false, knownMigrations = loadKnownMigrations() } = {}) {
+function runMigrationCommand(mode, { env = process.env, run = spawnSync, log = console.log, error = console.error, allowPending = false, expectedMigrations = null, knownMigrations = loadKnownMigrations() } = {}) {
   if (!['status', 'deploy'].includes(mode)) {
     error('Prisma migration command must be status or deploy');
     return 1;
@@ -129,7 +129,17 @@ function runMigrationCommand(mode, { env = process.env, run = spawnSync, log = c
     const diagnostics = classifyMigrationStatus(output, exitCode, { knownMigrations });
     logStatusDiagnostics(diagnostics, log);
     if (diagnostics.classification === 'UP_TO_DATE') return 0;
-    if (allowPending && diagnostics.classification === 'PENDING_MIGRATIONS_ONLY') return 0;
+    if (allowPending && diagnostics.classification === 'PENDING_MIGRATIONS_ONLY') {
+      if (expectedMigrations) {
+        const expected = [...new Set(expectedMigrations)].sort();
+        const actual = [...new Set(diagnostics.migrationNames)].sort();
+        if (expected.length !== actual.length || expected.some((name, index) => name !== actual[index])) {
+          error(`Prisma migration status blocked: pending migration set mismatch (expected=${expected.join(',')} actual=${actual.join(',')})`);
+          return 1;
+        }
+      }
+      return 0;
+    }
     error(`Prisma migration status blocked: ${diagnostics.classification}`);
     return 1;
   }
@@ -144,7 +154,10 @@ function runMigrationCommand(mode, { env = process.env, run = spawnSync, log = c
 
 if (require.main === module) {
   const mode = process.argv[2];
-  process.exitCode = runMigrationCommand(mode, { allowPending: process.argv.includes('--allow-pending') });
+  const expectedMigrations = process.env.EXPECTED_PENDING_MIGRATIONS
+    ? process.env.EXPECTED_PENDING_MIGRATIONS.split(',').map((name) => name.trim()).filter(Boolean)
+    : null;
+  process.exitCode = runMigrationCommand(mode, { allowPending: process.argv.includes('--allow-pending'), expectedMigrations });
 }
 
 module.exports = { classifyMigrationStatus, extractMigrationNames, extractPrismaErrorCodes, loadKnownMigrations, runMigrationCommand, sanitizeOutput };

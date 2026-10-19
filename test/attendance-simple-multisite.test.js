@@ -158,6 +158,17 @@ function signedInput({ pair, publicKeySpkiBase64, location, offlineBundle = null
 const locA = () => ({ latitude: 13.7241, longitude: 100.5701, accuracyMeters: 8, capturedAt: now.toISOString() });
 const locB = () => ({ latitude: 13.7251, longitude: 100.5701, accuracyMeters: 8, capturedAt: now.toISOString() });
 
+test('signed selfie checksum rejects image substitution', async () => {
+  const h = harness({ activePrimary: { id: crypto.randomUUID(), employeeId: ids.employee, status: 'ACTIVE', credentialFingerprint: 'different-primary' } });
+  h.state.devices.push(h.state.activePrimary);
+  const key = keyMaterial();
+  const imageA = { ...TEST_SELFIE };
+  const imageB = { ...TEST_SELFIE, base64: TEST_SELFIE.base64.replace('AAQSkZ', 'AAQSlZ') };
+  const signed = signedInput({ ...key, location: locA(), selfie: imageA });
+  signed.selfie = { ...imageB, captureMode: 'LIVE_CAMERA', overlay: { capturedAt: now.toISOString() }, checksum: require('crypto').createHash('sha256').update(Buffer.from(imageA.base64, 'base64')).digest('hex') };
+  await assert.rejects(() => h.service.submit({ actor: { sub: ids.user, role: 'VIEWER' }, input: signed }), (error) => error.details?.code === 'ATTENDANCE_SELFIE_CHECKSUM_MISMATCH');
+});
+
 test('online support Site keeps assigned Site, derives actual Site, emits context and audit', async () => {
   const h = harness();
   const { pair, publicKeySpkiBase64 } = keyMaterial();

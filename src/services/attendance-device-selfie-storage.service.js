@@ -3,6 +3,7 @@
 const crypto = require('node:crypto');
 const HttpError = require('../utils/http-error');
 const { detectedType } = require('./attachment-optimizer.service');
+const sharp = require('sharp');
 
 const MAX_BYTES = 1024 * 1024;
 const RETENTION_DAYS = 365;
@@ -10,6 +11,7 @@ const MIME_BY_TYPE = Object.freeze({ jpeg: 'image/jpeg', png: 'image/png' });
 const SELFIE_PATH_SECRET_ENV = 'SELFIE_PATH_SECRET';
 const MAX_PURGE_LIMIT = 500;
 const DEFAULT_ORPHAN_AGE_MS = 60 * 60 * 1000;
+const MIN_ORPHAN_AGE_MS = 60 * 1000;
 const MAX_ORPHAN_LIMIT = 1000;
 
 function http(status, code, message) { return new HttpError(status, message, { code }); }
@@ -53,6 +55,15 @@ function normalizeSelfie(selfie) {
   if (!detectedMime || (mimeType && mimeType !== detectedMime)) throw http(415, 'ATTENDANCE_SELFIE_TYPE_INVALID', 'Attendance selfie must be a valid JPEG or PNG image.');
   return { buffer, mimeType: detectedMime, type, sizeBytes: buffer.length, checksum: crypto.createHash('sha256').update(buffer).digest('hex') };
 }
+async function validateSelfieImage(file) {
+  try {
+    const metadata = await sharp(file.buffer, { failOn: 'error', limitInputPixels: 150_000_000 }).metadata();
+    if (!Number.isInteger(metadata.width) || metadata.width <= 0 || !Number.isInteger(metadata.height) || metadata.height <= 0) throw new Error('invalid dimensions');
+  } catch {
+    throw http(415, 'ATTENDANCE_SELFIE_TYPE_INVALID', 'Attendance selfie must be a valid JPEG or PNG image.');
+  }
+  return file;
+}
 function createSupabaseAttendanceDeviceSelfieStorage({ environment = process.env, fetchImpl = globalThis.fetch, prisma = null, audit = null, logger = console, clock = () => new Date() } = {}) {
   if (typeof fetchImpl !== 'function') throw new TypeError('Attendance selfie storage requires fetch().');
   let privateChecked = false;
@@ -65,14 +76,19 @@ function createSupabaseAttendanceDeviceSelfieStorage({ environment = process.env
     privateChecked = true;
   }
   async function remove({ objectKey }) {
+    const canonicalKey = String(objectKey || '');
+    if (!canonicalKey.startsWith('attendance-selfie/') || canonicalKey.includes('..') || canonicalKey.includes('\\') || canonicalKey.split('/').some((segment) => !segment)) {
+      throw http(400, 'ATTENDANCE_SELFIE_OBJECT_KEY_INVALID', 'Attendance selfie object key is invalid.');
+    }
     const { url, serviceKey, bucket } = config(environment);
-    const response = await fetchImpl(objectPath(url, bucket, objectKey), { method: 'DELETE', headers: { authorization: `Bearer ${serviceKey}`, apikey: serviceKey } });
+    const response = await fetchImpl(objectPath(url, bucket, canonicalKey), { method: 'DELETE', headers: { authorization: `Bearer ${serviceKey}`, apikey: serviceKey } });
     if (!response.ok && response.status !== 404) throw http(502, 'ATTENDANCE_SELFIE_STORAGE_DELETE_FAILED', 'Attendance selfie cleanup failed.');
   }
   async function put({ employeeId, captureId, selfie }) {
     await assertPrivate();
     const { url, serviceKey, bucket, pathSecret } = config(environment);
     const file = normalizeSelfie(selfie);
+    await validateSelfieImage(file);
     const random = crypto.randomBytes(4).toString('hex');
     const objectKey = `attendance-selfie/${selfiePathHash(employeeId, pathSecret)}/${captureId}-${random}.${file.type === 'png' ? 'png' : 'jpg'}`;
     const response = await fetchImpl(objectPath(url, bucket, objectKey), { method: 'POST', headers: { authorization: `Bearer ${serviceKey}`, apikey: serviceKey, 'content-type': file.mimeType, 'x-upsert': 'false' }, body: file.buffer });
@@ -129,8 +145,11 @@ function createSupabaseAttendanceDeviceSelfieStorage({ environment = process.env
     const batchLimit = Math.max(0, Math.min(Number(limit) || MAX_ORPHAN_LIMIT, MAX_ORPHAN_LIMIT));
     const batchLimited = listing.objects.length > batchLimit;
     const objects = listing.objects.slice(0, batchLimit);
-    const ageMs = olderThanMs === null || olderThanMs === undefined ? DEFAULT_ORPHAN_AGE_MS : Number(olderThanMs);
-    if (!Number.isFinite(ageMs) || ageMs < 0) throw http(400, 'ATTENDANCE_SELFIE_RECONCILE_AGE_INVALID', 'Attendance selfie orphan age must be a finite non-negative number.');
+    const requestedAgeMs = olderThanMs === null || olderThanMs === undefined ? DEFAULT_ORPHAN_AGE_MS : Number(olderThanMs);
+    if (!Number.isFinite(requestedAgeMs) || requestedAgeMs < 0 || (String(environment.NODE_ENV || process.env.NODE_ENV || '').toLowerCase() === 'production' && requestedAgeMs < MIN_ORPHAN_AGE_MS)) {
+      throw http(400, 'ATTENDANCE_SELFIE_RECONCILE_AGE_INVALID', 'Attendance selfie orphan age must be at least one minute.');
+    }
+    const ageMs = requestedAgeMs < MIN_ORPHAN_AGE_MS ? MIN_ORPHAN_AGE_MS : requestedAgeMs;
     const threshold = now.getTime() - ageMs;
     let skippedRecent = 0;
     let skippedUnknown = 0;
@@ -152,7 +171,13 @@ function createSupabaseAttendanceDeviceSelfieStorage({ environment = process.env
     let deleted = 0; let kept = 0; let failed = 0;
     for (const object of candidates) {
       if (keptKeys.has(object.path)) { kept += 1; continue; }
-      try { await remove({ objectKey: object.path }); deleted += 1; } catch (error) { failed += 1; safeLog(logger, 'ATTENDANCE_SELFIE_ORPHAN_RECONCILED', { objectKey: object.path, success: false, errorCode: error?.details?.code || error?.code || 'UNKNOWN' }); }
+      try {
+        const concurrent = typeof prisma.attendanceDeviceSelfie.findUnique === 'function'
+          ? await prisma.attendanceDeviceSelfie.findUnique({ where: { storageObjectKey: object.path }, select: { storageObjectKey: true } })
+          : null;
+        if (concurrent) { kept += 1; continue; }
+        await remove({ objectKey: object.path }); deleted += 1;
+      } catch (error) { failed += 1; safeLog(logger, 'ATTENDANCE_SELFIE_ORPHAN_RECONCILED', { objectKey: object.path, success: false, errorCode: error?.details?.code || error?.code || 'UNKNOWN' }); }
     }
     const result = {
       scanned: objects.length, deleted, kept, failed, skippedRecent, skippedUnknown,
@@ -175,4 +200,4 @@ function createSupabaseAttendanceDeviceSelfieStorage({ environment = process.env
   return { put, remove, listObjects, reconcileOrphans, purgeExpiredSelfies, assertPrivate };
 }
 
-module.exports = { MAX_BYTES, RETENTION_DAYS, DEFAULT_ORPHAN_AGE_MS, config, normalizeSelfie, selfiePathHash, createSupabaseAttendanceDeviceSelfieStorage };
+module.exports = { MAX_BYTES, RETENTION_DAYS, DEFAULT_ORPHAN_AGE_MS, MIN_ORPHAN_AGE_MS, config, normalizeSelfie, validateSelfieImage, selfiePathHash, createSupabaseAttendanceDeviceSelfieStorage };

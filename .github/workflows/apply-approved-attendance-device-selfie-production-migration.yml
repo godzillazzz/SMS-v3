@@ -147,14 +147,14 @@ jobs:
           MIGRATION_PATH="${{ needs.prepare.outputs.migration_path }}"
           ! grep -Eiq 'INSERT[[:space:]]+INTO|DELETE[[:space:]]+FROM|TRUNCATE|DROP[[:space:]]+(TABLE|COLUMN|INDEX)|ALTER[[:space:]]+COLUMN' "$MIGRATION_PATH"
           test "$(grep -Ec 'CREATE TABLE "attendance_device_selfies"' "$MIGRATION_PATH")" -eq 1
-          node scripts/ci/prisma-migration.js status --allow-pending
+          EXPECTED_PENDING_MIGRATIONS="202610190001_attendance_device_selfie" node scripts/ci/prisma-migration.js status --allow-pending
       - name: Apply approved DEVICE2-SELFIE migration only
         run: node scripts/ci/prisma-migration.js deploy
       - name: Verify migration status and live constraints
         shell: bash
         run: |
           set -euo pipefail
-          node scripts/ci/prisma-migration.js status
+          EXPECTED_PENDING_MIGRATIONS="" node scripts/ci/prisma-migration.js status
           # Verify the script that actually runs matches the reviewed commit exactly.
           git fetch --no-tags origin "$GITHUB_SHA"
           # Run it inside the worktree so @prisma/client resolves from the installed node_modules.

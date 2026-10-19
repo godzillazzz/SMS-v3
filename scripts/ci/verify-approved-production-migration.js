@@ -85,7 +85,7 @@ const MIGRATIONS = Object.freeze({
     migrationNames: Object.freeze(['202610190001_attendance_device_selfie']),
     migrationPolicy: 'ADDITIVE_ATTENDANCE_DEVICE_SELFIE_TABLE_ONLY_NO_BACKFILL',
     postVerifyScript: 'scripts/ci/verify-attendance-device-selfie-table.js',
-    sqlSha256: Object.freeze({ '202610190001_attendance_device_selfie': '994167570b69d5a1a74b784c86a639fb50bc856d49fbd7e1261d491521fda327' }),
+    sqlSha256: Object.freeze({ '202610190001_attendance_device_selfie': 'db5a12dc3dfcffadfbb20562c07905fd082e59a80c379258bc9ff1c48945d4cf' }),
     dataBackfill: false,
     schemaChanged: true
   }),
