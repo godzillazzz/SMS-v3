@@ -19,7 +19,7 @@
   "source_branch": "fix/serverless-database-reliability",
   "run_migrations": false,
   "database_change_policy": "PRE_APPLIED_APPROVED_MIGRATION",
-  "pre_applied_migration_manifest_path": ".github/releases/approved-attendance-device-selfie-production-migration.json",
+  "pre_applied_migration_manifest_path": ".github/releases/approved-attendance-device-selfie-migration.json",
   "pre_applied_migration_evidence_run_id": 39197750708,
   "owner_action": "APPROVE_PRODUCTION_ONLY",
   "production_dispatch_authorized": false,
