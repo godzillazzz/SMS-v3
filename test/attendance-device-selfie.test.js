@@ -5,10 +5,18 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const crypto = require('node:crypto');
 const fs = require('node:fs');
-const { normalizeSelfie, config, createSupabaseAttendanceDeviceSelfieStorage } = require('../src/services/attendance-device-selfie-storage.service');
+const { normalizeSelfie, config, validateSelfieImage, createSupabaseAttendanceDeviceSelfieStorage } = require('../src/services/attendance-device-selfie-storage.service');
 
-const JPEG = Buffer.from('/9j/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAf/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFQEBAQAAAAAAAAAAAAAAAAAABgj/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIRAxEAPwCdABykX//Z', 'base64');
+const JPEG = Buffer.from('/9j/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAj/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFAEBAAAAAAAAAAAAAAAAAAAAAP/EABQRAQAAAAAAAAAAAAAAAAAAAAD/2gAIAQEAAD8AqkAH/9k=', 'base64');
 const selfie = () => ({ mimeType: 'image/jpeg', buffer: JPEG });
+const PNG_HEADER = Buffer.from('89504e470d0a1a0a0000000d49484452', 'hex');
+
+test('full image decode rejects truncated JPEG and PNG with HTTP 415', async () => {
+  for (const buffer of [JPEG.subarray(0, -2), PNG_HEADER]) {
+    await assert.rejects(() => validateSelfieImage({ buffer }), (error) => error.statusCode === 415 && error.details.code === 'ATTENDANCE_SELFIE_TYPE_INVALID');
+  }
+});
+
 
 test('FOREIGN selfie storage requires configured private storage and validates JPEG/PNG bytes', () => {
   assert.throws(() => config({}), (error) => error.statusCode === 503 && error.details.code === 'ATTENDANCE_SELFIE_STORAGE_NOT_CONFIGURED');
@@ -79,7 +87,7 @@ test('SELFIE_PATH_SECRET fails closed for weak values and accepts strong entropy
 
 test('reconcileOrphans deletes old objects without rows and keeps objects with rows', async () => {
   const now = new Date('2027-01-01T00:00:00.000Z'); const deleted = []; const audits = [];
-  const prisma = { attendanceDeviceSelfie: { findMany: async () => [{ storageObjectKey: 'attendance-selfie/hash/kept.jpg' }] } };
+  const prisma = { attendanceDeviceSelfie: { findMany: async () => [{ storageObjectKey: 'attendance-selfie/hash/kept.jpg' }], findUnique: async () => null } };
   const storage = createSupabaseAttendanceDeviceSelfieStorage({ environment: { SUPABASE_URL: 'https://private.example.test', SUPABASE_SERVICE_ROLE_KEY: 'secret', ATTENDANCE_DEVICE_SELFIE_BUCKET: 'attendance-selfies', SELFIE_PATH_SECRET: 'strong-random-path-secret-0123456789' }, prisma, audit: { log: async (entry) => audits.push(entry) }, clock: () => now, fetchImpl: async (url, options) => {
     if (url.includes('/object/list/')) return { ok: true, json: async () => [{ id: '1', name: 'hash/orphan.jpg', updated_at: '2026-12-31T00:00:00.000Z' }, { id: '2', name: 'hash/kept.jpg', updated_at: '2026-12-31T00:00:00.000Z' }] };
     if (options.method === 'DELETE') { deleted.push(url); return { ok: true, json: async () => ({}) }; }
@@ -90,19 +98,34 @@ test('reconcileOrphans deletes old objects without rows and keeps objects with r
   assert.equal(audits[0].metadata.skippedRecent, 0); assert.equal(audits[0].metadata.skippedUnknown, 0);
 });
 
-test('reconcileOrphans fails closed when the selfie row query is unavailable', async () => {
+test('remove rejects non-canonical object keys without deleting', async () => {
+  const deleted = [];
   const storage = createSupabaseAttendanceDeviceSelfieStorage({
     environment: { SUPABASE_URL: 'https://private.example.test', SUPABASE_SERVICE_ROLE_KEY: 'secret', ATTENDANCE_DEVICE_SELFIE_BUCKET: 'attendance-selfies', SELFIE_PATH_SECRET: 'strong-random-path-secret-0123456789' },
-    fetchImpl: async (url) => url.includes('/object/list/') ? { ok: true, json: async () => [] } : { ok: true, json: async () => ({}) }
+    fetchImpl: async (url, options) => { if (options?.method === 'DELETE') deleted.push(url); return { ok: true, json: async () => ({}) }; }
+  });
+  for (const objectKey of ['attendance-selfie/./x.jpg', 'attendance-selfie/../x.jpg', 'attendance-selfie/%2e%2e/x.jpg', 'attendance-selfie/hash//x.jpg', 'attendance-selfie/hash\\x.jpg']) {
+    await assert.rejects(() => storage.remove({ objectKey }), (error) => error.statusCode === 400 && error.details.code === 'ATTENDANCE_SELFIE_OBJECT_KEY_INVALID');
+  }
+  assert.equal(deleted.length, 0);
+});
+
+test('reconcileOrphans fails closed when findUnique is unavailable and deletes zero objects', async () => {
+  const deleted = [];
+  const storage = createSupabaseAttendanceDeviceSelfieStorage({
+    environment: { SUPABASE_URL: 'https://private.example.test', SUPABASE_SERVICE_ROLE_KEY: 'secret', ATTENDANCE_DEVICE_SELFIE_BUCKET: 'attendance-selfies', SELFIE_PATH_SECRET: 'strong-random-path-secret-0123456789' },
+    prisma: { attendanceDeviceSelfie: { findMany: async () => [] } },
+    fetchImpl: async (url, options) => { if (options?.method === 'DELETE') deleted.push(url); return { ok: true, json: async () => [] }; }
   });
   await assert.rejects(() => storage.reconcileOrphans(), (error) => error.statusCode === 503 && error.details.code === 'ATTENDANCE_SELFIE_RECONCILE_UNAVAILABLE');
+  assert.equal(deleted.length, 0);
 });
 
 test('reconcile reports batch limit and skips recent/unknown timestamps', async () => {
   const now = new Date('2027-01-01T00:00:00.000Z'); const deleted = []; const audits = [];
   const storage = createSupabaseAttendanceDeviceSelfieStorage({
     environment: { SUPABASE_URL: 'https://private.example.test', SUPABASE_SERVICE_ROLE_KEY: 'secret', ATTENDANCE_DEVICE_SELFIE_BUCKET: 'attendance-selfies', SELFIE_PATH_SECRET: 'strong-random-path-secret-0123456789' },
-    prisma: { attendanceDeviceSelfie: { findMany: async () => [] } }, audit: { log: async (entry) => audits.push(entry) },
+    prisma: { attendanceDeviceSelfie: { findMany: async () => [], findUnique: async () => null } }, audit: { log: async (entry) => audits.push(entry) },
     fetchImpl: async (url, options) => {
       if (url.includes('/object/list/')) return { ok: true, json: async () => [
         { id: '1', name: 'old.jpg', updated_at: '2026-12-01T00:00:00.000Z' },
@@ -123,7 +146,7 @@ test('reconcileOrphans honors olderThanMs zero and keeps the default age', async
   const object = { id: '1', name: 'thirty-minutes-old.jpg', updated_at: '2026-12-31T23:30:00.000Z' };
   const makeStorage = (deleted) => createSupabaseAttendanceDeviceSelfieStorage({
     environment: { SUPABASE_URL: 'https://private.example.test', SUPABASE_SERVICE_ROLE_KEY: 'secret', ATTENDANCE_DEVICE_SELFIE_BUCKET: 'attendance-selfies', SELFIE_PATH_SECRET: 'strong-random-path-secret-0123456789' },
-    prisma: { attendanceDeviceSelfie: { findMany: async () => [] } },
+    prisma: { attendanceDeviceSelfie: { findMany: async () => [], findUnique: async () => null } },
     fetchImpl: async (url, options) => {
       if (url.includes('/object/list/')) return { ok: true, json: async () => [object] };
       if (options.method === 'DELETE') { deleted.push(url); return { ok: true, json: async () => ({}) }; }
@@ -144,7 +167,7 @@ test('reconcileOrphans honors olderThanMs zero and keeps the default age', async
 
 test('reconcile audit records the real depth limit', async () => {
   const audits = [];
-  const prisma = { attendanceDeviceSelfie: { findMany: async () => [] } };
+  const prisma = { attendanceDeviceSelfie: { findMany: async () => [], findUnique: async () => null } };
   const storage = createSupabaseAttendanceDeviceSelfieStorage({
     environment: { SUPABASE_URL: 'https://private.example.test', SUPABASE_SERVICE_ROLE_KEY: 'secret', ATTENDANCE_DEVICE_SELFIE_BUCKET: 'attendance-selfies', SELFIE_PATH_SECRET: 'strong-random-path-secret-0123456789' },
     prisma, audit: { log: async (entry) => audits.push(entry) },

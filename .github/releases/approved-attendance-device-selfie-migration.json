@@ -2,8 +2,8 @@
   "schema_version": 1,
   "migration_id": "DEVICE2-SELFIE",
   "manifest_state": "APPROVED_FOR_OWNER_PRODUCTION_MIGRATION_DECISION",
-  "source_commit_sha": "1fc0b84f864e24872f68cb5b822c6d97b9d9fe27",
-  "source_tree_sha": "0fc9798bc6acd947f5f716f49dfc8b27568aad4d",
+  "source_commit_sha": "5aa8c753d713f049c9373a386915f4c3385c9bf4",
+  "source_tree_sha": "b70c8c9169ca7c207f4a18f0abd5fc8cf5dce341",
   "migration_names": [
     "202610190001_attendance_device_selfie"
   ],

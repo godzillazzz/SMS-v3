@@ -57,8 +57,11 @@ function normalizeSelfie(selfie) {
 }
 async function validateSelfieImage(file) {
   try {
-    const metadata = await sharp(file.buffer, { failOn: 'error', limitInputPixels: 150_000_000 }).metadata();
+    const image = sharp(file.buffer, { failOn: 'error', limitInputPixels: 150_000_000 });
+    const metadata = await image.metadata();
     if (!Number.isInteger(metadata.width) || metadata.width <= 0 || !Number.isInteger(metadata.height) || metadata.height <= 0) throw new Error('invalid dimensions');
+    if (!['jpeg', 'png'].includes(metadata.format)) throw new Error('unsupported format');
+    await image.toBuffer();
   } catch {
     throw http(415, 'ATTENDANCE_SELFIE_TYPE_INVALID', 'Attendance selfie must be a valid JPEG or PNG image.');
   }
@@ -77,7 +80,7 @@ function createSupabaseAttendanceDeviceSelfieStorage({ environment = process.env
   }
   async function remove({ objectKey }) {
     const canonicalKey = String(objectKey || '');
-    if (!canonicalKey.startsWith('attendance-selfie/') || canonicalKey.includes('..') || canonicalKey.includes('\\') || canonicalKey.split('/').some((segment) => !segment)) {
+    if (!canonicalKey.startsWith('attendance-selfie/') || canonicalKey.includes('..') || canonicalKey.includes('\\') || canonicalKey.includes('%') || canonicalKey.split('/').some((segment) => !segment || segment === '.' || segment === '..')) {
       throw http(400, 'ATTENDANCE_SELFIE_OBJECT_KEY_INVALID', 'Attendance selfie object key is invalid.');
     }
     const { url, serviceKey, bucket } = config(environment);
@@ -141,6 +144,9 @@ function createSupabaseAttendanceDeviceSelfieStorage({ environment = process.env
     return { objects, truncated, limitReached };
   }
   async function reconcileOrphans({ olderThanMs = DEFAULT_ORPHAN_AGE_MS, limit = 1000, now = clock() } = {}) {
+    if (!prisma?.attendanceDeviceSelfie || typeof prisma.attendanceDeviceSelfie.findUnique !== 'function') {
+      throw http(503, 'ATTENDANCE_SELFIE_RECONCILE_UNAVAILABLE', 'Attendance selfie database client is unavailable.');
+    }
     const listing = await listObjects({ prefix: 'attendance-selfie/' });
     const batchLimit = Math.max(0, Math.min(Number(limit) || MAX_ORPHAN_LIMIT, MAX_ORPHAN_LIMIT));
     const batchLimited = listing.objects.length > batchLimit;
@@ -158,7 +164,7 @@ function createSupabaseAttendanceDeviceSelfieStorage({ environment = process.env
       if (Date.parse(object.updatedAt) > threshold) { skippedRecent += 1; return false; }
       return true;
     });
-    if (!prisma?.attendanceDeviceSelfie || typeof prisma.attendanceDeviceSelfie.findMany !== 'function') {
+    if (typeof prisma.attendanceDeviceSelfie.findMany !== 'function') {
       throw http(503, 'ATTENDANCE_SELFIE_RECONCILE_UNAVAILABLE', 'Attendance selfie reconciliation is unavailable.');
     }
     let rows;

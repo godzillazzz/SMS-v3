@@ -506,6 +506,9 @@ function validateAttChainMlSql(sql, migrationName) {
 
 function validateDevice2SelfieSql(sql) {
   const source = String(sql || '');
+  const normalizedSql = source.replace(/\r\n/g, '\n');
+  const sqlSha256 = crypto.createHash('sha256').update(normalizedSql, 'utf8').digest('hex');
+  assert(sqlSha256 === MIGRATIONS['DEVICE2-SELFIE'].sqlSha256['202610190001_attendance_device_selfie'], 'DEVICE2 SQL sha256 mismatch');
   rejectDestructiveSql(source);
   assert(!/\bINSERT\s+INTO\b|\bDELETE\s+FROM\b|\bTRUNCATE\b/i.test(source), 'DEVICE2 migration must not touch data');
   assert(!/^\s*UPDATE\s+/im.test(source), 'DEVICE2 migration must not update rows');

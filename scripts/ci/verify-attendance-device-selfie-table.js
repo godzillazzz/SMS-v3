@@ -20,6 +20,24 @@ async function main() {
     `;
     if (!table[0]?.present) throw new Error('attendance_device_selfies table missing');
 
+    const rls = await prisma.$queryRaw`
+      SELECT relrowsecurity AS enabled
+      FROM pg_class
+      WHERE oid = 'public.attendance_device_selfies'::regclass
+    `;
+    if (rls[0]?.enabled !== true) throw new Error('attendance_device_selfies RLS is not enabled');
+
+    const roles = await prisma.$queryRaw`
+      SELECT rolname FROM pg_roles WHERE rolname IN ('anon', 'authenticated')
+    `;
+    for (const role of roles.map((row) => row.rolname)) {
+      const privileges = await prisma.$queryRawUnsafe(
+        `SELECT has_table_privilege($1, 'public.attendance_device_selfies', 'SELECT') AS allowed`,
+        role
+      );
+      if (privileges[0]?.allowed === true) throw new Error(`${role} has SELECT privilege on attendance_device_selfies`);
+    }
+
     const indexes = await prisma.$queryRaw`
       SELECT indexname FROM pg_indexes WHERE schemaname = 'public' AND tablename = 'attendance_device_selfies'
     `;
