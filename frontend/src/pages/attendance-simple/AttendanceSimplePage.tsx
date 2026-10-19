@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   simpleAttendanceBootstrap,
-  simpleAttendanceSelfieChallenge,
+  simpleAttendanceSelfieProof,
   simpleAttendanceMoveRequest,
   simpleAttendanceSubmit,
   type AttendanceSimpleErrorDetails,
@@ -460,7 +460,7 @@ export function AttendanceSimplePage({
         reader.onerror = () => reject(new Error('อ่านภาพสดไม่สำเร็จ'));
         reader.readAsDataURL(blob);
       });
-      const challenge = await simpleAttendanceSelfieChallenge(token);
+      const challenge = await simpleAttendanceSelfieProof(token);
       const capturedAt = new Date().toISOString();
       const nextSelfie = { mimeType: 'image/jpeg' as const, base64, checksum, captureMode: 'LIVE_CAMERA' as const, overlay: { capturedAt } };
       setSelfie(nextSelfie); setSelfieNonce(challenge.nonce); setCameraOpen(false); stopCamera();

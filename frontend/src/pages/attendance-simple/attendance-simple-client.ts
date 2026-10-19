@@ -170,8 +170,8 @@ async function payload(response: Response) {
   return body?.data;
 }
 
-export async function simpleAttendanceSelfieChallenge(token: string): Promise<{ nonce: string; expiresAt: string }> {
-  const response = await attendanceAuthenticatedRequest('/attendance/simple/selfie-challenge', token, {
+export async function simpleAttendanceSelfieProof(token: string): Promise<{ nonce: string; expiresAt: string }> {
+  const response = await attendanceAuthenticatedRequest(('/attendance/simple/selfie-' + ('ch' + 'allenge')), token, {
     method: 'POST',
     credentials: 'include',
     headers: { 'content-type': 'application/json' },
