@@ -283,7 +283,7 @@ function quietDiff(fromSha, toSha, manifest) {
   ];
   if (manifest && (manifest.pre_applied_migration_manifest_path === '.github/releases/approved-attendance-device-selfie-production-migration.json' || manifest.pre_applied_migration_manifest_path === '.github/releases/approved-attendance-device-selfie-migration.json')) {
     paths = [
-      '.github/releases/approved-attendance-device-selfie-production-migration.json',
+      manifest.pre_applied_migration_manifest_path,
       '.github/workflows/apply-approved-attendance-device-selfie-production-migration.yml',
       'scripts/ci/verify-approved-production-migration.js',
       'scripts/ci/verify-attendance-device-selfie-table.js'
