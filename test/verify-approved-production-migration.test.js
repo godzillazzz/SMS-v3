@@ -229,6 +229,22 @@ test('deploy workflow contains the ATT-CHAIN-ML pre-applied migration case branc
   );
 });
 
+test('deploy workflow contains the DEVICE2-SELFIE pre-applied migration case branch', () => {
+  const workflowContent = fs.readFileSync(WORKFLOW_PATH, 'utf8');
+  const manifestPath = '.github/releases/approved-attendance-device-selfie-migration.json)';
+  const caseStart = workflowContent.indexOf(manifestPath);
+
+  assert.notEqual(caseStart, -1, 'deploy workflow must have case branch for DEVICE2-SELFIE manifest');
+  const caseEnd = workflowContent.indexOf(';;', caseStart);
+  assert.notEqual(caseEnd, -1);
+  const caseBlock = workflowContent.slice(caseStart, caseEnd);
+
+  assert(
+    caseBlock.includes("EVIDENCE_WORKFLOW_NAME='Apply Approved Attendance Device Selfie Production Migration'"),
+    'workflow case must specify the DEVICE2-SELFIE evidence workflow name'
+  );
+});
+
 test('deploy workflow fails validation when required case branch or configuration is missing', () => {
   const workflowContent = fs.readFileSync(WORKFLOW_PATH, 'utf8');
 

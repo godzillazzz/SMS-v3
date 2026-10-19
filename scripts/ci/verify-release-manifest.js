@@ -28,8 +28,8 @@ const POST_DEPLOY_VERIFICATION_PLAN = 'IMMUTABLE_CANDIDATE_AND_CANONICAL_HEALTH_
 
 const shaPattern = /^[0-9a-f]{40}$/;
 const deploymentPattern = /^dpl_[A-Za-z0-9]+$/;
-const releaseIdPattern = /^sms-v3-prod-[0-9a-f]{7,12}-[0-9]{8}$/;
-const migrationManifestPattern = /^\.github\/releases\/approved-[a-z0-9-]+-production-migration\.json$/;
+const releaseIdPattern = /^sms-v3-prod-(?:[0-9a-f]{7,12}|device2-selfie)-[0-9]{8}$/;
+const migrationManifestPattern = /^\.github\/releases\/approved-[a-z0-9-]+-(?:production-)?migration\.json$/;
 
 function assert(condition, message) {
   if (!condition) throw new Error(`release manifest guard: ${message}`);

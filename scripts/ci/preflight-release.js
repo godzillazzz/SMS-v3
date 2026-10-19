@@ -158,7 +158,16 @@ function latestDeploymentId() {
       }
     }
   } catch {
-    return null;
+    /* fall through to the immutable post-release record below */
+  }
+  const records = postReleaseRecords();
+  const checkpoint = records.find((entry) => entry.record?.deployed?.deployment_id);
+  if (checkpoint) {
+    return {
+      id: checkpoint.record.deployed.deployment_id,
+      runId: checkpoint.record.workflow_run_id || null,
+      source: checkpoint.file
+    };
   }
   return null;
 }
