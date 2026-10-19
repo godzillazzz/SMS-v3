@@ -22,6 +22,7 @@ const ATTENDANCE_RESULT_FLAGS = Object.freeze({
   LOCATION_RISK: 'LOCATION_RISK',
   PHOTO_RISK: 'PHOTO_RISK'
 });
+const DEVICE_TRANSFER_REJECTED = 'DEVICE_TRANSFER_REJECTED';
 
 function http(statusCode, code, message) {
   return new HttpError(statusCode, message, { code });
@@ -78,6 +79,11 @@ function eventAt(event) {
 
 function eventByType(events, eventType) {
   return (events || []).find((event) => String(event?.eventType || '').toUpperCase() === eventType) || null;
+}
+
+function countedEvents(events) {
+  return (events || []).filter((event) => !Array.isArray(event?.reviewReasons)
+    || !event.reviewReasons.includes(DEVICE_TRANSFER_REJECTED));
 }
 
 function actionableShift(assignment) {
@@ -168,10 +174,11 @@ function classifyAttendanceDay({ assignment, events = [], approvedLeave = false,
   const window = assignmentWindow(assignment);
   if (approvedLeave) return leaveResult({ window, evaluatedAt });
 
-  const checkIn = eventAt(eventByType(events, 'CHECK_IN'));
-  const checkOut = eventAt(eventByType(events, 'CHECK_OUT'));
-  const checkInEvent = eventByType(events, 'CHECK_IN');
-  const checkOutEvent = eventByType(events, 'CHECK_OUT');
+  const effectiveEvents = countedEvents(events);
+  const checkIn = eventAt(eventByType(effectiveEvents, 'CHECK_IN'));
+  const checkOut = eventAt(eventByType(effectiveEvents, 'CHECK_OUT'));
+  const checkInEvent = eventByType(effectiveEvents, 'CHECK_IN');
+  const checkOutEvent = eventByType(effectiveEvents, 'CHECK_OUT');
   const fallbackPolicy = normalizeAttendanceTimePolicy(policy || DEFAULT_ATTENDANCE_TIME_POLICY);
   const checkInPolicy = checkIn ? policyForEvent(checkInEvent, fallbackPolicy) : { values: fallbackPolicy, source: null };
   const checkOutPolicy = checkOut ? policyForEvent(checkOutEvent, fallbackPolicy) : { values: fallbackPolicy, source: null };
@@ -310,6 +317,7 @@ function createAttendanceResultService({ prisma = prismaDefault, clock = () => n
 module.exports = {
   BANGKOK_OFFSET,
   ATTENDANCE_RESULT_FLAGS,
+  DEVICE_TRANSFER_REJECTED,
   assignmentWindow,
   classifyAttendanceDay,
   createAttendanceResultService

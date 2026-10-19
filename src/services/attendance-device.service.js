@@ -9,6 +9,7 @@ const ACTIVE_REQUEST_STATUSES = ['PENDING_APPROVAL', 'RETURNED_FOR_CORRECTION'];
 const SUPPORTED_KEY_ALGORITHMS = new Set(['ECDSA_P256_SHA256']);
 const CHALLENGE_TTL_MS = 5 * 60 * 1000;
 const SELFIE_CHALLENGE_TTL_MS = 120 * 1000;
+const DEVICE_TRANSFER_REJECTED = 'DEVICE_TRANSFER_REJECTED';
 
 function http(statusCode, code, message) { return new HttpError(statusCode, message, { code }); }
 function cleanText(value, max = 1000) { const text = value == null ? null : String(value).trim(); return text ? text.slice(0, max) : null; }
@@ -32,11 +33,13 @@ function safeRequester(row) { return row ? { id: row.id, displayName: row.displa
 function safeAudit(row) {
   if (!row) return null;
   const source = row.metadata && typeof row.metadata === 'object' && !Array.isArray(row.metadata) ? row.metadata : {};
-  const allowed = new Set(['event', 'employeeId', 'requestType', 'deviceEnrollmentId', 'candidateDeviceEnrollmentId', 'previousDeviceEnrollmentId', 'activeDeviceEnrollmentId', 'requestedByUserId', 'proofPreviouslyVerified', 'keyAlgorithm', 'credentialFingerprint', 'reason', 'revokedAt', 'cancelledRequestId']);
+  const allowed = new Set(['event', 'employeeId', 'requestType', 'deviceEnrollmentId', 'candidateDeviceEnrollmentId', 'previousDeviceEnrollmentId', 'activeDeviceEnrollmentId', 'requestedByUserId', 'proofPreviouslyVerified', 'keyAlgorithm', 'credentialFingerprint', 'reason', 'revokedAt', 'cancelledRequestId', 'requestId', 'currentEnrollmentId', 'adminUserId', 'rejectedAt', 'rejectedEventCount', 'excludedCaptureIds']);
   const metadata = Object.fromEntries(Object.entries(source).filter(([key]) => allowed.has(key)));
   return { id: row.id, actorUserId: row.actorUserId, action: row.action, entityType: row.entityType, entityId: row.entityId, metadata, createdAt: row.createdAt, actor: safeRequester(row.actor) };
 }
 function safeRequest(row) { return row ? { id: row.id, employeeId: row.employeeId, requestType: row.requestType, status: row.status, requestedByUserId: row.requestedByUserId, candidateDeviceEnrollmentId: row.candidateDeviceEnrollmentId, currentDeviceEnrollmentId: row.currentDeviceEnrollmentId, reason: row.reason, reviewerComment: row.reviewerComment, reviewedByUserId: row.reviewedByUserId, reviewedAt: row.reviewedAt, returnedAt: row.returnedAt, cancelledAt: row.cancelledAt, createdAt: row.createdAt, updatedAt: row.updatedAt, candidateDevice: row.candidateDevice ? safeEnrollment(row.candidateDevice) : undefined, employee: safeEmployee(row.employee), requestedBy: safeRequester(row.requestedBy), reviewedBy: safeRequester(row.reviewedBy) } : null; }
+function reviewReasonList(value) { return Array.isArray(value) ? value.filter((reason) => typeof reason === 'string') : []; }
+function addReviewReason(value, reason) { return [...new Set([...reviewReasonList(value), reason])]; }
 
 function createAttendanceDeviceService({ prisma = prismaDefault, audit = auditDefault, clock = () => new Date(), randomBytes = crypto.randomBytes } = {}) {
   async function loadLinkedEmployee(client, actor) {
@@ -238,6 +241,13 @@ function createAttendanceDeviceService({ prisma = prismaDefault, audit = auditDe
         if (request.requestType === 'REPLACEMENT' && (!active || active.id !== request.currentDeviceEnrollmentId)) throw http(409, 'ATTENDANCE_DEVICE_STALE_REQUEST', 'The active device changed after this request was submitted.');
         if (active) await tx.attendanceDeviceEnrollment.update({ where: { id: active.id }, data: { status: 'REVOKED', revokedAt: now, revokedReason: 'DEVICE_TRANSFER_SUPERSEDED' } });
         const candidate = await tx.attendanceDeviceEnrollment.update({ where: { id: request.candidateDeviceEnrollmentId }, data: { status: 'ACTIVE', activatedAt: now, approvedByUserId: actor.sub, revokedAt: null, revokedReason: null }, include: { approvedBy: { select: { id: true, displayName: true, role: true } } } });
+        const rejectedEvents = tx.attendanceEvent
+          ? await tx.attendanceEvent.findMany({ where: { deviceEnrollmentId: request.candidateDeviceEnrollmentId, session: { employeeId: request.employeeId } }, select: { id: true, reviewReasons: true, reviewRequired: true } })
+          : [];
+        for (const event of rejectedEvents) {
+          const reviewReasons = reviewReasonList(event.reviewReasons).filter((reason) => reason !== DEVICE_TRANSFER_REJECTED);
+          await tx.attendanceEvent.update({ where: { id: event.id }, data: { reviewRequired: reviewReasons.length > 0 || (event.reviewRequired && !Array.isArray(event.reviewReasons)), reviewReasons: reviewReasons.length ? reviewReasons : null } });
+        }
         await audit.log({ actorUserId: actor.sub, action: 'UPDATE', entityType: 'AttendanceDeviceChangeRequest', entityId: request.id, metadata: { event: 'DEVICE_TRANSFER_APPROVED', requestType: request.requestType, employeeId: request.employeeId, fromEnrollmentId: active?.id || null, toEnrollmentId: candidate.id, adminUserId: actor.sub, requestId: request.id, eventCaptureIds: [] } }, tx);
         await audit.log({ actorUserId: actor.sub, action: 'UPDATE', entityType: 'AttendanceDeviceChangeRequest', entityId: request.id, metadata: { event: 'FINAL_APPROVE', requestType: request.requestType, employeeId: request.employeeId, fromEnrollmentId: active?.id || null, toEnrollmentId: candidate.id, requestId: request.id } }, tx);
         const approved = await tx.attendanceDeviceChangeRequest.findUnique({ where: { id: request.id }, include: { candidateDevice: { include: { approvedBy: { select: { id: true, displayName: true, role: true } } } }, reviewedBy: { select: { id: true, displayName: true, role: true } } } });
@@ -283,10 +293,17 @@ function createAttendanceDeviceService({ prisma = prismaDefault, audit = auditDe
       if (!request) throw http(404, 'ATTENDANCE_DEVICE_REQUEST_NOT_FOUND', 'Attendance device request not found.');
       const claimed = await tx.attendanceDeviceChangeRequest.updateMany({ where: { id: request.id, status: 'PENDING_APPROVAL' }, data: { status: 'REJECTED', reviewerComment: text, reviewedByUserId: actor.sub, reviewedAt: now } });
       if (claimed.count !== 1) throw http(409, 'ATTENDANCE_DEVICE_REQUEST_NOT_ACTIONABLE', 'Only pending device requests can be rejected.');
+      const events = tx.attendanceEvent
+        ? await tx.attendanceEvent.findMany({ where: { deviceEnrollmentId: request.candidateDeviceEnrollmentId, session: { employeeId: request.employeeId } }, select: { id: true, captureId: true, reviewReasons: true } })
+        : [];
+      for (const event of events) {
+        await tx.attendanceEvent.update({ where: { id: event.id }, data: { reviewRequired: true, reviewReasons: addReviewReason(event.reviewReasons, DEVICE_TRANSFER_REJECTED) } });
+      }
       await audit.log({ actorUserId: actor.sub, action: 'UPDATE', entityType: 'AttendanceDeviceChangeRequest', entityId: request.id, metadata: {
         event: 'DEVICE_TRANSFER_REJECTED', requestId: request.id, employeeId: request.employeeId,
         candidateEnrollmentId: request.candidateDeviceEnrollmentId, currentEnrollmentId: request.currentDeviceEnrollmentId,
-        adminUserId: actor.sub, reason: text, rejectedAt: now
+        adminUserId: actor.sub, reason: text, rejectedAt: now, rejectedEventCount: events.length,
+        excludedCaptureIds: events.map((event) => event.captureId)
       } }, tx);
       return safeRequest(await tx.attendanceDeviceChangeRequest.findUnique({ where: { id: request.id }, include: { reviewedBy: { select: { id: true, displayName: true, role: true } } } }));
     });

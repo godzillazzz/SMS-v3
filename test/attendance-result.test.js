@@ -128,6 +128,19 @@ test('no check-in after shift end is ABSENT plus MISSING_CHECK_IN without invent
   assert.equal(result.earlyOutMinutes, null);
 });
 
+test('rejected transfer events are excluded and produce absence', () => {
+  const result = classifyAttendanceDay({
+    assignment: assignment(),
+    events: [
+      { ...event('CHECK_IN', '2026-08-25T00:00:00.000Z'), reviewReasons: ['DEVICE_TRANSFER_REJECTED'] },
+      { ...event('CHECK_OUT', '2026-08-25T12:00:00.000Z'), reviewReasons: ['DEVICE_TRANSFER_REJECTED'] }
+    ],
+    asOf: new Date('2026-08-25T12:00:00.000Z')
+  });
+  assert.equal(result.status, 'ABSENT');
+  assert.deepEqual(result.flags, [ATTENDANCE_RESULT_FLAGS.ABSENT, ATTENDANCE_RESULT_FLAGS.MISSING_CHECK_IN]);
+});
+
 test('approved leave wins over absence evaluation', () => {
   const result = classifyAttendanceDay({
     assignment: assignment(),
