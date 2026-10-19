@@ -81,6 +81,14 @@ const MIGRATIONS = Object.freeze({
     dataBackfill: false,
     schemaChanged: true
   }),
+  'DEVICE2-SELFIE': Object.freeze({
+    migrationNames: Object.freeze(['202610190001_attendance_device_selfie']),
+    migrationPolicy: 'ADDITIVE_ATTENDANCE_DEVICE_SELFIE_TABLE_ONLY_NO_BACKFILL',
+    postVerifyScript: 'scripts/ci/verify-attendance-device-selfie-table.js',
+    sqlSha256: Object.freeze({ '202610190001_attendance_device_selfie': '994167570b69d5a1a74b784c86a639fb50bc856d49fbd7e1261d491521fda327' }),
+    dataBackfill: false,
+    schemaChanged: true
+  }),
   'ATT-CHAIN-ML': Object.freeze({
     migrationNames: Object.freeze([
       '202610180002_attendance_adjustment_multilevel_approval',
@@ -100,7 +108,7 @@ const MIGRATIONS = Object.freeze({
 const SHA = /^[0-9a-f]{40}$/;
 const DEPLOYMENT = /^dpl_[A-Za-z0-9]+$/;
 const MIGRATION_NAME = /^\d{12,14}_[A-Za-z0-9][A-Za-z0-9_-]*$/;
-const SAFE_SCRIPT = /^scripts\/ci\/verify-(?:[a-z0-9-]+-production-migration|attendance-multilevel-constraints)\.js$/;
+const SAFE_SCRIPT = /^scripts\/ci\/verify-(?:[a-z0-9-]+-production-migration|attendance-multilevel-constraints|attendance-device-selfie-table)\.js$/;
 
 function assert(condition, message) {
   if (!condition) throw new Error(`production migration guard: ${message}`);
@@ -496,7 +504,23 @@ function validateAttChainMlSql(sql, migrationName) {
   throw new Error('production migration guard: unsupported ATT-CHAIN-ML SQL input');
 }
 
+function validateDevice2SelfieSql(sql) {
+  const source = String(sql || '');
+  rejectDestructiveSql(source);
+  assert(!/\bINSERT\s+INTO\b|\bDELETE\s+FROM\b|\bTRUNCATE\b/i.test(source), 'DEVICE2 migration must not touch data');
+  assert(!/^\s*UPDATE\s+/im.test(source), 'DEVICE2 migration must not update rows');
+  const creates = source.match(/CREATE TABLE\s+"attendance_device_selfies"/gi) || [];
+  assert(creates.length === 1, 'DEVICE2 requires exactly one CREATE TABLE');
+  const indexes = source.match(/CREATE (?:UNIQUE )?INDEX "attendance_device_selfies_[a-z_]+"/g) || [];
+  assert(indexes.length === 4, 'DEVICE2 requires four indexes');
+  const fks = source.match(/ADD CONSTRAINT "attendance_device_selfies_[a-z_]+_fkey"/g) || [];
+  assert(fks.length === 2, 'DEVICE2 requires two foreign keys');
+  assert(!/ALTER TABLE "(?!attendance_device_selfies)/i.test(source), 'DEVICE2 must not alter other tables');
+  return { statementCount: 7, controlledUpdateCount: 0 };
+}
+
 function validateSqlForMigration(migrationId, sql, migrationName) {
+  if (migrationId === 'DEVICE2-SELFIE') return validateDevice2SelfieSql(sql);
   if (migrationId === 'ATT-CHAIN-ML') return validateAttChainMlSql(sql, migrationName);
   if (migrationId === 'G06-TIME-POLICY') {
     assert(crypto.createHash('sha256').update(String(sql).replace(/\r\n/g, '\n')).digest('hex') === MIGRATIONS[migrationId].sqlSha256, 'G06 time-policy SQL identity mismatch');
