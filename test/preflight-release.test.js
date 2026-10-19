@@ -51,15 +51,63 @@ test('run_migrations must always be false', () => {
 });
 
 test('never repoints the rollback checkpoint at the deployment this manifest produced', () => {
-  const manifest = { ...base };
-  const record = { record_type: 'POST_RELEASE_RECORD', deployed: { deployment_id: 'dpl_live', source_sha: base.commit_sha } };
-  const blocked = canRepointCheckpoint(manifest, { id: 'dpl_live' }, record);
-  assert.equal(blocked.ok, false, 'a released manifest must not be repointed at its own deployment');
+  const manifest = { release_id: 'rel-1', commit_sha: 'a'.repeat(40) };
+  const record = {
+    file: 'docs/releases/x.json',
+    record: {
+      record_type: 'POST_RELEASE_RECORD',
+      approved_manifest: '.github/releases/approved-production.json',
+      release_id: 'rel-1',
+      deployed: { deployment_id: 'dpl_live', source_sha: 'a'.repeat(40) }
+    }
+  };
+  const blocked = canRepointCheckpoint(manifest, { id: 'dpl_live' }, [record]);
+  assert.equal(blocked.ok, false);
   assert.match(blocked.reason, /already deployed/);
 });
 
-test('allows repointing while preparing the next release', () => {
-  const manifest = { ...base, commit_sha: 'c'.repeat(40) };
-  const record = { record_type: 'POST_RELEASE_RECORD', deployed: { deployment_id: 'dpl_old', source_sha: 'd'.repeat(40) } };
-  assert.equal(canRepointCheckpoint(manifest, { id: 'dpl_live' }, record).ok, true);
+test('a record for a different release does not block the next release', () => {
+  const manifest = { release_id: 'rel-2', commit_sha: 'c'.repeat(40) };
+  const record = {
+    file: 'docs/releases/x.json',
+    record: {
+      record_type: 'POST_RELEASE_RECORD',
+      approved_manifest: '.github/releases/approved-production.json',
+      release_id: 'rel-1',
+      deployed: { deployment_id: 'dpl_old', source_sha: 'a'.repeat(40) }
+    }
+  };
+  assert.equal(canRepointCheckpoint(manifest, { id: 'dpl_live' }, [record]).ok, true);
+});
+
+test('fails closed when two records bind to the same manifest', () => {
+  const manifest = { release_id: 'rel-1', commit_sha: 'a'.repeat(40) };
+  const make = (deploymentId) => ({
+    file: `docs/releases/${deploymentId}.json`,
+    record: {
+      record_type: 'POST_RELEASE_RECORD',
+      approved_manifest: '.github/releases/approved-production.json',
+      release_id: 'rel-1',
+      deployed: { deployment_id: deploymentId, source_sha: 'a'.repeat(40) }
+    }
+  });
+  const result = canRepointCheckpoint(manifest, { id: 'dpl_live' }, [make('dpl_live'), make('dpl_other')]);
+  assert.equal(result.ok, false);
+  assert.match(result.reason, /multiple/);
+});
+
+test('fails closed when the bound record points at a deployment that is not live', () => {
+  const manifest = { release_id: 'rel-1', commit_sha: 'a'.repeat(40) };
+  const record = {
+    file: 'docs/releases/x.json',
+    record: {
+      record_type: 'POST_RELEASE_RECORD',
+      approved_manifest: '.github/releases/approved-production.json',
+      release_id: 'rel-1',
+      deployed: { deployment_id: 'dpl_stale', source_sha: 'a'.repeat(40) }
+    }
+  };
+  const result = canRepointCheckpoint(manifest, { id: 'dpl_live' }, [record]);
+  assert.equal(result.ok, false);
+  assert.match(result.reason, /not the live deployment/);
 });

@@ -46,27 +46,47 @@ function parseDeploymentId(log) {
   return match ? match[1] : null;
 }
 
-function postReleaseRecord(root = ROOT) {
+/**
+ * Reads every post-release record and returns the ones bound to this manifest.
+ * Binding is explicit (release_id + approved_manifest + deployed source SHA), never filename order,
+ * and ambiguity fails closed.
+ */
+function postReleaseRecords(root = ROOT) {
   const dir = path.join(root, 'docs/releases');
-  if (!fs.existsSync(dir)) return null;
-  const files = fs.readdirSync(dir).filter((name) => name.endsWith('.json')).sort();
-  for (const file of files.reverse()) {
+  if (!fs.existsSync(dir)) return [];
+  const records = [];
+  for (const file of fs.readdirSync(dir).filter((name) => name.endsWith('.json')).sort()) {
     try {
       const record = JSON.parse(fs.readFileSync(path.join(dir, file), 'utf8'));
-      if (record?.record_type === 'POST_RELEASE_RECORD') return record;
-    } catch { /* ignore malformed records */ }
+      if (record?.record_type === 'POST_RELEASE_RECORD') records.push({ file: `docs/releases/${file}`, record });
+    } catch { /* malformed records are ignored here and caught by the validator */ }
   }
-  return null;
+  return records;
 }
 
-/** Refuse to repoint the checkpoint at a deployment this manifest already produced. */
-function canRepointCheckpoint(manifest, live, record) {
+function recordBinding(manifest, entry) {
+  const record = entry.record || {};
+  const deployed = record.deployed || {};
+  return record.approved_manifest === MANIFEST_PATH
+    && record.release_id === manifest.release_id
+    && deployed.source_sha === manifest.commit_sha;
+}
+
+/**
+ * Refuse to repoint the checkpoint at a deployment this manifest already produced.
+ * Fails closed when several records bind to the manifest or their metadata disagree.
+ */
+function canRepointCheckpoint(manifest, live, records) {
   if (!live?.id) return { ok: false, reason: 'live deployment unknown' };
-  if (!record?.deployed) return { ok: true };
-  if (record.deployed.deployment_id === live.id && manifest.commit_sha === record.deployed.source_sha) {
-    return { ok: false, reason: 'this manifest is already deployed; prepare a new release manifest' };
+  const list = Array.isArray(records) ? records : records ? [records] : [];
+  const bound = list.filter((entry) => recordBinding(manifest, entry));
+  if (bound.length > 1) return { ok: false, reason: 'multiple post-release records bind to this manifest' };
+  if (bound.length === 0) return { ok: true };
+  const deployed = bound[0].record.deployed || {};
+  if (deployed.deployment_id !== live.id) {
+    return { ok: false, reason: `record deployment ${deployed.deployment_id} is not the live deployment ${live.id}` };
   }
-  return { ok: true };
+  return { ok: false, reason: 'this manifest is already deployed; prepare a new release manifest' };
 }
 
 function policyChecks(manifest) {
@@ -211,13 +231,13 @@ async function main() {
 
   // 5. Rollback checkpoint equals the live canonical deployment
   const live = latestDeploymentId();
-  const record = postReleaseRecord();
+  const records = postReleaseRecords();
   if (!live) {
     add('rollback checkpoint matches the live canonical deployment', false, 'could not read the deployment id from the last successful deploy log');
   } else if (live.id === manifest.rollback_deployment_id) {
     add('rollback checkpoint matches the live canonical deployment', true, live.id);
   } else if (prepareNext) {
-    const allowed = canRepointCheckpoint(manifest, live, record);
+    const allowed = canRepointCheckpoint(manifest, live, records);
     if (!allowed.ok) {
       add('rollback checkpoint may be repointed for a new release', false, allowed.reason);
     } else {
