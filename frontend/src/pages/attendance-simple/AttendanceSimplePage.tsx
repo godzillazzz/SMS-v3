@@ -193,6 +193,7 @@ export function AttendanceSimplePage({
     nonceIssuedAt?: string | null;
   } | null>(null);
   const [moveBusy, setMoveBusy] = useState(false);
+  const [localPendingDeviceRequest, setLocalPendingDeviceRequest] = useState<SimpleBootstrap['pendingDeviceRequest']>(null);
   const [bootstrapRetry, setBootstrapRetry] = useState(0);
   const [requestErrorCode, setRequestErrorCode] = useState<string>();
   const [requestErrorId, setRequestErrorId] = useState<string>();
@@ -205,6 +206,7 @@ export function AttendanceSimplePage({
   const streamRef = useRef<MediaStream | null>(null);
   const queueSyncInFlight = useRef(false);
   const cameraOpeningRef = useRef(false);
+  const cameraRequestRef = useRef(0);
 
   const refreshQueueCount = useCallback(async () => {
     setQueueCount(await encryptedQueueCount().catch(() => 0));
@@ -215,6 +217,7 @@ export function AttendanceSimplePage({
       const fresh = await simpleAttendanceBootstrap(token, deviceFingerprintOverride);
       await storeEncryptedBootstrap(fresh);
       setBootstrap(fresh);
+      setLocalPendingDeviceRequest(null);
       return fresh;
     }
     const cached = await readEncryptedBootstrap<SimpleBootstrap>();
@@ -333,12 +336,16 @@ export function AttendanceSimplePage({
     }
   }, [cameraOpen]);
 
-  useEffect(() => () => stopCamera(), [stopCamera]);
+  useEffect(() => () => {
+    cameraRequestRef.current += 1;
+    stopCamera();
+  }, [stopCamera]);
 
   const openSelfieCamera = useCallback(async () => {
-    if (bindingState === 'FOREIGN' && bootstrap?.pendingDeviceRequest?.status === 'PENDING_APPROVAL') return;
+    if (bindingState === 'FOREIGN' && (bootstrap?.pendingDeviceRequest ?? localPendingDeviceRequest)?.status === 'PENDING_APPROVAL') return;
     if (cameraOpeningRef.current || cameraOpen || busy) return;
     cameraOpeningRef.current = true;
+    const requestToken = ++cameraRequestRef.current;
     if (!navigator.mediaDevices?.getUserMedia) {
       cameraOpeningRef.current = false;
       setTone('danger'); setMessage('เบราว์เซอร์นี้ไม่รองรับกล้องหน้า'); return;
@@ -346,18 +353,23 @@ export function AttendanceSimplePage({
     setCameraOpen(true);
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: { ideal: 720 }, height: { ideal: 960 } }, audio: false });
+      if (requestToken !== cameraRequestRef.current) {
+        stream.getTracks().forEach((track) => track.stop());
+        return;
+      }
       streamRef.current = stream;
       if (videoRef.current) { videoRef.current.srcObject = stream; await videoRef.current.play(); }
     } catch (error) {
+      if (requestToken !== cameraRequestRef.current) return;
       stopCamera(); setCameraOpen(false); setTone('danger');
       setMessage(error instanceof DOMException && error.name === 'NotAllowedError' ? 'กรุณาอนุญาตกล้องหน้าเพื่อยืนยันตัวตน' : 'ไม่สามารถเปิดกล้องหน้าได้ กรุณาลองใหม่');
     } finally {
       cameraOpeningRef.current = false;
     }
-  }, [bindingState, bootstrap, busy, cameraOpen, stopCamera]);
+  }, [bindingState, bootstrap, busy, cameraOpen, localPendingDeviceRequest, stopCamera]);
 
   const recordAttendance = async (capturedSelfie = selfie, capturedSelfieNonce = selfieNonce) => {
-    if (bindingState === 'FOREIGN' && bootstrap?.pendingDeviceRequest?.status === 'PENDING_APPROVAL') return;
+    if (bindingState === 'FOREIGN' && (bootstrap?.pendingDeviceRequest ?? localPendingDeviceRequest)?.status === 'PENDING_APPROVAL') return;
     const pendingSelfie = pendingSiteCapture?.selfie || null;
     const pendingNonce = pendingSiteCapture?.selfieNonce || null;
     const pendingNonceAge = pendingSiteCapture?.nonceIssuedAt
@@ -528,7 +540,7 @@ export function AttendanceSimplePage({
         keyAlgorithm: identity.keyAlgorithm,
         reason
       };
-      await simpleAttendanceMoveRequest(token, {
+      const moveResponse = await simpleAttendanceMoveRequest(token, {
         requestId,
         publicKeySpkiBase64: identity.publicKeySpkiBase64,
         keyAlgorithm: identity.keyAlgorithm,
@@ -536,12 +548,20 @@ export function AttendanceSimplePage({
         displayName: 'อุปกรณ์ลงเวลา',
         platformHint: platformHint()
       });
+      const response = moveResponse && typeof moveResponse === 'object' ? moveResponse as Partial<NonNullable<SimpleBootstrap['pendingDeviceRequest']>> : {};
+      setLocalPendingDeviceRequest({
+        id: typeof response.id === 'string' ? response.id : requestId,
+        status: 'PENDING_APPROVAL',
+        requestedAt: typeof response.requestedAt === 'string' ? response.requestedAt : new Date().toISOString(),
+        candidateFingerprint: typeof response.candidateFingerprint === 'string' ? response.candidateFingerprint : fingerprint || 'unknown'
+      });
       setTone('warning');
       setMessage('ส่งคำขอย้ายเครื่องแล้ว · รอ ADMIN อนุมัติ เครื่องหลักเดิมยังไม่ถูกยกเลิก');
       try {
         const fresh = await simpleAttendanceBootstrap(token, fingerprint);
         await storeEncryptedBootstrap(fresh);
         setBootstrap(fresh);
+        setLocalPendingDeviceRequest(null);
       } catch { /* keep the submitted state visible if refresh is temporarily unavailable */ }
     } catch (error) {
       const failure = attendanceFailure(error, 'ส่งคำขอย้ายเครื่องไม่สำเร็จ กรุณาลองใหม่หรือติดต่อผู้ดูแลระบบ');
@@ -583,12 +603,13 @@ export function AttendanceSimplePage({
   const accountBlockCodes = ['ATTENDANCE_EMPLOYEE_LINK_REQUIRED', 'ATTENDANCE_DEVICE_EMPLOYEE_LINK_REQUIRED', 'INACTIVE_EMPLOYEE_OPERATION'];
   const scheduleBlockCodes = ['ATTENDANCE_ASSIGNMENT_REQUIRED', 'ATTENDANCE_SCHEDULE_NOT_APPROVED', 'ATTENDANCE_SHIFT_NOT_ACTIONABLE'];
   const clockBlockedByServer = [...deviceBlockCodes, ...accountBlockCodes, ...scheduleBlockCodes].includes(requestErrorCode || '');
-  const pendingDeviceApproval = bindingState === 'FOREIGN' && bootstrap?.pendingDeviceRequest?.status === 'PENDING_APPROVAL';
+  const pendingDeviceRequest = bootstrap?.pendingDeviceRequest ?? localPendingDeviceRequest;
+  const pendingDeviceApproval = bindingState === 'FOREIGN' && pendingDeviceRequest?.status === 'PENDING_APPROVAL';
   const clockDisabled = readOnly || busy || !identity || !bootstrap || clockBlockedByServer || pendingDeviceApproval;
   const disabledGuidance = readOnly
     ? { message: 'โหมดดูแทนไม่สามารถลงเวลาได้ กรุณาออกจากโหมดดูแทนก่อนลงเวลา' }
     : pendingDeviceApproval
-      ? { message: `รอ ADMIN อนุมัติการย้ายเครื่อง · ยื่นเมื่อ ${formatReceiptTime(bootstrap?.pendingDeviceRequest?.requestedAt)}` }
+      ? { message: `รอ ADMIN อนุมัติการย้ายเครื่อง · ยื่นเมื่อ ${formatReceiptTime(pendingDeviceRequest?.requestedAt)}` }
       : busy
       ? { message: 'กำลังตรวจตำแหน่งหรือบันทึกรายการ กรุณารอให้เสร็จก่อน' }
       : accountBlockCodes.includes(requestErrorCode || '')
@@ -624,7 +645,7 @@ export function AttendanceSimplePage({
           <button type="button" className="attendance-simple__camera-capture" onClick={() => void captureSelfie()} disabled={busy} aria-label="ถ่ายภาพยืนยันตัวตน" title="ถ่ายภาพยืนยันตัวตน">
             <svg aria-hidden="true" viewBox="0 0 24 24" focusable="false"><path d="M4 8.5h3l1.4-2h5.2l1.4 2h3A1.5 1.5 0 0 1 19.5 10v8A1.5 1.5 0 0 1 18 19.5H6A1.5 1.5 0 0 1 4.5 18v-8A1.5 1.5 0 0 1 4 8.5Z"/><circle cx="12" cy="14" r="3.2"/></svg>
           </button>
-          <button type="button" className="attendance-simple__camera-cancel" aria-label="ยกเลิกการถ่ายภาพ" title="ยกเลิกการถ่ายภาพ" onClick={() => { stopCamera(); setCameraOpen(false); }} disabled={busy}>
+          <button type="button" className="attendance-simple__camera-cancel" aria-label="ยกเลิกการถ่ายภาพ" title="ยกเลิกการถ่ายภาพ" onClick={() => { cameraRequestRef.current += 1; stopCamera(); setCameraOpen(false); }} disabled={busy}>
             <svg aria-hidden="true" viewBox="0 0 24 24" focusable="false"><path d="m7 7 10 10M17 7 7 17"/></svg>
           </button>
         </div>

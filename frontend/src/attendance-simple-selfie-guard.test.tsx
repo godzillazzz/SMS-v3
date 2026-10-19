@@ -28,6 +28,7 @@ vi.mock('./pages/attendance-simple/attendance-simple-storage', async () => {
   const actual = await vi.importActual<typeof import('./pages/attendance-simple/attendance-simple-storage')>('./pages/attendance-simple/attendance-simple-storage');
   return {
     ...actual,
+    signPayload: vi.fn().mockResolvedValue('signature'),
     ensureDeviceIdentity: mocks.identity,
     deviceFingerprint: mocks.fingerprint,
     encryptedQueueCount: mocks.count,
@@ -95,6 +96,62 @@ describe('foreign device selfie guard', () => {
     expect(screen.getByRole('button', { name: 'ยกเลิกการถ่ายภาพ' })).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'ยกเลิกการถ่ายภาพ' }));
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'ถ่ายภาพยืนยันตัวตน' })).toBeNull());
+  });
+
+  it('keeps the clock locked when move request succeeds but bootstrap refresh rejects, then follows server pending/null', async () => {
+    mocks.moveRequest.mockResolvedValue({ id: 'req-1', status: 'PENDING_APPROVAL' });
+    mocks.bootstrap
+      .mockResolvedValueOnce({ ...base, pendingDeviceRequest: null })
+      .mockRejectedValueOnce(new Error('refresh failed'))
+      .mockResolvedValueOnce({ ...base, pendingDeviceRequest: pending })
+      .mockResolvedValueOnce({ ...base, pendingDeviceRequest: null });
+    render(<AttendanceSimplePage token="t" online />);
+    const move = await screen.findByRole('button', { name: 'ขอให้ ADMIN อนุมัติย้ายเครื่อง' });
+    fireEvent.click(move);
+    const clock = await screen.findByRole('button', { name: /ลงเวลาเข้า/ });
+    await waitFor(() => expect((clock as HTMLButtonElement).disabled).toBe(true));
+    expect(mocks.moveRequest).toHaveBeenCalledTimes(1);
+    fireEvent.click(clock);
+    expect(navigator.mediaDevices.getUserMedia).not.toHaveBeenCalled();
+    expect(mocks.submit).not.toHaveBeenCalled();
+
+    await waitFor(() => expect(mocks.bootstrap).toHaveBeenCalledTimes(2));
+    fireEvent.click(screen.getByRole('button', { name: 'ขอให้ ADMIN อนุมัติย้ายเครื่อง' }));
+    await waitFor(() => expect(mocks.bootstrap).toHaveBeenCalledTimes(3));
+    expect((screen.getByRole('button', { name: /ลงเวลาเข้า/ }) as HTMLButtonElement).disabled).toBe(true);
+
+    fireEvent.click(screen.getByRole('button', { name: 'ขอให้ ADMIN อนุมัติย้ายเครื่อง' }));
+    await waitFor(() => expect(mocks.bootstrap).toHaveBeenCalledTimes(4));
+    await waitFor(() => expect((screen.getByRole('button', { name: /ลงเวลาเข้า/ }) as HTMLButtonElement).disabled).toBe(false));
+  });
+
+  it('stops a deferred camera stream after cancel without reopening the dialog', async () => {
+    let resolveStream!: (stream: MediaStream) => void;
+    const stop = vi.fn();
+    vi.mocked(navigator.mediaDevices.getUserMedia).mockImplementation(() => new Promise((resolve) => {
+      resolveStream = resolve;
+    }));
+    render(<AttendanceSimplePage token="t" online />);
+    fireEvent.click(await screen.findByRole('button', { name: /ลงเวลาเข้า/ }));
+    expect(await screen.findByRole('dialog', { name: 'ถ่ายภาพยืนยันตัวตน' })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'ยกเลิกการถ่ายภาพ' }));
+    resolveStream({ getTracks: () => [{ stop }] } as unknown as MediaStream);
+    await waitFor(() => expect(stop).toHaveBeenCalledTimes(1));
+    expect(document.querySelector('video')?.srcObject ?? null).toBeNull();
+    expect(screen.queryByRole('dialog', { name: 'ถ่ายภาพยืนยันตัวตน' })).toBeNull();
+  });
+
+  it('stops a deferred camera stream after unmount without an unhandled rejection', async () => {
+    let resolveStream!: (stream: MediaStream) => void;
+    const stop = vi.fn();
+    vi.mocked(navigator.mediaDevices.getUserMedia).mockImplementation(() => new Promise((resolve) => {
+      resolveStream = resolve;
+    }));
+    const view = render(<AttendanceSimplePage token="t" online />);
+    fireEvent.click(await screen.findByRole('button', { name: /ลงเวลาเข้า/ }));
+    view.unmount();
+    resolveStream({ getTracks: () => [{ stop }] } as unknown as MediaStream);
+    await waitFor(() => expect(stop).toHaveBeenCalledTimes(1));
   });
 
   it('does not lock the button when the previous request was returned for correction', async () => {
