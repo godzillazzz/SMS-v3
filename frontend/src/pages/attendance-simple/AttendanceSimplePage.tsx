@@ -317,6 +317,13 @@ export function AttendanceSimplePage({
     if (videoRef.current) videoRef.current.srcObject = null;
   }, []);
 
+  useEffect(() => {
+    if (cameraOpen && videoRef.current && streamRef.current && videoRef.current.srcObject !== streamRef.current) {
+      videoRef.current.srcObject = streamRef.current;
+      void videoRef.current.play();
+    }
+  }, [cameraOpen]);
+
   useEffect(() => () => stopCamera(), [stopCamera]);
 
   const openSelfieCamera = useCallback(async () => {
