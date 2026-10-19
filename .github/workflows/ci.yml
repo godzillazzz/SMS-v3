@@ -99,6 +99,11 @@ jobs:
       SEED_ADMIN_PASSWORD: ci-seed-password-only-for-ephemeral-db
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Release-control tests verify the committed post-release history, the archived dispatch
+          # manifests and the Prisma baseline ancestry against real Git objects; a shallow checkout
+          # would make those verifications unprovable.
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: 22
