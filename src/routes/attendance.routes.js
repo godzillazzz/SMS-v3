@@ -87,6 +87,7 @@ const simpleDeviceInput = z.object({
 const selfieInput = z.object({
   mimeType: z.enum(['image/jpeg', 'image/png']),
   base64: z.string().min(8).max(1400000),
+  checksum: z.string().regex(/^[0-9a-f]{64}$/i).optional(),
   captureMode: z.enum(['LIVE_CAMERA', 'GALLERY']).optional(),
   overlay: z.object({ capturedAt: z.string().datetime({ offset: true }) }).strict().optional()
 }).strict();
