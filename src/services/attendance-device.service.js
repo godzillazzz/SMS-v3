@@ -283,8 +283,11 @@ function createAttendanceDeviceService({ prisma = prismaDefault, audit = auditDe
       if (!request) throw http(404, 'ATTENDANCE_DEVICE_REQUEST_NOT_FOUND', 'Attendance device request not found.');
       const claimed = await tx.attendanceDeviceChangeRequest.updateMany({ where: { id: request.id, status: 'PENDING_APPROVAL' }, data: { status: 'REJECTED', reviewerComment: text, reviewedByUserId: actor.sub, reviewedAt: now } });
       if (claimed.count !== 1) throw http(409, 'ATTENDANCE_DEVICE_REQUEST_NOT_ACTIONABLE', 'Only pending device requests can be rejected.');
-      await tx.attendanceDeviceEnrollment.update({ where: { id: request.candidateDeviceEnrollmentId }, data: { status: 'REJECTED', revokedAt: now, revokedReason: text } });
-      await audit.log({ actorUserId: actor.sub, action: 'UPDATE', entityType: 'AttendanceDeviceChangeRequest', entityId: request.id, metadata: { event: 'REJECT', employeeId: request.employeeId } }, tx);
+      await audit.log({ actorUserId: actor.sub, action: 'UPDATE', entityType: 'AttendanceDeviceChangeRequest', entityId: request.id, metadata: {
+        event: 'DEVICE_TRANSFER_REJECTED', requestId: request.id, employeeId: request.employeeId,
+        candidateEnrollmentId: request.candidateDeviceEnrollmentId, currentEnrollmentId: request.currentDeviceEnrollmentId,
+        adminUserId: actor.sub, reason: text, rejectedAt: now
+      } }, tx);
       return safeRequest(await tx.attendanceDeviceChangeRequest.findUnique({ where: { id: request.id }, include: { reviewedBy: { select: { id: true, displayName: true, role: true } } } }));
     });
   }

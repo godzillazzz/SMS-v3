@@ -19,18 +19,29 @@ test('FOREIGN selfie storage requires configured private storage and validates J
   assert.throws(() => normalizeSelfie({ mimeType: 'image/png', buffer: JPEG }), (error) => error.statusCode === 415);
 });
 
-test('storage upload uses a deterministic captureId object and private service headers', async () => {
+test('storage upload uses private bucket check, HMAC path, random suffix, and private service headers', async () => {
   const calls = [];
   const storage = createSupabaseAttendanceDeviceSelfieStorage({
-    environment: { SUPABASE_URL: 'https://private.example.test', SUPABASE_SERVICE_ROLE_KEY: 'secret-not-logged', ATTENDANCE_DEVICE_SELFIE_BUCKET: 'attendance-selfies' },
-    fetchImpl: async (url, options) => { calls.push({ url, options }); return { ok: true, status: 200 }; }
+    environment: { SUPABASE_URL: 'https://private.example.test', SUPABASE_SERVICE_ROLE_KEY: 'secret-not-logged', ATTENDANCE_DEVICE_SELFIE_BUCKET: 'attendance-selfies', SELFIE_PATH_SECRET: 'path-secret' },
+    fetchImpl: async (url, options) => { calls.push({ url, options }); return { ok: true, status: 200, json: async () => ({ public: false }) }; }
   });
   const result = await storage.put({ employeeId: '11111111-1111-4111-8111-111111111111', captureId: '22222222-2222-4222-8222-222222222222', selfie: selfie() });
-  assert.equal(result.objectKey, 'attendance-selfie/11111111-1111-4111-8111-111111111111/22222222-2222-4222-8222-222222222222.jpg');
-  assert.equal(calls.length, 1);
-  assert.equal(calls[0].options.method, 'POST');
-  assert.equal(calls[0].options['x-upsert'], undefined);
-  assert.equal(calls[0].options.headers['x-upsert'], 'false');
+  assert.match(result.objectKey, /^attendance-selfie\/[a-f0-9]{64}\/22222222-2222-4222-8222-222222222222-[a-f0-9]{8}\.jpg$/);
+  assert.doesNotMatch(result.objectKey, /11111111-1111-4111-8111-111111111111/);
+  assert.equal(calls.length, 2);
+  assert.equal(calls[1].options.method, 'POST');
+  assert.equal(calls[1].options['x-upsert'], undefined);
+  assert.equal(calls[1].options.headers['x-upsert'], 'false');
+});
+
+test('private bucket check fails closed when bucket is public or unavailable', async () => {
+  for (const body of [{ public: true }, null]) {
+    const storage = createSupabaseAttendanceDeviceSelfieStorage({
+      environment: { SUPABASE_URL: 'https://private.example.test', SUPABASE_SERVICE_ROLE_KEY: 'secret', ATTENDANCE_DEVICE_SELFIE_BUCKET: 'attendance-selfies', SELFIE_PATH_SECRET: 'path-secret' },
+      fetchImpl: async () => ({ ok: body !== null, status: body ? 200 : 500, json: async () => body })
+    });
+    await assert.rejects(() => storage.put({ employeeId: '11111111-1111-4111-8111-111111111111', captureId: '22222222-2222-4222-8222-222222222222', selfie: selfie() }), (error) => error.statusCode === 503 && error.details.code === 'ATTENDANCE_SELFIE_BUCKET_NOT_PRIVATE');
+  }
 });
 
 test('device transfer routes are authenticated and ADMIN-only for list/approve/reject', () => {

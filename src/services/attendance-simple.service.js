@@ -139,7 +139,7 @@ function createAttendanceSimpleService({
   selfieStorage = null,
   deviceService = null
 } = {}) {
-  const deviceSelfieStorage = selfieStorage || createSupabaseAttendanceDeviceSelfieStorage();
+  const deviceSelfieStorage = selfieStorage || createSupabaseAttendanceDeviceSelfieStorage({ prisma, audit, clock });
   const attendanceDevice = deviceService || createAttendanceDeviceService({ prisma, audit, clock });
   const siteEvidence = siteEvidenceService || createAttendanceSiteEvidenceService({ prisma, clock });
   const siteAuthority = siteAuthorityService || createSecuritySiteAuthorityService({ prisma });
@@ -390,7 +390,9 @@ function createAttendanceSimpleService({
     const locationCapturedAt = new Date(input.location?.capturedAt);
     if (offline && Math.abs(locationCapturedAt.getTime() - capturedAt.getTime()) > 120000) riskFlags.push('OFFLINE_LOCATION_TIME_MISMATCH');
 
-    return prisma.$transaction(async (tx) => {
+    let uploadedObjectKey = null;
+    try {
+      const result = await prisma.$transaction(async (tx) => {
       const existingEvent = await tx.attendanceEvent.findUnique({ where: { captureId: input.captureId } });
       if (existingEvent) return { counted: true, idempotent: true, event: existingEvent, status: 'ACCEPTED' };
       const existingPending = await tx.attendancePendingEvent.findUnique({ where: { captureId: input.captureId } });
@@ -434,6 +436,7 @@ function createAttendanceSimpleService({
       let selfieRow = null;
       if (selfieFile) {
         const stored = await deviceSelfieStorage.put({ employeeId: identity.employeeId, captureId: input.captureId, selfie: selfieFile });
+        uploadedObjectKey = stored.objectKey;
         selfieRow = await tx.attendanceDeviceSelfie.create({ data: {
           employeeId: identity.employeeId, enrollmentId: binding.enrollment.id, captureId: input.captureId,
           storageProvider: stored.provider, storageBucket: stored.bucket, storageObjectKey: stored.objectKey,
@@ -510,7 +513,15 @@ function createAttendanceSimpleService({
           reviewRequired, reviewReasons: uniqueRiskFlags } }, tx);
       return { counted: true, status: reviewRequired ? 'ACCEPTED_REVIEW_FLAGGED' : 'ACCEPTED',
         event, session: finalSession, deviceBinding: binding.binding, reviewRequired, reviewReasons: uniqueRiskFlags };
-    });
+      });
+      return result;
+    } catch (error) {
+      if (uploadedObjectKey) {
+        try { await deviceSelfieStorage.remove({ objectKey: uploadedObjectKey }); console.warn('ATTENDANCE_SELFIE_ORPHAN_CLEANUP', { objectKey: uploadedObjectKey, success: true }); }
+        catch (cleanupError) { console.warn('ATTENDANCE_SELFIE_ORPHAN_CLEANUP', { objectKey: uploadedObjectKey, success: false, errorCode: cleanupError?.details?.code || cleanupError?.code || 'UNKNOWN' }); }
+      }
+      throw error;
+    }
   }
 
   async function requestDeviceMove({ actor, input, requestUserAgent = null }) {
