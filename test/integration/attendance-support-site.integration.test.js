@@ -24,8 +24,10 @@ if (!configured) {
   const ids = {
     employee: crypto.randomUUID(), user: crypto.randomUUID(), admin: crypto.randomUUID(),
     shiftType: crypto.randomUUID(), assignedSite: crypto.randomUUID(), supportSite: crypto.randomUUID(),
-    assignment: crypto.randomUUID(), approval: crypto.randomUUID()
+    assignment: crypto.randomUUID(), approval: crypto.randomUUID(), challenge: crypto.randomUUID()
   };
+  const SELFIE_JPEG_BASE64 = '/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAP//////////////////////////2wBDAf//////////////////////////wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAX/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIQAxAAAAH/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/9oACAEBAAEFAqf/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIAAwAAAB//2gAIAQEAAT8h/9k=';
+  let supportSelfieNonce;
   const actor = { sub: ids.user, role: 'VIEWER' };
   const adminActor = { sub: ids.admin, role: 'ADMIN' };
   let now = new Date('2026-10-02T03:00:00.000Z'); // 10:00 Asia/Bangkok
@@ -41,12 +43,13 @@ if (!configured) {
     return { latitude: site.latitude, longitude: site.longitude, accuracyMeters: 8, capturedAt: capturedAt.toISOString() };
   }
 
-  function eventInput({ captureId, intent, location, capturedAt, offlineBundle = null, material = signingMaterial }) {
+  function eventInput({ captureId, intent, location, capturedAt, offlineBundle = null, material = signingMaterial, selfie = null, selfieNonce = null }) {
     const input = {
       captureId, eventIntent: intent, shiftAssignmentId: ids.assignment, capturedAt: capturedAt.toISOString(), location,
       device: { publicKeySpkiBase64: material.publicKeySpkiBase64, keyAlgorithm: 'ECDSA_P256_SHA256', displayName: 'Disposable integration device',
         signals: { secureContext: true, webCrypto: true, indexedDb: true, privateKeyNonExportable: true }, signatureBase64: '' },
-      offlineBundle
+      offlineBundle,
+      ...(selfie ? { selfie, selfieNonce } : {})
     };
     const { canonicalJson, signedEventPayload } = require('../../src/services/attendance-simple.service');
     input.device.signatureBase64 = crypto.sign('sha256', Buffer.from(canonicalJson(signedEventPayload(input)), 'utf8'), {
@@ -67,6 +70,8 @@ if (!configured) {
       { entityId: { in: [...events, ...pending, ...sessions, ...enrollments].map((row) => row.id) } }
     ] } }).catch(() => {});
     await prisma.attendancePendingEvent.deleteMany({ where: { employeeId: ids.employee } }).catch(() => {});
+    await prisma.attendanceDeviceSelfie.deleteMany({ where: { employeeId: ids.employee } }).catch(() => {});
+    await prisma.attendanceDeviceChallenge.deleteMany({ where: { employeeId: ids.employee } }).catch(() => {});
     await prisma.attendanceEvent.deleteMany({ where: { session: { employeeId: ids.employee } } }).catch(() => {});
     await prisma.attendanceSession.deleteMany({ where: { employeeId: ids.employee } }).catch(() => {});
     await prisma.attendanceDeviceChangeRequest.deleteMany({ where: { employeeId: ids.employee } }).catch(() => {});
@@ -103,13 +108,21 @@ if (!configured) {
       changedAt: now, approvedAt: now, changedByLegacyRef: ids.admin, approvedByLegacyRef: ids.admin,
       changeType: 'TEST', approvalNote: 'G06 support-Site disposable integration'
     } });
+    supportSelfieNonce = crypto.randomBytes(32).toString('hex');
+    await prisma.attendanceDeviceChallenge.create({ data: {
+      id: ids.challenge, employeeId: ids.employee, purpose: 'ATTENDANCE_EVENT',
+      challengeHash: crypto.createHash('sha256').update(supportSelfieNonce).digest('hex'),
+      expiresAt: new Date(now.getTime() + 2 * 60 * 60 * 1000)
+    } });
   }
 
   test('real PostgreSQL preserves assigned Site and accepts active support Site through signed offline flow', async () => {
     await seed();
     const siteEvidence = createAttendanceSiteEvidenceService({ prisma, clock: () => now, policyOverride: policy });
     const service = createAttendanceSimpleService({ prisma, audit, clock: () => now, siteEvidenceService: siteEvidence,
-      policyService: { getPolicy: async () => policy }, bundleSecret: () => 'disposable-integration-only-signing-secret-32-bytes' });
+      policyService: { getPolicy: async () => policy }, selfieStorage: {
+        put: async ({ captureId, selfie }) => ({ provider: 'test', bucket: 'test-bucket', objectKey: `selfie/${captureId}`, mimeType: selfie.mimeType, sizeBytes: selfie.buffer.length, checksum: selfie.checksum })
+      }, bundleSecret: () => 'disposable-integration-only-signing-secret-32-bytes' });
     const assigned = { latitude: 13.7241, longitude: 100.5701, accuracyMeters: 8, capturedAt: now.toISOString() };
     const first = eventInput({ captureId: crypto.randomUUID(), intent: 'CHECK_IN', location: assigned, capturedAt: now });
     const acceptedAssigned = await service.submit({ actor, input: first });
@@ -128,7 +141,9 @@ if (!configured) {
     const supportLocation = { latitude: 13.7251, longitude: 100.5701, accuracyMeters: 8, capturedAt: capturedAt.toISOString() };
     const supportMaterial = keyMaterial();
     const delayedOffline = eventInput({ captureId: crypto.randomUUID(), intent: 'CHECK_OUT', location: supportLocation,
-      capturedAt, offlineBundle: bootstrap.offline.bundle, material: supportMaterial });
+      capturedAt, offlineBundle: bootstrap.offline.bundle, material: supportMaterial,
+      selfie: { mimeType: 'image/jpeg', base64: SELFIE_JPEG_BASE64, captureMode: 'LIVE_CAMERA', overlay: { capturedAt: now.toISOString() } },
+      selfieNonce: supportSelfieNonce });
     const pending = await service.submit({ actor, input: delayedOffline });
     assert.equal(pending.status, 'PENDING_CONFIRMATION');
     assert.equal(pending.counted, false);
