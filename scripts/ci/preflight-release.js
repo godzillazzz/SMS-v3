@@ -145,6 +145,15 @@ function evidenceRun(runId) {
 }
 
 function latestDeploymentId() {
+  const records = postReleaseRecords();
+  const checkpoint = records.find((entry) => entry.record?.deployed?.deployment_id);
+  if (checkpoint && checkpoint.record && checkpoint.record.deployed && checkpoint.record.deployed.deployment_id) {
+    return {
+      id: checkpoint.record.deployed.deployment_id,
+      runId: checkpoint.record.deployed.deploy_run_id || null,
+      source: checkpoint.file
+    };
+  }
   try {
     const raw = gh(['run', 'list', '--workflow', DEPLOY_WORKFLOW, '--limit', '20', '--json', 'databaseId,conclusion']);
     const runs = JSON.parse(raw || '[]').filter((run) => run.conclusion === 'success');
@@ -158,16 +167,7 @@ function latestDeploymentId() {
       }
     }
   } catch {
-    /* fall through to the immutable post-release record below */
-  }
-  const records = postReleaseRecords();
-  const checkpoint = records.find((entry) => entry.record?.deployed?.deployment_id);
-  if (checkpoint) {
-    return {
-      id: checkpoint.record.deployed.deployment_id,
-      runId: checkpoint.record.workflow_run_id || null,
-      source: checkpoint.file
-    };
+    /* fall through to no deployment id */
   }
   return null;
 }
