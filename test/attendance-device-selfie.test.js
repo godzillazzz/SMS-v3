@@ -22,7 +22,7 @@ test('FOREIGN selfie storage requires configured private storage and validates J
 test('storage upload uses private bucket check, HMAC path, random suffix, and private service headers', async () => {
   const calls = [];
   const storage = createSupabaseAttendanceDeviceSelfieStorage({
-    environment: { SUPABASE_URL: 'https://private.example.test', SUPABASE_SERVICE_ROLE_KEY: 'secret-not-logged', ATTENDANCE_DEVICE_SELFIE_BUCKET: 'attendance-selfies', SELFIE_PATH_SECRET: 'path-secret' },
+    environment: { SUPABASE_URL: 'https://private.example.test', SUPABASE_SERVICE_ROLE_KEY: 'secret-not-logged', ATTENDANCE_DEVICE_SELFIE_BUCKET: 'attendance-selfies', SELFIE_PATH_SECRET: 'path-secret-with-at-least-thirty-two-bytes' },
     fetchImpl: async (url, options) => { calls.push({ url, options }); return { ok: true, status: 200, json: async () => ({ public: false }) }; }
   });
   const result = await storage.put({ employeeId: '11111111-1111-4111-8111-111111111111', captureId: '22222222-2222-4222-8222-222222222222', selfie: selfie() });
@@ -45,7 +45,7 @@ test('retention purge removes only expired selfies and marks purgedAt', async ()
     update: async ({ where, data }) => { updates.push({ where, data }); expired.purgedAt = data.purgedAt; return expired; }
   } };
   const storage = createSupabaseAttendanceDeviceSelfieStorage({
-    environment: { SUPABASE_URL: 'https://private.example.test', SUPABASE_SERVICE_ROLE_KEY: 'secret', ATTENDANCE_DEVICE_SELFIE_BUCKET: 'attendance-selfies', SELFIE_PATH_SECRET: 'path-secret' },
+    environment: { SUPABASE_URL: 'https://private.example.test', SUPABASE_SERVICE_ROLE_KEY: 'secret', ATTENDANCE_DEVICE_SELFIE_BUCKET: 'attendance-selfies', SELFIE_PATH_SECRET: 'path-secret-with-at-least-thirty-two-bytes' },
     prisma,
     fetchImpl: async (url, options) => { if (options?.method === 'DELETE') removed.push(url); return { ok: true, status: 200, json: async () => ({ public: false }) }; },
     clock: () => now
@@ -61,11 +61,32 @@ test('retention purge removes only expired selfies and marks purgedAt', async ()
 test('private bucket check fails closed when bucket is public or unavailable', async () => {
   for (const body of [{ public: true }, null]) {
     const storage = createSupabaseAttendanceDeviceSelfieStorage({
-      environment: { SUPABASE_URL: 'https://private.example.test', SUPABASE_SERVICE_ROLE_KEY: 'secret', ATTENDANCE_DEVICE_SELFIE_BUCKET: 'attendance-selfies', SELFIE_PATH_SECRET: 'path-secret' },
+      environment: { SUPABASE_URL: 'https://private.example.test', SUPABASE_SERVICE_ROLE_KEY: 'secret', ATTENDANCE_DEVICE_SELFIE_BUCKET: 'attendance-selfies', SELFIE_PATH_SECRET: 'path-secret-with-at-least-thirty-two-bytes' },
       fetchImpl: async () => ({ ok: body !== null, status: body ? 200 : 500, json: async () => body })
     });
     await assert.rejects(() => storage.put({ employeeId: '11111111-1111-4111-8111-111111111111', captureId: '22222222-2222-4222-8222-222222222222', selfie: selfie() }), (error) => error.statusCode === 503 && error.details.code === 'ATTENDANCE_SELFIE_BUCKET_NOT_PRIVATE');
   }
+});
+
+test('SELFIE_PATH_SECRET fails closed for weak values and accepts strong entropy', async () => {
+  for (const secret of ['', 'short', 'changeme', 'secret-with-more-than-thirty-two-characters']) {
+    const storage = createSupabaseAttendanceDeviceSelfieStorage({ environment: { SUPABASE_URL: 'https://private.example.test', SUPABASE_SERVICE_ROLE_KEY: 'secret', ATTENDANCE_DEVICE_SELFIE_BUCKET: 'attendance-selfies', SELFIE_PATH_SECRET: secret }, fetchImpl: async () => ({ ok: true, json: async () => ({ public: false }) }) });
+    await assert.rejects(() => storage.assertPrivate(), (error) => error.statusCode === 503 && error.details.code === 'ATTENDANCE_SELFIE_PATH_SECRET_WEAK');
+  }
+  const storage = createSupabaseAttendanceDeviceSelfieStorage({ environment: { SUPABASE_URL: 'https://private.example.test', SUPABASE_SERVICE_ROLE_KEY: 'secret', ATTENDANCE_DEVICE_SELFIE_BUCKET: 'attendance-selfies', SELFIE_PATH_SECRET: 'strong-random-path-secret-0123456789' }, fetchImpl: async () => ({ ok: true, json: async () => ({ public: false }) }) });
+  await assert.doesNotReject(() => storage.assertPrivate());
+});
+
+test('reconcileOrphans deletes old objects without rows and keeps objects with rows', async () => {
+  const now = new Date('2027-01-01T00:00:00.000Z'); const deleted = []; const audits = [];
+  const prisma = { attendanceDeviceSelfie: { findMany: async () => [{ storageObjectKey: 'attendance-selfie/hash/kept.jpg' }] } };
+  const storage = createSupabaseAttendanceDeviceSelfieStorage({ environment: { SUPABASE_URL: 'https://private.example.test', SUPABASE_SERVICE_ROLE_KEY: 'secret', ATTENDANCE_DEVICE_SELFIE_BUCKET: 'attendance-selfies', SELFIE_PATH_SECRET: 'strong-random-path-secret-0123456789' }, prisma, audit: { log: async (entry) => audits.push(entry) }, clock: () => now, fetchImpl: async (url, options) => {
+    if (url.includes('/object/list/')) return { ok: true, json: async () => [{ id: '1', name: 'hash/orphan.jpg', created_at: '2026-12-31T00:00:00.000Z' }, { id: '2', name: 'hash/kept.jpg', created_at: '2026-12-31T00:00:00.000Z' }] };
+    if (options.method === 'DELETE') { deleted.push(url); return { ok: true, json: async () => ({}) }; }
+    return { ok: true, json: async () => ({ public: false }) };
+  } });
+  assert.deepEqual(await storage.reconcileOrphans({ now, olderThanMs: 60 * 60 * 1000 }), { scanned: 2, deleted: 1, kept: 1, failed: 0 });
+  assert.equal(deleted.length, 1); assert.match(deleted[0], /orphan\.jpg/); assert.equal(audits[0].metadata.event, 'ATTENDANCE_SELFIE_ORPHAN_RECONCILED');
 });
 
 test('device transfer routes are authenticated and ADMIN-only for list/approve/reject', () => {

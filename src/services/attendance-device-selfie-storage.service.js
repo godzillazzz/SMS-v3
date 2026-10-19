@@ -9,6 +9,8 @@ const RETENTION_DAYS = 365;
 const MIME_BY_TYPE = Object.freeze({ jpeg: 'image/jpeg', png: 'image/png' });
 const SELFIE_PATH_SECRET_ENV = 'SELFIE_PATH_SECRET';
 const MAX_PURGE_LIMIT = 500;
+const DEFAULT_ORPHAN_AGE_MS = 60 * 60 * 1000;
+const MAX_ORPHAN_LIMIT = 1000;
 
 function http(status, code, message) { return new HttpError(status, message, { code }); }
 function config(environment = process.env) {
@@ -18,9 +20,11 @@ function config(environment = process.env) {
   let url = '';
   try { url = new URL(urlRaw).origin; } catch {}
   const pathSecret = String(environment[SELFIE_PATH_SECRET_ENV] || '').trim();
-  if (!url || !serviceKey || !/^[A-Za-z0-9._-]{1,255}$/.test(bucket) || !pathSecret) {
+  const weakSecret = pathSecret.length < 32 || /^(?:changeme|change[-_]?me|secret|test|default|password)(?:[-_].*)?$/i.test(pathSecret);
+  if (!url || !serviceKey || !/^[A-Za-z0-9._-]{1,255}$/.test(bucket)) {
     throw http(503, 'ATTENDANCE_SELFIE_STORAGE_NOT_CONFIGURED', 'Attendance device selfie storage is not configured.');
   }
+  if (weakSecret) throw http(503, 'ATTENDANCE_SELFIE_PATH_SECRET_WEAK', 'Attendance selfie path secret is too weak.');
   return { url, serviceKey, bucket, pathSecret };
 }
 
@@ -75,6 +79,31 @@ function createSupabaseAttendanceDeviceSelfieStorage({ environment = process.env
     if (!response.ok) throw http(502, 'ATTENDANCE_SELFIE_STORAGE_UPLOAD_FAILED', 'Attendance selfie upload failed.');
     return { ...file, provider: 'supabase', bucket, objectKey };
   }
+  async function listObjects({ prefix = 'attendance-selfie/', limit = 1000 } = {}) {
+    const { url, serviceKey, bucket } = config(environment);
+    const response = await fetchImpl(`${url}/storage/v1/object/list/${encodeURIComponent(bucket)}`, {
+      method: 'POST', headers: { authorization: `Bearer ${serviceKey}`, apikey: serviceKey, 'content-type': 'application/json' },
+      body: JSON.stringify({ prefix, limit: Math.max(1, Math.min(Number(limit) || 1000, MAX_ORPHAN_LIMIT)), offset: 0, sortBy: { column: 'created_at', order: 'asc' } })
+    });
+    const body = await response.json().catch(() => null);
+    if (!response.ok || !Array.isArray(body)) throw http(502, 'ATTENDANCE_SELFIE_STORAGE_LIST_FAILED', 'Attendance selfie listing failed.');
+    return body.filter((entry) => entry && entry.id !== null && entry.name).map((entry) => ({ ...entry, objectKey: `${prefix}${entry.name}`, createdAt: entry.created_at || entry.createdAt || entry.updated_at || entry.updatedAt || null }));
+  }
+  async function reconcileOrphans({ olderThanMs = DEFAULT_ORPHAN_AGE_MS, limit = 1000, now = clock() } = {}) {
+    const objects = await listObjects({ prefix: 'attendance-selfie/', limit });
+    const threshold = now.getTime() - Math.max(0, Number(olderThanMs) || DEFAULT_ORPHAN_AGE_MS);
+    const candidates = objects.filter((object) => Number.isFinite(Date.parse(object.createdAt)) && Date.parse(object.createdAt) <= threshold);
+    const rows = prisma?.attendanceDeviceSelfie?.findMany ? await prisma.attendanceDeviceSelfie.findMany({ where: { storageObjectKey: { in: candidates.map((object) => object.objectKey) } }, select: { storageObjectKey: true } }) : [];
+    const keptKeys = new Set(rows.map((row) => row.storageObjectKey));
+    let deleted = 0; let kept = 0; let failed = 0;
+    for (const object of candidates) {
+      if (keptKeys.has(object.objectKey)) { kept += 1; continue; }
+      try { await remove({ objectKey: object.objectKey }); deleted += 1; } catch (error) { failed += 1; safeLog(logger, 'ATTENDANCE_SELFIE_ORPHAN_RECONCILED', { objectKey: object.objectKey, success: false, errorCode: error?.details?.code || error?.code || 'UNKNOWN' }); }
+    }
+    const result = { scanned: candidates.length, deleted, kept, failed };
+    await audit?.log({ actorUserId: null, action: 'DELETE', entityType: 'AttendanceDeviceSelfie', entityId: null, metadata: { event: 'ATTENDANCE_SELFIE_ORPHAN_RECONCILED', ...result } });
+    return result;
+  }
   async function purgeExpiredSelfies({ now = clock(), limit = 100 } = {}) {
     if (!prisma?.attendanceDeviceSelfie) return { inspected: 0, purged: 0, failed: 0 };
     const rows = await prisma.attendanceDeviceSelfie.findMany({ where: { retentionUntil: { lt: now }, purgedAt: null }, orderBy: [{ retentionUntil: 'asc' }, { id: 'asc' }], take: Math.max(1, Math.min(Number(limit) || 100, MAX_PURGE_LIMIT)) });
@@ -85,7 +114,7 @@ function createSupabaseAttendanceDeviceSelfieStorage({ environment = process.env
     }
     return { inspected: rows.length, purged, failed };
   }
-  return { put, remove, purgeExpiredSelfies, assertPrivate };
+  return { put, remove, listObjects, reconcileOrphans, purgeExpiredSelfies, assertPrivate };
 }
 
-module.exports = { MAX_BYTES, RETENTION_DAYS, config, normalizeSelfie, selfiePathHash, createSupabaseAttendanceDeviceSelfieStorage };
+module.exports = { MAX_BYTES, RETENTION_DAYS, DEFAULT_ORPHAN_AGE_MS, config, normalizeSelfie, selfiePathHash, createSupabaseAttendanceDeviceSelfieStorage };

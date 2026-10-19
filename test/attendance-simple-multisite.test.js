@@ -98,6 +98,10 @@ function harness({ sites = null, activePrimary = null, timePolicyValues = null, 
     attendanceDeviceSelfie: {
       create: async ({ data }) => { const row = { id: crypto.randomUUID(), ...data }; state.selfies.push(row); return row; }
     },
+    attendanceDeviceChallenge: {
+      findFirst: async () => ({ id: 'test-challenge', employeeId: ids.employee, purpose: 'ATTENDANCE_EVENT', consumedAt: null, expiresAt: new Date(state.now.getTime() + 60000) }),
+      updateMany: async () => ({ count: 1 })
+    },
     attendanceDeviceChangeRequest: {
       findFirst: async () => null,
       create: async ({ data }) => { const row = { id: crypto.randomUUID(), status: 'PENDING_APPROVAL', ...data }; state.deviceChangeRequests.push(row); return row; }
@@ -140,7 +144,10 @@ function signedInput({ pair, publicKeySpkiBase64, location, offlineBundle = null
     offlineBundle
   };
   if (claimedActualSiteId !== undefined) input.actualSiteId = claimedActualSiteId;
-  if (selfie !== undefined) input.selfie = selfie;
+  if (selfie !== undefined) {
+    input.selfie = { ...selfie, captureMode: selfie.captureMode || 'LIVE_CAMERA', overlay: selfie.overlay || { capturedAt: capturedAt.toISOString() } };
+    input.selfieNonce = 'a'.repeat(64);
+  }
   const signature = crypto.sign('sha256', Buffer.from(canonicalJson(signedEventPayload(input)), 'utf8'), {
     key: pair.privateKey, dsaEncoding: 'ieee-p1363'
   });
@@ -219,7 +226,7 @@ test('delayed offline support attendance stays uncounted until ADMIN confirms an
   const { pair, publicKeySpkiBase64 } = keyMaterial();
   const capturedAt = new Date(now.getTime() + 60 * 1000);
   h.state.now = new Date(now.getTime() + 30 * 60 * 1000);
-  const input = signedInput({ pair, publicKeySpkiBase64, location: { ...locB(), capturedAt: capturedAt.toISOString() }, capturedAt, offlineBundle: bootstrap.offline.bundle, selfie: TEST_SELFIE });
+  const input = signedInput({ pair, publicKeySpkiBase64, location: { ...locB(), capturedAt: capturedAt.toISOString() }, capturedAt, offlineBundle: bootstrap.offline.bundle, selfie: { ...TEST_SELFIE, overlay: { capturedAt: h.state.now.toISOString() } } });
   const pending = await h.service.submit({ actor: { sub: ids.user, role: 'VIEWER' }, input });
   assert.equal(pending.counted, false);
   assert.equal(pending.status, 'PENDING_CONFIRMATION');

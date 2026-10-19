@@ -37,7 +37,7 @@ function safeAudit(row) {
   const metadata = Object.fromEntries(Object.entries(source).filter(([key]) => allowed.has(key)));
   return { id: row.id, actorUserId: row.actorUserId, action: row.action, entityType: row.entityType, entityId: row.entityId, metadata, createdAt: row.createdAt, actor: safeRequester(row.actor) };
 }
-function safeRequest(row) { return row ? { id: row.id, employeeId: row.employeeId, requestType: row.requestType, status: row.status, requestedByUserId: row.requestedByUserId, candidateDeviceEnrollmentId: row.candidateDeviceEnrollmentId, currentDeviceEnrollmentId: row.currentDeviceEnrollmentId, reason: row.reason, reviewerComment: row.reviewerComment, reviewedByUserId: row.reviewedByUserId, reviewedAt: row.reviewedAt, returnedAt: row.returnedAt, cancelledAt: row.cancelledAt, createdAt: row.createdAt, updatedAt: row.updatedAt, candidateDevice: row.candidateDevice ? safeEnrollment(row.candidateDevice) : undefined, employee: safeEmployee(row.employee), requestedBy: safeRequester(row.requestedBy), reviewedBy: safeRequester(row.reviewedBy) } : null; }
+function safeRequest(row, projection = {}) { return row ? { id: row.id, requestId: row.id, employeeId: row.employeeId, requestType: row.requestType, candidateEnrollmentId: row.candidateDeviceEnrollmentId, currentEnrollmentId: row.currentDeviceEnrollmentId, status: row.status, reviewedByUserId: row.reviewedByUserId ?? null, reviewedAt: row.reviewedAt ?? null, rejectedEventCount: projection.rejectedEventCount ?? row.rejectedEventCount ?? 0, excludedCaptureIds: projection.excludedCaptureIds ?? row.excludedCaptureIds ?? [], requestedByUserId: row.requestedByUserId, candidateDeviceEnrollmentId: row.candidateDeviceEnrollmentId, currentDeviceEnrollmentId: row.currentDeviceEnrollmentId, reason: row.reason, reviewerComment: row.reviewerComment, returnedAt: row.returnedAt, cancelledAt: row.cancelledAt, createdAt: row.createdAt, updatedAt: row.updatedAt, candidateDevice: row.candidateDevice ? safeEnrollment(row.candidateDevice) : undefined, employee: safeEmployee(row.employee), requestedBy: safeRequester(row.requestedBy), reviewedBy: safeRequester(row.reviewedBy) } : null; }
 function reviewReasonList(value) { return Array.isArray(value) ? value.filter((reason) => typeof reason === 'string') : []; }
 function addReviewReason(value, reason) { return [...new Set([...reviewReasonList(value), reason])]; }
 
@@ -251,7 +251,7 @@ function createAttendanceDeviceService({ prisma = prismaDefault, audit = auditDe
         await audit.log({ actorUserId: actor.sub, action: 'UPDATE', entityType: 'AttendanceDeviceChangeRequest', entityId: request.id, metadata: { event: 'DEVICE_TRANSFER_APPROVED', requestType: request.requestType, employeeId: request.employeeId, fromEnrollmentId: active?.id || null, toEnrollmentId: candidate.id, adminUserId: actor.sub, requestId: request.id, eventCaptureIds: [] } }, tx);
         await audit.log({ actorUserId: actor.sub, action: 'UPDATE', entityType: 'AttendanceDeviceChangeRequest', entityId: request.id, metadata: { event: 'FINAL_APPROVE', requestType: request.requestType, employeeId: request.employeeId, fromEnrollmentId: active?.id || null, toEnrollmentId: candidate.id, requestId: request.id } }, tx);
         const approved = await tx.attendanceDeviceChangeRequest.findUnique({ where: { id: request.id }, include: { candidateDevice: { include: { approvedBy: { select: { id: true, displayName: true, role: true } } } }, reviewedBy: { select: { id: true, displayName: true, role: true } } } });
-        return safeRequest(approved);
+        return safeRequest(approved, { rejectedEventCount: 0, excludedCaptureIds: [] });
       });
     } catch (error) { throw mapConflict(error); }
   }
@@ -305,7 +305,7 @@ function createAttendanceDeviceService({ prisma = prismaDefault, audit = auditDe
         adminUserId: actor.sub, reason: text, rejectedAt: now, rejectedEventCount: events.length,
         excludedCaptureIds: events.map((event) => event.captureId)
       } }, tx);
-      return safeRequest(await tx.attendanceDeviceChangeRequest.findUnique({ where: { id: request.id }, include: { reviewedBy: { select: { id: true, displayName: true, role: true } } } }));
+      return safeRequest(await tx.attendanceDeviceChangeRequest.findUnique({ where: { id: request.id }, include: { reviewedBy: { select: { id: true, displayName: true, role: true } } } }), { rejectedEventCount: events.length, excludedCaptureIds: events.map((event) => event.captureId) });
     });
   }
 

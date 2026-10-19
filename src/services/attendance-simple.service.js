@@ -419,11 +419,14 @@ function createAttendanceSimpleService({
       let selfieMetadata = null;
       if (binding.binding === 'FOREIGN') {
         const nonce = String(input.selfieNonce || '');
-        const challengeStoreAvailable = tx.attendanceDeviceChallenge && typeof tx.attendanceDeviceChallenge.findFirst === 'function';
-        if (challengeStoreAvailable && (!nonce || input.selfie?.captureMode !== 'LIVE_CAMERA')) throw http(422, 'ATTENDANCE_FOREIGN_DEVICE_SELFIE_LIVE_REQUIRED', 'Foreign device selfie must be captured live with a valid nonce.');
+        const challengeStoreAvailable = tx.attendanceDeviceChallenge
+          && typeof tx.attendanceDeviceChallenge.findFirst === 'function'
+          && typeof tx.attendanceDeviceChallenge.updateMany === 'function';
+        if (!challengeStoreAvailable) throw http(503, 'ATTENDANCE_SELFIE_GUARD_UNAVAILABLE', 'Attendance selfie live-capture guard is unavailable.');
+        if (!nonce || input.selfie?.captureMode !== 'LIVE_CAMERA') throw http(422, 'ATTENDANCE_FOREIGN_DEVICE_SELFIE_LIVE_REQUIRED', 'Foreign device selfie must be captured live with a valid nonce.');
         const overlayCapturedAt = new Date(input.selfie?.overlay?.capturedAt || input.capturedAt);
-        if (challengeStoreAvailable && (Number.isNaN(overlayCapturedAt.getTime()) || Math.abs(now.getTime() - overlayCapturedAt.getTime()) > 120000)) throw http(422, 'ATTENDANCE_SELFIE_OVERLAY_STALE', 'Selfie capture overlay is stale.', { reason: 'STALE' });
-        if (challengeStoreAvailable) {
+        if (Number.isNaN(overlayCapturedAt.getTime()) || Math.abs(now.getTime() - overlayCapturedAt.getTime()) > 120000) throw http(422, 'ATTENDANCE_SELFIE_OVERLAY_STALE', 'Selfie capture overlay is stale.', { reason: 'STALE' });
+        {
           selfieChallenge = await tx.attendanceDeviceChallenge.findFirst({ where: { employeeId: identity.employeeId, purpose: 'ATTENDANCE_EVENT', challengeHash: sha256(nonce), consumedAt: null, expiresAt: { gt: now } } });
           if (!selfieChallenge) throw http(422, 'ATTENDANCE_SELFIE_NONCE_INVALID', 'Selfie nonce is invalid, expired, consumed, or belongs to another employee.');
           const consumed = await tx.attendanceDeviceChallenge.updateMany({ where: { id: selfieChallenge.id, employeeId: identity.employeeId, purpose: 'ATTENDANCE_EVENT', consumedAt: null, expiresAt: { gt: now } }, data: { consumedAt: now } });
