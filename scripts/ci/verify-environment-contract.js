@@ -10,6 +10,12 @@ const ROOT = path.resolve(__dirname, '../..');
 const HEX_64 = /^[0-9a-f]{64}$/i;
 const SHA_40 = /^[0-9a-f]{40}$/i;
 const VERCEL_HOST = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.vercel\.app$/i;
+const ATTENDANCE_SELFIE_ENV_KEYS = Object.freeze([
+  'SUPABASE_URL',
+  'SUPABASE_SERVICE_ROLE_KEY',
+  'ATTENDANCE_DEVICE_SELFIE_BUCKET',
+  'SELFIE_PATH_SECRET',
+]);
 
 function hasValue(value) {
   return value !== undefined && value !== null && String(value).trim() !== '';
@@ -211,10 +217,41 @@ function parseArgs(argv) {
   return result;
 }
 
+async function verifyVercelProductionEnvironment({ env = process.env, fetchImpl = globalThis.fetch, log = console.log } = {}) {
+  const token = env.VERCEL_TOKEN;
+  if (!token) {
+    log('ENV_CONTRACT=SKIPPED_NO_TOKEN');
+    log('Production Vercel environment contract skipped: VERCEL_TOKEN is not available.');
+    return { skipped: true };
+  }
+  const projectId = env.EXPECTED_PROJECT_ID || contract.project.projectId;
+  const teamId = env.VERCEL_ORG_ID || contract.project.teamId;
+  if (typeof fetchImpl !== 'function') throw new Error('Vercel API fetch implementation is unavailable');
+  const response = await fetchImpl(`https://api.vercel.com/v9/projects/${encodeURIComponent(projectId)}/env?teamId=${encodeURIComponent(teamId)}`, {
+    headers: { Authorization: `Bearer ${token}` },
+    signal: AbortSignal.timeout(30_000),
+  });
+  if (!response.ok) throw new Error(`Vercel environment lookup returned HTTP ${response.status}`);
+  const body = await response.json();
+  const rows = Array.isArray(body?.envs) ? body.envs : [];
+  const missing = [];
+  for (const key of ATTENDANCE_SELFIE_ENV_KEYS) {
+    const matches = rows.filter((row) => row.key === key && Array.isArray(row.target) && row.target.includes('production') && ['encrypted', 'plain'].includes(row.type));
+    if (matches.length) log(`ENV_KEY_PRESENT=${key}`);
+    else { log(`ENV_KEY_MISSING=${key}`); missing.push(key); }
+  }
+  if (missing.length) throw new Error(`Production Vercel environment contract missing: ${missing.join(', ')}`);
+  log('ENV_CONTRACT=PASS');
+  return { skipped: false, missing: [] };
+}
+
 function main(argv = process.argv.slice(2), { env = process.env, log = console.log, error = console.error } = {}) {
   try {
     const args = parseArgs(argv);
     validateContractDefinition();
+    if (args.verifyVercelProductionEnv) {
+      return verifyVercelProductionEnvironment({ env, log }).then(() => 0);
+    }
     if (args.contractOnly) {
       log('ENVIRONMENT_CONTRACT_DEFINITION=PASS');
       log(`SOURCE_VALIDATED_KEYS=${contract.sourceValidatedKeys.length}`);
@@ -255,7 +292,7 @@ function main(argv = process.argv.slice(2), { env = process.env, log = console.l
   }
 }
 
-if (require.main === module) process.exitCode = main();
+if (require.main === module) Promise.resolve(main()).then((code) => { process.exitCode = code; }).catch((reason) => { console.error(`Environment preflight failed: ${reason.message}`); process.exitCode = 1; });
 
 module.exports = {
   contract,
@@ -270,5 +307,6 @@ module.exports = {
   validateEnvironment,
   validateMigrationPolicy,
   verifyDatabaseTarget,
+  verifyVercelProductionEnvironment,
   verifySourceIdentity,
 };

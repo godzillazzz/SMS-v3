@@ -39,7 +39,24 @@ vi.mock('./pages/attendance-simple/attendance-simple-storage', async () => {
   };
 });
 
-import { AttendanceSimplePage } from './pages/attendance-simple/AttendanceSimplePage';
+import { AttendanceSimplePage, attendanceErrorMessage } from './pages/attendance-simple/AttendanceSimplePage';
+
+
+describe('actionable attendance error mapping', () => {
+  it('explains storage configuration failures with only the server code', () => {
+    const message = attendanceErrorMessage('ATTENDANCE_SELFIE_PATH_SECRET_WEAK', 'fallback');
+    expect(message).toContain('ระบบเก็บภาพยืนยันตัวตนยังไม่พร้อมใช้งาน');
+    expect(message).toContain('ATTENDANCE_SELFIE_PATH_SECRET_WEAK');
+    expect(message).not.toContain('secret');
+  });
+  it('explains missing check-in and expired selfie codes', () => {
+    expect(attendanceErrorMessage('ATTENDANCE_CHECK_IN_REQUIRED', 'fallback')).toBe('ยังไม่มีรายการเข้างานของกะนี้ — ต้องลงเวลาเข้าก่อน');
+    expect(attendanceErrorMessage('ATTENDANCE_SELFIE_NONCE_EXPIRED', 'fallback')).toBe('ภาพยืนยันหมดอายุ กรุณาถ่ายใหม่');
+  });
+  it('keeps unknown details safe and includes the code', () => {
+    expect(attendanceErrorMessage('UNEXPECTED_CODE', 'fallback')).toBe('fallback');
+  });
+});
 
 const site = { id: 'site-1', code: 'BV', name: 'BV#AN2', latitude: 13.7, longitude: 100.5, geofenceRadiusMeters: 150 };
 const assignment = { id: 'assign-1', workDate: '2026-10-19', shift: { code: 'D', startTime: '07:00', endTime: '19:00' }, site };

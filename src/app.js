@@ -17,6 +17,17 @@ const {
 } = require('./services/runtime-database-target-guard.service');
 
 const app = express();
+
+function attendanceSelfieStorageReadiness(environment = process.env) {
+  const url = String(environment.SUPABASE_URL || '').trim();
+  const serviceKey = String(environment.SUPABASE_SERVICE_ROLE_KEY || '').trim();
+  const bucket = String(environment.ATTENDANCE_DEVICE_SELFIE_BUCKET || '').trim();
+  const pathSecret = String(environment.SELFIE_PATH_SECRET || '').trim();
+  const weakSecret = pathSecret.length < 32 || /^(?:changeme|change[-_]?me|secret|test|default|password)(?:[-_].*)?$/i.test(pathSecret);
+  const validBucket = /^[A-Za-z0-9._-]{1,255}$/.test(bucket);
+  return Boolean(url && serviceKey && validBucket && !weakSecret) ? 'READY' : 'NOT_CONFIGURED';
+}
+
 const alerting = createConfiguredAlerting(env, {
   onStoreFailure: (fields) => logger.error('alert_dedup_store_unavailable', fields)
 });
@@ -49,7 +60,7 @@ async function readiness(req, res) {
       databaseTargetGuard: databaseTargetGuard.required ? 'pass' : 'not_required',
       durationMs: Number(process.hrtime.bigint() - startedAt) / 1e6
     });
-    return res.json({ status: 'ready', database: 'ok', requestId: req.requestId });
+    return res.json({ status: 'ready', database: 'ok', features: { attendanceSelfieStorage: attendanceSelfieStorageReadiness() }, requestId: req.requestId });
   } catch (error) {
     const databaseTargetGuardFailed = error?.code === PREVIEW_DATABASE_TARGET_GUARD_ERROR;
     logger.error('readiness_failure', {
@@ -61,7 +72,7 @@ async function readiness(req, res) {
       errorMessage: databaseTargetGuardFailed ? 'Preview database target guard failed.' : 'Database readiness check failed.',
       errorCategory: databaseTargetGuardFailed ? 'environment_validation' : errorCategory(error)
     });
-    return res.status(503).json({ status: 'not_ready', database: 'unavailable', requestId: req.requestId });
+    return res.status(503).json({ status: 'not_ready', database: 'unavailable', features: { attendanceSelfieStorage: attendanceSelfieStorageReadiness() }, requestId: req.requestId });
   }
 }
 app.get('/ready', readiness);

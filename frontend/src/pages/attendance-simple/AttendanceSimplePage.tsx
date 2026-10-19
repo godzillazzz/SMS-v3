@@ -84,11 +84,21 @@ function formatReceiptTime(value?: string | null): string {
   return formatThaiDateTime(parsed, { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
 }
 
+export function attendanceErrorMessage(code: string | undefined, fallback: string): string {
+  if (!code) return fallback;
+  if (['ATTENDANCE_SELFIE_PATH_SECRET_WEAK', 'ATTENDANCE_SELFIE_BUCKET_NOT_PRIVATE', 'ATTENDANCE_SELFIE_STORAGE_NOT_CONFIGURED', 'ATTENDANCE_SELFIE_STORAGE_UPLOAD_FAILED'].includes(code)) {
+    return `ระบบเก็บภาพยืนยันตัวตนยังไม่พร้อมใช้งาน (ผู้ดูแลต้องตั้งค่า) · รหัส: ${code}`;
+  }
+  if (code === 'ATTENDANCE_CHECK_IN_REQUIRED') return 'ยังไม่มีรายการเข้างานของกะนี้ — ต้องลงเวลาเข้าก่อน';
+  if (['ATTENDANCE_SELFIE_NONCE_INVALID', 'ATTENDANCE_SELFIE_NONCE_EXPIRED'].includes(code)) return 'ภาพยืนยันหมดอายุ กรุณาถ่ายใหม่';
+  return fallback;
+}
+
 function attendanceFailure(reason: unknown, fallback: string): AttendanceSimpleErrorDetails {
   const normalized = toRequestErrorState(reason, fallback);
-  const message = /[\u0E00-\u0E7F]/.test(normalized.message) ? normalized.message : fallback;
   const details = reason && typeof reason === 'object' ? reason as { code?: unknown } : {};
   const code = typeof details.code === 'string' ? details.code : undefined;
+  const message = attendanceErrorMessage(code, /[\u0E00-\u0E7F]/.test(normalized.message) ? normalized.message : fallback);
   return {
     message,
     ...(code ? { code } : {}),
@@ -750,6 +760,7 @@ export function AttendanceSimplePage({
     </details> : null}
     {requestErrorId && <details className="attendance-simple__technical">
       <summary>รายละเอียดสำหรับผู้ดูแล</summary>
+      {requestErrorCode && <p>รหัส: <code>{requestErrorCode}</code></p>}
       <RequestErrorReference requestId={requestErrorId} />
     </details>}
 

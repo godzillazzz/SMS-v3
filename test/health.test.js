@@ -30,12 +30,13 @@ test('readiness success and dependency failure responses are sanitized', async (
     assert.equal(healthy.status, 200);
     assert.equal(healthy.body.status, 'ready');
     assert.equal(healthy.body.database, 'ok');
+    assert.equal(healthy.body.features.attendanceSelfieStorage, 'NOT_CONFIGURED');
     assert.equal(healthy.body.requestId, healthy.headers['x-request-id']);
     logger.error = (event, fields) => records.push({ event, fields: sanitize(fields) });
     prisma.$queryRaw = async () => { throw Object.assign(new Error('private database connection text'), { code: 'P1001' }); };
     const failed = await request(app).get('/api/v1/ready');
     assert.equal(failed.status, 503);
-    assert.deepEqual(failed.body, { status: 'not_ready', database: 'unavailable', requestId: failed.headers['x-request-id'] });
+    assert.deepEqual(failed.body, { status: 'not_ready', database: 'unavailable', features: { attendanceSelfieStorage: 'NOT_CONFIGURED' }, requestId: failed.headers['x-request-id'] });
     assert.equal(JSON.stringify(failed.body).includes('private database'), false);
     assert.equal(JSON.stringify(failed.body).includes('stack'), false);
     assert.equal(records[0].event, 'readiness_failure');
@@ -48,6 +49,29 @@ test('readiness success and dependency failure responses are sanitized', async (
   } finally {
     prisma.$queryRaw = original;
     logger.error = originalError;
+  }
+});
+
+test('readiness reports selfie storage readiness without exposing configuration values', async () => {
+  const originalQuery = prisma.$queryRaw;
+  const original = { ...process.env };
+  try {
+    prisma.$queryRaw = async () => [{ one: 1 }];
+    for (const key of ['SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY', 'ATTENDANCE_DEVICE_SELFIE_BUCKET', 'SELFIE_PATH_SECRET']) delete process.env[key];
+    const missing = await request(app).get('/api/v1/ready');
+    assert.equal(missing.body.features.attendanceSelfieStorage, 'NOT_CONFIGURED');
+    process.env.SUPABASE_URL = 'https://storage.example.test';
+    process.env.SUPABASE_SERVICE_ROLE_KEY = 'service-role-value-that-must-not-appear';
+    process.env.ATTENDANCE_DEVICE_SELFIE_BUCKET = 'attendance-selfies';
+    process.env.SELFIE_PATH_SECRET = 'a-secure-path-secret-with-at-least-32-chars';
+    const ready = await request(app).get('/api/v1/ready');
+    assert.equal(ready.body.features.attendanceSelfieStorage, 'READY');
+    assert.equal(JSON.stringify(ready.body).includes('service-role-value-that-must-not-appear'), false);
+    assert.equal(JSON.stringify(ready.body).includes('a-secure-path-secret-with-at-least-32-chars'), false);
+  } finally {
+    prisma.$queryRaw = originalQuery;
+    for (const key of Object.keys(process.env)) if (!(key in original)) delete process.env[key];
+    for (const [key, value] of Object.entries(original)) process.env[key] = value;
   }
 });
 
@@ -67,7 +91,7 @@ test('preview readiness fails closed before a database query when target authori
     const failed = await request(app).get('/api/v1/ready');
     assert.equal(failed.status, 503);
     assert.equal(queryCount, 0);
-    assert.deepEqual(failed.body, { status: 'not_ready', database: 'unavailable', requestId: failed.headers['x-request-id'] });
+    assert.deepEqual(failed.body, { status: 'not_ready', database: 'unavailable', features: { attendanceSelfieStorage: 'NOT_CONFIGURED' }, requestId: failed.headers['x-request-id'] });
     assert.equal(records[0].event, 'readiness_failure');
     assert.equal(records[0].fields.errorCode, 'PREVIEW_DATABASE_TARGET_GUARD_FAILED');
     assert.equal(records[0].fields.errorMessage, 'Preview database target guard failed.');
