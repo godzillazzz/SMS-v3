@@ -313,7 +313,7 @@ function createAttendanceSimpleService({
 
   async function bindOrObserveDevice(client, { actor, identity, material, device, now }) {
     const existing = await client.attendanceDeviceEnrollment.findUnique({ where: { credentialFingerprint: material.fingerprint } });
-    const priorEmployeeEnrollment = existing ? null : await client.attendanceDeviceEnrollment.findFirst({ where: { employeeId: identity.employeeId }, orderBy: { createdAt: 'asc' } });
+    const hadExistingEnrollment = Boolean(existing);
     const active = await client.attendanceDeviceEnrollment.findFirst({ where: { employeeId: identity.employeeId, status: 'ACTIVE' }, orderBy: { activatedAt: 'desc' } });
     const priorEnrollment = active || await client.attendanceDeviceEnrollment.findFirst({ where: { employeeId: identity.employeeId }, orderBy: { createdAt: 'desc' } });
     assertFirstDeviceCanAutoBind(active, existing);
@@ -343,9 +343,7 @@ function createAttendanceSimpleService({
         metadata: { event: 'OBSERVED_LEGACY_DEVICE_STATUS', employeeId: identity.employeeId, status: observed.status, credentialFingerprint: material.fingerprint } }, client);
     }
     // Legacy status/history remains unchanged and is never an Attendance gate.
-    const observedAsForeign = Boolean(existing && existing.employeeId !== identity.employeeId)
-      || Boolean(active && active.credentialFingerprint !== material.fingerprint);
-    return { enrollment: observed, binding: observedAsForeign ? 'FOREIGN' : 'OBSERVED', reviewFlags: (observedAsForeign || (existing && !existing.observationOnly)) ? ['DEVICE_MISMATCH'] : [] };
+    return { enrollment: observed, binding: active ? 'FOREIGN' : 'OBSERVED', reviewFlags: active || hadExistingEnrollment ? ['DEVICE_MISMATCH'] : [] };
   }
 
   function expectationSnapshot(assignment, approval, authority) {
