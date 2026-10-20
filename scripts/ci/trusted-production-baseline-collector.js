@@ -94,23 +94,23 @@ function sanitizeBaseline(snapshot) {
 }
 
 function pageInfo(headers, url) { const link = headers?.get?.('link') || headers?.link || ''; const m = link.match(/<([^>]+)>;\s*rel="?next"?/i); return m ? new URL(m[1], url).toString() : null; }
-async function getJson(request, url, label, methods = ['GET']) { const u = new URL(url); assert(u.protocol === 'https:', `${label} URL must use HTTPS`); const r = await request(u.toString(), { method: methods[0], redirect: 'manual' }); assert(r && [200].includes(r.status), `${label} HTTP failure`); const data = await r.json(); assert(data !== null, `${label} empty JSON`); return { data, headers: r.headers }; }
+async function getJson(request, url, label, token = null, method = 'GET') { const u = new URL(url); assert(u.protocol === 'https:', `${label} URL must use HTTPS`); const headers = token ? { Authorization: `Bearer ${token}`, Accept: 'application/json' } : { Accept: 'application/json' }; const r = await request(u.toString(), { method, headers, redirect: 'manual' }); assert(r && r.status === 200, `${label} HTTP failure`); const data = await r.json(); assert(data !== null, `${label} empty JSON`); return { data, headers: r.headers }; }
 
 async function collectGithub({ request, repository, token, expectedSha, rollbackId }) {
   assert(/^[^/]+\/[^/]+$/.test(repository), 'GitHub repository malformed');
   let url = `https://api.github.com/repos/${repository}/deployments?environment=Production&per_page=100`;
   const rows = []; let pages = 0;
-  while (url) { assert(++pages <= MAX_PAGES, 'GitHub pagination exceeds limit'); const r = await getJson(request, url, 'GitHub deployments'); assert(Array.isArray(r.data), 'GitHub deployments malformed'); rows.push(...r.data); url = pageInfo(r.headers, url); }
+  while (url) { assert(++pages <= MAX_PAGES, 'GitHub pagination exceeds limit'); const r = await getJson(request, url, 'GitHub deployments', token); assert(Array.isArray(r.data), 'GitHub deployments malformed'); rows.push(...r.data); url = pageInfo(r.headers, url); }
   assert(rows.length > 0, 'GitHub deployments empty');
   for (const row of rows) assert(object(row) && Number.isSafeInteger(row.id) && row.id > 0 && sha(row.sha) && row.environment === 'Production' && Number.isFinite(Date.parse(row.created_at)), 'GitHub deployment malformed');
   const latest = rows.reduce((a, b) => Date.parse(a.created_at) > Date.parse(b.created_at) || (Date.parse(a.created_at) === Date.parse(b.created_at) && a.id > b.id) ? a : b);
   assert(latest.sha === expectedSha, 'latest GitHub SHA mismatch');
   const statuses = []; let su = `https://api.github.com/repos/${repository}/deployments/${latest.id}/statuses?per_page=100`; pages = 0;
-  while (su) { assert(++pages <= MAX_PAGES, 'GitHub status pagination exceeds limit'); const r = await getJson(request, su, 'GitHub statuses'); assert(Array.isArray(r.data), 'GitHub statuses malformed'); statuses.push(...r.data); su = pageInfo(r.headers, su); }
+  while (su) { assert(++pages <= MAX_PAGES, 'GitHub status pagination exceeds limit'); const r = await getJson(request, su, 'GitHub statuses', token); assert(Array.isArray(r.data), 'GitHub statuses malformed'); statuses.push(...r.data); su = pageInfo(r.headers, su); }
   assert(statuses.length > 0, 'GitHub statuses empty');
   const latestStatus = statuses.reduce((a, b) => Date.parse(a.created_at || a.updated_at) >= Date.parse(b.created_at || b.updated_at) ? a : b);
   assert(latestStatus.state === 'success', 'latest GitHub status is not success');
-  const reread = await getJson(request, `https://api.github.com/repos/${repository}/deployments?environment=Production&per_page=100`, 'GitHub deployment reread');
+  const reread = await getJson(request, `https://api.github.com/repos/${repository}/deployments?environment=Production&per_page=100`, 'GitHub deployment reread', token);
   assert(Array.isArray(reread.data)); const same = reread.data.find(x => x.id === latest.id); assert(same && same.sha === latest.sha, 'GitHub deployment changed during read');
   return { latestDeploymentId: latest.id, latestSha: latest.sha, latestStatus: latestStatus.state, paginationComplete: true, rollbackId };
 }
@@ -119,10 +119,10 @@ function assertVercelUrl(raw, canonical) { const u = new URL(raw); assert(u.prot
 async function collectVercel({ request, token, teamId, projectId, deploymentId: id, canonicalUrl }) {
   assert(/^team_[A-Za-z0-9]+$/.test(teamId) && /^prj_[A-Za-z0-9]+$/.test(projectId) && deploymentId(id), 'Vercel identity malformed');
   const endpoint = assertVercelUrl(`https://api.vercel.com/v13/deployments/${encodeURIComponent(id)}?teamId=${encodeURIComponent(teamId)}`, canonicalUrl);
-  const readDeployment = async () => { const r = await getJson(request, endpoint, 'Vercel deployment'); const d = r.data; assert(d.id === id && d.projectId === projectId && d.teamId === teamId && d.target === 'production' && d.readyState === 'READY' && sha(d.meta?.githubCommitSha), 'Vercel deployment identity/state mismatch'); return d; };
+  const readDeployment = async () => { const r = await getJson(request, endpoint, 'Vercel deployment', token); const d = r.data; assert(d.id === id && d.projectId === projectId && d.teamId === teamId && d.target === 'production' && d.readyState === 'READY' && sha(d.meta?.githubCommitSha), 'Vercel deployment identity/state mismatch'); return d; };
   const before = await readDeployment(); const aliasEndpoint = assertVercelUrl(`https://api.vercel.com/v4/aliases/${encodeURIComponent(new URL(canonicalUrl).hostname)}?teamId=${encodeURIComponent(teamId)}`, canonicalUrl);
-  const aliasBefore = (await getJson(request, aliasEndpoint, 'Vercel canonical alias')).data; assert(aliasBefore.deployment?.id === id, 'canonical alias target mismatch');
-  const after = await readDeployment(); const aliasAfter = (await getJson(request, aliasEndpoint, 'Vercel canonical alias reread')).data; assert(after.id === before.id && after.meta.githubCommitSha === before.meta.githubCommitSha && aliasAfter.deployment?.id === aliasBefore.deployment?.id, 'Vercel evidence changed during read');
+  const aliasBefore = (await getJson(request, aliasEndpoint, 'Vercel canonical alias', token)).data; assert(aliasBefore.deployment?.id === id, 'canonical alias target mismatch');
+  const after = await readDeployment(); const aliasAfter = (await getJson(request, aliasEndpoint, 'Vercel canonical alias reread', token)).data; assert(after.id === before.id && after.meta.githubCommitSha === before.meta.githubCommitSha && aliasAfter.deployment?.id === aliasBefore.deployment?.id, 'Vercel evidence changed during read');
   return { deploymentId: id, projectId, teamId, target: after.target, readyState: after.readyState, sourceSha: after.meta.githubCommitSha, canonicalAliasTarget: aliasAfter.deployment.id };
 }
 
