@@ -129,6 +129,7 @@ if (!configured) {
     await cleanup();
     await prisma.employee.create({ data: { id: ids.employee, employeeCode: `FOREIGN-${marker}`, firstName: 'Foreign', lastName: 'Concurrency', department: 'SECURITY' } });
     await prisma.user.create({ data: { id: ids.user, email: `foreign-concurrency-${marker}@example.test`, passwordHash: 'test-only', displayName: 'Foreign Concurrency User', role: 'VIEWER', employeeId: ids.employee } });
+    await prisma.attendanceSelfiePolicy.upsert({ where: { role: 'VIEWER' }, update: { clockInRequired: true, clockOutRequired: false, updatedByUserId: ids.user }, create: { role: 'VIEWER', clockInRequired: true, clockOutRequired: false, updatedByUserId: ids.user } });
     await prisma.shiftType.create({ data: { id: ids.shiftType, code: `FC${marker.slice(0, 4)}`, name: 'Foreign Concurrency Day', startTime: '07:00', endTime: '19:00', hours: 12, color: '#D9E1F2' } });
     await prisma.securitySite.create({ data: { id: ids.site, code: `FC-${marker}`, name: 'Foreign Concurrency Site', latitude: 13.7241, longitude: 100.5701, geofenceRadiusMeters: 100, isActive: true } });
     await prisma.shiftAssignment.create({ data: { id: ids.assignment, employeeId: ids.employee, shiftTypeId: ids.shiftType, securitySiteId: ids.site,
