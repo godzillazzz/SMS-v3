@@ -15,8 +15,9 @@ const configured = process.env.RUN_INTEGRATION_TESTS === 'true'
 if (!configured) {
   test('foreign-device selfie concurrency requires the explicit disposable local target', { skip: true }, () => {});
 } else {
-  const { PrismaClient } = require('@prisma/client');
+  const { PrismaClient, AuditAction } = require('@prisma/client');
   const { createAttendanceSimpleService, canonicalJson, signedEventPayload } = require('../../src/services/attendance-simple.service');
+  const AUDIT_ACTION_VALUES = new Set(Object.values(AuditAction));
   const { createAttendanceSiteEvidenceService } = require('../../src/services/attendance-site-evidence.service');
   const audit = require('../../src/services/audit.service');
 
@@ -176,6 +177,7 @@ if (!configured) {
       assert.equal(unchanged.status, status);
       const auditRow = await prisma.auditLog.findFirst({ where: { actorUserId: ids.user, entityType: 'AttendanceDeviceEnrollment', entityId: enrollment.id }, orderBy: { createdAt: 'desc' } });
       assert.ok(auditRow, `${status} legacy observation must write an enrollment audit`);
+      assert.equal(AUDIT_ACTION_VALUES.has(auditRow.action), true, `${status} audit action must be generated AuditAction`);
       assert.equal(auditRow.action, 'UPDATE');
       assert.deepEqual(auditRow.metadata, { event: 'OBSERVED_LEGACY_DEVICE_STATUS', employeeId: ids.employee, status, credentialFingerprint: fingerprint });
       assert.equal(await prisma.attendanceDeviceChangeRequest.count({ where: { employeeId: ids.employee } }), 0);

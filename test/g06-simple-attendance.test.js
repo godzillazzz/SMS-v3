@@ -51,6 +51,14 @@ test('legacy device status is passive telemetry and never an Attendance gate', (
   assert.doesNotThrow(() => assertFirstDeviceCanAutoBind(null, null));
 });
 
+test('passive device telemetry uses valid AuditAction and cannot block Attendance', () => {
+  const service = fs.readFileSync(path.join(__dirname, '../src/services/attendance-simple.service.js'), 'utf8');
+  assert.match(service, /recordPassiveDeviceAudit[\s\S]*?catch \(error\)/);
+  assert.match(service, /recordPassiveDeviceAudit\(client, \{ actorUserId: actor\.sub, action: 'UPDATE'/);
+  assert.doesNotMatch(service, /action: 'READ'/);
+  assert.match(service, /entityType: 'AttendanceEvent', entityId: event\.id,[\s\S]{0,80}metadata:/);
+});
+
 test('simple attendance keeps GPS geofence and admin review contracts', () => {
   const service = fs.readFileSync(path.join(__dirname, '../src/services/attendance-simple.service.js'), 'utf8');
   const routes = fs.readFileSync(path.join(__dirname, '../src/routes/attendance.routes.js'), 'utf8');

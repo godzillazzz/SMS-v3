@@ -311,6 +311,21 @@ function createAttendanceSimpleService({
       offline: { bundle: issueBundle(payload), issuedAt: payload.issuedAt, expiresAt: payload.expiresAt, confirmAfterMs: policy.offlineConfirmAfterMs, maxAccuracyMeters: policy.maxAccuracyMeters } };
   }
 
+  async function recordPassiveDeviceAudit(client, data) {
+    // Device enrollment observation is best-effort telemetry. It must never
+    // turn a valid Attendance event into a failed request, while required
+    // AttendanceEvent audit records below remain fail-closed.
+    try {
+      await audit.log(data, client);
+    } catch (error) {
+      console.warn('ATTENDANCE_PASSIVE_DEVICE_AUDIT_FAILED', {
+        entityId: data.entityId,
+        event: data.metadata?.event,
+        errorCode: error?.code || 'UNKNOWN'
+      });
+    }
+  }
+
   async function bindOrObserveDevice(client, { actor, identity, material, device, now }) {
     const existing = await client.attendanceDeviceEnrollment.findUnique({ where: { credentialFingerprint: material.fingerprint } });
     const hadExistingEnrollment = Boolean(existing);
@@ -320,8 +335,8 @@ function createAttendanceSimpleService({
     // A fingerprint conflict is an audit/telemetry signal only. Do not mutate
     // the other employee's enrollment and never make it an Attendance gate.
     if (existing && existing.employeeId !== identity.employeeId) {
-      await audit.log({ actorUserId: actor.sub, action: 'UPDATE', entityType: 'AttendanceDeviceEnrollment', entityId: existing.id,
-        metadata: { event: 'OBSERVED_CROSS_EMPLOYEE_DEVICE_CONFLICT', employeeId: identity.employeeId, boundEmployeeId: existing.employeeId, credentialFingerprint: material.fingerprint } }, client);
+      await recordPassiveDeviceAudit(client, { actorUserId: actor.sub, action: 'UPDATE', entityType: 'AttendanceDeviceEnrollment', entityId: existing.id,
+        metadata: { event: 'OBSERVED_CROSS_EMPLOYEE_DEVICE_CONFLICT', employeeId: identity.employeeId, boundEmployeeId: existing.employeeId, credentialFingerprint: material.fingerprint } });
       // Keep the conflicting enrollment only in audit metadata. A foreign row is
       // never a valid FK for this employee's event or selfie.
       return { enrollment: active || priorEnrollment || null, binding: 'FOREIGN', observedEnrollmentId: existing.id,
@@ -336,11 +351,11 @@ function createAttendanceSimpleService({
           platformHint: cleanText(device.platformHint, 100), userAgentSnapshot: cleanText(device.userAgentSnapshot, 500),
           status: 'PENDING_APPROVAL', observationOnly: true, proofVerifiedAt: now, createdByUserId: actor.sub }
       });
-      await audit.log({ actorUserId: actor.sub, action: 'CREATE', entityType: 'AttendanceDeviceEnrollment', entityId: observed.id,
-        metadata: { event: 'OBSERVED_ATTENDANCE_DEVICE', legacyEvent: 'AUTO_BIND_FIRST_DEVICE', employeeId: identity.employeeId, activeDeviceEnrollmentId: active?.id || null, credentialFingerprint: material.fingerprint } }, client);
+      await recordPassiveDeviceAudit(client, { actorUserId: actor.sub, action: 'CREATE', entityType: 'AttendanceDeviceEnrollment', entityId: observed.id,
+        metadata: { event: 'OBSERVED_ATTENDANCE_DEVICE', legacyEvent: 'AUTO_BIND_FIRST_DEVICE', employeeId: identity.employeeId, activeDeviceEnrollmentId: active?.id || null, credentialFingerprint: material.fingerprint } });
     } else {
-      await audit.log({ actorUserId: actor.sub, action: 'UPDATE', entityType: 'AttendanceDeviceEnrollment', entityId: observed.id,
-        metadata: { event: 'OBSERVED_LEGACY_DEVICE_STATUS', employeeId: identity.employeeId, status: observed.status, credentialFingerprint: material.fingerprint } }, client);
+      await recordPassiveDeviceAudit(client, { actorUserId: actor.sub, action: 'UPDATE', entityType: 'AttendanceDeviceEnrollment', entityId: observed.id,
+        metadata: { event: 'OBSERVED_LEGACY_DEVICE_STATUS', employeeId: identity.employeeId, status: observed.status, credentialFingerprint: material.fingerprint } });
     }
     // Legacy status/history remains unchanged and is never an Attendance gate.
     return { enrollment: observed, binding: active ? 'FOREIGN' : 'OBSERVED', reviewFlags: active || hadExistingEnrollment ? ['DEVICE_MISMATCH'] : [] };
