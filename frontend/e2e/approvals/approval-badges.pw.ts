@@ -86,7 +86,6 @@ async function expectAdminMenuCounts(page: Page) {
     ['approvalCenter', 'ศูนย์อนุมัติ', 100, '99+'],
     ['employees', 'ข้อมูลพนักงาน', 5, '5'],
     ['licenses', 'ใบอนุญาต รปภ.', 5, '5'],
-    ['attendanceDevice', 'อุปกรณ์ลงเวลา', 11, '11'],
     ['attendanceSupervisor', 'ศูนย์ควบคุมการลงเวลา', 13, '13'],
     ['users', 'ผู้ใช้และสิทธิ์', 36, '36'],
     ['leavePending', 'อนุมัติคำขอลา', 23, '23']
