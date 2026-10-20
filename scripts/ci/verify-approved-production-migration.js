@@ -93,7 +93,7 @@ const MIGRATIONS = Object.freeze({
     migrationNames: Object.freeze(['202610200001_attendance_selfie_policy']),
     migrationPolicy: 'ADDITIVE_ATTENDANCE_SELFIE_POLICY_TABLE_WITH_ROLE_SEED',
     postVerifyScript: 'scripts/ci/verify-attendance-selfie-policy-table.js',
-    sqlSha256: Object.freeze({ '202610200001_attendance_selfie_policy': 'fe78d650a67a14d7adf5739be7194b3dbc2287dd98d6bf1d83ee831734b47231' }),
+    sqlSha256: Object.freeze({ '202610200001_attendance_selfie_policy': 'd3ff0272f9337940637e23a6ccad9139ea95115e283878fe26000af111f95bb5' }),
     dataBackfill: false,
     schemaChanged: true
   }),

@@ -451,10 +451,20 @@ export function AttendanceSimplePage({
       const reusePending = pendingSiteCapture !== null && pendingAgeMs >= 0 && pendingAgeMs <= 180000;
       const location = reusePending ? pendingSiteCapture.location : await getLocation();
       const localDecision = gpsGeofenceDecision(bootstrap.assignment.site, location, bootstrap.eligibleSites || []);
-      if (!online && localDecision.classification === 'CONFIDENT_OUTSIDE') {
+      if (localDecision.classification === 'CONFIDENT_OUTSIDE') {
         throw new Error('อยู่นอก GEOFENCE ของทุก Site ที่อนุญาต · ไม่บันทึกเวลา');
       }
-      if (!reusePending && localDecision.workSiteContext === 'SUPPORT_SITE' && localDecision.actualSite) {
+      // Server policy permits uncertainty for the assigned Site, but a support
+      // Site is valid only when GPS is confidently inside it. Never queue an
+      // offline borderline support capture that the server will reject later.
+      if (localDecision.workSiteContext === 'SUPPORT_SITE'
+        && localDecision.classification === 'BORDERLINE') {
+        setTone('warning');
+        setMessage('GPS ยังไม่แม่นพอสำหรับ Support Site · กรุณาลองใหม่ในจุดที่สัญญาณชัดขึ้น');
+        return;
+      }
+      if (!reusePending && localDecision.workSiteContext === 'SUPPORT_SITE'
+        && localDecision.classification === 'CONFIDENT_INSIDE' && localDecision.actualSite) {
         setSiteContext({ assignedSite: { id: localDecision.assignedSite.id, code: localDecision.assignedSite.code, name: localDecision.assignedSite.name || '' },
           actualSite: localDecision.actualSite ? { id: localDecision.actualSite.id, code: localDecision.actualSite.code, name: localDecision.actualSite.name || '' } : null,
           workSiteContext: localDecision.workSiteContext });
