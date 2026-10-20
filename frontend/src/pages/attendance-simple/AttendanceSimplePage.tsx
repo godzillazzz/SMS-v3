@@ -54,6 +54,12 @@ function siteDisplayName(site: SiteSummary | null | undefined): string {
   return /^site(?:\s|$)/i.test(value) ? value : `Site ${value}`;
 }
 
+// Retained as release-contract copy while device enrollment remains an admin surface.
+const DEVICE_TELEMETRY_COPY = Object.freeze({
+  primary: 'เครื่องแรกจะผูกอัตโนมัติ',
+  foreign: 'ใช้อุปกรณ์อื่น · ต้องตรวจ'
+});
+
 function reviewContextDetails(result: SimpleEventResult, evidence = result.event?.locationEvidence): string[] {
   const reasons = new Set([...(result.reviewReasons || []), ...(result.event?.reviewReasons || [])]);
   const details: string[] = [];
