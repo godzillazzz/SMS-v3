@@ -17,12 +17,16 @@ const mocks = vi.hoisted(() => ({
   store: vi.fn()
 }));
 
-vi.mock('./pages/attendance-simple/attendance-simple-client', () => ({
-  simpleAttendanceBootstrap: mocks.bootstrap,
-  simpleAttendanceSubmit: mocks.submit,
-  simpleAttendanceSelfieProof: mocks.selfieProof,
-  simpleAttendanceMoveRequest: mocks.moveRequest
-}));
+vi.mock('./pages/attendance-simple/attendance-simple-client', async () => {
+  const actual = await vi.importActual<typeof import('./pages/attendance-simple/attendance-simple-client')>('./pages/attendance-simple/attendance-simple-client');
+  return {
+    ...actual,
+    simpleAttendanceBootstrap: mocks.bootstrap,
+    simpleAttendanceSubmit: mocks.submit,
+    simpleAttendanceSelfieProof: mocks.selfieProof,
+    simpleAttendanceMoveRequest: mocks.moveRequest
+  };
+});
 
 vi.mock('./pages/attendance-simple/attendance-simple-storage', async () => {
   const actual = await vi.importActual<typeof import('./pages/attendance-simple/attendance-simple-storage')>('./pages/attendance-simple/attendance-simple-storage');
@@ -46,11 +50,11 @@ describe('actionable attendance error mapping', () => {
   it('explains storage configuration failures with only the server code', () => {
     const message = attendanceErrorMessage('ATTENDANCE_SELFIE_PATH_SECRET_WEAK', 'fallback');
     expect(message).toContain('ระบบเก็บภาพยืนยันตัวตนยังไม่พร้อมใช้งาน');
-    expect(message).toContain('ATTENDANCE_SELFIE_PATH_SECRET_WEAK');
+    expect(message).not.toContain('ATTENDANCE_SELFIE_PATH_SECRET_WEAK');
     expect(message).not.toContain('secret');
   });
   it('explains missing check-in and expired selfie codes', () => {
-    expect(attendanceErrorMessage('ATTENDANCE_CHECK_IN_REQUIRED', 'fallback')).toBe('ยังไม่มีรายการเข้างานของกะนี้ — ต้องลงเวลาเข้าก่อน');
+    expect(attendanceErrorMessage('ATTENDANCE_CHECK_IN_REQUIRED', 'fallback')).toBe('ต้องลงเวลาเข้าก่อนจึงจะลงเวลาออกได้');
     expect(attendanceErrorMessage('ATTENDANCE_SELFIE_NONCE_EXPIRED', 'fallback')).toBe('ภาพยืนยันหมดอายุ กรุณาถ่ายใหม่');
   });
   it('keeps unknown details safe and includes the code', () => {
@@ -64,6 +68,22 @@ describe('actionable attendance error mapping', () => {
         code: 'ATTENDANCE_OUTSIDE_SITE_GEOFENCE',
         requestId: 'req-foreign-1'
       });
+  });
+
+  it('omits unsafe nested request ids and codes', () => {
+    const requestId = `safe\u0000${'x'.repeat(250)}`;
+    const code = '<script>ATTENDANCE_OUTSIDE_SITE_GEOFENCE</script> secret-token';
+    const failure = attendanceFailure({ error: { code, requestId } }, 'fallback');
+    expect(failure).toEqual({ message: 'fallback' });
+    expect(JSON.stringify(failure)).not.toContain(requestId);
+    expect(JSON.stringify(failure)).not.toContain(code);
+  });
+
+  it('retains valid diagnostics while rejecting overlong request ids', () => {
+    expect(attendanceFailure({ code: 'ATTENDANCE_CHECK_IN_REQUIRED', requestId: 'req-valid-1' }, 'fallback'))
+      .toEqual({ message: 'ต้องลงเวลาเข้าก่อนจึงจะลงเวลาออกได้', code: 'ATTENDANCE_CHECK_IN_REQUIRED', requestId: 'req-valid-1' });
+    expect(attendanceFailure({ code: 'ATTENDANCE_CHECK_IN_REQUIRED', requestId: 'r'.repeat(201) }, 'fallback'))
+      .toEqual({ message: 'ต้องลงเวลาเข้าก่อนจึงจะลงเวลาออกได้', code: 'ATTENDANCE_CHECK_IN_REQUIRED' });
   });
 });
 

@@ -88,7 +88,7 @@ export type SimpleEventResult = {
 
 export type AttendanceSimpleErrorDetails = { message: string; code?: string; requestId?: string };
 
-const ATTENDANCE_SIMPLE_ERROR_MESSAGES: Record<string, string> = {
+export const ATTENDANCE_SIMPLE_ERROR_MESSAGES: Record<string, string> = {
   ATTENDANCE_CHECK_IN_TOO_EARLY: 'ยังไม่ถึงช่วงเวลาที่อนุญาตให้ลงเวลาเข้า',
   ATTENDANCE_CHECK_IN_LATEST_WINDOW_EXCEEDED: 'ไม่สามารถลงเวลาเข้าได้ เนื่องจากเกินช่วงเวลาที่กำหนด',
   ATTENDANCE_CHECK_OUT_TOO_EARLY: 'ยังไม่ถึงช่วงเวลาที่อนุญาตให้ลงเวลาออก',
@@ -115,7 +115,11 @@ const ATTENDANCE_SIMPLE_ERROR_MESSAGES: Record<string, string> = {
   ATTENDANCE_LOCATION_ACCURACY_INSUFFICIENT: 'ตำแหน่ง GPS ยังไม่แม่นยำพอ กรุณาลองอีกครั้งในบริเวณที่โล่ง',
   ATTENDANCE_LOCATION_STALE: 'ตำแหน่ง GPS หมดอายุแล้ว กรุณาลองอีกครั้ง',
   ATTENDANCE_LOCATION_CAPTURED_AT_INVALID: 'เวลาที่จับตำแหน่ง GPS ไม่ถูกต้อง กรุณาเปิด Location แล้วลองใหม่',
+  ATTENDANCE_SELFIE_PATH_SECRET_WEAK: 'ระบบเก็บภาพยืนยันตัวตนยังไม่พร้อมใช้งาน (ผู้ดูแลต้องตั้งค่า)',
+  ATTENDANCE_SELFIE_BUCKET_NOT_PRIVATE: 'ระบบเก็บภาพยืนยันตัวตนยังไม่พร้อมใช้งาน (ผู้ดูแลต้องตั้งค่า)',
+  ATTENDANCE_SELFIE_STORAGE_NOT_CONFIGURED: 'ระบบเก็บภาพยืนยันตัวตนยังไม่พร้อมใช้งาน (ผู้ดูแลต้องตั้งค่า)',
   ATTENDANCE_SELFIE_STORAGE_UPLOAD_FAILED: 'ระบบเก็บภาพยืนยันตัวตนยังไม่พร้อมใช้งาน กรุณาติดต่อผู้ดูแลระบบ',
+  ATTENDANCE_SELFIE_NONCE_EXPIRED: 'ภาพยืนยันหมดอายุ กรุณาถ่ายใหม่',
   ATTENDANCE_LOCATION_ASSURANCE_INSUFFICIENT: 'ยังยืนยันตำแหน่งไม่ได้ กรุณาลองอีกครั้งหรือติดต่อหัวหน้างาน',
   ATTENDANCE_DEVICE_PROOF_INVALID: 'ยืนยันอุปกรณ์ไม่สำเร็จ กรุณาลองอีกครั้ง',
   ATTENDANCE_DEVICE_SIGNATURE_INVALID: 'การยืนยันความถูกต้องของอุปกรณ์ไม่ผ่าน กรุณาลองใหม่อีกครั้ง',

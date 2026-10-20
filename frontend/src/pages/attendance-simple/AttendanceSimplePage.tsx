@@ -9,6 +9,7 @@ import {
   type SimpleEventInput,
   type SimpleEventResult
 } from './attendance-simple-client';
+import { normalizeRequestId } from '../../api';
 import { RequestErrorReference, toRequestErrorState } from '../../request-error';
 import { ATTACHMENT_POLICIES, canvasToOptimizedJpeg } from '../../lib/attachment-optimizer';
 import { SmsIcon } from '../../components/SmsIcon';
@@ -84,19 +85,33 @@ function formatReceiptTime(value?: string | null): string {
   return formatThaiDateTime(parsed, { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
 }
 
+const SAFE_ATTENDANCE_ERROR_CODES = new Set([
+  'ATTENDANCE_CHECK_IN_TOO_EARLY', 'ATTENDANCE_CHECK_IN_LATEST_WINDOW_EXCEEDED', 'ATTENDANCE_CHECK_OUT_TOO_EARLY',
+  'ATTENDANCE_CHECK_OUT_LATEST_WINDOW_EXCEEDED', 'ATTENDANCE_OUTSIDE_SITE_GEOFENCE', 'ATTENDANCE_SITE_REQUIRED',
+  'ATTENDANCE_ASSIGNMENT_REQUIRED', 'ATTENDANCE_ASSIGNMENT_STALE', 'ATTENDANCE_SCHEDULE_NOT_APPROVED',
+  'ATTENDANCE_SHIFT_NOT_ACTIONABLE', 'ATTENDANCE_EMPLOYEE_LINK_REQUIRED', 'ATTENDANCE_DEVICE_EMPLOYEE_LINK_REQUIRED',
+  'ATTENDANCE_DEVICE_REQUIRED', 'ATTENDANCE_DEVICE_NOT_ALLOWED', 'ATTENDANCE_DEVICE_AUTHORITY_CONFLICT',
+  'ATTENDANCE_DEVICE_BOUND_TO_OTHER_EMPLOYEE', 'ATTENDANCE_DEVICE_NOT_ACTIVE', 'INACTIVE_EMPLOYEE_OPERATION',
+  'ATTENDANCE_ALREADY_CHECKED_IN', 'ATTENDANCE_ALREADY_CHECKED_OUT', 'ATTENDANCE_CHECK_IN_REQUIRED',
+  'ATTENDANCE_SESSION_CLOSED', 'ATTENDANCE_SESSION_STALE', 'ATTENDANCE_LOCATION_ACCURACY_INSUFFICIENT',
+  'ATTENDANCE_LOCATION_STALE', 'ATTENDANCE_LOCATION_CAPTURED_AT_INVALID', 'ATTENDANCE_SELFIE_PATH_SECRET_WEAK',
+  'ATTENDANCE_SELFIE_BUCKET_NOT_PRIVATE', 'ATTENDANCE_SELFIE_STORAGE_NOT_CONFIGURED', 'ATTENDANCE_SELFIE_STORAGE_UPLOAD_FAILED',
+  'ATTENDANCE_LOCATION_ASSURANCE_INSUFFICIENT', 'ATTENDANCE_DEVICE_PROOF_INVALID', 'ATTENDANCE_DEVICE_SIGNATURE_INVALID',
+  'ATTENDANCE_FOREIGN_DEVICE_SELFIE_REQUIRED', 'ATTENDANCE_SELFIE_CHECKSUM_MISMATCH', 'ATTENDANCE_FOREIGN_DEVICE_SELFIE_LIVE_REQUIRED',
+  'ATTENDANCE_SELFIE_NONCE_INVALID', 'ATTENDANCE_SELFIE_NONCE_EXPIRED', 'ATTENDANCE_SELFIE_OVERLAY_STALE',
+  'ATTENDANCE_OFFLINE_BUNDLE_STALE', 'ATTENDANCE_OFFLINE_SITE_NOT_AUTHORIZED', 'ATTENDANCE_OFFLINE_SITE_INACTIVE'
+]);
+
 export function attendanceErrorMessage(code: string | undefined, fallback: string): string {
-  if (!code) return fallback;
-  if (['ATTENDANCE_SELFIE_PATH_SECRET_WEAK', 'ATTENDANCE_SELFIE_BUCKET_NOT_PRIVATE', 'ATTENDANCE_SELFIE_STORAGE_NOT_CONFIGURED', 'ATTENDANCE_SELFIE_STORAGE_UPLOAD_FAILED'].includes(code)) {
-    return `ระบบเก็บภาพยืนยันตัวตนยังไม่พร้อมใช้งาน (ผู้ดูแลต้องตั้งค่า) · รหัส: ${code}`;
-  }
-  if (code === 'ATTENDANCE_CHECK_IN_REQUIRED') return 'ยังไม่มีรายการเข้างานของกะนี้ — ต้องลงเวลาเข้าก่อน';
+  if (!code || !SAFE_ATTENDANCE_ERROR_CODES.has(code)) return fallback;
   if (code === 'ATTENDANCE_OUTSIDE_SITE_GEOFENCE') return 'ตำแหน่ง GPS อยู่นอกขอบเขต Site ตามกะ แม้ชื่อสถานที่อาจแสดงตรงกัน กรุณาเปิด Precise Location แล้วลองใหม่';
   if (code === 'ATTENDANCE_SITE_REQUIRED') return 'ไม่พบ Site สำหรับกะนี้ กรุณาติดต่อหัวหน้างาน';
+  if (code === 'ATTENDANCE_CHECK_IN_REQUIRED') return 'ต้องลงเวลาเข้าก่อนจึงจะลงเวลาออกได้';
   if (code === 'ATTENDANCE_LOCATION_CAPTURED_AT_INVALID') return 'เวลาที่จับตำแหน่ง GPS ไม่ถูกต้อง กรุณาเปิด Location แล้วลองใหม่';
   if (code === 'ATTENDANCE_LOCATION_ACCURACY_INSUFFICIENT') return 'ตำแหน่ง GPS ยังไม่แม่นยำพอ กรุณาลองอีกครั้งในบริเวณที่โล่ง';
   if (code === 'ATTENDANCE_LOCATION_STALE') return 'ตำแหน่ง GPS หมดอายุแล้ว กรุณาลองอีกครั้ง';
-  if (code === 'ATTENDANCE_SELFIE_STORAGE_UPLOAD_FAILED') return 'ระบบเก็บภาพยืนยันตัวตนยังไม่พร้อมใช้งาน กรุณาติดต่อผู้ดูแลระบบ';
-  if (['ATTENDANCE_SELFIE_NONCE_INVALID', 'ATTENDANCE_SELFIE_NONCE_EXPIRED'].includes(code)) return 'ภาพยืนยันหมดอายุ กรุณาถ่ายใหม่';
+  if (code === 'ATTENDANCE_SELFIE_NONCE_INVALID' || code === 'ATTENDANCE_SELFIE_NONCE_EXPIRED') return 'ภาพยืนยันหมดอายุ กรุณาถ่ายใหม่';
+  if (code.startsWith('ATTENDANCE_SELFIE_')) return 'ระบบเก็บภาพยืนยันตัวตนยังไม่พร้อมใช้งาน กรุณาติดต่อผู้ดูแลระบบ';
   return fallback;
 }
 
@@ -110,10 +125,10 @@ export function attendanceFailure(reason: unknown, fallback: string): Attendance
   const body = readRecord(source.body);
   const nested = [source.error, responseData.error, data.error, body.error].map(readRecord);
   const code = [source.code, responseData.code, data.code, body.code, ...nested.map((item) => item.code)]
-    .find((value): value is string => typeof value === 'string');
-  const requestId = normalized.requestId || [source.requestId, responseData.requestId, data.requestId, body.requestId, ...nested.map((item) => item.requestId)]
-    .map((value) => typeof value === 'string' ? value : undefined)
-    .find(Boolean);
+    .find((value): value is string => typeof value === 'string' && SAFE_ATTENDANCE_ERROR_CODES.has(value));
+  const requestId = [normalized.requestId, source.requestId, responseData.requestId, data.requestId, body.requestId, ...nested.map((item) => item.requestId)]
+    .map((value) => normalizeRequestId(value))
+    .find((value): value is string => Boolean(value));
   const message = attendanceErrorMessage(code, /[\u0E00-\u0E7F]/.test(normalized.message) ? normalized.message : fallback);
   return {
     message,
@@ -503,6 +518,8 @@ export function AttendanceSimplePage({
       }
     } catch (error) {
       if (submissionStarted) setPendingSiteCapture(null);
+      // A local site context is not backend acceptance evidence when submission fails.
+      setSiteContext(null);
       const failure = attendanceFailure(error, 'ไม่สามารถลงเวลาได้ กรุณาลองใหม่หรือติดต่อหัวหน้างาน');
       setRequestErrorCode(failure.code);
       setRequestErrorId(failure.requestId);
