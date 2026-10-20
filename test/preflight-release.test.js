@@ -121,6 +121,8 @@ const R8_DEPLOYMENT = 'dpl_AjuwwRddeiq4WYZhB6S62GHYetea';
 const R81_DEPLOYMENT = 'dpl_BCX2U3CRidPSsMAsTk4XTKqqVF3U';
 const R82_SOURCE = 'd76d3ff7b70fe9ad1348cec26b0df200cc937147';
 const R82_DEPLOYMENT = 'dpl_4VTx24FVRtDqJjftZ7JB5s2R293k';
+const R83_SOURCE = 'b83bac98a07d543820d2982967553bdd52307dc6';
+const R83_DEPLOYMENT = 'dpl_EyqC3HkLTgRVp5XUDiL8GTWQFDZT';
 const PRE_R8_DEPLOYMENT = 'dpl_7djFpJVzU4r1FjtKJy9i1w18RYzW';
 
 function makeRecord({ file, releaseId, deploymentId, sourceSha, runId, verifiedAt, previous }) {
@@ -255,9 +257,9 @@ test('prepare-next-release may repoint forward but never back to an older verifi
 test('the committed R8 history and current manifest resolve to the newest verified canonical deployment', () => {
   const selection = selectCanonicalRecord(postReleaseRecords());
   assert.equal(selection.ok, true, selection.reason);
-  assert.equal(selection.canonical.deploymentId, R82_DEPLOYMENT);
-  assert.equal(selection.canonical.sourceSha, R82_SOURCE);
-  assert.equal(selection.ordered.length, 3);
+  assert.equal(selection.canonical.deploymentId, R83_DEPLOYMENT);
+  assert.equal(selection.canonical.sourceSha, R83_SOURCE);
+  assert.equal(selection.ordered.length, 4);
   const manifest = JSON.parse(fs.readFileSync('.github/releases/approved-production.json', 'utf8'));
   const binding = checkpointBinding(manifest, selection.canonical);
   assert.equal(binding.ok, true, binding.reason);

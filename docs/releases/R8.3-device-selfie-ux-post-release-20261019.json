@@ -1,0 +1,40 @@
+{
+  "record_type": "POST_RELEASE_RECORD",
+  "release_batch_id": "R8.3",
+  "release_id": "sms-v3-prod-b83bac9-20261019",
+  "approved_manifest": ".github/releases/approved-production.json",
+  "archived_manifest_path": ".github/releases/r8.3-production-manifest-approved-20261019.json",
+  "archived_manifest_sha256": "bb6170005303cd38d1f2f3df9d89b5ebb3cc3814c4cb3f5a3f75f92d553ebe53",
+  "deployed": {
+    "deployment_id": "dpl_EyqC3HkLTgRVp5XUDiL8GTWQFDZT",
+    "source_sha": "b83bac98a07d543820d2982967553bdd52307dc6",
+    "release_head_sha": "0f1e0a3c9cd2da224bd5fc45f61c1e36df467dcb",
+    "deploy_run_id": 39291702138,
+    "conclusion": "SUCCESS",
+    "verified_at": "2026-10-19T23:28:38Z",
+    "checks": {
+      "immutable_candidate_ready": "PASS",
+      "canonical_promotion": "PASS",
+      "canonical_runtime_verify": "PASS",
+      "canonical_cors_verify": "PASS",
+      "sentinels": 23,
+      "auto_rollback_invoked": false
+    },
+    "run_started_at": "2026-10-19T17:09:22Z",
+    "run_completed_at": "2026-10-19T23:28:38Z"
+  },
+  "evidence": {
+    "deploy_run_url": "https://github.com/godzillazzz/SMS-v3/actions/runs/39291702138",
+    "github_deployment_id": 7187437169,
+    "github_deployment_environment": "Production",
+    "github_deployment_created_at": "2026-10-19T23:26:40Z",
+    "verified_at_source": "GitHub Actions run 39291702138 updated_at after 'Approve Production' completed; promotion and canonical verification logged in the same run",
+    "manifest_sha256_matches_run_summary": "bb6170005303cd38d1f2f3df9d89b5ebb3cc3814c4cb3f5a3f75f92d553ebe53"
+  },
+  "previous_known_good": {
+    "deployment_id": "dpl_4VTx24FVRtDqJjftZ7JB5s2R293k",
+    "source_sha": "d76d3ff7b70fe9ad1348cec26b0df200cc937147"
+  },
+  "release_head_sha": "0f1e0a3c9cd2da224bd5fc45f61c1e36df467dcb",
+  "note": "Owner-approved deployment of the foreign-device UX release (selfie modal, icon controls, pending-transfer lock, site-confirm selfie reuse) at control SHA 0f1e0a3c. Production canonical became dpl_EyqC3HkLTgRVp5XUDiL8GTWQFDZT; previous known good was the R8.2 deployment dpl_4VTx24FVRtDqJjftZ7JB5s2R293k. The archived manifest is a byte-identical copy of approved-production.json at the dispatch SHA."
+}
