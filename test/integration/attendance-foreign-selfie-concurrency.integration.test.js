@@ -122,8 +122,8 @@ if (!configured) {
     await prisma.securitySite.deleteMany({ where: { id: ids.site } }).catch(() => {});
     await prisma.shiftType.deleteMany({ where: { id: ids.shiftType } }).catch(() => {});
     await prisma.user.deleteMany({ where: { id: ids.user } }).catch(() => {});
-    await prisma.employee.deleteMany({ where: { id: ids.employee } });
-    await prisma.employee.deleteMany({ where: { id: ids.employeeB } });
+    await prisma.employee.deleteMany({ where: { id: ids.employee } }).catch(() => {});
+    await prisma.employee.deleteMany({ where: { id: ids.employeeB } }).catch(() => {});
   }
 
   async function seed() {
