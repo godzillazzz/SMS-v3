@@ -12,12 +12,20 @@ const {
 const collector = require('../scripts/ci/trusted-production-baseline-collector');
 
 const root = path.resolve(__dirname, '..');
+const fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'smsv3-baseline-'));
+const fixtureManifest = path.join(fixtureRoot, MIGRATION_PATH);
+fs.mkdirSync(path.dirname(fixtureManifest), { recursive: true });
+fs.copyFileSync(path.join(root, MIGRATION_PATH), fixtureManifest);
 const sha = 'a'.repeat(40);
 const rollback = 'dpl_3a3nmJesfu4SrKKF1EbKsuzoy8Lf';
 const recordRel = '.tmp-baseline-record.json';
 
+function resetFixtureManifest() {
+  fs.copyFileSync(path.join(root, MIGRATION_PATH), path.join(fixtureRoot, MIGRATION_PATH));
+}
+
 function writeRecord() {
-  fs.writeFileSync(path.join(root, recordRel), JSON.stringify({
+  fs.writeFileSync(path.join(fixtureRoot, recordRel), JSON.stringify({
     record_type: 'POST_RELEASE_RECORD',
     deployed: { deployment_id: rollback, source_sha: sha },
   }));
@@ -33,19 +41,55 @@ function valid() {
     runtime: { health: { status: 'ok' }, ready: { status: 'ready', database: 'ok' } },
   };
 }
-function rejects(mutator, pattern) { const input = valid(); mutator(input); assert.throws(() => validateProductionBaseline(input), pattern); }
+function rejects(mutator, pattern) { const input = valid(); mutator(input); assert.throws(() => validateProductionBaseline(input, { repositoryRoot: fixtureRoot }), pattern); }
 
-test.afterEach(() => { try { fs.unlinkSync(path.join(root, recordRel)); } catch {} });
+test.afterEach(() => { try { fs.unlinkSync(path.join(fixtureRoot, recordRel)); } catch {} resetFixtureManifest(); });
+test.after(() => fs.rmSync(fixtureRoot, { recursive: true, force: true }));
+
+test('manifest malformed scalar and collection values fail closed', () => {
+  for (const value of ['null', '', ' ', 1, false, [], {}]) {
+    const manifest = JSON.parse(fs.readFileSync(fixtureManifest, 'utf8'));
+    manifest.current_production_deployment_id = value;
+    fs.writeFileSync(fixtureManifest, JSON.stringify(manifest));
+    assert.throws(() => validateProductionBaseline(valid(), { repositoryRoot: fixtureRoot }), /deployment|malformed/);
+  }
+});
+
+test('safe path rejects missing records and traversal variants', () => {
+  const input = valid();
+  for (const recordPath of ['missing.json', '../escape.json', '/etc/hosts', '']) {
+    input.recordPath = recordPath;
+    assert.throws(() => validateProductionBaseline(input, { repositoryRoot: fixtureRoot }), /missing|unsafe|escapes|ENOENT/);
+  }
+});
+
+test('URL normalization rejects confusion and non-GET endpoint inputs', () => {
+  for (const url of ['https://sms-v3-staging-ten.vercel.app.:443/', 'https://sms-v3-staging-ten.vercel.app:8443/', 'https://evil.com@api.vercel.com/', 'https://api.vercel.com/%2e%2e/secret']) {
+    assert.throws(() => collector.normalizeCanonicalUrl(url), /canonical/);
+  }
+});
+
+test('invariant drift is detected while request and timing metadata remains volatile', () => {
+  const baseline = { immutable: { deployment: rollback }, request_id: 'one', duration_ms: 1, updated_at: 'a' };
+  const changed = { immutable: { deployment: 'dpl_other' }, request_id: 'two', duration_ms: 2, updated_at: 'b' };
+  assert.notEqual(collector.invariantFingerprint(baseline), collector.invariantFingerprint(changed));
+  assert.equal(collector.invariantFingerprint(baseline), collector.invariantFingerprint({ ...baseline, request_id: 'three', duration_ms: 99 }));
+});
+
+test('sanitizer rejects secret-like log text and nested fields', () => {
+  assert.throws(() => collector.sanitizeBaseline({ log: 'Authorization: Bearer hidden' }), /sensitive/);
+  assert.throws(() => collector.sanitizeBaseline({ nested: { signed_url: 'hidden' } }), /sensitive/);
+});
 
 test('literal null baseline passes, while non-null exact match bypasses evidence and mismatch fails', () => {
   const input = valid();
-  assert.equal(validateProductionBaseline(input).mode, 'SELFIE_POLICY_EXPLICIT_NULL_EVIDENCE');
-  const manifest = JSON.parse(fs.readFileSync(path.join(root, MIGRATION_PATH), 'utf8'));
+  assert.equal(validateProductionBaseline(input, { repositoryRoot: fixtureRoot }).mode, 'SELFIE_POLICY_EXPLICIT_NULL_EVIDENCE');
+  const manifest = JSON.parse(fs.readFileSync(fixtureManifest, 'utf8'));
   const original = manifest.current_production_deployment_id;
   manifest.current_production_deployment_id = rollback;
-  fs.writeFileSync(path.join(root, MIGRATION_PATH), JSON.stringify(manifest));
-  try { assert.equal(validateProductionBaseline(input).mode, 'NON_NULL_EXACT'); }
-  finally { manifest.current_production_deployment_id = original; fs.writeFileSync(path.join(root, MIGRATION_PATH), JSON.stringify(manifest, null, 2) + '\n'); }
+  fs.writeFileSync(fixtureManifest, JSON.stringify(manifest));
+  try { assert.equal(validateProductionBaseline(input, { repositoryRoot: fixtureRoot }).mode, 'NON_NULL_EXACT'); }
+  finally { manifest.current_production_deployment_id = original; fs.writeFileSync(fixtureManifest, JSON.stringify(manifest, null, 2) + '\n'); }
 });
 
 test('bounded parser rejects duplicate, malformed, oversized and deeply nested JSON', () => {
@@ -57,11 +101,11 @@ test('bounded parser rejects duplicate, malformed, oversized and deeply nested J
 
 test('safe path verification rejects absolute traversal and symlink escape', () => {
   writeRecord();
-  assert.throws(() => collector.verifySafeRecordPath(root, path.join(root, recordRel)), /unsafe|escapes/);
-  assert.throws(() => collector.verifySafeRecordPath(root, '../escape.json'), /unsafe|escapes/);
-  const link = path.join(root, '.tmp-baseline-link.json');
+  assert.throws(() => collector.verifySafeRecordPath(fixtureRoot, path.join(root, recordRel)), /unsafe|escapes/);
+  assert.throws(() => collector.verifySafeRecordPath(fixtureRoot, '../escape.json'), /unsafe|escapes/);
+  const link = path.join(fixtureRoot, '.tmp-baseline-link.json');
   fs.symlinkSync('/etc/hosts', link);
-  try { assert.throws(() => collector.verifySafeRecordPath(root, '.tmp-baseline-link.json'), /symlink/); } finally { fs.unlinkSync(link); }
+  try { assert.throws(() => collector.verifySafeRecordPath(fixtureRoot, '.tmp-baseline-link.json'), /symlink/); } finally { fs.unlinkSync(link); }
 });
 
 test('URL security rejects downgrade, userinfo, suffix confusion and trailing dot', () => {
@@ -80,7 +124,7 @@ test('mutation barrier: validator does not execute candidate helpers or accept c
   const marker = path.join(os.tmpdir(), `candidate-${process.pid}`);
   try { fs.unlinkSync(marker); } catch {}
   const input = valid(); input.candidateHelper = `require('fs').writeFileSync('${marker}', 'executed')`;
-  assert.equal(validateProductionBaseline(input).mode, 'SELFIE_POLICY_EXPLICIT_NULL_EVIDENCE');
+  assert.equal(validateProductionBaseline(input, { repositoryRoot: fixtureRoot }).mode, 'SELFIE_POLICY_EXPLICIT_NULL_EVIDENCE');
   assert.equal(fs.existsSync(marker), false);
 });
 

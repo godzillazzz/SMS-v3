@@ -100,7 +100,7 @@ async function collectGithub({ request, repository, token, expectedSha, rollback
   assert(/^[^/]+\/[^/]+$/.test(repository), 'GitHub repository malformed');
   let url = `https://api.github.com/repos/${repository}/deployments?environment=Production&per_page=100`;
   const rows = []; let pages = 0;
-  while (url) { assert(++pages <= MAX_PAGES, 'GitHub pagination exceeds limit'); const r = await getJson(request, url, 'GitHub deployments', token); assert(Array.isArray(r.data), 'GitHub deployments malformed'); rows.push(...r.data); url = pageInfo(r.headers, url); }
+  while (url) { assert(++pages <= MAX_PAGES, 'GitHub pagination exceeds limit'); const r = await getJson(request, url, 'GitHub deployments', token); assert(Array.isArray(r.data), 'GitHub deployments malformed'); rows.push(...r.data); const next = pageInfo(r.headers, url); assert(next || r.data.length < 100, 'GitHub pagination incomplete'); url = next; }
   assert(rows.length > 0, 'GitHub deployments empty');
   for (const row of rows) assert(object(row) && Number.isSafeInteger(row.id) && row.id > 0 && sha(row.sha) && row.environment === 'Production' && Number.isFinite(Date.parse(row.created_at)), 'GitHub deployment malformed');
   const latest = rows.reduce((a, b) => Date.parse(a.created_at) > Date.parse(b.created_at) || (Date.parse(a.created_at) === Date.parse(b.created_at) && a.id > b.id) ? a : b);
