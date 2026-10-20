@@ -155,8 +155,12 @@ if (!configured) {
     const confirmed = await service.reviewPending({ actor: adminActor, pendingId: pending.pendingEvent.id, action: 'CONFIRM', comment: 'Verified support-Site test entry' });
     assert.equal(confirmed.counted, true);
     assert.equal(confirmed.event.locationEvidence.workSiteContext, 'SUPPORT_SITE');
+    assert.equal(confirmed.event.locationEvidence.expectedSiteId, ids.assignedSite);
+    assert.equal(confirmed.event.locationEvidence.actualSiteId, ids.supportSite);
     assert.equal(confirmed.event.reviewRequired, true);
-    assert.ok(confirmed.event.reviewReasons.includes('DEVICE_MISMATCH'));
+    assert.ok(confirmed.event.reviewReasons.includes('ASSIST_OTHER_SITE'));
+    assert.ok(confirmed.event.reviewReasons.includes('DELAYED_OFFLINE'));
+    assert.equal(confirmed.event.reviewReasons.includes('DEVICE_MISMATCH'), false);
     assert.equal(await prisma.attendanceEvent.count({ where: { sessionId: acceptedAssigned.session.id } }), 2);
     const session = await prisma.attendanceSession.findUniqueOrThrow({ where: { shiftAssignmentId: ids.assignment } });
     assert.equal(session.expectedSiteId, ids.assignedSite);
