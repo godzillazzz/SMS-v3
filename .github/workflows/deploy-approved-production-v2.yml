@@ -78,7 +78,8 @@ jobs:
                 ;;
             esac
           done <"$manifest_output"
-          echo "current_production_post_release_record=$(node -e \"process.stdout.write(JSON.parse(require('fs').readFileSync(process.env.RELEASE_MANIFEST_PATH, 'utf8')).current_production_post_release_record || '')\")" >> "$GITHUB_OUTPUT"
+          record=$(node -e 'process.stdout.write(JSON.parse(require("fs").readFileSync(process.env.RELEASE_MANIFEST_PATH, "utf8")).current_production_post_release_record || "")')
+          echo "current_production_post_release_record=$record" >> "$GITHUB_OUTPUT"
 
       - name: Verify pre-applied Production baseline before Owner gate
         if: ${{ steps.manifest.outputs.database_change_policy == 'PRE_APPLIED_APPROVED_MIGRATION' }}

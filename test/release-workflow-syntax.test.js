@@ -117,6 +117,64 @@ function extractRunBlock(workflow, stepName) {
     .join("\n");
 }
 
+function workflowRunBlocks(workflow, file) {
+  const lines = workflow.replace(/\r\n/g, "\n").split("\n");
+  const blocks = [];
+  for (let index = 0; index < lines.length; index += 1) {
+    const run = lines[index].match(/^(\s*)run:\s*\|[-+]?\s*$/);
+    if (!run) continue;
+    const runIndent = run[1].length;
+    let stepStart = index;
+    while (stepStart >= 0 && !/^\s*-\s+/.test(lines[stepStart])) stepStart -= 1;
+    let shell = null;
+    for (let cursor = stepStart + 1; cursor < index; cursor += 1) {
+      const shellMatch = lines[cursor].match(/^\s*shell:\s*(\S+)\s*$/);
+      if (shellMatch) shell = shellMatch[1];
+    }
+    const content = [];
+    let cursor = index + 1;
+    while (cursor < lines.length) {
+      const line = lines[cursor];
+      const indent = line.match(/^\s*/)[0].length;
+      if (line.trim() && indent <= runIndent) break;
+      content.push(line.startsWith(" ".repeat(runIndent + 2)) ? line.slice(runIndent + 2) : line);
+      cursor += 1;
+    }
+    if (shell === null || shell === "bash") blocks.push({ file, line: index + 1, script: content.join("\n") });
+    index = cursor - 1;
+  }
+  return blocks;
+}
+
+function bashSyntaxFindings(workflowDir) {
+  const findings = [];
+  const files = fs.readdirSync(workflowDir).filter((file) => /\.ya?ml$/i.test(file)).sort();
+  for (const file of files) {
+    const source = fs.readFileSync(path.join(workflowDir, file), "utf8");
+    for (const block of workflowRunBlocks(source, file)) {
+      const script = block.script.replace(/\$\{\{[\s\S]*?\}\}/g, "__GITHUB_EXPRESSION__");
+      const result = spawnSync("bash", ["-n"], { input: script, encoding: "utf8" });
+      if (result.status !== 0) findings.push({ file, line: block.line, error: result.stderr.trim() });
+    }
+  }
+  return findings;
+}
+
+test("every workflow bash run block passes bash -n", { skip: process.platform === "win32" }, () => {
+  const workflowDir = path.join(process.cwd(), ".github", "workflows");
+  assert.deepEqual(bashSyntaxFindings(workflowDir), [], "workflow bash syntax errors");
+  const workflow = fs.readFileSync(workflowPath, "utf8").replace(/\r\n/g, "\n");
+  const mutated = workflow.replace(
+    /          record=\$\(node -e '[^\n]+\n          echo "current_production_post_release_record=\$record"/,
+    '          echo "current_production_post_release_record=$(node -e \\"process.stdout.write(\\"bad\\")\\")"',
+  );
+  assert.notEqual(mutated, workflow, "mutation proof target must exist");
+  const mutatedBlock = workflowRunBlocks(mutated, path.basename(workflowPath)).find(({ script }) => script.includes("current_production_post_release_record=$(node -e"));
+  assert.ok(mutatedBlock, "mutation proof run block must be found");
+  const mutatedResult = spawnSync("bash", ["-n"], { input: mutatedBlock.script, encoding: "utf8" });
+  assert.notEqual(mutatedResult.status, 0, "mutation proof: bad quoting must fail bash -n");
+});
+
 test("Production workflow Node heredoc terminators stay inside YAML run blocks", () => {
   const workflow = fs
     .readFileSync(workflowPath, "utf8")
