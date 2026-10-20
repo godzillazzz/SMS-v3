@@ -26,7 +26,22 @@ const MOVE_REQUEST_VERSION = 'SMS_ATTENDANCE_DEVICE_MOVE_V1';
 const KEY_ALGORITHM = 'ECDSA_P256_SHA256';
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-function http(statusCode, code, message) { return new HttpError(statusCode, message, { code }); }
+function http(statusCode, code, message) { return new HttpError(statusCode, message, { code }, { publicCode: code, publicMessage: message }); }
+const SELFIE_STORAGE_SAFE_CODES = new Set([
+  'ATTENDANCE_SELFIE_TYPE_INVALID',
+  'ATTENDANCE_SELFIE_STORAGE_NOT_CONFIGURED',
+  'ATTENDANCE_SELFIE_PATH_SECRET_WEAK',
+  'ATTENDANCE_SELFIE_BUCKET_NOT_PRIVATE',
+  'ATTENDANCE_SELFIE_STORAGE_UPLOAD_FAILED'
+]);
+function selfieStorageError(error) {
+  const code = error?.publicCode || error?.details?.code || error?.code;
+  if (SELFIE_STORAGE_SAFE_CODES.has(code)) {
+    return http(error.statusCode >= 400 && error.statusCode < 600 ? error.statusCode : 503, code,
+      error.publicMessage || error.message || 'Attendance selfie storage is unavailable.');
+  }
+  return http(503, 'ATTENDANCE_SELFIE_STORAGE_UNAVAILABLE', 'Attendance selfie storage is temporarily unavailable.');
+}
 function cleanText(value, max = 1000) { const text = String(value ?? '').trim(); return text ? text.slice(0, max) : null; }
 function canonicalize(value) {
   if (value === null || typeof value === 'string' || typeof value === 'boolean') return value;
@@ -409,6 +424,7 @@ function createAttendanceSimpleService({
 
     let uploadedObjectKey = null;
     let preflightSelfie = null;
+    let discardUploadedObject = false;
     try {
       const existingCapture = await prisma.attendanceEvent.findUnique({ where: { captureId: input.captureId } });
       if (existingCapture) return { counted: true, idempotent: true, event: existingCapture, status: 'ACCEPTED' };
@@ -443,7 +459,7 @@ function createAttendanceSimpleService({
           uploadedObjectKey = stored.objectKey;
           preflightSelfie.stored = stored;
         } catch (error) {
-          throw http(503, 'ATTENDANCE_SELFIE_STORAGE_UNAVAILABLE', 'Attendance selfie storage is temporarily unavailable.');
+          throw selfieStorageError(error);
         }
       }
       const result = await prisma.$transaction(async (tx) => {
@@ -462,7 +478,17 @@ function createAttendanceSimpleService({
       }
       const binding = await bindOrObserveDevice(tx, { actor, identity, material,
         device: { ...input.device, userAgentSnapshot: requestUserAgent || input.device?.userAgentSnapshot || null }, now });
-      const selfieFile = preflightSelfie?.selfieFile || null;
+      // The binding is authoritative only at this final DB decision point.
+      // Never promote a foreign capture to SELFIE_LIVE_VERIFIED from input.selfie:
+      // the nonce/file must have been validated and stored by the preflight.
+      if (binding.binding === 'FOREIGN' && (!preflightSelfie || !preflightSelfie.stored)) {
+        throw http(422, 'ATTENDANCE_FOREIGN_DEVICE_SELFIE_REQUIRED', 'A validated live selfie is required for this device.');
+      }
+      // The active-device decision may have reversed while the external upload
+      // was in flight. In that case this capture is primary and the upload is
+      // never referenced; compensate it after the transaction.
+      if (binding.binding !== 'FOREIGN' && uploadedObjectKey) discardUploadedObject = true;
+      const selfieFile = binding.binding === 'FOREIGN' ? preflightSelfie.selfieFile : null;
       riskFlags.push(...binding.reviewFlags);
       if (binding.binding === 'FOREIGN') riskFlags.push('FOREIGN_DEVICE_SELFIE', 'SELFIE_LIVE_VERIFIED');
       const selfieMetadata = preflightSelfie ? { captureMode: 'LIVE_CAMERA', capturedAt: preflightSelfie.overlayCapturedAt.toISOString(), nonceVerified: true } : null;
@@ -546,12 +572,24 @@ function createAttendanceSimpleService({
           reviewRequired, reviewReasons: uniqueRiskFlags } }, tx);
       return { counted: true, status: reviewRequired ? 'ACCEPTED_REVIEW_FLAGGED' : 'ACCEPTED',
         event, session: finalSession, deviceBinding: binding.binding, reviewRequired, reviewReasons: uniqueRiskFlags };
-      });
+      }, { isolationLevel: 'Serializable', maxWait: 5000, timeout: 15000 });
+      if (uploadedObjectKey && (result.idempotent || discardUploadedObject)) {
+        try { await deviceSelfieStorage.remove({ objectKey: uploadedObjectKey }); uploadedObjectKey = null; }
+        catch (cleanupError) { throw cleanupError; }
+      }
       return result;
     } catch (error) {
       if (uploadedObjectKey) {
         try { await deviceSelfieStorage.remove({ objectKey: uploadedObjectKey }); console.warn('ATTENDANCE_SELFIE_ORPHAN_CLEANUP', { objectKey: uploadedObjectKey, success: true }); }
         catch (cleanupError) { console.warn('ATTENDANCE_SELFIE_ORPHAN_CLEANUP', { objectKey: uploadedObjectKey, success: false, errorCode: cleanupError?.details?.code || cleanupError?.code || 'UNKNOWN' }); }
+      }
+      // A concurrent request can win the captureId unique constraint. Treat
+      // that deterministic loser as idempotent and return the committed row.
+      if (error?.code === 'P2002') {
+        const existingEvent = await prisma.attendanceEvent.findUnique({ where: { captureId: input.captureId } });
+        if (existingEvent) return { counted: true, idempotent: true, event: existingEvent, status: 'ACCEPTED' };
+        const existingPending = await prisma.attendancePendingEvent.findUnique({ where: { captureId: input.captureId } });
+        if (existingPending) return { counted: false, idempotent: true, pendingEvent: existingPending, status: existingPending.status };
       }
       throw error;
     }

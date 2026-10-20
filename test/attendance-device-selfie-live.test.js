@@ -67,6 +67,19 @@ test('foreign storage failure returns safe code, consumes nonce, and commits no 
   assert.equal(h.state.events.length, 0); assert.equal(h.state.sessions.length, 0); assert.equal(h.state.selfies.length, 0); assert.ok(h.state.challenges[0].consumedAt);
 });
 
+test('known selfie storage/configuration codes survive storage boundary without leaking details', async () => {
+  const safeCodes = ['ATTENDANCE_SELFIE_TYPE_INVALID', 'ATTENDANCE_SELFIE_STORAGE_NOT_CONFIGURED', 'ATTENDANCE_SELFIE_PATH_SECRET_WEAK', 'ATTENDANCE_SELFIE_BUCKET_NOT_PRIVATE', 'ATTENDANCE_SELFIE_STORAGE_UPLOAD_FAILED'];
+  for (const code of safeCodes) {
+    const h = harness({ foreign: true, selfieStorage: { put: async () => {
+      const error = new Error('provider secret must not escape'); error.statusCode = 503; error.publicCode = code; error.publicMessage = `safe ${code}`; throw error;
+    } } });
+    const k = keyMaterial(); const c = await challenge(h);
+    await assert.rejects(() => h.service.submit({ actor: { sub: ids.user }, input: inputFor({ ...k, selfie: selfie(), selfieNonce: c.nonce }) }), error => {
+      assert.equal(error.statusCode, 503); assert.equal(error.publicCode, code); assert.equal(error.details.code, code); assert.equal(error.publicMessage, `safe ${code}`); assert.doesNotMatch(error.message, /provider secret/); return true;
+    });
+  }
+});
+
 test('primary device remains accepted without selfie or nonce', async () => { const h = harness(); const k = keyMaterial(); const result = await h.service.submit({ actor: { sub: ids.user }, input: inputFor(k) }); assert.equal(result.counted, true); });
 
 
