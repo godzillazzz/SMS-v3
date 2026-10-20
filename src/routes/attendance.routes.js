@@ -211,7 +211,7 @@ function createAttendanceRoutes({ environment = process.env, authenticateMiddlew
 
   router.post('/simple/events', async (req, res, next) => {
     try {
-      if (String(req.headers['content-type'] || '').toLowerCase().includes('multipart/form-data')) throw new HttpError(422, 'Foreign Attendance selfie must be JSON base64.', { code: 'ATTENDANCE_FOREIGN_SELFIE_MULTIPART_FORBIDDEN' });
+      if (String(req.headers['content-type'] || '').toLowerCase().includes('multipart/form-data')) throw new HttpError(422, 'Attendance selfie must be submitted as JSON base64.', { code: 'ATTENDANCE_SELFIE_MULTIPART_FORBIDDEN' });
       const input = simpleEventInput.parse(req.body);
       res.status(201).json({ data: await simpleAttendance.submit({ actor: req.user, input, requestUserAgent: req.headers['user-agent'] || null }) });
     } catch (error) { next(error); }

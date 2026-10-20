@@ -19,15 +19,16 @@ const policy = { maxAccuracyMeters: 50, maxAgeMs: 180000, futureSkewMs: 30000, o
 
 function keyMaterial() { const pair = crypto.generateKeyPairSync('ec', { namedCurve: 'prime256v1' }); return { pair, publicKeySpkiBase64: pair.publicKey.export({ type: 'spki', format: 'der' }).toString('base64') }; }
 function selfie(captureMode = 'LIVE_CAMERA', capturedAt = NOW) { return { mimeType: 'image/jpeg', base64: JPEG, captureMode, overlay: { capturedAt: capturedAt.toISOString() } }; }
-function inputFor({ pair, publicKeySpkiBase64, captureId = crypto.randomUUID(), selfie: photo, selfieNonce, capturedAt = NOW } = {}) {
-  const input = { captureId, eventIntent: 'CHECK_IN', shiftAssignmentId: ids.assignment, capturedAt: capturedAt.toISOString(), location: { latitude: 13.7241, longitude: 100.5701, accuracyMeters: 8, capturedAt: capturedAt.toISOString() }, device: { publicKeySpkiBase64, keyAlgorithm: 'ECDSA_P256_SHA256', displayName: 'Test device', signals: { secureContext: true, webCrypto: true, indexedDb: true, privateKeyNonExportable: true }, signatureBase64: '' } };
+function inputFor({ pair, publicKeySpkiBase64, captureId = crypto.randomUUID(), selfie: photo, selfieNonce, capturedAt = NOW, action = 'CHECK_IN', clientSelfieRequired } = {}) {
+  const input = { captureId, eventIntent: action, shiftAssignmentId: ids.assignment, capturedAt: capturedAt.toISOString(),
+    clientSelfieRequired, location: { latitude: 13.7241, longitude: 100.5701, accuracyMeters: 8, capturedAt: capturedAt.toISOString() }, device: { publicKeySpkiBase64, keyAlgorithm: 'ECDSA_P256_SHA256', displayName: 'Test device', signals: { secureContext: true, webCrypto: true, indexedDb: true, privateKeyNonExportable: true }, signatureBase64: '' } };
   if (photo) input.selfie = photo;
   if (selfieNonce !== undefined) input.selfieNonce = selfieNonce;
   input.device.signatureBase64 = crypto.sign('sha256', Buffer.from(canonicalJson(signedEventPayload(input))), { key: pair.privateKey, dsaEncoding: 'ieee-p1363' }).toString('base64');
   return input;
 }
 
-function harness({ foreign = false, selfieStorage = null } = {}) {
+function harness({ foreign = false, selfieStorage = null, selfiePolicy = false, action = 'CHECK_IN', role = 'VIEWER' } = {}) {
   const state = { now: new Date(NOW), devices: [], challenges: [], selfies: [], events: [], sessions: [], requests: [] };
   const employee = { id: ids.employee, employeeCode: 'LIVE-TEST', displayName: 'Live Test', firstName: 'Live', lastName: 'Test', department: 'SECURITY', isActive: true, deletedAt: null };
   const site = { id: ids.site, code: 'A', name: 'Site A', latitude: 13.7241, longitude: 100.5701, geofenceRadiusMeters: 100, isActive: true };
@@ -35,7 +36,7 @@ function harness({ foreign = false, selfieStorage = null } = {}) {
   if (foreign) state.devices.push({ id: 'active-primary', employeeId: ids.employee, credentialFingerprint: 'not-the-test-device', status: 'ACTIVE', activatedAt: NOW });
   let transactionTail = Promise.resolve();
   const prisma = {
-    user: { findUnique: async () => ({ id: ids.user, employeeId: ids.employee, isActive: true, accountStatus: 'ACTIVE', employee }) },
+    user: { findUnique: async () => ({ id: ids.user, employeeId: ids.employee, role, isActive: true, accountStatus: 'ACTIVE', employee }) },
     shiftAssignment: { findMany: async () => [assignment], findUnique: async () => assignment },
     scheduleApproval: { findFirst: async () => ({ id: ids.admin, revision: 1, status: 'APPROVED' }) },
     securitySite: { findUnique: async () => site, findMany: async () => [site] },
@@ -46,6 +47,7 @@ function harness({ foreign = false, selfieStorage = null } = {}) {
     attendanceDeviceSelfie: { create: async ({ data }) => { const x = { id: crypto.randomUUID(), ...data }; state.selfies.push(x); return x; } },
     attendanceDeviceChangeRequest: { findFirst: async ({ where }) => state.requests.find(x => x.employeeId === where.employeeId && x.candidateDeviceEnrollmentId === where.candidateDeviceEnrollmentId && x.status === 'PENDING_APPROVAL') || null, create: async ({ data }) => { const x = { id: crypto.randomUUID(), status: 'PENDING_APPROVAL', ...data }; state.requests.push(x); return x; } },
     attendanceDeviceChallenge: { updateMany: async ({ where, data }) => { let count = 0; for (const x of state.challenges) if ((!where.id || x.id === where.id) && x.employeeId === where.employeeId && x.purpose === where.purpose && x.consumedAt == null && (!where.expiresAt || x.expiresAt > where.expiresAt.gt)) { Object.assign(x, data); count++; } return { count }; }, create: async ({ data }) => { const x = { id: crypto.randomUUID(), ...data }; state.challenges.push(x); return x; }, findFirst: async ({ where }) => state.challenges.find(x => x.employeeId === where.employeeId && x.purpose === where.purpose && x.challengeHash === where.challengeHash && x.consumedAt == null && (!where.expiresAt || x.expiresAt > where.expiresAt.gt)) || null },
+    attendanceSelfiePolicy: { findUnique: async ({ where }) => selfiePolicy ? { role: where.role, clockInRequired: action === 'CHECK_IN', clockOutRequired: action === 'CHECK_OUT' } : null },
     $transaction: async fn => { const run = transactionTail.then(() => fn(prisma)); transactionTail = run.catch(() => {}); return run; }
   };
   const service = createAttendanceSimpleService({ prisma, clock: () => state.now, audit: { log: async () => {} }, siteAuthorityService: { resolve: async () => ({ site, source: 'ASSIGNMENT' }) }, siteEvidenceService: createAttendanceSiteEvidenceService({ prisma, clock: () => state.now, policyOverride: policy }), policyService: { getPolicy: async () => policy }, selfieStorage: selfieStorage || { put: async ({ captureId, selfie: photo }) => ({ provider: 'test', bucket: 'test', objectKey: captureId, mimeType: photo.mimeType, sizeBytes: photo.buffer.length, checksum: 'a'.repeat(64) }) }, bundleSecret: () => 'test-only-offline-signing-secret-at-least-32-bytes' });
@@ -55,45 +57,20 @@ async function challenge(h) { return h.service.createSelfieChallenge({ actor: { 
 async function errorCode(fn, code) { await assert.rejects(fn, e => e.details?.code === code); }
 
  test('challenge creates 64-hex nonce, 120-second expiry, and replaces active event challenge', async () => { const h = harness(); const first = await challenge(h); const second = await challenge(h); assert.match(first.nonce, /^[0-9a-f]{64}$/); assert.equal(first.expiresAt.getTime(), NOW.getTime() + 120000); assert.equal(h.state.challenges.filter(x => x.purpose === 'ATTENDANCE_EVENT').length, 2); assert.ok(h.state.challenges[0].consumedAt); assert.equal(h.state.challenges[1].challengeHash, crypto.createHash('sha256').update(second.nonce).digest('hex')); });
-test('foreign device without nonce is rejected', async () => { const h = harness({ foreign: true }); const k = keyMaterial(); await errorCode(() => h.service.submit({ actor: { sub: ids.user }, input: inputFor({ ...k, selfie: selfie() }) }), 'ATTENDANCE_FOREIGN_DEVICE_SELFIE_LIVE_REQUIRED'); });
-test('foreign GALLERY capture is rejected', async () => { const h = harness({ foreign: true }); const k = keyMaterial(); const c = await challenge(h); await errorCode(() => h.service.submit({ actor: { sub: ids.user }, input: inputFor({ ...k, selfie: selfie('GALLERY'), selfieNonce: c.nonce }) }), 'ATTENDANCE_FOREIGN_DEVICE_SELFIE_LIVE_REQUIRED'); });
-test('foreign selfie with stale overlay is rejected', async () => { const h = harness({ foreign: true }); const k = keyMaterial(); const c = await challenge(h); await errorCode(() => h.service.submit({ actor: { sub: ids.user }, input: inputFor({ ...k, selfie: selfie('LIVE_CAMERA', new Date(NOW - 600000)), selfieNonce: c.nonce }) }), 'ATTENDANCE_SELFIE_OVERLAY_STALE'); });
-test('foreign wrong, consumed, and expired nonces are rejected', async () => { const h = harness({ foreign: true }); const k = keyMaterial(); const c = await challenge(h); await errorCode(() => h.service.submit({ actor: { sub: ids.user }, input: inputFor({ ...k, selfie: selfie(), selfieNonce: 'a'.repeat(64) }) }), 'ATTENDANCE_SELFIE_NONCE_INVALID'); h.state.challenges[0].expiresAt = new Date(NOW.getTime() - 1); await errorCode(() => h.service.submit({ actor: { sub: ids.user }, input: inputFor({ ...k, selfie: selfie(), selfieNonce: c.nonce }) }), 'ATTENDANCE_SELFIE_NONCE_INVALID'); });
-test('foreign valid live selfie succeeds, records flags/selfie, and creates PENDING request', async () => { const h = harness({ foreign: true }); const k = keyMaterial(); const c = await challenge(h); const result = await h.service.submit({ actor: { sub: ids.user }, input: inputFor({ ...k, selfie: selfie(), selfieNonce: c.nonce }) }); assert.equal(result.counted, true); assert.ok(result.event.reviewReasons.includes('FOREIGN_DEVICE_SELFIE')); assert.ok(result.event.reviewReasons.includes('SELFIE_LIVE_VERIFIED')); assert.equal(h.state.selfies.length, 1); assert.equal(h.state.requests[0].status, 'PENDING_APPROVAL'); });
-test('a nonce is atomically single-use', async () => { const h = harness({ foreign: true }); const k = keyMaterial(); const c = await challenge(h); const first = await h.service.submit({ actor: { sub: ids.user }, input: inputFor({ ...k, selfie: selfie(), selfieNonce: c.nonce }) }); assert.equal(first.counted, true); const k2 = keyMaterial(); await errorCode(() => h.service.submit({ actor: { sub: ids.user }, input: inputFor({ ...k2, selfie: selfie(), selfieNonce: c.nonce }) }), 'ATTENDANCE_SELFIE_NONCE_INVALID'); });
-test('FOREIGN device fails closed when challenge model is unavailable', async () => { const h = harness({ foreign: true }); delete h.prisma.attendanceDeviceChallenge; const k = keyMaterial(); await errorCode(() => h.service.submit({ actor: { sub: ids.user }, input: inputFor({ ...k, selfie: selfie(), selfieNonce: 'a'.repeat(64) }) }), 'ATTENDANCE_SELFIE_GUARD_UNAVAILABLE'); });
-test('foreign storage failure returns safe code, consumes nonce, and commits no attendance rows', async () => {
-  const storage = { put: async () => { throw new Error('provider secret must not escape'); } };
-  const h = harness({ foreign: true, selfieStorage: storage });
-  const k = keyMaterial(); const c = await challenge(h);
-  await assert.rejects(() => h.service.submit({ actor: { sub: ids.user }, input: inputFor({ ...k, selfie: selfie(), selfieNonce: c.nonce }) }), e => e.details?.code === 'ATTENDANCE_SELFIE_STORAGE_UNAVAILABLE' && e.statusCode === 503);
-  assert.equal(h.state.events.length, 0); assert.equal(h.state.sessions.length, 0); assert.equal(h.state.selfies.length, 0); assert.ok(h.state.challenges[0].consumedAt);
-});
-
-test('known selfie storage/configuration codes survive storage boundary without leaking details', async () => {
-  const safeCodes = ['ATTENDANCE_SELFIE_TYPE_INVALID', 'ATTENDANCE_SELFIE_STORAGE_NOT_CONFIGURED', 'ATTENDANCE_SELFIE_PATH_SECRET_WEAK', 'ATTENDANCE_SELFIE_BUCKET_NOT_PRIVATE', 'ATTENDANCE_SELFIE_STORAGE_UPLOAD_FAILED'];
-  for (const code of safeCodes) {
-    const h = harness({ foreign: true, selfieStorage: { put: async () => {
-      const error = new Error('provider secret must not escape'); error.statusCode = 503; error.publicCode = code; error.publicMessage = `safe ${code}`; throw error;
-    } } });
-    const k = keyMaterial(); const c = await challenge(h);
-    await assert.rejects(() => h.service.submit({ actor: { sub: ids.user }, input: inputFor({ ...k, selfie: selfie(), selfieNonce: c.nonce }) }), error => {
-      assert.equal(error.statusCode, code === 'ATTENDANCE_SELFIE_TYPE_INVALID' ? 415 : code === 'ATTENDANCE_SELFIE_STORAGE_UPLOAD_FAILED' ? 502 : 503); assert.equal(error.publicCode, code); assert.equal(error.details.code, code); assert.equal(error.publicMessage, code === 'ATTENDANCE_SELFIE_TYPE_INVALID' ? 'Attendance selfie must be a valid JPEG or PNG image.' : code === 'ATTENDANCE_SELFIE_STORAGE_UPLOAD_FAILED' ? 'Attendance selfie upload failed.' : ({ ATTENDANCE_SELFIE_STORAGE_NOT_CONFIGURED: 'Attendance device selfie storage is not configured.', ATTENDANCE_SELFIE_PATH_SECRET_WEAK: 'Attendance selfie path secret is too weak.', ATTENDANCE_SELFIE_BUCKET_NOT_PRIVATE: 'Attendance selfie storage bucket must be private.' })[code]); assert.doesNotMatch(error.message, /provider secret/); return true;
-    });
-  }
-});
+test('effective policy OFF ignores device identity, client boolean, nonce, camera and storage', async () => { const h = harness({ foreign: true }); const k = keyMaterial(); const result = await h.service.submit({ actor: { sub: ids.user }, input: inputFor({ ...k, clientSelfieRequired: true }) }); assert.equal(result.counted, true); assert.equal(h.state.selfies.length, 0); });
+test('policy ON CHECK_IN rejects missing, non-JPEG and oversize selfie before rows', async () => { for (const photo of [undefined, selfie('GALLERY')]) { const h = harness({ foreign: true, selfiePolicy: true }); const k = keyMaterial(); await assert.rejects(() => h.service.submit({ actor: { sub: ids.user }, input: inputFor({ ...k, selfie: photo }) }), error => ['ATTENDANCE_SELFIE_REQUIRED', 'ATTENDANCE_SELFIE_CAMERA_REQUIRED'].includes(error.details?.code)); assert.equal(h.state.events.length, 0); assert.equal(h.state.sessions.length, 0); assert.equal(h.state.selfies.length, 0); } const k = keyMaterial(); assert.throws(() => inputFor({ ...k, selfie: { ...selfie(), base64: Buffer.alloc(1048577).toString('base64') } }), error => error.details?.code === 'ATTENDANCE_SELFIE_TOO_LARGE'); });
+test('policy ON CHECK_OUT is enforced independently', async () => { const h = harness({ action: 'CHECK_OUT', selfiePolicy: true }); const k = keyMaterial(); await errorCode(() => h.service.submit({ actor: { sub: ids.user }, input: inputFor({ ...k, action: 'CHECK_OUT' }) }), 'ATTENDANCE_SELFIE_REQUIRED'); });
+test('server role policy wins over client boolean and device identity', async () => { const h = harness({ foreign: true, selfiePolicy: true }); const k = keyMaterial(); const result = await h.service.submit({ actor: { sub: ids.user }, input: inputFor({ ...k, selfie: selfie(), clientSelfieRequired: false, selfieNonce: 'not-a-live-challenge' }) }); assert.equal(result.counted, true); assert.ok(result.reviewReasons.includes('ROLE_SELFIE_REQUIRED')); assert.equal(h.state.selfies.length, 1); });
+test('valid role-policy selfie stores private evidence and expected audit flags', async () => { const h = harness({ foreign: true, selfiePolicy: true }); const k = keyMaterial(); const result = await h.service.submit({ actor: { sub: ids.user }, input: inputFor({ ...k, selfie: selfie() }) }); assert.equal(result.counted, true); assert.ok(result.reviewReasons.includes('SELFIE_LIVE_VERIFIED')); assert.equal(h.state.selfies.length, 1); assert.equal(h.state.requests.length, 0); });
+test('DB failure after upload removes object and preserves error for captureId retry', async () => { let fail = true; const removed = []; const storage = { put: async ({ captureId, selfie: photo }) => ({ provider: 'test', bucket: 'private', objectKey: captureId, mimeType: photo.mimeType, sizeBytes: photo.buffer.length, checksum: 'a'.repeat(64) }), remove: async ({ objectKey }) => removed.push(objectKey) }; const h = harness({ selfiePolicy: true, selfieStorage: storage }); const original = h.prisma.$transaction; h.prisma.$transaction = async fn => { if (fail) { fail = false; throw new Error('transaction failure'); } return original(fn); }; const k = keyMaterial(); await assert.rejects(() => h.service.submit({ actor: { sub: ids.user }, input: inputFor({ ...k, selfie: selfie() }) }), /transaction failure/); assert.deepEqual(removed.length, 1); const retry = await h.service.submit({ actor: { sub: ids.user }, input: inputFor({ ...k, selfie: selfie() }) }); assert.equal(retry.counted, true); });
+test('storage provider errors expose allowlisted safe contract only', async () => { const h = harness({ selfiePolicy: true, selfieStorage: { put: async () => { throw new Error('provider secret must not escape'); } } }); const k = keyMaterial(); await assert.rejects(() => h.service.submit({ actor: { sub: ids.user }, input: inputFor({ ...k, selfie: selfie() }) }), error => error.details?.code === 'ATTENDANCE_SELFIE_STORAGE_UNAVAILABLE' && !/provider secret/.test(error.message)); });
+test('same captureId retry is idempotent and final JPEG stamp remains bounded/decodable', async () => { const h = harness({ selfiePolicy: true }); const k = keyMaterial(); const captureId = crypto.randomUUID(); const input = inputFor({ ...k, captureId, selfie: selfie() }); const first = await h.service.submit({ actor: { sub: ids.user }, input }); const second = await h.service.submit({ actor: { sub: ids.user }, input }); assert.equal(first.counted, true); assert.equal(second.idempotent, true); assert.equal(h.state.events.length, 1); assert.equal(h.state.selfies.length, 1); assert.ok(h.state.selfies[0].sizeBytes <= 1048576); });
+test('concurrent same captureId produces one event/evidence and compensates loser upload', async () => { let entered = 0; let release; const barrier = new Promise(resolve => { release = resolve; }); const storage = { put: async ({ captureId, selfie: photo }) => { entered++; if (entered === 2) release(); await barrier; return { provider: 'test', bucket: 'private', objectKey: `${captureId}-${entered}`, mimeType: photo.mimeType, sizeBytes: photo.buffer.length, checksum: 'a'.repeat(64) }; }, remove: async ({ objectKey }) => storage.removed.push(objectKey), removed: [] }; const h = harness({ selfiePolicy: true, selfieStorage: storage }); const k1 = keyMaterial(); const k2 = keyMaterial(); const captureId = crypto.randomUUID(); const first = h.service.submit({ actor: { sub: ids.user }, input: inputFor({ ...k1, captureId, selfie: selfie() }) }); const second = h.service.submit({ actor: { sub: ids.user }, input: inputFor({ ...k2, captureId, selfie: selfie() }) }); await new Promise(resolve => setImmediate(resolve)); release(); const results = await Promise.allSettled([first, second]); assert.equal(results.filter(result => result.status === 'fulfilled').length, 2); assert.equal(h.state.events.length, 1); assert.equal(h.state.selfies.length, 1); assert.equal(storage.removed.length, 1); });
+test('successful role selfie never creates an Attendance Device change request', async () => { const h = harness({ foreign: true, selfiePolicy: true }); const k = keyMaterial(); await h.service.submit({ actor: { sub: ids.user }, input: inputFor({ ...k, selfie: selfie() }) }); assert.equal(h.state.requests.length, 0); });
 
 test('primary device remains accepted without selfie or nonce', async () => { const h = harness(); const k = keyMaterial(); const result = await h.service.submit({ actor: { sub: ids.user }, input: inputFor(k) }); assert.equal(result.counted, true); });
 
 
-test('fresh challenge retries successfully after storage recovers', async () => {
-  let fail = true;
-  const storage = { put: async ({ captureId, selfie: photo }) => { if (fail) { fail = false; throw new Error('temporary'); } return { provider: 'test', bucket: 'test', objectKey: captureId, mimeType: photo.mimeType, sizeBytes: photo.buffer.length, checksum: 'a'.repeat(64) }; } };
-  const h = harness({ foreign: true, selfieStorage: storage }); const k = keyMaterial(); const first = await challenge(h);
-  await assert.rejects(() => h.service.submit({ actor: { sub: ids.user }, input: inputFor({ ...k, selfie: selfie(), selfieNonce: first.nonce }) }), e => e.details?.code === 'ATTENDANCE_SELFIE_STORAGE_UNAVAILABLE');
-  const second = await challenge(h); const retry = await h.service.submit({ actor: { sub: ids.user }, input: inputFor({ ...k, selfie: selfie(), selfieNonce: second.nonce }) });
-  assert.equal(retry.counted, true); assert.equal(h.state.events.length, 1); assert.equal(h.state.selfies.length, 1);
-});
 
 test('route and middleware expose only the allowlisted storage failure contract', async () => {
   const routes = createAttendanceRoutes({
@@ -124,49 +101,5 @@ test('route and middleware expose only the allowlisted storage failure contract'
   assert.doesNotMatch(JSON.stringify(response.body), /provider secret/i);
 });
 
-test('active-device transition compensates an upload when final binding reverses to primary', async () => {
-  let releaseUpload; let uploadStartedResolve;
-  const uploadStarted = new Promise(resolve => { uploadStartedResolve = resolve; });
-  const storage = {
-    put: async ({ captureId, selfie: photo }) => { uploadStartedResolve(); await new Promise(resolve => { releaseUpload = resolve; }); return { provider: 'test', bucket: 'test', objectKey: captureId, mimeType: photo.mimeType, sizeBytes: photo.buffer.length, checksum: 'a'.repeat(64) }; },
-    remove: async () => { storage.removes++; }, removes: 0
-  };
-  const h = harness({ foreign: true, selfieStorage: storage }); const k = keyMaterial(); const c = await challenge(h);
-  const pending = h.service.submit({ actor: { sub: ids.user }, input: inputFor({ ...k, selfie: selfie(), selfieNonce: c.nonce }) });
-  await uploadStarted;
-  h.state.devices[0].credentialFingerprint = crypto.createHash('sha256').update(Buffer.from(k.publicKeySpkiBase64, 'base64')).digest('hex');
-  releaseUpload();
-  const result = await pending;
-  assert.equal(result.deviceBinding, 'PRIMARY');
-  assert.equal(h.state.selfies.length, 0);
-  assert.equal(storage.removes, 1);
-  assert.equal(h.state.events.length, 1);
-});
 
-test('same captureId race converges to one event and one referenced selfie with no orphan', async () => {
-  let entered = 0; let release;
-  const barrier = new Promise(resolve => { release = resolve; });
-  const storage = {
-    put: async ({ captureId, selfie: photo }) => { entered++; if (entered === 2) release(); await barrier; return { provider: 'test', bucket: 'test', objectKey: captureId + '-' + entered, mimeType: photo.mimeType, sizeBytes: photo.buffer.length, checksum: 'a'.repeat(64) }; },
-    remove: async ({ objectKey }) => { storage.removes.push(objectKey); }, removes: []
-  };
-  const h = harness({ foreign: true, selfieStorage: storage }); const k1 = keyMaterial(); const k2 = keyMaterial();
-  const nonce1 = crypto.randomBytes(32).toString('hex'); const nonce2 = crypto.randomBytes(32).toString('hex');
-  h.state.challenges.push(
-    { id: 'challenge-race-1', employeeId: ids.employee, purpose: 'ATTENDANCE_EVENT', challengeHash: crypto.createHash('sha256').update(nonce1).digest('hex'), consumedAt: null, expiresAt: new Date(NOW.getTime() + 120000) },
-    { id: 'challenge-race-2', employeeId: ids.employee, purpose: 'ATTENDANCE_EVENT', challengeHash: crypto.createHash('sha256').update(nonce2).digest('hex'), consumedAt: null, expiresAt: new Date(NOW.getTime() + 120000) }
-  );
-  const captureId = crypto.randomUUID();
-  const first = h.service.submit({ actor: { sub: ids.user }, input: inputFor({ ...k1, captureId, selfie: selfie(), selfieNonce: nonce1 }) });
-  const second = h.service.submit({ actor: { sub: ids.user }, input: inputFor({ ...k2, captureId, selfie: selfie(), selfieNonce: nonce2 }) });
-  const resultsPromise = Promise.allSettled([first, second]);
-  await new Promise(resolve => setImmediate(resolve));
-  release();
-  const results = await resultsPromise;
-  assert.equal(results.filter(x => x.status === 'fulfilled').length, 2);
-  assert.equal(h.state.events.length, 1);
-  assert.equal(h.state.selfies.length, 1);
-  assert.equal(storage.removes.length, 1);
-});
-
-test('multipart simple event input is rejected with 422', async () => { const routes = createAttendanceRoutes({ environment: { VERCEL_ENV: 'preview', ATTENDANCE_API_PREVIEW_ENABLED: 'true' }, authenticateMiddleware: (req, _res, next) => { req.user = { sub: ids.user }; next(); }, simpleService: { createSelfieChallenge: async () => ({}), submit: async () => { throw new Error('must not call'); } } }); const app = express(); app.use(express.json()); app.use('/api/v1/attendance', routes); app.use((err, _req, res, _next) => res.status(err.statusCode || 500).json({ error: err.details || {} })); const response = await request(app).post('/api/v1/attendance/simple/events').set('Content-Type', 'multipart/form-data; boundary=x').send('--x--'); assert.equal(response.status, 422); assert.equal(response.body.error.code, 'ATTENDANCE_FOREIGN_SELFIE_MULTIPART_FORBIDDEN'); });
+test('multipart simple event input is rejected with 422', async () => { const routes = createAttendanceRoutes({ environment: { VERCEL_ENV: 'preview', ATTENDANCE_API_PREVIEW_ENABLED: 'true' }, authenticateMiddleware: (req, _res, next) => { req.user = { sub: ids.user }; next(); }, simpleService: { createSelfieChallenge: async () => ({}), submit: async () => { throw new Error('must not call'); } } }); const app = express(); app.use(express.json()); app.use('/api/v1/attendance', routes); app.use((err, _req, res, _next) => res.status(err.statusCode || 500).json({ error: err.details || {} })); const response = await request(app).post('/api/v1/attendance/simple/events').set('Content-Type', 'multipart/form-data; boundary=x').send('--x--'); assert.equal(response.status, 422); assert.equal(response.body.error.code, 'ATTENDANCE_SELFIE_MULTIPART_FORBIDDEN'); });

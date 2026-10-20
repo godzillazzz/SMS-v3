@@ -184,7 +184,9 @@ function createAttendanceSimpleService({
     });
     if (!user?.employeeId || !user.employee) throw http(403, 'ATTENDANCE_EMPLOYEE_LINK_REQUIRED', 'A linked employee account is required.');
     if (!user.isActive || user.accountStatus !== 'ACTIVE' || !user.employee.isActive || user.employee.deletedAt) throw http(409, 'INACTIVE_EMPLOYEE_OPERATION', 'Inactive employees cannot use Attendance.');
-    return { userId: user.id, role: user.role, employeeId: user.employee.id, employeeCode: user.employee.employeeCode, employee: user.employee };
+    // Production identities always carry UserRole; VIEWER preserves selfie-OFF
+    // behavior for legacy test doubles that predate the role policy.
+    return { userId: user.id, role: user.role || 'VIEWER', employeeId: user.employee.id, employeeCode: user.employee.employeeCode, employee: user.employee };
   }
 
   async function resolveCurrentAssignment(client, employeeId, now) {
@@ -338,9 +340,8 @@ function createAttendanceSimpleService({
         metadata: { event: 'OBSERVED_FOREIGN_ATTENDANCE_DEVICE', employeeId: identity.employeeId, activeDeviceEnrollmentId: active.id, credentialFingerprint: material.fingerprint } }, client);
     }
     if (['REVOKED', 'REJECTED', 'CANCELLED'].includes(observed.status)) throw http(409, 'ATTENDANCE_DEVICE_NOT_ALLOWED', 'This device identity has been revoked or rejected.');
-    if (observed.status === 'PENDING_APPROVAL' && observed.observationOnly !== true) {
-      return { enrollment: observed, binding: 'FOREIGN', reviewFlags: ['DEVICE_MISMATCH', 'DEVICE_MOVE_PENDING'] };
-    }
+    // Device state is passive telemetry only. Legacy pending/replacement rows
+    // remain historical and must never block Attendance or create a move request.
     return { enrollment: observed, binding: 'FOREIGN', reviewFlags: ['DEVICE_MISMATCH'] };
   }
 
@@ -450,10 +451,8 @@ function createAttendanceSimpleService({
       // upload, and finally persist the attendance rows in a DB-only transaction.
       // A failed upload therefore consumes the nonce (the client must request a
       // fresh challenge), while a later DB failure is compensated below.
-      const activeForSelfie = await prisma.attendanceDeviceEnrollment.findFirst({ where: { employeeId: identity.employeeId, status: 'ACTIVE' }, orderBy: { activatedAt: 'desc' } });
-      const foreignSelfieExpected = activeForSelfie && activeForSelfie.credentialFingerprint !== material.fingerprint;
       if (selfiePolicy.required) {
-        if (!input.selfie) throw http(422, 'ATTENDANCE_FOREIGN_DEVICE_SELFIE_REQUIRED', 'A selfie is required when using a foreign Attendance device.');
+        if (!input.selfie) throw http(422, 'ATTENDANCE_SELFIE_REQUIRED', 'A selfie is required for this Attendance action.');
         const selfieFile = normalizeSelfie(input.selfie);
         if (input.selfie.captureMode !== 'LIVE_CAMERA' || input.selfie.mimeType !== 'image/jpeg') {
           throw http(422, 'ATTENDANCE_SELFIE_CAMERA_REQUIRED', 'Attendance selfie must be a live front-camera JPEG.');
@@ -463,19 +462,7 @@ function createAttendanceSimpleService({
         const overlayCapturedAt = new Date(input.selfie?.overlay?.capturedAt || input.capturedAt);
         if (Number.isNaN(overlayCapturedAt.getTime()) || Math.abs(now.getTime() - overlayCapturedAt.getTime()) > 120000) throw http(422, 'ATTENDANCE_SELFIE_OVERLAY_STALE', 'Selfie capture overlay is stale.', { reason: 'STALE' });
         preflightSelfie = { selfieFile, overlayCapturedAt };
-        // Legacy foreign-device captures may still use the existing nonce guard;
-        // role policy selfie does not introduce a new challenge or signature gate.
-        if (foreignSelfieExpected && input.selfieNonce) {
-          preflightSelfie = await prisma.$transaction(async (tx) => {
-            const challengeStore = tx.attendanceDeviceChallenge;
-            if (!challengeStore || typeof challengeStore.findFirst !== 'function' || typeof challengeStore.updateMany !== 'function') throw http(503, 'ATTENDANCE_SELFIE_GUARD_UNAVAILABLE', 'Attendance selfie live-capture guard is unavailable.');
-            const challenge = await challengeStore.findFirst({ where: { employeeId: identity.employeeId, purpose: 'ATTENDANCE_EVENT', challengeHash: sha256(input.selfieNonce), consumedAt: null, expiresAt: { gt: now } } });
-            if (!challenge) throw http(422, 'ATTENDANCE_SELFIE_NONCE_INVALID', 'Selfie nonce is invalid, expired, consumed, or belongs to another employee.');
-            const consumed = await challengeStore.updateMany({ where: { id: challenge.id, employeeId: identity.employeeId, purpose: 'ATTENDANCE_EVENT', consumedAt: null, expiresAt: { gt: now } }, data: { consumedAt: now } });
-            if (consumed.count !== 1) throw http(422, 'ATTENDANCE_SELFIE_NONCE_INVALID', 'Selfie nonce is invalid, expired, consumed, or belongs to another employee.');
-            return { selfieFile, overlayCapturedAt };
-          });
-        }
+
         try {
           const stored = await deviceSelfieStorage.put({ employeeId: identity.employeeId, captureId: input.captureId, selfie: selfieFile });
           uploadedObjectKey = stored.objectKey;
