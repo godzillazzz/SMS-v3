@@ -12,6 +12,92 @@ const workflowPath = path.join(
   "deploy-approved-production-v2.yml",
 );
 
+function findDuplicateMappingKeys(yamlText) {
+  const duplicates = [];
+  const contexts = new Map();
+  const sequenceGenerations = new Map();
+  const mappingStack = [];
+  let blockScalarIndent = null;
+
+  for (const [index, rawLine] of yamlText.replace(/\r\n/g, "\n").split("\n").entries()) {
+    const lineNumber = index + 1;
+    const leadingWhitespace = rawLine.match(/^\s*/)[0].length;
+    const trimmed = rawLine.trim();
+    if (!trimmed || trimmed.startsWith("#")) continue;
+
+    if (blockScalarIndent !== null) {
+      if (leadingWhitespace > blockScalarIndent || trimmed.startsWith("#")) continue;
+      blockScalarIndent = null;
+    }
+
+    const sequence = rawLine.match(/^(\s*)-($|\s)/);
+    if (sequence) {
+      const sequenceIndent = sequence[1].length;
+      while (mappingStack.length && mappingStack.at(-1).indent >= sequenceIndent) mappingStack.pop();
+      const generation = (sequenceGenerations.get(sequenceIndent) || 0) + 1;
+      sequenceGenerations.set(sequenceIndent, generation);
+      mappingStack.push({
+        indent: sequenceIndent,
+        key: `#${generation}`,
+        contextId: `sequence:${sequenceIndent}:${generation}`,
+      });
+      for (const indent of contexts.keys()) {
+        if (indent > sequenceIndent) contexts.delete(indent);
+      }
+    }
+
+    const mapping = rawLine.match(/^(\s*)([A-Za-z0-9_.\-]+):(?:\s|$)(.*)$/);
+    if (!mapping) continue;
+    const indent = mapping[1].length;
+    const key = mapping[2];
+    while (mappingStack.length && mappingStack.at(-1).indent >= indent) mappingStack.pop();
+    const parent = mappingStack.at(-1);
+    const parentGeneration = parent ? `${parent.contextId}/${parent.key}` : "root";
+    const contextId = `${parentGeneration}|${indent}`;
+    const keys = contexts.get(contextId) || new Map();
+    if (keys.has(key)) {
+      duplicates.push({ key, firstLine: keys.get(key), duplicateLine: lineNumber });
+    } else {
+      keys.set(key, lineNumber);
+      contexts.set(contextId, keys);
+    }
+    mappingStack.push({ indent, key, contextId });
+
+    if (/^[|>][+-]?\d*$/.test(mapping[3].trim())) blockScalarIndent = indent;
+  }
+  return duplicates;
+}
+
+test("all GitHub workflow YAML mappings have unique keys", () => {
+  const workflowDir = path.join(process.cwd(), ".github", "workflows");
+  const workflowFiles = fs
+    .readdirSync(workflowDir)
+    .filter((file) => /\.ya?ml$/i.test(file))
+    .sort();
+  assert.ok(workflowFiles.length > 0, "expected GitHub workflow files");
+
+  for (const file of workflowFiles) {
+    const source = fs.readFileSync(path.join(workflowDir, file), "utf8");
+    assert.deepEqual(
+      findDuplicateMappingKeys(source),
+      [],
+      `${file} contains duplicate YAML mapping keys`,
+    );
+  }
+
+  const mutated = fs
+    .readFileSync(workflowPath, "utf8")
+    .replace(
+      "          DIRECT_URL: ${{ secrets.DIRECT_URL }}\n          VERCEL_TOKEN:",
+      "          DIRECT_URL: ${{ secrets.DIRECT_URL }}\n        env:\n          VERCEL_TOKEN:",
+    );
+  const mutationFindings = findDuplicateMappingKeys(mutated);
+  assert.ok(
+    mutationFindings.some(({ key }) => key === "env"),
+    "mutation proof: duplicate env mapping must be detected",
+  );
+});
+
 function extractRunBlock(workflow, stepName) {
   const marker = `      - name: ${stepName}\n`;
   const start = workflow.indexOf(marker);
