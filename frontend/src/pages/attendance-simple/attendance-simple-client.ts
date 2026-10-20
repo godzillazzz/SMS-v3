@@ -119,6 +119,7 @@ export const ATTENDANCE_SIMPLE_ERROR_MESSAGES: Record<string, string> = {
   ATTENDANCE_SELFIE_BUCKET_NOT_PRIVATE: 'ระบบเก็บภาพยืนยันตัวตนยังไม่พร้อมใช้งาน (ผู้ดูแลต้องตั้งค่า)',
   ATTENDANCE_SELFIE_STORAGE_NOT_CONFIGURED: 'ระบบเก็บภาพยืนยันตัวตนยังไม่พร้อมใช้งาน (ผู้ดูแลต้องตั้งค่า)',
   ATTENDANCE_SELFIE_STORAGE_UPLOAD_FAILED: 'ระบบเก็บภาพยืนยันตัวตนยังไม่พร้อมใช้งาน กรุณาติดต่อผู้ดูแลระบบ',
+  ATTENDANCE_SELFIE_STORAGE_UNAVAILABLE: 'ระบบเก็บภาพยืนยันตัวตนขัดข้องชั่วคราว กรุณาถ่ายภาพใหม่แล้วลองอีกครั้ง',
   ATTENDANCE_SELFIE_NONCE_EXPIRED: 'ภาพยืนยันหมดอายุ กรุณาถ่ายใหม่',
   ATTENDANCE_LOCATION_ASSURANCE_INSUFFICIENT: 'ยังยืนยันตำแหน่งไม่ได้ กรุณาลองอีกครั้งหรือติดต่อหัวหน้างาน',
   ATTENDANCE_DEVICE_PROOF_INVALID: 'ยืนยันอุปกรณ์ไม่สำเร็จ กรุณาลองอีกครั้ง',

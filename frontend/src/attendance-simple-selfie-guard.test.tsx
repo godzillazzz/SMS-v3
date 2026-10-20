@@ -47,7 +47,15 @@ import { AttendanceSimplePage, attendanceErrorMessage, attendanceFailure } from 
 
 
 describe('actionable attendance error mapping', () => {
-  it('explains storage configuration failures with only the server code', () => {
+  it('maps unknown/provider storage failure to a safe public message', () => {
+    const message = attendanceErrorMessage('ATTENDANCE_SELFIE_STORAGE_UNAVAILABLE', 'fallback');
+    expect(message).toContain('ขัดข้องชั่วคราว');
+    expect(message).not.toContain('ATTENDANCE_SELFIE_STORAGE_UNAVAILABLE');
+    expect(message).not.toContain('provider');
+    expect(message).not.toContain('secret');
+  });
+
+  it('keeps storage configuration failures safe', () => {
     const message = attendanceErrorMessage('ATTENDANCE_SELFIE_PATH_SECRET_WEAK', 'fallback');
     expect(message).toContain('ระบบเก็บภาพยืนยันตัวตนยังไม่พร้อมใช้งาน');
     expect(message).not.toContain('ATTENDANCE_SELFIE_PATH_SECRET_WEAK');
