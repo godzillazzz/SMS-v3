@@ -227,8 +227,8 @@ if (!configured) {
       assert.deepEqual(conflictAudit.metadata, { event: 'OBSERVED_CROSS_EMPLOYEE_DEVICE_CONFLICT', employeeId: ids.employee, boundEmployeeId: ids.employeeB, credentialFingerprint: crypto.createHash('sha256').update(Buffer.from(material.publicKeySpkiBase64, 'base64')).digest('hex') });
       assert.equal(events[0].deviceEnrollmentId === ids.foreignEnrollment, false);
       assert.equal(selfies[0].deviceEnrollmentId === ids.foreignEnrollment, false);
-      assert.equal((events[0].reviewFlags || []).includes('DEVICE_MISMATCH'), true);
-      assert.equal((events[0].reviewFlags || []).includes('DEVICE_OWNERSHIP_CONFLICT'), true);
+      assert.equal((events[0].reviewReasons || []).includes('DEVICE_MISMATCH'), true);
+      assert.equal((events[0].reviewReasons || []).includes('DEVICE_OWNERSHIP_CONFLICT'), true);
       const boundEnrollment = await prisma.attendanceDeviceEnrollment.findUniqueOrThrow({ where: { id: ids.foreignEnrollment } });
       assert.equal(boundEnrollment.employeeId, ids.employeeB);
       assert.equal(boundEnrollment.status, 'PENDING_APPROVAL');
