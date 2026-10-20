@@ -24,7 +24,7 @@ if (!configured) {
   const secondPrisma = new PrismaClient();
   const marker = crypto.randomUUID().slice(0, 8).toUpperCase();
   const ids = {
-    employee: crypto.randomUUID(), user: crypto.randomUUID(), shiftType: crypto.randomUUID(),
+    employee: crypto.randomUUID(), employeeB: crypto.randomUUID(), user: crypto.randomUUID(), shiftType: crypto.randomUUID(),
     site: crypto.randomUUID(), assignment: crypto.randomUUID(), approval: crypto.randomUUID(),
     primaryEnrollment: crypto.randomUUID(), foreignEnrollment: crypto.randomUUID(),
     challengeOne: crypto.randomUUID(), challengeTwo: crypto.randomUUID()
@@ -116,18 +116,20 @@ if (!configured) {
     await prisma.attendanceSession.deleteMany({ where: { employeeId: ids.employee } }).catch(() => {});
     await prisma.attendanceDeviceChangeRequest.deleteMany({ where: { employeeId: ids.employee } }).catch(() => {});
     await prisma.attendanceDeviceChallenge.deleteMany({ where: { employeeId: ids.employee } }).catch(() => {});
-    await prisma.attendanceDeviceEnrollment.deleteMany({ where: { employeeId: ids.employee } }).catch(() => {});
+    await prisma.attendanceDeviceEnrollment.deleteMany({ where: { employeeId: { in: [ids.employee, ids.employeeB] } } }).catch(() => {});
     await prisma.shiftAssignment.deleteMany({ where: { employeeId: ids.employee } }).catch(() => {});
     await prisma.scheduleApproval.deleteMany({ where: { id: ids.approval } }).catch(() => {});
     await prisma.securitySite.deleteMany({ where: { id: ids.site } }).catch(() => {});
     await prisma.shiftType.deleteMany({ where: { id: ids.shiftType } }).catch(() => {});
     await prisma.user.deleteMany({ where: { id: ids.user } }).catch(() => {});
-    await prisma.employee.deleteMany({ where: { id: ids.employee } }).catch(() => {});
+    await prisma.employee.deleteMany({ where: { id: ids.employee } });
+    await prisma.employee.deleteMany({ where: { id: ids.employeeB } });
   }
 
   async function seed() {
     await cleanup();
     await prisma.employee.create({ data: { id: ids.employee, employeeCode: `FOREIGN-${marker}`, firstName: 'Foreign', lastName: 'Concurrency', department: 'SECURITY' } });
+    await prisma.employee.create({ data: { id: ids.employeeB, employeeCode: `BOUND-${marker}`, firstName: 'Bound', lastName: 'Owner', department: 'SECURITY' } });
     await prisma.user.create({ data: { id: ids.user, email: `foreign-concurrency-${marker}@example.test`, passwordHash: 'test-only', displayName: 'Foreign Concurrency User', role: 'VIEWER', employeeId: ids.employee } });
     await prisma.attendanceSelfiePolicy.upsert({ where: { role: 'VIEWER' }, update: { clockInRequired: true, clockOutRequired: false, updatedByUserId: ids.user }, create: { role: 'VIEWER', clockInRequired: true, clockOutRequired: false, updatedByUserId: ids.user } });
     await prisma.shiftType.create({ data: { id: ids.shiftType, code: `FC${marker.slice(0, 4)}`, name: 'Foreign Concurrency Day', startTime: '07:00', endTime: '19:00', hours: 12, color: '#D9E1F2' } });
@@ -137,7 +139,7 @@ if (!configured) {
     await prisma.scheduleApproval.create({ data: { id: ids.approval, month: new Date('2026-10-01T00:00:00.000Z'), status: 'APPROVED', revision: 1, changedAt: now, approvedAt: now, changedByLegacyRef: ids.user, approvedByLegacyRef: ids.user, changeType: 'TEST', approvalNote: 'Disposable concurrency test' } });
     const primary = keyMaterial();
     await prisma.attendanceDeviceEnrollment.create({ data: { id: ids.primaryEnrollment, employeeId: ids.employee, publicKey: Buffer.from(primary.publicKeySpkiBase64, 'base64'), keyAlgorithm: 'ECDSA_P256_SHA256', credentialFingerprint: crypto.createHash('sha256').update(Buffer.from(primary.publicKeySpkiBase64, 'base64')).digest('hex'), displayName: 'Primary test device', status: 'ACTIVE', proofVerifiedAt: now, activatedAt: now, createdByUserId: ids.user } });
-    await prisma.attendanceDeviceEnrollment.create({ data: { id: ids.foreignEnrollment, employeeId: ids.employee, publicKey: Buffer.from(material.publicKeySpkiBase64, 'base64'), keyAlgorithm: 'ECDSA_P256_SHA256', credentialFingerprint: crypto.createHash('sha256').update(Buffer.from(material.publicKeySpkiBase64, 'base64')).digest('hex'), displayName: 'Observed foreign test device', status: 'PENDING_APPROVAL', observationOnly: true, proofVerifiedAt: now, createdByUserId: ids.user } });
+    await prisma.attendanceDeviceEnrollment.create({ data: { id: ids.foreignEnrollment, employeeId: ids.employeeB, publicKey: Buffer.from(material.publicKeySpkiBase64, 'base64'), keyAlgorithm: 'ECDSA_P256_SHA256', credentialFingerprint: crypto.createHash('sha256').update(Buffer.from(material.publicKeySpkiBase64, 'base64')).digest('hex'), displayName: 'Observed foreign test device', status: 'PENDING_APPROVAL', observationOnly: true, proofVerifiedAt: now, createdByUserId: ids.user } });
     for (const [id, nonce] of [[ids.challengeOne, crypto.randomBytes(32).toString('hex')], [ids.challengeTwo, crypto.randomBytes(32).toString('hex')]]) {
       await prisma.attendanceDeviceChallenge.create({ data: { id, employeeId: ids.employee, purpose: 'ATTENDANCE_EVENT', challengeHash: challengeHash(nonce), expiresAt: new Date(now.getTime() + 2 * 60 * 60 * 1000) } });
       if (id === ids.challengeOne) ids.nonceOne = nonce; else ids.nonceTwo = nonce;
@@ -172,6 +174,10 @@ if (!configured) {
       assert.equal(result.counted, true, `${status} legacy enrollment must not block Attendance`);
       const unchanged = await prisma.attendanceDeviceEnrollment.findUniqueOrThrow({ where: { id: enrollment.id } });
       assert.equal(unchanged.status, status);
+      const auditRow = await prisma.auditLog.findFirst({ where: { actorUserId: ids.user, entityType: 'AttendanceDeviceEnrollment', entityId: enrollment.id }, orderBy: { createdAt: 'desc' } });
+      assert.ok(auditRow, `${status} legacy observation must write an enrollment audit`);
+      assert.equal(auditRow.action, 'UPDATE');
+      assert.deepEqual(auditRow.metadata, { event: 'OBSERVED_LEGACY_DEVICE_STATUS', employeeId: ids.employee, status, credentialFingerprint: fingerprint });
       assert.equal(await prisma.attendanceDeviceChangeRequest.count({ where: { employeeId: ids.employee } }), 0);
       assert.equal(await prisma.attendanceEvent.count({ where: { session: { employeeId: ids.employee } } }), 1);
       await prisma.attendanceSession.deleteMany({ where: { employeeId: ids.employee } });
@@ -215,6 +221,17 @@ if (!configured) {
         prisma.attendanceDeviceChangeRequest.findMany({ where: { employeeId: ids.employee } }), prisma.auditLog.findMany({ where: { actorUserId: ids.user } })
       ]);
       assert.equal(events.length, 1); assert.equal(pending.length, 0); assert.equal(selfies.length, 1); assert.equal(sessions.length, 1); assert.equal(changes.length, 0);
+      const conflictAudit = audits.find((row) => row.entityType === 'AttendanceDeviceEnrollment' && row.entityId === ids.foreignEnrollment && row.metadata?.event === 'OBSERVED_CROSS_EMPLOYEE_DEVICE_CONFLICT');
+      assert.ok(conflictAudit, 'cross-employee conflict must write an enrollment audit');
+      assert.equal(conflictAudit.action, 'UPDATE');
+      assert.deepEqual(conflictAudit.metadata, { event: 'OBSERVED_CROSS_EMPLOYEE_DEVICE_CONFLICT', employeeId: ids.employee, boundEmployeeId: ids.employeeB, credentialFingerprint: crypto.createHash('sha256').update(Buffer.from(material.publicKeySpkiBase64, 'base64')).digest('hex') });
+      assert.equal(events[0].deviceEnrollmentId === ids.foreignEnrollment, false);
+      assert.equal(selfies[0].deviceEnrollmentId === ids.foreignEnrollment, false);
+      assert.equal((events[0].reviewFlags || []).includes('DEVICE_MISMATCH'), true);
+      assert.equal((events[0].reviewFlags || []).includes('DEVICE_OWNERSHIP_CONFLICT'), true);
+      const boundEnrollment = await prisma.attendanceDeviceEnrollment.findUniqueOrThrow({ where: { id: ids.foreignEnrollment } });
+      assert.equal(boundEnrollment.employeeId, ids.employeeB);
+      assert.equal(boundEnrollment.status, 'PENDING_APPROVAL');
       assert.equal(audits.filter((row) => row.entityType === 'AttendanceEvent').length, 1);
       assert.equal(storage.objects.size, 1);
       assert.equal(storage.removed.length, 1);

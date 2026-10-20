@@ -320,7 +320,7 @@ function createAttendanceSimpleService({
     // A fingerprint conflict is an audit/telemetry signal only. Do not mutate
     // the other employee's enrollment and never make it an Attendance gate.
     if (existing && existing.employeeId !== identity.employeeId) {
-      await audit.log({ actorUserId: actor.sub, action: 'READ', entityType: 'AttendanceDeviceEnrollment', entityId: existing.id,
+      await audit.log({ actorUserId: actor.sub, action: 'UPDATE', entityType: 'AttendanceDeviceEnrollment', entityId: existing.id,
         metadata: { event: 'OBSERVED_CROSS_EMPLOYEE_DEVICE_CONFLICT', employeeId: identity.employeeId, boundEmployeeId: existing.employeeId, credentialFingerprint: material.fingerprint } }, client);
       // Keep the conflicting enrollment only in audit metadata. A foreign row is
       // never a valid FK for this employee's event or selfie.
@@ -339,7 +339,7 @@ function createAttendanceSimpleService({
       await audit.log({ actorUserId: actor.sub, action: 'CREATE', entityType: 'AttendanceDeviceEnrollment', entityId: observed.id,
         metadata: { event: 'OBSERVED_ATTENDANCE_DEVICE', legacyEvent: 'AUTO_BIND_FIRST_DEVICE', employeeId: identity.employeeId, activeDeviceEnrollmentId: active?.id || null, credentialFingerprint: material.fingerprint } }, client);
     } else {
-      await audit.log({ actorUserId: actor.sub, action: 'READ', entityType: 'AttendanceDeviceEnrollment', entityId: observed.id,
+      await audit.log({ actorUserId: actor.sub, action: 'UPDATE', entityType: 'AttendanceDeviceEnrollment', entityId: observed.id,
         metadata: { event: 'OBSERVED_LEGACY_DEVICE_STATUS', employeeId: identity.employeeId, status: observed.status, credentialFingerprint: material.fingerprint } }, client);
     }
     // Legacy status/history remains unchanged and is never an Attendance gate.
