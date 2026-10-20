@@ -214,6 +214,7 @@ export function canViewRoutePage(page: RoutePage, auth: { user?: { role?: string
   if (page === 'approvals') return ['ADMIN', 'SUPERVISOR'].includes(auth.user?.role || '') && !auth.isViewingAs;
   if (page === 'leavePending') return ['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(auth.user?.role || '') && !auth.isViewingAs;
   if (page === 'attendanceSupervisor') return ['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(auth.user?.role || '');
+  if (page === 'attendanceDevice') return auth.user?.role === 'ADMIN';
   if (page === 'attendanceReport') return auth.user?.role === 'ADMIN';
   if (page === 'audit') return auth.user?.role === 'ADMIN';
   if (page === 'dataQuality') return auth.user?.role === 'ADMIN';

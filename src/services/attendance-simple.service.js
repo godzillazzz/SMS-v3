@@ -153,10 +153,9 @@ function integrityRiskFlags(signals = {}) {
   return [...new Set(flags)];
 }
 
-function assertFirstDeviceCanAutoBind(activeEnrollment, existingEnrollment) {
-  if (!activeEnrollment && existingEnrollment) {
-    throw http(409, 'ATTENDANCE_DEVICE_NOT_ALLOWED', 'An existing inactive device enrollment requires ADMIN approval before it can be used.');
-  }
+function assertFirstDeviceCanAutoBind() {
+  // Legacy device enrollment is passive telemetry. Attendance authorization is
+  // decided by schedule, site, time and the effective selfie policy only.
 }
 
 function createAttendanceSimpleService({
@@ -313,21 +312,16 @@ function createAttendanceSimpleService({
 
   async function bindOrObserveDevice(client, { actor, identity, material, device, now }) {
     const existing = await client.attendanceDeviceEnrollment.findUnique({ where: { credentialFingerprint: material.fingerprint } });
-    if (existing && existing.employeeId !== identity.employeeId) throw http(409, 'ATTENDANCE_DEVICE_BOUND_TO_OTHER_EMPLOYEE', 'This device identity is already bound to another employee.');
     const active = await client.attendanceDeviceEnrollment.findFirst({ where: { employeeId: identity.employeeId, status: 'ACTIVE' }, orderBy: { activatedAt: 'desc' } });
     assertFirstDeviceCanAutoBind(active, existing);
-    if (!active) {
-      const enrollment = await client.attendanceDeviceEnrollment.create({
-        data: { employeeId: identity.employeeId, publicKey: material.bytes, keyAlgorithm: KEY_ALGORITHM,
-          credentialFingerprint: material.fingerprint, displayName: cleanText(device.displayName, 120) || 'Attendance device',
-          platformHint: cleanText(device.platformHint, 100), userAgentSnapshot: cleanText(device.userAgentSnapshot, 500),
-          status: 'ACTIVE', proofVerifiedAt: now, activatedAt: now, createdByUserId: actor.sub }
-      });
-      await audit.log({ actorUserId: actor.sub, action: 'CREATE', entityType: 'AttendanceDeviceEnrollment', entityId: enrollment.id,
-        metadata: { event: 'AUTO_BIND_FIRST_DEVICE', employeeId: identity.employeeId, credentialFingerprint: material.fingerprint, keyAlgorithm: KEY_ALGORITHM } }, client);
-      return { enrollment, binding: 'PRIMARY', reviewFlags: [] };
+    // A fingerprint conflict is an audit/telemetry signal only. Do not mutate
+    // the other employee's enrollment and never make it an Attendance gate.
+    if (existing && existing.employeeId !== identity.employeeId) {
+      await audit.log({ actorUserId: actor.sub, action: 'READ', entityType: 'AttendanceDeviceEnrollment', entityId: existing.id,
+        metadata: { event: 'OBSERVED_CROSS_EMPLOYEE_DEVICE_CONFLICT', employeeId: identity.employeeId, boundEmployeeId: existing.employeeId, credentialFingerprint: material.fingerprint } }, client);
+      return { enrollment: existing, binding: 'FOREIGN', reviewFlags: ['DEVICE_MISMATCH', 'DEVICE_OWNERSHIP_CONFLICT'] };
     }
-    if (active.credentialFingerprint === material.fingerprint) return { enrollment: active, binding: 'PRIMARY', reviewFlags: [] };
+    if (active?.credentialFingerprint === material.fingerprint) return { enrollment: active, binding: 'PRIMARY', reviewFlags: [] };
     let observed = existing;
     if (!observed) {
       observed = await client.attendanceDeviceEnrollment.create({
@@ -337,12 +331,13 @@ function createAttendanceSimpleService({
           status: 'PENDING_APPROVAL', observationOnly: true, proofVerifiedAt: now, createdByUserId: actor.sub }
       });
       await audit.log({ actorUserId: actor.sub, action: 'CREATE', entityType: 'AttendanceDeviceEnrollment', entityId: observed.id,
-        metadata: { event: 'OBSERVED_FOREIGN_ATTENDANCE_DEVICE', employeeId: identity.employeeId, activeDeviceEnrollmentId: active.id, credentialFingerprint: material.fingerprint } }, client);
+        metadata: { event: 'OBSERVED_ATTENDANCE_DEVICE', legacyEvent: 'AUTO_BIND_FIRST_DEVICE', employeeId: identity.employeeId, activeDeviceEnrollmentId: active?.id || null, credentialFingerprint: material.fingerprint } }, client);
+    } else {
+      await audit.log({ actorUserId: actor.sub, action: 'READ', entityType: 'AttendanceDeviceEnrollment', entityId: observed.id,
+        metadata: { event: 'OBSERVED_LEGACY_DEVICE_STATUS', employeeId: identity.employeeId, status: observed.status, credentialFingerprint: material.fingerprint } }, client);
     }
-    if (['REVOKED', 'REJECTED', 'CANCELLED'].includes(observed.status)) throw http(409, 'ATTENDANCE_DEVICE_NOT_ALLOWED', 'This device identity has been revoked or rejected.');
-    // Device state is passive telemetry only. Legacy pending/replacement rows
-    // remain historical and must never block Attendance or create a move request.
-    return { enrollment: observed, binding: 'FOREIGN', reviewFlags: ['DEVICE_MISMATCH'] };
+    // Legacy status/history remains unchanged and is never an Attendance gate.
+    return { enrollment: observed, binding: active ? 'FOREIGN' : 'OBSERVED', reviewFlags: active ? ['DEVICE_MISMATCH'] : [] };
   }
 
   function expectationSnapshot(assignment, approval, authority) {

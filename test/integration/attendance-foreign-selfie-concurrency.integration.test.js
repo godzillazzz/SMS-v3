@@ -52,10 +52,10 @@ if (!configured) {
 
   function challengeHash(value) { return crypto.createHash('sha256').update(value).digest('hex'); }
 
-  function signedInput({ deviceMaterial, nonce }) {
+  function signedInput({ deviceMaterial, nonce, capture = captureId }) {
     const selfie = { mimeType: 'image/jpeg', base64: selfieBase64, captureMode: 'LIVE_CAMERA', overlay: { capturedAt: now.toISOString() } };
     const input = {
-      captureId, eventIntent: 'CHECK_IN', shiftAssignmentId: ids.assignment, capturedAt: now.toISOString(),
+      captureId: capture, eventIntent: 'CHECK_IN', shiftAssignmentId: ids.assignment, capturedAt: now.toISOString(),
       location: { latitude: 13.7241, longitude: 100.5701, accuracyMeters: 8, capturedAt: now.toISOString() },
       device: { publicKeySpkiBase64: deviceMaterial.publicKeySpkiBase64, keyAlgorithm: 'ECDSA_P256_SHA256', displayName: 'Concurrent foreign device',
         signals: { secureContext: true, webCrypto: true, indexedDb: true, privateKeyNonExportable: true }, signatureBase64: '' },
@@ -144,6 +144,43 @@ if (!configured) {
     }
     return { primaryConnection: await prisma.$queryRawUnsafe('SELECT pg_backend_pid() AS pid'), secondConnection: await secondPrisma.$queryRawUnsafe('SELECT pg_backend_pid() AS pid') };
   }
+
+  test('real PostgreSQL legacy enrollment statuses are passive and nonblocking', async () => {
+    await seed();
+    await prisma.attendanceEvent.deleteMany({ where: { session: { employeeId: ids.employee } } });
+    await prisma.attendanceSession.deleteMany({ where: { employeeId: ids.employee } });
+    await prisma.attendanceDeviceSelfie.deleteMany({ where: { employeeId: ids.employee } });
+    await prisma.attendanceDeviceEnrollment.deleteMany({ where: { employeeId: ids.employee } });
+    await prisma.attendanceDeviceChangeRequest.deleteMany({ where: { employeeId: ids.employee } });
+    const passiveService = createAttendanceSimpleService({
+      prisma, audit, clock: () => now,
+      siteEvidenceService: createAttendanceSiteEvidenceService({ prisma, clock: () => now, policyOverride: policy }),
+      policyService: { getPolicy: async () => policy },
+      selfiePolicyService: { resolve: async () => ({ required: false, sourceRole: 'VIEWER', action: 'CHECK_IN', policy: { role: 'VIEWER', clockInRequired: false, clockOutRequired: false } }) },
+      selfieStorage: storageFor('legacy-passive'), bundleSecret: () => 'disposable-integration-only-signing-secret-32-bytes'
+    });
+    for (const [index, status] of ['REVOKED', 'REJECTED', 'CANCELLED', 'PENDING_APPROVAL'].entries()) {
+      await prisma.attendanceSession.deleteMany({ where: { employeeId: ids.employee } });
+      await prisma.attendanceEvent.deleteMany({ where: { session: { employeeId: ids.employee } } });
+      const device = keyMaterial();
+      const fingerprint = crypto.createHash('sha256').update(Buffer.from(device.publicKeySpkiBase64, 'base64')).digest('hex');
+      const enrollment = await prisma.attendanceDeviceEnrollment.create({ data: {
+        employeeId: ids.employee, publicKey: Buffer.from(device.publicKeySpkiBase64, 'base64'), keyAlgorithm: 'ECDSA_P256_SHA256',
+        credentialFingerprint: fingerprint, displayName: `Legacy ${status}`, status, observationOnly: status === 'PENDING_APPROVAL', createdByUserId: ids.user
+      } });
+      const result = await passiveService.submit({ actor, input: signedInput({ deviceMaterial: device, nonce: '', capture: crypto.randomUUID() }) });
+      assert.equal(result.counted, true, `${status} legacy enrollment must not block Attendance`);
+      const unchanged = await prisma.attendanceDeviceEnrollment.findUniqueOrThrow({ where: { id: enrollment.id } });
+      assert.equal(unchanged.status, status);
+      assert.equal(await prisma.attendanceDeviceChangeRequest.count({ where: { employeeId: ids.employee } }), 0);
+      assert.equal(await prisma.attendanceEvent.count({ where: { session: { employeeId: ids.employee } } }), 1);
+      await prisma.attendanceSession.deleteMany({ where: { employeeId: ids.employee } });
+      await prisma.attendanceEvent.deleteMany({ where: { session: { employeeId: ids.employee } } });
+      await prisma.attendanceDeviceEnrollment.deleteMany({ where: { id: enrollment.id } });
+      assert.equal(index < 4, true);
+    }
+    await cleanup();
+  });
 
   test('real PostgreSQL two-connection foreign selfie finalization races on one captureId', async () => {
     try {
