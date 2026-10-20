@@ -73,7 +73,7 @@ test('draft fails closed; prior R7 approval cannot be transferred to the current
   // never inherit the R7.1 approval SHA.
   const live = load('approved-production.json');
   const liveValidated = validateReleaseManifest(live);
-  assert.equal(live.release_batch_id, 'R8.2');
+  assert.equal(live.release_batch_id, 'R8.4');
   assert.equal(live.run_migrations, false);
   if (live.database_change_policy === 'PRE_APPLIED_APPROVED_MIGRATION') {
     // The evidence run id is refreshed whenever the evidence is re-collected, so assert the shape
