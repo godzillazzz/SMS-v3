@@ -39,7 +39,7 @@ test('Manager account approval is constrained to Viewer and sensitive settings s
 
 test('legacy navigation and four-role model are represented in the frontend', () => {
   const navigationBlock = frontend.match(/const navigation:[\s\S]*?function AuthProvider/)?.[0] || '';
-  for (const label of ['ภาพรวม', 'ศูนย์อนุมัติ', 'ข้อมูลพนักงาน', 'ใบอนุญาต รปภ.', 'ลงเวลา', 'ศูนย์ควบคุมการลงเวลา', 'อุปกรณ์ลงเวลา', 'ตารางกะรายเดือน', 'รหัสกะและเวลา', 'ตรวจสอบกฎการทำงาน', 'คำขอลา', 'อนุมัติคำขอลา', 'ประวัติการลาทั้งหมด', 'โควต้าวันลา', 'รายงานและวิเคราะห์', 'ผู้ใช้และสิทธิ์', 'จุดรักษาความปลอดภัยและ QR', 'ตั้งค่าระบบ', 'บันทึกการใช้งานระบบ', 'คุณภาพข้อมูล', 'ประสิทธิภาพและสถานะระบบ']) {
+  for (const label of ['ภาพรวม', 'ศูนย์อนุมัติ', 'ข้อมูลพนักงาน', 'ใบอนุญาต รปภ.', 'ลงเวลา', 'ศูนย์ควบคุมการลงเวลา', 'ตารางกะรายเดือน', 'รหัสกะและเวลา', 'ตรวจสอบกฎการทำงาน', 'คำขอลา', 'อนุมัติคำขอลา', 'ประวัติการลาทั้งหมด', 'โควต้าวันลา', 'รายงานและวิเคราะห์', 'ผู้ใช้และสิทธิ์', 'จุดรักษาความปลอดภัยและ QR', 'ตั้งค่าระบบ', 'บันทึกการใช้งานระบบ', 'คุณภาพข้อมูล', 'ประสิทธิภาพและสถานะระบบ']) {
     assert.ok(navigationBlock.includes(`label: '${label}'`), label);
   }
   // OWNER 2026-10-16: schedule-approval sidebar shortcut removed; approval stays available via the Approval Center

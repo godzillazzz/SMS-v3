@@ -18,7 +18,8 @@ describe('Attendance readiness blocked hotfix', () => {
   it('routes the employee to the existing device enrollment page without bypassing server authority', () => {
     expect(page).toContain('onOpenAttendanceDevice?: () => void');
     expect(page).toContain('onOpenAttendanceDevice?.()');
-    expect(main).toContain("onOpenAttendanceDevice={() => selectPwaPage('attendanceDevice')}");
+    expect(main).not.toContain("selectPwaPage('attendanceDevice')");
+    expect(main).toContain('onOpenAttendanceDevice={() => undefined}');
     expect(page).toContain('Attendance ต้องมีอุปกรณ์สถานะ ACTIVE ที่ผูกกับพนักงาน');
     const verificationStart = page.indexOf('const started = await attendanceVerificationStart(token');
     const deviceProofFlow = page.indexOf('await performAttendanceDeviceProof({');

@@ -42,6 +42,7 @@ const bootstrap = {
   eventIntent: 'CHECK_IN' as const,
   assignment: { id: 'assignment-a', workDate: '2026-10-02', shift: { code: 'D', name: 'Day', startTime: '07:00', endTime: '19:00' }, site: siteA },
   eligibleSites: [siteA, siteB], activeDevice: null,
+  selfiePolicy: { sourceRole: 'VIEWER', action: 'CHECK_IN', required: false, policy: { role: 'VIEWER', clockInRequired: false, clockOutRequired: false } },
   offline: { bundle: 'signed-test-bundle-string-over-32-characters', issuedAt: '2026-10-02T00:00:00.000Z', expiresAt: '2026-10-03T00:00:00.000Z', confirmAfterMs: 300000, maxAccuracyMeters: 50 }
 };
 
@@ -76,13 +77,13 @@ describe('Attendance support-Site confirmation UX', () => {
   it('shows assigned and actual Site before a separate support-Site confirmation, then submits GPS only', async () => {
     render(<AttendanceSimplePage token="test-session" online />);
     await screen.findByText('พร้อมลงเวลา · ระบบจะตรวจตำแหน่งก่อนบันทึก');
-    fireEvent.click(screen.getByRole('button', { name: /ลงเวลาเข้า/ }));
+    fireEvent.click(document.querySelector<HTMLButtonElement>('.attendance-simple__clock')!);
     await screen.findByText(/ต่างจาก Site ตามตาราง · ระบบจะเก็บ Site จริงไว้และส่งรายการให้ตรวจ · กดอีกครั้งเพื่อยืนยัน/);
     expect(mocks.submit).not.toHaveBeenCalled();
     expect(screen.getByText('สถานที่ตามตาราง: Site A')).toBeTruthy();
     expect(screen.getByText('สถานที่ลงเวลาจริง: Site B · ช่วยปฏิบัติงานต่าง Site')).toBeTruthy();
 
-    fireEvent.click(screen.getByRole('button', { name: /ยืนยันลงเวลาที่ Site B/ }));
+    fireEvent.click(document.querySelector<HTMLButtonElement>('.attendance-simple__clock')!);
     await waitFor(() => expect(mocks.submit).toHaveBeenCalledTimes(1));
     const submitted = mocks.submit.mock.calls[0][1];
     expect(submitted.location.latitude).toBe(siteB.latitude);
@@ -92,7 +93,7 @@ describe('Attendance support-Site confirmation UX', () => {
     expect(screen.getByRole('region', { name: 'หลักฐานการลงเวลา' })).toBeTruthy();
     expect(screen.getByText('ลงเวลาเข้าสำเร็จ')).toBeTruthy();
     expect(screen.getByText(/20:32 · บันทึกกับ Server แล้ว/)).toBeTruthy();
-    expect(screen.getByText('อุปกรณ์นี้ยืนยันแล้ว')).toBeTruthy();
+    expect(screen.getByText('Telemetry บันทึกแล้ว')).toBeTruthy();
     expect(screen.getByText('ตรวจแล้ว')).toBeTruthy();
   });
 
@@ -108,13 +109,13 @@ describe('Attendance support-Site confirmation UX', () => {
     });
     render(<AttendanceSimplePage token="test-session" online />);
     await screen.findByText('พร้อมลงเวลา · ระบบจะตรวจตำแหน่งก่อนบันทึก');
-    fireEvent.click(screen.getByRole('button', { name: /ลงเวลาเข้า/ }));
+    fireEvent.click(document.querySelector<HTMLButtonElement>('.attendance-simple__clock')!);
     await screen.findByText(/กดอีกครั้งเพื่อยืนยัน/);
-    fireEvent.click(screen.getByRole('button', { name: /ยืนยันลงเวลาที่ Site B/ }));
+    fireEvent.click(document.querySelector<HTMLButtonElement>('.attendance-simple__clock')!);
     const message = await screen.findByText(/ลงเวลาสำเร็จ/);
     expect(message.textContent).toContain('ช่วยปฏิบัติงานต่าง Site');
     expect(message.textContent).toContain('Site จริง: Site B');
-    expect(message.textContent).toContain('ใช้อุปกรณ์อื่น · รายการนี้ต้องตรวจสอบ');
+    expect(message.textContent).not.toContain('ใช้อุปกรณ์อื่น');
     expect(message.textContent).toContain('มาสาย');
     const technical = screen.getByText('รายละเอียดทางเทคนิค').closest('details');
     expect(technical?.open).toBe(false);
@@ -122,32 +123,21 @@ describe('Attendance support-Site confirmation UX', () => {
     expect(technical?.textContent).toContain('DEVICE_MISMATCH');
   });
 
-  it('explains a disabled clock and links the worker to device setup with a folded request reference', async () => {
-    const onOpenAttendanceDevice = vi.fn();
-    mocks.ensureIdentity.mockRejectedValue(Object.assign(new Error('อุปกรณ์ลงเวลานี้ต้องรอผู้ดูแลอนุมัติก่อนใช้งาน'), {
-      code: 'ATTENDANCE_DEVICE_NOT_ALLOWED',
-      requestId: 'a1492eb7-60ac-4ad8-9990-e9f80bb963a9'
-    }));
-
-    render(<AttendanceSimplePage token="test-session" online onOpenAttendanceDevice={onOpenAttendanceDevice} />);
-
-    const clock = await screen.findByRole('button', { name: /ลงเวลาเข้า/ });
-    expect((clock as HTMLButtonElement).disabled).toBe(true);
-    expect(clock.getAttribute('aria-describedby')).toBe('attendance-simple-clock-disabled-reason');
-    expect(screen.getByText('อุปกรณ์ลงเวลานี้ต้องรอผู้ดูแลอนุมัติก่อนใช้งาน', { selector: 'p' })).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: 'เปิดสถานะอุปกรณ์ลงเวลา' }));
-    expect(onOpenAttendanceDevice).toHaveBeenCalledTimes(1);
-
-    const details = screen.getByText('รายละเอียดสำหรับผู้ดูแล').closest('details');
-    expect(details?.open).toBe(false);
-    expect(details?.textContent).toContain('a1492eb7-60ac-4ad8-9990-e9f80bb963a9');
+  it('does not create a device-change request or block a different browser', async () => {
+    render(<AttendanceSimplePage token="test-session" online />);
+    const clock = document.querySelector<HTMLButtonElement>('.attendance-simple__clock')!;
+    await screen.findByText('พร้อมลงเวลา · ระบบจะตรวจตำแหน่งก่อนบันทึก');
+    expect(clock.disabled).toBe(false);
+    fireEvent.click(clock);
+    expect(screen.queryByText(/ขอย้ายเครื่อง|อุปกรณ์หลัก/)).toBeNull();
+    expect(mocks.submit).not.toHaveBeenCalled();
   });
 
   it('gives read-only workers a Thai reason when the clock is disabled', async () => {
     render(<AttendanceSimplePage token="test-session" online readOnly />);
-    const clock = await screen.findByRole('button', { name: /ลงเวลาเข้า/ });
+    const clock = await screen.findByRole('button', { name: 'ลงเวลาเข้า' });
     expect((clock as HTMLButtonElement).disabled).toBe(true);
-    expect(clock.getAttribute('aria-describedby')).toBe('attendance-simple-clock-disabled-reason');
+    expect(clock.getAttribute('aria-describedby')).toBeNull();
     expect(screen.getByText('โหมดดูแทนไม่สามารถลงเวลาได้ กรุณาออกจากโหมดดูแทนก่อนลงเวลา')).toBeTruthy();
   });
 });

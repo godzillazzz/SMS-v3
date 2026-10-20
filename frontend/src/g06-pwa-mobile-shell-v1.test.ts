@@ -16,8 +16,8 @@ const index = read('../index.html');
 
 describe('Attendance UX V4 Employee Mobile/PWA shell', () => {
   it('keeps five primary self-service tabs while allowing the device-remediation route inside the PWA shell', () => {
-    expect(mode).toContain("export const SMS_PWA_PAGES: SmsPwaPage[] = ['attendance', 'attendanceHistory', 'employeeSchedule', 'attendanceDevice', 'leave', 'profile']");
-    expect(mode).toContain("'attendanceDevice'");
+    expect(mode).toContain("export const SMS_PWA_PAGES: SmsPwaPage[] = ['attendance', 'attendanceHistory', 'employeeSchedule', 'leave', 'profile']");
+    expect(mode).not.toContain("'attendanceDevice'");
     const nav = main.slice(main.indexOf('className="pwa-bottom-nav"'), main.indexOf('</nav>}', main.indexOf('className="pwa-bottom-nav"')));
     for (const label of ['ลงเวลา', 'ประวัติ', 'ตารางงาน', 'ลา', 'โปรไฟล์']) expect(nav).toContain(label);
     for (const adminLabel of ['Dashboard', 'พนักงาน', 'ผู้ใช้งาน']) expect(nav).not.toContain(adminLabel);

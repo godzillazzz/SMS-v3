@@ -22,9 +22,10 @@ describe('Attendance P0 clarity contract', () => {
   });
 
   it('uses human-first device and offline copy while preserving the security controls', () => {
-    expect(page).toContain('อุปกรณ์นี้ยืนยันแล้ว');
-    expect(page).toContain('<SmsIcon name="check" size={15} />');
-    expect(page).toContain('เครื่องหลักของคุณ');
+    expect(page).toContain('ใช้ได้หลายอุปกรณ์ · ระบบเก็บข้อมูลเบราว์เซอร์เป็น telemetry');
+    expect(page).not.toContain('เครื่องหลักของคุณ');
+    expect(page).toContain('bindingState');
+    expect(page).not.toContain('DEVICE_MOVE_PENDING');
     expect(page).toContain('ออฟไลน์พร้อมใช้งาน');
     expect(page).toContain('ระบบเก็บรายการในเครื่องและส่งให้อัตโนมัติเมื่อออนไลน์');
     expect(page).toContain('GPS / GEOFENCE ตรวจทุกครั้งก่อนบันทึก');

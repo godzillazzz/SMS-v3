@@ -11,6 +11,7 @@ import '../../styles/settings-page.css';
 
 const AttendancePolicySettingsCard = React.lazy(() => import('../../components/AttendancePolicySettingsCard').then((module) => ({ default: module.AttendancePolicySettingsCard })));
 const AttendanceTimePolicySettingsCard = React.lazy(() => import('../../components/AttendanceTimePolicySettingsCard').then((module) => ({ default: module.AttendanceTimePolicySettingsCard })));
+const AttendanceSelfiePolicySettingsCard = React.lazy(() => import('../../components/AttendanceSelfiePolicySettingsCard').then((module) => ({ default: module.AttendanceSelfiePolicySettingsCard })));
 const LeavePolicySettingsCard = React.lazy(() => import('../../components/LeavePolicySettingsCard').then((module) => ({ default: module.LeavePolicySettingsCard })));
 const LeaveTypeMasterPanel = React.lazy(() => import('../../components/LeaveTypeMasterPanel').then((module) => ({ default: module.LeaveTypeMasterPanel })));
 const AutoSchedulePatternPanel = React.lazy(() => import('../../components/AutoSchedulePatternPanel').then((module) => ({ default: module.AutoSchedulePatternPanel })));
@@ -101,7 +102,7 @@ export function SettingsPage({ token, settings, leaveTypes, leaveTypesLoading, l
   const sectionContent = section === 'overview'
     ? loading ? <div className="loading-row" role="status">กำลังอ่านรายการตั้งค่าระบบ…</div> : <ConfigurationRegistryPanel settings={settings} />
     : section === 'attendance-location'
-      ? loading ? <div className="loading-row" role="status">กำลังอ่านนโยบายการลงเวลา…</div> : <><AttendancePolicySettingsCard settings={settings} onSave={onSaveAttendancePolicy} onRefresh={onRefresh} /><AttendanceTimePolicySettingsCard token={token} /></>
+      ? loading ? <div className="loading-row" role="status">กำลังอ่านนโยบายการลงเวลา…</div> : <><AttendancePolicySettingsCard settings={settings} onSave={onSaveAttendancePolicy} onRefresh={onRefresh} /><AttendanceTimePolicySettingsCard token={token} /><AttendanceSelfiePolicySettingsCard token={token} /></>
       : section === 'leave-policy'
         ? loading ? <div className="loading-row" role="status">กำลังอ่านนโยบายการลา…</div> : <LeavePolicySettingsCard settings={settings} onSave={onSaveLeavePolicy} onRefresh={onRefresh} />
         : section === 'leave-types'

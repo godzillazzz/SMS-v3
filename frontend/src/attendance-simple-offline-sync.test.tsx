@@ -55,9 +55,9 @@ describe('isolated offline reconnect acceptance on exact released component', ()
   it('reload obtains CHECK_OUT next action from server bootstrap', async () => {
     mocks.bootstrap.mockResolvedValue({ ...fixture, eventIntent: 'CHECK_OUT' });
     const first = render(<AttendanceSimplePage token="isolated-session" online />);
-    await screen.findByRole('button', { name: /ลงเวลาออก/ }); first.unmount();
+    await screen.findByText('ลงเวลาออก', { selector: '.attendance-simple__clock span' }); first.unmount();
     render(<AttendanceSimplePage token="isolated-session" online />);
-    await screen.findByRole('button', { name: /ลงเวลาออก/ });
+    await screen.findByText('ลงเวลาออก', { selector: '.attendance-simple__clock span' });
     expect(mocks.bootstrap).toHaveBeenCalledTimes(2); expect(mocks.submit).not.toHaveBeenCalled();
   });
   it('after queued CHECK_IN sync, next action immediately reflects authoritative server CHECK_OUT', async () => {
@@ -67,7 +67,7 @@ describe('isolated offline reconnect acceptance on exact released component', ()
     mocks.submit.mockImplementation(async () => { serverIntent = 'CHECK_OUT'; return accepted; });
     render(<AttendanceSimplePage token="isolated-session" online />);
     await waitFor(() => expect(queue).toHaveLength(0));
-    await screen.findByRole('button', { name: /ลงเวลาออก/ });
+    await screen.findByText('ลงเวลาออก', { selector: '.attendance-simple__clock span' });
   });
   it('keeps acknowledged capture durable and disables punching if server refresh fails, then retries idempotently', async () => {
     queue = [{ captureId: queuedValue.captureId, value: queuedValue }];
@@ -76,9 +76,9 @@ describe('isolated offline reconnect acceptance on exact released component', ()
     render(<AttendanceSimplePage token="isolated-session" online />);
     await screen.findByText(/ยังตรวจสถานะล่าสุดไม่สำเร็จ/);
     expect(queue).toHaveLength(1); expect(mocks.remove).not.toHaveBeenCalled();
-    expect(screen.getByRole('button', { name: /ลงเวลาเข้า/ }).hasAttribute('disabled')).toBe(true);
+    expect(document.querySelector<HTMLButtonElement>('.attendance-simple__clock')?.disabled).toBe(true);
     fireEvent(window, new Event('online'));
-    await screen.findByRole('button', { name: /ลงเวลาออก/ });
+    await screen.findByText('ลงเวลาออก', { selector: '.attendance-simple__clock span' });
     await waitFor(() => expect(queue).toHaveLength(0));
     expect(mocks.submit.mock.calls.map(call => call[1])).toEqual([queuedValue, queuedValue]);
   });

@@ -11,11 +11,10 @@ const keys = read('./lib/attendance-device-key.ts');
 const css = read('./styles/attendance-device.css');
 
 describe('G06 Personal Device Enrollment V1 Phase 2 UI contract', () => {
-  it('exposes a dedicated Attendance device page without reusing the Passkey panel as device authority', () => {
-    expect(main).toContain("'attendanceDevice'");
-    expect(main).toContain("{ id: 'attendanceDevice', icon: 'key', label: 'อุปกรณ์ลงเวลา' }");
-    expect(main).toContain('<AttendanceDevicePage token={auth.token}');
-    expect(main).toContain("'attendanceDevice' | 'profile' | 'reportCenter'");
+  it('keeps device history/admin APIs without exposing an employee navigation surface', () => {
+    expect(main).not.toContain("{ id: 'attendanceDevice'");
+    expect(main).not.toContain('data-navigation-id="attendanceDevice"');
+    expect(main).toContain('<G06DeviceContextDiagnostic');
     expect(page).toContain('บัญชีหรือรหัสผ่านยืนยันตัวตนเพียงอย่างเดียวไม่ยืนยันว่าอุปกรณ์นี้เป็นเครื่องที่ใช้ลงเวลา');
   });
 

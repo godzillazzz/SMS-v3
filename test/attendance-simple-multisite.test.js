@@ -28,7 +28,7 @@ function site({ id, code, name, latitude, longitude, radius = 100, active = true
   return { id, code, name, latitude, longitude, geofenceRadiusMeters: radius, isActive: active };
 }
 
-function harness({ sites = null, activePrimary = null, timePolicyValues = null, selfieStorage = null, failTransactionOnce = false } = {}) {
+function harness({ sites = null, activePrimary = null, timePolicyValues = null, selfieStorage = null, selfiePolicyValues = null, failTransactionOnce = false } = {}) {
   const state = {
     now: new Date(now),
     sites: sites || [
@@ -53,7 +53,10 @@ function harness({ sites = null, activePrimary = null, timePolicyValues = null, 
     securitySite: state.sites.find((row) => row.id === ids.siteA), employee
   };
   const prisma = {
-    user: { findUnique: async () => ({ id: ids.user, employeeId: ids.employee, isActive: true, accountStatus: 'ACTIVE', employee }) },
+    user: { findUnique: async () => ({ id: ids.user, employeeId: ids.employee, role: 'VIEWER', isActive: true, accountStatus: 'ACTIVE', employee }) },
+    attendanceSelfiePolicy: {
+      findUnique: async ({ where }) => selfiePolicyValues?.[where.role] ? { role: where.role, ...selfiePolicyValues[where.role] } : null
+    },
     shiftAssignment: {
       findMany: async () => [assignment],
       findUnique: async ({ where }) => where.id === ids.assignment ? assignment : null
@@ -159,7 +162,7 @@ const locA = () => ({ latitude: 13.7241, longitude: 100.5701, accuracyMeters: 8,
 const locB = () => ({ latitude: 13.7251, longitude: 100.5701, accuracyMeters: 8, capturedAt: now.toISOString() });
 
 test('signed selfie checksum rejects image substitution', async () => {
-  const h = harness({ activePrimary: { id: crypto.randomUUID(), employeeId: ids.employee, status: 'ACTIVE', credentialFingerprint: 'different-primary' } });
+  const h = harness({ activePrimary: { id: crypto.randomUUID(), employeeId: ids.employee, status: 'ACTIVE', credentialFingerprint: 'different-primary' }, selfiePolicyValues: { VIEWER: { clockInRequired: true, clockOutRequired: false } } });
   h.state.devices.push(h.state.activePrimary);
   const key = keyMaterial();
   const imageA = { ...TEST_SELFIE };
@@ -329,7 +332,7 @@ test('storage compensation preserves the original transaction error and retry wi
     put: async ({ captureId }) => { const objectKey = `selfie/${captureId}/${calls.length}`; calls.push(['put', objectKey]); return { provider: 'test', bucket: 'test', objectKey, mimeType: 'image/jpeg', sizeBytes: 8, checksum: 'a'.repeat(64) }; },
     remove: async ({ objectKey }) => { calls.push(['remove', objectKey]); }
   };
-  const h = harness({ activePrimary: { id: crypto.randomUUID(), employeeId: ids.employee, status: 'ACTIVE', credentialFingerprint: 'different-primary' }, selfieStorage: storage, failTransactionOnce: true });
+  const h = harness({ activePrimary: { id: crypto.randomUUID(), employeeId: ids.employee, status: 'ACTIVE', credentialFingerprint: 'different-primary' }, selfieStorage: storage, selfiePolicyValues: { VIEWER: { clockInRequired: true, clockOutRequired: false } }, failTransactionOnce: true });
   h.state.devices.push(h.state.activePrimary);
   const key = keyMaterial();
   const captureId = crypto.randomUUID();

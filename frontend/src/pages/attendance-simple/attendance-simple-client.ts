@@ -32,6 +32,7 @@ export type SimpleBootstrap = {
   eligibleSites: SimpleSite[];
   activeDevice: { id: string; credentialFingerprint: string; displayName: string; activatedAt?: string | null } | null;
   pendingDeviceRequest: { id: string; status: 'PENDING_APPROVAL'; requestedAt: string; candidateFingerprint: string } | null;
+  selfiePolicy: { sourceRole: 'ADMIN' | 'MANAGER' | 'SUPERVISOR' | 'VIEWER'; action: SimpleEventIntent; required: boolean; policy: { role: string; clockInRequired: boolean; clockOutRequired: boolean } };
   offline: { bundle: string; issuedAt: string; expiresAt: string; confirmAfterMs: number; maxAccuracyMeters: number };
 };
 

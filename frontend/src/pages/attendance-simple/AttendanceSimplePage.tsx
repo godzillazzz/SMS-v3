@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   simpleAttendanceBootstrap,
   simpleAttendanceSelfieProof,
-  simpleAttendanceMoveRequest,
   simpleAttendanceSubmit,
   type AttendanceSimpleErrorDetails,
   type SimpleBootstrap,
@@ -61,10 +60,7 @@ function reviewContextDetails(result: SimpleEventResult, evidence = result.event
   if (evidence?.workSiteContext === 'SUPPORT_SITE' || reasons.has('ASSIST_OTHER_SITE')) {
     details.push(`ช่วยปฏิบัติงานต่าง Site · Site จริง: ${siteDisplayName(evidence?.actualSite)}`);
   }
-  if (result.deviceBinding === 'FOREIGN' || reasons.has('DEVICE_MISMATCH')) {
-    details.push('ใช้อุปกรณ์อื่น · รายการนี้ต้องตรวจสอบ');
-  }
-  const unclassifiedRisk = [...reasons].some((reason) => !['ASSIST_OTHER_SITE', 'DEVICE_MISMATCH'].includes(reason));
+  const unclassifiedRisk = [...reasons].some((reason) => reason !== 'ASSIST_OTHER_SITE' && reason !== 'DEVICE_MISMATCH');
   if (unclassifiedRisk || (result.reviewRequired && details.length === 0)) details.push('มีรายการที่ต้องตรวจสอบ');
   return details;
 }
@@ -220,6 +216,7 @@ export function AttendanceSimplePage({
   onOpenSupervisor
 }: Props) {
   const [bootstrap, setBootstrap] = useState<SimpleBootstrap | null>(null);
+  const [selectedAction, setSelectedAction] = useState<SimpleEventInput['eventIntent'] | null>(null);
   const [identity, setIdentity] = useState<DeviceIdentity | null>(null);
   const [fingerprint, setFingerprint] = useState<string | null>(null);
   const [queueCount, setQueueCount] = useState(0);
@@ -235,8 +232,7 @@ export function AttendanceSimplePage({
     selfieNonce?: string | null;
     nonceIssuedAt?: string | null;
   } | null>(null);
-  const [moveBusy, setMoveBusy] = useState(false);
-  const [localPendingDeviceRequest, setLocalPendingDeviceRequest] = useState<SimpleBootstrap['pendingDeviceRequest']>(null);
+
   const [bootstrapRetry, setBootstrapRetry] = useState(0);
   const [requestErrorCode, setRequestErrorCode] = useState<string>();
   const [requestErrorId, setRequestErrorId] = useState<string>();
@@ -260,7 +256,6 @@ export function AttendanceSimplePage({
       const fresh = await simpleAttendanceBootstrap(token, deviceFingerprintOverride);
       await storeEncryptedBootstrap(fresh);
       setBootstrap(fresh);
-      setLocalPendingDeviceRequest(null);
       return fresh;
     }
     const cached = await readEncryptedBootstrap<SimpleBootstrap>();
@@ -332,6 +327,7 @@ export function AttendanceSimplePage({
         const nextBootstrap = await loadBootstrap(nextFingerprint);
         if (!active) return;
         setBootstrap(nextBootstrap);
+        setSelectedAction(nextBootstrap.eventIntent);
         setRequestErrorCode(undefined);
         setRequestErrorId(undefined);
         setTone(online ? 'success' : 'warning');
@@ -385,7 +381,6 @@ export function AttendanceSimplePage({
   }, [stopCamera]);
 
   const openSelfieCamera = useCallback(async () => {
-    if (bindingState === 'FOREIGN' && (bootstrap?.pendingDeviceRequest ?? localPendingDeviceRequest)?.status === 'PENDING_APPROVAL') return;
     if (cameraOpeningRef.current || cameraOpen || busy) return;
     cameraOpeningRef.current = true;
     const requestToken = ++cameraRequestRef.current;
@@ -409,10 +404,10 @@ export function AttendanceSimplePage({
     } finally {
       cameraOpeningRef.current = false;
     }
-  }, [bindingState, bootstrap, busy, cameraOpen, localPendingDeviceRequest, stopCamera]);
+  }, [busy, cameraOpen, stopCamera]);
 
   const recordAttendance = async (capturedSelfie = selfie, capturedSelfieNonce = selfieNonce) => {
-    if (bindingState === 'FOREIGN' && (bootstrap?.pendingDeviceRequest ?? localPendingDeviceRequest)?.status === 'PENDING_APPROVAL') return;
+
     const pendingSelfie = pendingSiteCapture?.selfie || null;
     const pendingNonce = pendingSiteCapture?.selfieNonce || null;
     const pendingNonceAge = pendingSiteCapture?.nonceIssuedAt
@@ -429,7 +424,7 @@ export function AttendanceSimplePage({
     }
     const effectiveSelfie = capturedSelfie || pendingSelfie;
     const effectiveNonce = capturedSelfieNonce || pendingNonce;
-    if (bindingState === 'FOREIGN' && !effectiveSelfie) { await openSelfieCamera(); return; }
+    if (bootstrap?.selfiePolicy?.required && !effectiveSelfie) { await openSelfieCamera(); return; }
     if (readOnly || busy || !identity || !bootstrap) return;
     setBusy(true);
     setLastResult(null);
@@ -463,7 +458,7 @@ export function AttendanceSimplePage({
       const offlineBundle = online && token ? null : bootstrap.offline.bundle;
       const input = await signedEvent(identity, {
         captureId: uuid(),
-        eventIntent: bootstrap.eventIntent,
+        eventIntent: selectedAction || bootstrap.eventIntent,
         shiftAssignmentId: bootstrap.assignment.id,
         capturedAt,
         location,
@@ -483,6 +478,7 @@ export function AttendanceSimplePage({
         };
         await storeEncryptedBootstrap(next);
         setBootstrap(next);
+        setSelectedAction(next.eventIntent);
         setTone(localDecision.classification === 'BORDERLINE' ? 'warning' : 'success');
         const siteMessage = localDecision.workSiteContext === 'SUPPORT_SITE'
           ? `ช่วยปฏิบัติงานต่าง Site · Site จริง: ${siteDisplayName(localDecision.actualSite)} · `
@@ -572,52 +568,6 @@ export function AttendanceSimplePage({
     }
   };
 
-  const requestMove = async () => {
-    if (!token || !online || !identity || moveBusy) return;
-    setMoveBusy(true);
-    try {
-      const requestId = uuid();
-      const reason = 'ยืนยันด้วย selfie สดจากเครื่องใหม่';
-      const payload = {
-        version: 'SMS_ATTENDANCE_DEVICE_MOVE_V1',
-        requestId,
-        publicKeySpkiBase64: identity.publicKeySpkiBase64,
-        keyAlgorithm: identity.keyAlgorithm,
-        reason
-      };
-      const moveResponse = await simpleAttendanceMoveRequest(token, {
-        requestId,
-        publicKeySpkiBase64: identity.publicKeySpkiBase64,
-        keyAlgorithm: identity.keyAlgorithm,
-        signatureBase64: await signPayload(identity, payload),
-        displayName: 'อุปกรณ์ลงเวลา',
-        platformHint: platformHint()
-      });
-      const response = moveResponse && typeof moveResponse === 'object' ? moveResponse as Partial<NonNullable<SimpleBootstrap['pendingDeviceRequest']>> : {};
-      setLocalPendingDeviceRequest({
-        id: typeof response.id === 'string' ? response.id : requestId,
-        status: 'PENDING_APPROVAL',
-        requestedAt: typeof response.requestedAt === 'string' ? response.requestedAt : new Date().toISOString(),
-        candidateFingerprint: typeof response.candidateFingerprint === 'string' ? response.candidateFingerprint : fingerprint || 'unknown'
-      });
-      setTone('warning');
-      setMessage('ส่งคำขอย้ายเครื่องแล้ว · รอ ADMIN อนุมัติ เครื่องหลักเดิมยังไม่ถูกยกเลิก');
-      try {
-        const fresh = await simpleAttendanceBootstrap(token, fingerprint);
-        await storeEncryptedBootstrap(fresh);
-        setBootstrap(fresh);
-        setLocalPendingDeviceRequest(null);
-      } catch { /* keep the submitted state visible if refresh is temporarily unavailable */ }
-    } catch (error) {
-      const failure = attendanceFailure(error, 'ส่งคำขอย้ายเครื่องไม่สำเร็จ กรุณาลองใหม่หรือติดต่อผู้ดูแลระบบ');
-      setRequestErrorId(failure.requestId);
-      setTone('danger');
-      setMessage(failure.message);
-    } finally {
-      setMoveBusy(false);
-    }
-  };
-
   const employeeName = bootstrap?.employee.displayName || displayName || 'พนักงาน';
   const shiftText = bootstrap
     ? `${bootstrap.assignment.shift.code || ''} ${bootstrap.assignment.shift.startTime || ''}–${bootstrap.assignment.shift.endTime || ''}`.trim()
@@ -634,7 +584,6 @@ export function AttendanceSimplePage({
   } else if (siteContext?.workSiteContext === 'SUPPORT_SITE') {
     attentionItems.push(`ช่วยปฏิบัติงานต่าง Site · Site จริง: ${siteDisplayName(siteContext.actualSite)}`);
   }
-  if (bindingState === 'FOREIGN') attentionItems.push('ใช้อุปกรณ์อื่น · รายการลงเวลาจะถูกส่งให้ตรวจสอบ');
   if (queueCount > 0) attentionItems.push(`มี ${queueCount} รายการรอส่งเมื่อออนไลน์`);
 
   const receiptEvent = lastResult?.counted ? lastResult.event : null;
@@ -642,26 +591,19 @@ export function AttendanceSimplePage({
   const receiptTime = formatReceiptTime(receiptEvent?.effectiveEventAt || receiptEvent?.receivedAt);
   const receiptSite = siteDisplayName(receiptEvidence?.actualSite || receiptEvidence?.assignedSite || siteContext?.actualSite || siteContext?.assignedSite);
   const receiptTitle = receiptEvent?.eventType === 'CHECK_OUT' ? 'ลงเวลาออกสำเร็จ' : 'ลงเวลาเข้าสำเร็จ';
-  const receiptDevice = lastResult?.deviceBinding === 'FOREIGN' ? 'อุปกรณ์อื่น · ต้องตรวจ' : 'อุปกรณ์นี้ยืนยันแล้ว';
+  const receiptDevice = 'Telemetry บันทึกแล้ว';
   const receiptDetails = lastResult ? reviewContextDetails(lastResult) : [];
-  const deviceBlockCodes = ['ATTENDANCE_DEVICE_REQUIRED', 'ATTENDANCE_DEVICE_NOT_ALLOWED', 'ATTENDANCE_DEVICE_AUTHORITY_CONFLICT'];
   const accountBlockCodes = ['ATTENDANCE_EMPLOYEE_LINK_REQUIRED', 'ATTENDANCE_DEVICE_EMPLOYEE_LINK_REQUIRED', 'INACTIVE_EMPLOYEE_OPERATION'];
   const scheduleBlockCodes = ['ATTENDANCE_ASSIGNMENT_REQUIRED', 'ATTENDANCE_SCHEDULE_NOT_APPROVED', 'ATTENDANCE_SHIFT_NOT_ACTIONABLE'];
-  const clockBlockedByServer = [...deviceBlockCodes, ...accountBlockCodes, ...scheduleBlockCodes].includes(requestErrorCode || '');
-  const pendingDeviceRequest = bootstrap?.pendingDeviceRequest ?? localPendingDeviceRequest;
-  const pendingDeviceApproval = bindingState === 'FOREIGN' && pendingDeviceRequest?.status === 'PENDING_APPROVAL';
-  const clockDisabled = readOnly || busy || !identity || !bootstrap || clockBlockedByServer || pendingDeviceApproval;
+  const clockBlockedByServer = [...accountBlockCodes, ...scheduleBlockCodes].includes(requestErrorCode || '');
+  const clockDisabled = readOnly || busy || !identity || !bootstrap || clockBlockedByServer;
   const disabledGuidance = readOnly
     ? { message: 'โหมดดูแทนไม่สามารถลงเวลาได้ กรุณาออกจากโหมดดูแทนก่อนลงเวลา' }
-    : pendingDeviceApproval
-      ? { message: `รอ ADMIN อนุมัติการย้ายเครื่อง · ยื่นเมื่อ ${formatReceiptTime(pendingDeviceRequest?.requestedAt)}` }
-      : busy
+    : busy
       ? { message: 'กำลังตรวจตำแหน่งหรือบันทึกรายการ กรุณารอให้เสร็จก่อน' }
       : accountBlockCodes.includes(requestErrorCode || '')
         ? { message: message || 'บัญชีนี้ยังไม่พร้อมสำหรับการลงเวลา กรุณาติดต่อผู้ดูแลระบบ' }
-        : deviceBlockCodes.includes(requestErrorCode || '')
-          ? { message: message || 'อุปกรณ์ลงเวลายังไม่พร้อม กรุณาตรวจสอบสถานะอุปกรณ์' , actionLabel: requestErrorCode === 'ATTENDANCE_DEVICE_REQUIRED' ? 'ลงทะเบียนอุปกรณ์นี้' : 'เปิดสถานะอุปกรณ์ลงเวลา', action: onOpenAttendanceDevice }
-          : scheduleBlockCodes.includes(requestErrorCode || '')
+        : scheduleBlockCodes.includes(requestErrorCode || '')
             ? { message: message || 'ตารางกะยังไม่พร้อม กรุณาติดต่อหัวหน้างาน', actionLabel: onOpenSupervisor ? 'เปิดหน้าติดตามการลงเวลา' : undefined, action: onOpenSupervisor }
             : !identity
               ? tone === 'danger'
@@ -736,6 +678,12 @@ export function AttendanceSimplePage({
     </div>
 
     <div className="attendance-simple__action">
+      <div className="attendance-simple__action-choice" role="group" aria-label="เลือกประเภทการลงเวลา">
+        {(['CHECK_IN', 'CHECK_OUT'] as const).map((action) => {
+          const impossible = action !== bootstrap?.eventIntent;
+          return <button key={action} type="button" aria-pressed={(selectedAction || bootstrap?.eventIntent) === action} disabled={clockDisabled || impossible} onClick={() => setSelectedAction(action)}>{action === 'CHECK_IN' ? 'ลงเวลาเข้า' : 'ลงเวลาออก'}</button>;
+        })}
+      </div>
       <div className="attendance-simple__clock-stack">
         <button
           type="button"
@@ -744,7 +692,7 @@ export function AttendanceSimplePage({
           aria-describedby={clockDisabled ? 'attendance-simple-clock-disabled-reason' : undefined}
           onClick={() => void recordAttendance()}
         >
-          <span>{busy ? 'กำลังตรวจ…' : pendingSiteCapture ? `ยืนยันลงเวลาที่ ${siteDisplayName(pendingSiteCapture.context)}` : nextActionLabel}</span>
+          <span>{busy ? 'กำลังตรวจ…' : pendingSiteCapture ? `ยืนยัน${selectedAction === 'CHECK_OUT' ? 'ลงเวลาออก' : 'ลงเวลาเข้า'}ที่ ${siteDisplayName(pendingSiteCapture.context)}` : (selectedAction === 'CHECK_OUT' ? 'ลงเวลาออก' : nextActionLabel)}</span>
           <small>{online ? 'กดครั้งเดียว · บันทึกกับ Server' : 'กดครั้งเดียว · เก็บไว้และส่งเมื่อออนไลน์'}</small>
         </button>
         {clockDisabled && disabledGuidance && <div className="attendance-simple__disabled-guidance">
@@ -758,8 +706,8 @@ export function AttendanceSimplePage({
           <span>GPS / GEOFENCE ตรวจทุกครั้งก่อนบันทึก</span>
         </article>
         <article>
-          <b>{bindingState === 'PRIMARY' ? <><SmsIcon name="check" size={15} /> อุปกรณ์นี้ยืนยันแล้ว</> : 'อุปกรณ์'}</b>
-          <span>{bindingState === 'PRIMARY' ? 'เครื่องหลักของคุณ' : bindingState === 'AUTO_BIND' ? 'เครื่องแรกจะผูกอัตโนมัติ' : bindingState === 'FOREIGN' ? 'ใช้อุปกรณ์อื่น · ต้องตรวจ' : 'กำลังตรวจอุปกรณ์'}</span>
+          <b>อุปกรณ์</b>
+          <span>ใช้ได้หลายอุปกรณ์ · ระบบเก็บข้อมูลเบราว์เซอร์เป็น telemetry</span>
         </article>
         <article>
           <b>ออฟไลน์พร้อมใช้งาน</b>
@@ -784,12 +732,7 @@ export function AttendanceSimplePage({
       <button type="button" onClick={onTodayHistory}>ดูประวัติวันนี้</button>
     </SectionCard>}
 
-    {bindingState === 'FOREIGN' && <SectionCard className="attendance-simple__move" kicker="อุปกรณ์ลงเวลา" title="ขอย้ายเครื่องหลัก" description="รายการลงเวลาจากอุปกรณ์อื่นจะถูกส่งให้ตรวจสอบตามสิทธิ์เดิม">
-      <p>การลงเวลาจากเครื่องใหม่ต้องยืนยันด้วย selfie สด และการย้ายเครื่องต้องให้ ADMIN อนุมัติ</p>
-      <button type="button" disabled={!online || !token || moveBusy} onClick={() => void requestMove()}>
-        {moveBusy ? 'กำลังส่ง…' : 'ขอให้ ADMIN อนุมัติย้ายเครื่อง'}
-      </button>
-    </SectionCard>}
+
 
     {lastResult?.reviewReasons?.length ? <details className="attendance-simple__technical">
       <summary>รายละเอียดทางเทคนิค</summary>

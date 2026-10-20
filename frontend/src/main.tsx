@@ -190,8 +190,7 @@ const navigation: Array<{ label: string; items: Array<{ id: Page; icon: SmsIconN
   ] },
   { label: 'ลงเวลา', items: [
     { id: 'attendance', icon: 'attendance', label: 'ลงเวลา' },
-    { id: 'attendanceSupervisor', icon: 'dashboard', label: 'ศูนย์ควบคุมการลงเวลา' },
-    { id: 'attendanceDevice', icon: 'key', label: 'อุปกรณ์ลงเวลา' }
+    { id: 'attendanceSupervisor', icon: 'dashboard', label: 'ศูนย์ควบคุมการลงเวลา' }
   ] },
   { label: 'ตารางกะ', items: [
     { id: 'schedule', icon: 'calendar', label: 'ตารางกะรายเดือน' },
@@ -3262,7 +3261,7 @@ function Dashboard() {
         employeeV4={pwaShell}
         onTodayHistory={() => selectPwaPage('attendanceHistory', { today: true })}
         onOpenSettings={() => selectPwaPage('profile')}
-        onOpenAttendanceDevice={() => selectPwaPage('attendanceDevice')}
+        onOpenAttendanceDevice={() => undefined}
         onOpenSupervisor={pwaShell && ['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(auth.user?.role || '') && !auth.isViewingAs ? openPwaAttendanceSupervisor : undefined}
       />;
     }

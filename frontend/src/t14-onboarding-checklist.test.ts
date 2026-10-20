@@ -43,7 +43,8 @@ describe('T14 onboarding checklist', () => {
 
   it('keeps employee time-clock remediation limited to self-service actions', () => {
     expect(attendancePage).toContain("? { message: message || 'บัญชีนี้ยังไม่พร้อมสำหรับการลงเวลา กรุณาติดต่อผู้ดูแลระบบ' }");
-    expect(attendancePage).toContain("actionLabel: requestErrorCode === 'ATTENDANCE_DEVICE_REQUIRED' ? 'ลงทะเบียนอุปกรณ์นี้' : 'เปิดสถานะอุปกรณ์ลงเวลา', action: onOpenAttendanceDevice");
+    expect(attendancePage).not.toContain("actionLabel: requestErrorCode === 'ATTENDANCE_DEVICE_REQUIRED'");
+    expect(attendancePage).not.toContain('ขอย้ายเครื่อง');
     expect(attendancePage).toContain("actionLabel: onOpenSupervisor ? 'เปิดหน้าติดตามการลงเวลา' : undefined, action: onOpenSupervisor");
     expect(app).toContain("onOpenSupervisor={pwaShell && ['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(auth.user?.role || '') && !auth.isViewingAs ? openPwaAttendanceSupervisor : undefined}");
   });
