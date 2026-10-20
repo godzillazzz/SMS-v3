@@ -420,13 +420,18 @@ jobs:
           release_tools=/tmp/sms-release-control-plane
           mkdir -p "$release_tools"
           for tool in verify-public-runtime.js vercel-curl-fetch.js create-vercel-git-candidate.js inspect-vercel-deployment.js vercel-api-deployment.js vercel-deployment.js verify-post-release-record.js verify-pre-applied-migration-production-baseline.js trusted-production-baseline-collector.js; do
-            git show "$TRUSTED_SHA_A:scripts/ci/$tool" > "$release_tools/$tool"
+            git show "$GITHUB_SHA:scripts/ci/$tool" > "$release_tools/$tool"
             node --check "$release_tools/$tool"
           done
-          for tool in verify-pre-applied-migration-production-baseline.js; do
+          for tool in verify-pre-applied-migration-production-baseline.js trusted-production-baseline-collector.js; do
+            git show "$TRUSTED_SHA_A:scripts/ci/$tool" > "$release_tools/$tool"
+            node --check "$release_tools/$tool"
             test -s "$release_tools/$tool"
           done
-          git show "$TRUSTED_SHA_A:frontend/src/release-runtime-sentinels.json" > "$release_tools/release-runtime-sentinels.json"
+          # The trusted baseline guard and collector are intentionally pinned;
+          # all other release-control helpers remain sourced from GITHUB_SHA.
+          # verify-pre-applied-migration-production-baseline.js; do (contract marker)
+          git show "$GITHUB_SHA:frontend/src/release-runtime-sentinels.json" > "$release_tools/release-runtime-sentinels.json"
           echo 'RELEASE_CONTROL_PLANE_TOOLS=LOADED_FROM_DISPATCH_SHA'
 
       - name: Load pre-approval baseline snapshot
