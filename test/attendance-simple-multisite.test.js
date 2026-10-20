@@ -134,6 +134,10 @@ function keyMaterial() {
   return { pair, publicKeySpkiBase64 };
 }
 
+function fingerprintFor(publicKeySpkiBase64) {
+  return crypto.createHash('sha256').update(Buffer.from(publicKeySpkiBase64, 'base64')).digest('hex');
+}
+
 const TEST_SELFIE = { mimeType: 'image/jpeg', base64: '/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAP//////////////////////////2wBDAf//////////////////////////wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAX/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIQAxAAAAH/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/9oACAEBAAEFAqf/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oACAEDAQE/AX//xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oACAECAQE/AX//xAAUEAEAAAAAAAAAAAAAAAAAAAAA/9oACAEBAAY/Av/EABQQAQAAAAAAAAAAAAAAAAAAABD/2gAIAQEAAT8h/9k=' };
 
 function signedInput({ pair, publicKeySpkiBase64, location, offlineBundle = null, captureId = crypto.randomUUID(), capturedAt = now, eventIntent = 'CHECK_IN', claimedActualSiteId = undefined, selfie = undefined }) {
@@ -186,6 +190,9 @@ test('online support Site keeps assigned Site, derives actual Site, emits contex
   assert.equal(result.event.locationEvidence.assignedSite.code, 'A');
   assert.equal(result.event.locationEvidence.actualSite.code, 'B');
   assert.equal(result.session.expectedSiteId, ids.siteA);
+  assert.equal(result.event.verificationSnapshot.binding, 'OBSERVED');
+  assert.equal(result.event.reviewRequired, true);
+  assert.equal(result.event.reviewReasons.includes('DEVICE_MISMATCH'), false);
   assert.deepEqual(result.event.reviewReasons, ['ASSIST_OTHER_SITE']);
   assert.equal(h.state.audits.some((row) => row.entityType === 'AttendanceEvent' && row.metadata.workSiteContext === 'SUPPORT_SITE' && row.metadata.assignedSiteId === ids.siteA && row.metadata.actualSiteId === ids.siteB), true);
 });
@@ -321,8 +328,24 @@ test('SUPPORT_SITE, DEVICE_MISMATCH and LATE survive together', async () => {
   assert.equal(result.counted, true);
   assert.equal(result.event.locationEvidence.workSiteContext, 'SUPPORT_SITE');
   assert.equal(result.event.punctuality, 'LATE');
+  assert.equal(result.event.verificationSnapshot.binding, 'FOREIGN');
+  assert.equal(result.deviceBinding, 'FOREIGN');
   assert.equal(result.event.reviewRequired, true);
   assert.ok(result.event.reviewReasons.includes('ASSIST_OTHER_SITE'));
+  assert.ok(result.event.reviewReasons.includes('DEVICE_MISMATCH'));
+});
+
+test('legacy existing enrollment without active binding is review-flagged', async () => {
+  const h = harness();
+  const key = keyMaterial();
+  h.state.devices.push({
+    id: crypto.randomUUID(), employeeId: ids.employee, status: 'PENDING_APPROVAL',
+    credentialFingerprint: fingerprintFor(key.publicKeySpkiBase64)
+  });
+  const result = await h.service.submit({ actor: { sub: ids.user }, input: signedInput({ ...key, location: locA() }) });
+  assert.equal(result.counted, true);
+  assert.equal(result.event.verificationSnapshot.binding, 'OBSERVED');
+  assert.equal(result.event.reviewRequired, true);
   assert.ok(result.event.reviewReasons.includes('DEVICE_MISMATCH'));
 });
 

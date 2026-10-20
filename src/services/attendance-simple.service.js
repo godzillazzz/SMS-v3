@@ -337,7 +337,7 @@ function createAttendanceSimpleService({
         metadata: { event: 'OBSERVED_LEGACY_DEVICE_STATUS', employeeId: identity.employeeId, status: observed.status, credentialFingerprint: material.fingerprint } }, client);
     }
     // Legacy status/history remains unchanged and is never an Attendance gate.
-    return { enrollment: observed, binding: active ? 'FOREIGN' : 'OBSERVED', reviewFlags: active ? ['DEVICE_MISMATCH'] : [] };
+    return { enrollment: observed, binding: active ? 'FOREIGN' : 'OBSERVED', reviewFlags: active || existing ? ['DEVICE_MISMATCH'] : [] };
   }
 
   function expectationSnapshot(assignment, approval, authority) {
