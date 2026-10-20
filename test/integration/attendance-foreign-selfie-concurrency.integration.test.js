@@ -164,7 +164,7 @@ if (!configured) {
       assert.equal(storage.uploads.every((row) => row.captureId === captureId), true);
       assert.equal(finalizationBarrier.entered, 2, 'both DB finalization transactions entered the barrier before either was released');
       const consumedChallenges = await prisma.attendanceDeviceChallenge.count({ where: { employeeId: ids.employee, consumedAt: { not: null } } });
-      assert.equal(consumedChallenges, 2, 'each request must consume its own selfie challenge');
+      assert.equal(consumedChallenges, 0, 'role-policy selfie does not consume legacy device challenges');
       assert.equal(results.every((row) => row.status === 'fulfilled'), true, JSON.stringify(results));
       const values = results.map((row) => row.value);
       assert.equal(values.filter((value) => value.idempotent === true).length, 1, 'one request must deterministically observe the committed winner');
