@@ -408,7 +408,44 @@ function createAttendanceSimpleService({
     if (offline && Math.abs(locationCapturedAt.getTime() - capturedAt.getTime()) > 120000) riskFlags.push('OFFLINE_LOCATION_TIME_MISMATCH');
 
     let uploadedObjectKey = null;
+    let preflightSelfie = null;
     try {
+      const existingCapture = await prisma.attendanceEvent.findUnique({ where: { captureId: input.captureId } });
+      if (existingCapture) return { counted: true, idempotent: true, event: existingCapture, status: 'ACCEPTED' };
+      const existingPendingCapture = await prisma.attendancePendingEvent.findUnique({ where: { captureId: input.captureId } });
+      if (existingPendingCapture) return { counted: false, idempotent: true, pendingEvent: existingPendingCapture, status: existingPendingCapture.status };
+      // Storage is an external side effect and must not run inside the Prisma
+      // transaction. Consume the live nonce in a short transaction first, then
+      // upload, and finally persist the attendance rows in a DB-only transaction.
+      // A failed upload therefore consumes the nonce (the client must request a
+      // fresh challenge), while a later DB failure is compensated below.
+      const activeForSelfie = await prisma.attendanceDeviceEnrollment.findFirst({ where: { employeeId: identity.employeeId, status: 'ACTIVE' }, orderBy: { activatedAt: 'desc' } });
+      const foreignSelfieExpected = activeForSelfie && activeForSelfie.credentialFingerprint !== material.fingerprint;
+      if (foreignSelfieExpected) {
+        if (!input.selfie) throw http(422, 'ATTENDANCE_FOREIGN_DEVICE_SELFIE_REQUIRED', 'A selfie is required when using a foreign Attendance device.');
+        const selfieFile = normalizeSelfie(input.selfie);
+        if (selfieFile.checksum !== signedPayload.selfieChecksum) throw http(422, 'ATTENDANCE_SELFIE_CHECKSUM_MISMATCH', 'Attendance selfie does not match the signed capture.');
+        const nonce = String(input.selfieNonce || '');
+        if (!nonce || input.selfie?.captureMode !== 'LIVE_CAMERA') throw http(422, 'ATTENDANCE_FOREIGN_DEVICE_SELFIE_LIVE_REQUIRED', 'Foreign device selfie must be captured live with a valid nonce.');
+        const overlayCapturedAt = new Date(input.selfie?.overlay?.capturedAt || input.capturedAt);
+        if (Number.isNaN(overlayCapturedAt.getTime()) || Math.abs(now.getTime() - overlayCapturedAt.getTime()) > 120000) throw http(422, 'ATTENDANCE_SELFIE_OVERLAY_STALE', 'Selfie capture overlay is stale.', { reason: 'STALE' });
+        preflightSelfie = await prisma.$transaction(async (tx) => {
+          const challengeStore = tx.attendanceDeviceChallenge;
+          if (!challengeStore || typeof challengeStore.findFirst !== 'function' || typeof challengeStore.updateMany !== 'function') throw http(503, 'ATTENDANCE_SELFIE_GUARD_UNAVAILABLE', 'Attendance selfie live-capture guard is unavailable.');
+          const challenge = await challengeStore.findFirst({ where: { employeeId: identity.employeeId, purpose: 'ATTENDANCE_EVENT', challengeHash: sha256(nonce), consumedAt: null, expiresAt: { gt: now } } });
+          if (!challenge) throw http(422, 'ATTENDANCE_SELFIE_NONCE_INVALID', 'Selfie nonce is invalid, expired, consumed, or belongs to another employee.');
+          const consumed = await challengeStore.updateMany({ where: { id: challenge.id, employeeId: identity.employeeId, purpose: 'ATTENDANCE_EVENT', consumedAt: null, expiresAt: { gt: now } }, data: { consumedAt: now } });
+          if (consumed.count !== 1) throw http(422, 'ATTENDANCE_SELFIE_NONCE_INVALID', 'Selfie nonce is invalid, expired, consumed, or belongs to another employee.');
+          return { selfieFile, overlayCapturedAt };
+        });
+        try {
+          const stored = await deviceSelfieStorage.put({ employeeId: identity.employeeId, captureId: input.captureId, selfie: selfieFile });
+          uploadedObjectKey = stored.objectKey;
+          preflightSelfie.stored = stored;
+        } catch (error) {
+          throw http(503, 'ATTENDANCE_SELFIE_STORAGE_UNAVAILABLE', 'Attendance selfie storage is temporarily unavailable.');
+        }
+      }
       const result = await prisma.$transaction(async (tx) => {
       const existingEvent = await tx.attendanceEvent.findUnique({ where: { captureId: input.captureId } });
       if (existingEvent) return { counted: true, idempotent: true, event: existingEvent, status: 'ACCEPTED' };
@@ -425,39 +462,14 @@ function createAttendanceSimpleService({
       }
       const binding = await bindOrObserveDevice(tx, { actor, identity, material,
         device: { ...input.device, userAgentSnapshot: requestUserAgent || input.device?.userAgentSnapshot || null }, now });
-      let selfieFile = null;
-      if (binding.binding === 'FOREIGN') {
-        if (!input.selfie) throw http(422, 'ATTENDANCE_FOREIGN_DEVICE_SELFIE_REQUIRED', 'A selfie is required when using a foreign Attendance device.');
-        selfieFile = normalizeSelfie(input.selfie);
-        if (selfieFile.checksum !== signedPayload.selfieChecksum) throw http(422, 'ATTENDANCE_SELFIE_CHECKSUM_MISMATCH', 'Attendance selfie does not match the signed capture.');
-      }
+      const selfieFile = preflightSelfie?.selfieFile || null;
       riskFlags.push(...binding.reviewFlags);
-      if (binding.binding === 'FOREIGN') riskFlags.push('FOREIGN_DEVICE_SELFIE');
-      let selfieChallenge = null;
-      let selfieMetadata = null;
-      if (binding.binding === 'FOREIGN') {
-        const nonce = String(input.selfieNonce || '');
-        const challengeStoreAvailable = tx.attendanceDeviceChallenge
-          && typeof tx.attendanceDeviceChallenge.findFirst === 'function'
-          && typeof tx.attendanceDeviceChallenge.updateMany === 'function';
-        if (!challengeStoreAvailable) throw http(503, 'ATTENDANCE_SELFIE_GUARD_UNAVAILABLE', 'Attendance selfie live-capture guard is unavailable.');
-        if (!nonce || input.selfie?.captureMode !== 'LIVE_CAMERA') throw http(422, 'ATTENDANCE_FOREIGN_DEVICE_SELFIE_LIVE_REQUIRED', 'Foreign device selfie must be captured live with a valid nonce.');
-        const overlayCapturedAt = new Date(input.selfie?.overlay?.capturedAt || input.capturedAt);
-        if (Number.isNaN(overlayCapturedAt.getTime()) || Math.abs(now.getTime() - overlayCapturedAt.getTime()) > 120000) throw http(422, 'ATTENDANCE_SELFIE_OVERLAY_STALE', 'Selfie capture overlay is stale.', { reason: 'STALE' });
-        {
-          selfieChallenge = await tx.attendanceDeviceChallenge.findFirst({ where: { employeeId: identity.employeeId, purpose: 'ATTENDANCE_EVENT', challengeHash: sha256(nonce), consumedAt: null, expiresAt: { gt: now } } });
-          if (!selfieChallenge) throw http(422, 'ATTENDANCE_SELFIE_NONCE_INVALID', 'Selfie nonce is invalid, expired, consumed, or belongs to another employee.');
-          const consumed = await tx.attendanceDeviceChallenge.updateMany({ where: { id: selfieChallenge.id, employeeId: identity.employeeId, purpose: 'ATTENDANCE_EVENT', consumedAt: null, expiresAt: { gt: now } }, data: { consumedAt: now } });
-          if (consumed.count !== 1) throw http(422, 'ATTENDANCE_SELFIE_NONCE_INVALID', 'Selfie nonce is invalid, expired, consumed, or belongs to another employee.');
-          riskFlags.push('SELFIE_LIVE_VERIFIED');
-          selfieMetadata = { captureMode: 'LIVE_CAMERA', capturedAt: overlayCapturedAt.toISOString(), nonceVerified: true };
-        }
-      }
+      if (binding.binding === 'FOREIGN') riskFlags.push('FOREIGN_DEVICE_SELFIE', 'SELFIE_LIVE_VERIFIED');
+      const selfieMetadata = preflightSelfie ? { captureMode: 'LIVE_CAMERA', capturedAt: preflightSelfie.overlayCapturedAt.toISOString(), nonceVerified: true } : null;
       const uniqueRiskFlags = [...new Set(riskFlags)];
       let selfieRow = null;
       if (selfieFile) {
-        const stored = await deviceSelfieStorage.put({ employeeId: identity.employeeId, captureId: input.captureId, selfie: selfieFile });
-        uploadedObjectKey = stored.objectKey;
+        const stored = preflightSelfie.stored;
         selfieRow = await tx.attendanceDeviceSelfie.create({ data: {
           employeeId: identity.employeeId, enrollmentId: binding.enrollment.id, captureId: input.captureId,
           storageProvider: stored.provider, storageBucket: stored.bucket, storageObjectKey: stored.objectKey,

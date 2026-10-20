@@ -25,7 +25,7 @@ function inputFor({ pair, publicKeySpkiBase64, captureId = crypto.randomUUID(), 
   return input;
 }
 
-function harness({ foreign = false } = {}) {
+function harness({ foreign = false, selfieStorage = null } = {}) {
   const state = { now: new Date(NOW), devices: [], challenges: [], selfies: [], events: [], sessions: [], requests: [] };
   const employee = { id: ids.employee, employeeCode: 'LIVE-TEST', displayName: 'Live Test', firstName: 'Live', lastName: 'Test', department: 'SECURITY', isActive: true, deletedAt: null };
   const site = { id: ids.site, code: 'A', name: 'Site A', latitude: 13.7241, longitude: 100.5701, geofenceRadiusMeters: 100, isActive: true };
@@ -45,7 +45,7 @@ function harness({ foreign = false } = {}) {
     attendanceDeviceChallenge: { updateMany: async ({ where, data }) => { let count = 0; for (const x of state.challenges) if (x.employeeId === where.employeeId && x.purpose === where.purpose && x.consumedAt == null) { Object.assign(x, data); count++; } return { count }; }, create: async ({ data }) => { const x = { id: crypto.randomUUID(), ...data }; state.challenges.push(x); return x; }, findFirst: async ({ where }) => state.challenges.find(x => x.employeeId === where.employeeId && x.purpose === where.purpose && x.challengeHash === where.challengeHash && x.consumedAt == null && x.expiresAt > where.expiresAt.gt) || null },
     $transaction: async fn => fn(prisma)
   };
-  const service = createAttendanceSimpleService({ prisma, clock: () => state.now, audit: { log: async () => {} }, siteAuthorityService: { resolve: async () => ({ site, source: 'ASSIGNMENT' }) }, siteEvidenceService: createAttendanceSiteEvidenceService({ prisma, clock: () => state.now, policyOverride: policy }), policyService: { getPolicy: async () => policy }, selfieStorage: { put: async ({ captureId, selfie: photo }) => ({ provider: 'test', bucket: 'test', objectKey: captureId, mimeType: photo.mimeType, sizeBytes: photo.buffer.length, checksum: 'a'.repeat(64) }) }, bundleSecret: () => 'test-only-offline-signing-secret-at-least-32-bytes' });
+  const service = createAttendanceSimpleService({ prisma, clock: () => state.now, audit: { log: async () => {} }, siteAuthorityService: { resolve: async () => ({ site, source: 'ASSIGNMENT' }) }, siteEvidenceService: createAttendanceSiteEvidenceService({ prisma, clock: () => state.now, policyOverride: policy }), policyService: { getPolicy: async () => policy }, selfieStorage: selfieStorage || { put: async ({ captureId, selfie: photo }) => ({ provider: 'test', bucket: 'test', objectKey: captureId, mimeType: photo.mimeType, sizeBytes: photo.buffer.length, checksum: 'a'.repeat(64) }) }, bundleSecret: () => 'test-only-offline-signing-secret-at-least-32-bytes' });
   return { state, prisma, service };
 }
 async function challenge(h) { return h.service.createSelfieChallenge({ actor: { sub: ids.user } }); }
@@ -59,5 +59,24 @@ test('foreign wrong, consumed, and expired nonces are rejected', async () => { c
 test('foreign valid live selfie succeeds, records flags/selfie, and creates PENDING request', async () => { const h = harness({ foreign: true }); const k = keyMaterial(); const c = await challenge(h); const result = await h.service.submit({ actor: { sub: ids.user }, input: inputFor({ ...k, selfie: selfie(), selfieNonce: c.nonce }) }); assert.equal(result.counted, true); assert.ok(result.event.reviewReasons.includes('FOREIGN_DEVICE_SELFIE')); assert.ok(result.event.reviewReasons.includes('SELFIE_LIVE_VERIFIED')); assert.equal(h.state.selfies.length, 1); assert.equal(h.state.requests[0].status, 'PENDING_APPROVAL'); });
 test('a nonce is atomically single-use', async () => { const h = harness({ foreign: true }); const k = keyMaterial(); const c = await challenge(h); const first = await h.service.submit({ actor: { sub: ids.user }, input: inputFor({ ...k, selfie: selfie(), selfieNonce: c.nonce }) }); assert.equal(first.counted, true); const k2 = keyMaterial(); await errorCode(() => h.service.submit({ actor: { sub: ids.user }, input: inputFor({ ...k2, selfie: selfie(), selfieNonce: c.nonce }) }), 'ATTENDANCE_SELFIE_NONCE_INVALID'); });
 test('FOREIGN device fails closed when challenge model is unavailable', async () => { const h = harness({ foreign: true }); delete h.prisma.attendanceDeviceChallenge; const k = keyMaterial(); await errorCode(() => h.service.submit({ actor: { sub: ids.user }, input: inputFor({ ...k, selfie: selfie(), selfieNonce: 'a'.repeat(64) }) }), 'ATTENDANCE_SELFIE_GUARD_UNAVAILABLE'); });
+test('foreign storage failure returns safe code, consumes nonce, and commits no attendance rows', async () => {
+  const storage = { put: async () => { throw new Error('provider secret must not escape'); } };
+  const h = harness({ foreign: true, selfieStorage: storage });
+  const k = keyMaterial(); const c = await challenge(h);
+  await assert.rejects(() => h.service.submit({ actor: { sub: ids.user }, input: inputFor({ ...k, selfie: selfie(), selfieNonce: c.nonce }) }), e => e.details?.code === 'ATTENDANCE_SELFIE_STORAGE_UNAVAILABLE' && e.statusCode === 503);
+  assert.equal(h.state.events.length, 0); assert.equal(h.state.sessions.length, 0); assert.equal(h.state.selfies.length, 0); assert.ok(h.state.challenges[0].consumedAt);
+});
+
 test('primary device remains accepted without selfie or nonce', async () => { const h = harness(); const k = keyMaterial(); const result = await h.service.submit({ actor: { sub: ids.user }, input: inputFor(k) }); assert.equal(result.counted, true); });
+
+
+test('fresh challenge retries successfully after storage recovers', async () => {
+  let fail = true;
+  const storage = { put: async ({ captureId, selfie: photo }) => { if (fail) { fail = false; throw new Error('temporary'); } return { provider: 'test', bucket: 'test', objectKey: captureId, mimeType: photo.mimeType, sizeBytes: photo.buffer.length, checksum: 'a'.repeat(64) }; } };
+  const h = harness({ foreign: true, selfieStorage: storage }); const k = keyMaterial(); const first = await challenge(h);
+  await assert.rejects(() => h.service.submit({ actor: { sub: ids.user }, input: inputFor({ ...k, selfie: selfie(), selfieNonce: first.nonce }) }), e => e.details?.code === 'ATTENDANCE_SELFIE_STORAGE_UNAVAILABLE');
+  const second = await challenge(h); const retry = await h.service.submit({ actor: { sub: ids.user }, input: inputFor({ ...k, selfie: selfie(), selfieNonce: second.nonce }) });
+  assert.equal(retry.counted, true); assert.equal(h.state.events.length, 1); assert.equal(h.state.selfies.length, 1);
+});
+
 test('multipart simple event input is rejected with 422', async () => { const routes = createAttendanceRoutes({ environment: { VERCEL_ENV: 'preview', ATTENDANCE_API_PREVIEW_ENABLED: 'true' }, authenticateMiddleware: (req, _res, next) => { req.user = { sub: ids.user }; next(); }, simpleService: { createSelfieChallenge: async () => ({}), submit: async () => { throw new Error('must not call'); } } }); const app = express(); app.use(express.json()); app.use('/api/v1/attendance', routes); app.use((err, _req, res, _next) => res.status(err.statusCode || 500).json({ error: err.details || {} })); const response = await request(app).post('/api/v1/attendance/simple/events').set('Content-Type', 'multipart/form-data; boundary=x').send('--x--'); assert.equal(response.status, 422); assert.equal(response.body.error.code, 'ATTENDANCE_FOREIGN_SELFIE_MULTIPART_FORBIDDEN'); });
