@@ -11,7 +11,15 @@ describe('Attendance structured error messages', () => {
     expect(attendanceSimpleErrorMessage({ error: {
       code: 'ATTENDANCE_OUTSIDE_SITE_GEOFENCE',
       message: 'Attendance location is confidently outside all active Security Site geofences.'
-    } })).toBe('ไม่สามารถลงเวลาได้ เนื่องจากอยู่นอกพื้นที่ทำงานที่กำหนด');
+    } })).toBe('ตำแหน่ง GPS อยู่นอกขอบเขต Site ตามกะ แม้ชื่อสถานที่อาจแสดงตรงกัน กรุณาเปิด Precise Location แล้วลองใหม่');
+  });
+
+  it('localizes the remaining safe attendance diagnostics', () => {
+    expect(attendanceSimpleErrorMessage({ code: 'ATTENDANCE_SITE_REQUIRED' })).toContain('ไม่พบ Site');
+    expect(attendanceSimpleErrorMessage({ code: 'ATTENDANCE_LOCATION_CAPTURED_AT_INVALID' })).toContain('เวลาที่จับตำแหน่ง GPS');
+    expect(attendanceSimpleErrorMessage({ code: 'ATTENDANCE_LOCATION_ACCURACY_INSUFFICIENT' })).toContain('ไม่แม่นยำพอ');
+    expect(attendanceSimpleErrorMessage({ code: 'ATTENDANCE_LOCATION_STALE' })).toContain('หมดอายุ');
+    expect(attendanceSimpleErrorMessage({ code: 'ATTENDANCE_SELFIE_STORAGE_UPLOAD_FAILED' })).toContain('ระบบเก็บภาพยืนยันตัวตน');
   });
 
   it('uses structured time-policy and missing-schedule messages before generic server text', () => {

@@ -90,19 +90,35 @@ export function attendanceErrorMessage(code: string | undefined, fallback: strin
     return `ระบบเก็บภาพยืนยันตัวตนยังไม่พร้อมใช้งาน (ผู้ดูแลต้องตั้งค่า) · รหัส: ${code}`;
   }
   if (code === 'ATTENDANCE_CHECK_IN_REQUIRED') return 'ยังไม่มีรายการเข้างานของกะนี้ — ต้องลงเวลาเข้าก่อน';
+  if (code === 'ATTENDANCE_OUTSIDE_SITE_GEOFENCE') return 'ตำแหน่ง GPS อยู่นอกขอบเขต Site ตามกะ แม้ชื่อสถานที่อาจแสดงตรงกัน กรุณาเปิด Precise Location แล้วลองใหม่';
+  if (code === 'ATTENDANCE_SITE_REQUIRED') return 'ไม่พบ Site สำหรับกะนี้ กรุณาติดต่อหัวหน้างาน';
+  if (code === 'ATTENDANCE_LOCATION_CAPTURED_AT_INVALID') return 'เวลาที่จับตำแหน่ง GPS ไม่ถูกต้อง กรุณาเปิด Location แล้วลองใหม่';
+  if (code === 'ATTENDANCE_LOCATION_ACCURACY_INSUFFICIENT') return 'ตำแหน่ง GPS ยังไม่แม่นยำพอ กรุณาลองอีกครั้งในบริเวณที่โล่ง';
+  if (code === 'ATTENDANCE_LOCATION_STALE') return 'ตำแหน่ง GPS หมดอายุแล้ว กรุณาลองอีกครั้ง';
+  if (code === 'ATTENDANCE_SELFIE_STORAGE_UPLOAD_FAILED') return 'ระบบเก็บภาพยืนยันตัวตนยังไม่พร้อมใช้งาน กรุณาติดต่อผู้ดูแลระบบ';
   if (['ATTENDANCE_SELFIE_NONCE_INVALID', 'ATTENDANCE_SELFIE_NONCE_EXPIRED'].includes(code)) return 'ภาพยืนยันหมดอายุ กรุณาถ่ายใหม่';
   return fallback;
 }
 
-function attendanceFailure(reason: unknown, fallback: string): AttendanceSimpleErrorDetails {
+export function attendanceFailure(reason: unknown, fallback: string): AttendanceSimpleErrorDetails {
   const normalized = toRequestErrorState(reason, fallback);
-  const details = reason && typeof reason === 'object' ? reason as { code?: unknown } : {};
-  const code = typeof details.code === 'string' ? details.code : undefined;
+  const readRecord = (value: unknown): Record<string, unknown> => value && typeof value === 'object' ? value as Record<string, unknown> : {};
+  const source = readRecord(reason);
+  const response = readRecord(source.response);
+  const responseData = readRecord(response.data);
+  const data = readRecord(source.data);
+  const body = readRecord(source.body);
+  const nested = [source.error, responseData.error, data.error, body.error].map(readRecord);
+  const code = [source.code, responseData.code, data.code, body.code, ...nested.map((item) => item.code)]
+    .find((value): value is string => typeof value === 'string');
+  const requestId = normalized.requestId || [source.requestId, responseData.requestId, data.requestId, body.requestId, ...nested.map((item) => item.requestId)]
+    .map((value) => typeof value === 'string' ? value : undefined)
+    .find(Boolean);
   const message = attendanceErrorMessage(code, /[\u0E00-\u0E7F]/.test(normalized.message) ? normalized.message : fallback);
   return {
     message,
     ...(code ? { code } : {}),
-    ...(normalized.requestId ? { requestId: normalized.requestId } : {})
+    ...(requestId ? { requestId } : {})
   };
 }
 
@@ -693,8 +709,10 @@ export function AttendanceSimplePage({
 
     <div className={`attendance-simple__status is-${tone}`} role="status">
       <strong>{message}</strong>
-      {siteContext && <span>สถานที่ตามตาราง: {siteContext.assignedSite.name || siteContext.assignedSite.code || '—'}</span>}
-      {siteContext && <span>สถานที่ลงเวลาจริง: {siteContext.workSiteContext === 'SUPPORT_SITE' ? siteDisplayName(siteContext.actualSite) : siteContext.actualSite?.name || siteContext.assignedSite.name || '—'}{siteContext.workSiteContext === 'SUPPORT_SITE' ? ' · ช่วยปฏิบัติงานต่าง Site' : ' · ปกติ'}</span>}
+      {siteContext && tone !== 'danger' && <span>สถานที่ตามตาราง: {siteContext.assignedSite.name || siteContext.assignedSite.code || '—'}</span>}
+      {siteContext && tone !== 'danger' && <span>สถานที่ลงเวลาจริง: {siteContext.workSiteContext === 'SUPPORT_SITE' ? siteDisplayName(siteContext.actualSite) : siteContext.actualSite?.name || siteContext.assignedSite.name || '—'}{siteContext.workSiteContext === 'SUPPORT_SITE' ? ' · ช่วยปฏิบัติงานต่าง Site' : ' · ปกติ'}</span>}
+      {tone === 'danger' && requestErrorCode && <span>รหัสข้อผิดพลาด: <code>{requestErrorCode}</code></span>}
+      {tone === 'danger' && requestErrorId && <span>Request ID: <code>{requestErrorId}</code></span>}
       {queueCount > 0 && <span>รอส่งเมื่อออนไลน์ {queueCount} รายการ</span>}
     </div>
 

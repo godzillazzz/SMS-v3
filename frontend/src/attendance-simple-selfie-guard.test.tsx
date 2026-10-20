@@ -39,7 +39,7 @@ vi.mock('./pages/attendance-simple/attendance-simple-storage', async () => {
   };
 });
 
-import { AttendanceSimplePage, attendanceErrorMessage } from './pages/attendance-simple/AttendanceSimplePage';
+import { AttendanceSimplePage, attendanceErrorMessage, attendanceFailure } from './pages/attendance-simple/AttendanceSimplePage';
 
 
 describe('actionable attendance error mapping', () => {
@@ -55,6 +55,15 @@ describe('actionable attendance error mapping', () => {
   });
   it('keeps unknown details safe and includes the code', () => {
     expect(attendanceErrorMessage('UNEXPECTED_CODE', 'fallback')).toBe('fallback');
+  });
+
+  it('extracts safe code and request id from nested HTTP error shapes', () => {
+    expect(attendanceFailure({ response: { data: { error: { code: 'ATTENDANCE_OUTSIDE_SITE_GEOFENCE', requestId: 'req-foreign-1' } } } }, 'fallback'))
+      .toEqual({
+        message: 'ตำแหน่ง GPS อยู่นอกขอบเขต Site ตามกะ แม้ชื่อสถานที่อาจแสดงตรงกัน กรุณาเปิด Precise Location แล้วลองใหม่',
+        code: 'ATTENDANCE_OUTSIDE_SITE_GEOFENCE',
+        requestId: 'req-foreign-1'
+      });
   });
 });
 
