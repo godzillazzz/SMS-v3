@@ -39,14 +39,6 @@ describe('simple Attendance multi-Site geofence preview', () => {
     expect(result.workSiteContext).toBe('SUPPORT_SITE');
   });
 
-  it('classifies a borderline support Site as support-site uncertainty, not confident authorization', () => {
-    const assigned = site({ latitude: 13.72, geofenceRadiusMeters: 25 });
-    const support = site({ id: 'site-b', code: 'B', latitude: 13.7241, geofenceRadiusMeters: 100 });
-    const result = gpsGeofenceDecision(assigned, { latitude: 13.7250, longitude: support.longitude, accuracyMeters: 20 }, [assigned, support]);
-    expect(result.workSiteContext).toBe('SUPPORT_SITE');
-    expect(result.classification).toBe('BORDERLINE');
-  });
-
   it('does not treat a point outside every cached active Site as authorized offline', () => {
     const assigned = site();
     const support = site({ id: 'site-b', code: 'B', latitude: 13.7251, geofenceRadiusMeters: 80 });

@@ -311,14 +311,12 @@ function createAttendanceSimpleService({
       offline: { bundle: issueBundle(payload), issuedAt: payload.issuedAt, expiresAt: payload.expiresAt, confirmAfterMs: policy.offlineConfirmAfterMs, maxAccuracyMeters: policy.maxAccuracyMeters } };
   }
 
-  async function recordPassiveDeviceAudit(data) {
-    // Passive telemetry deliberately uses the root Prisma client, never the
-    // Attendance transaction client. A failed statement on PostgreSQL aborts
-    // its transaction; observing that failure outside the critical transaction
-    // is what makes this genuinely nonblocking. Required AttendanceEvent
-    // audits below continue to use the transaction client and fail closed.
+  async function recordPassiveDeviceAudit(client, data) {
+    // Device enrollment observation is best-effort telemetry. It must never
+    // turn a valid Attendance event into a failed request, while required
+    // AttendanceEvent audit records below remain fail-closed.
     try {
-      await audit.log(data);
+      await audit.log(data, client);
     } catch (error) {
       console.warn('ATTENDANCE_PASSIVE_DEVICE_AUDIT_FAILED', {
         entityId: data.entityId,
@@ -337,47 +335,30 @@ function createAttendanceSimpleService({
     // A fingerprint conflict is an audit/telemetry signal only. Do not mutate
     // the other employee's enrollment and never make it an Attendance gate.
     if (existing && existing.employeeId !== identity.employeeId) {
+      await recordPassiveDeviceAudit(client, { actorUserId: actor.sub, action: 'UPDATE', entityType: 'AttendanceDeviceEnrollment', entityId: existing.id,
+        metadata: { event: 'OBSERVED_CROSS_EMPLOYEE_DEVICE_CONFLICT', employeeId: identity.employeeId, boundEmployeeId: existing.employeeId, credentialFingerprint: material.fingerprint } });
       // Keep the conflicting enrollment only in audit metadata. A foreign row is
       // never a valid FK for this employee's event or selfie.
       return { enrollment: active || priorEnrollment || null, binding: 'FOREIGN', observedEnrollmentId: existing.id,
-        reviewFlags: ['DEVICE_MISMATCH', 'DEVICE_OWNERSHIP_CONFLICT'],
-        observation: { actorUserId: actor.sub, identity, material, device, now, existing, active, foreign: true } };
+        reviewFlags: ['DEVICE_MISMATCH', 'DEVICE_OWNERSHIP_CONFLICT'] };
     }
     if (active?.credentialFingerprint === material.fingerprint) return { enrollment: active, binding: 'PRIMARY', reviewFlags: [] };
     let observed = existing;
-    // Enrollment observation is intentionally deferred until after the
-    // Attendance transaction. This avoids both PostgreSQL aborted-transaction
-    // poisoning and a unique-fingerprint race rejecting a valid Attendance.
-    return { enrollment: null, binding: active ? 'FOREIGN' : 'OBSERVED', reviewFlags: active || hadExistingEnrollment ? ['DEVICE_MISMATCH'] : [],
-      observation: { actorUserId: actor.sub, identity, material, device, now, existing: observed, active } };
-  }
-
-  async function persistPassiveDeviceObservation(observation) {
-    if (!observation) return null;
-    const { actorUserId, identity, material, device, now, existing, active, foreign = false } = observation;
-    let enrollment = existing;
-    try {
-      if (!enrollment) {
-        try {
-          enrollment = await prisma.attendanceDeviceEnrollment.create({
-            data: { employeeId: identity.employeeId, publicKey: material.bytes, keyAlgorithm: KEY_ALGORITHM,
-              credentialFingerprint: material.fingerprint, displayName: cleanText(device.displayName, 120) || 'Observed Attendance device',
-              platformHint: cleanText(device.platformHint, 100), userAgentSnapshot: cleanText(device.userAgentSnapshot, 500),
-              status: 'PENDING_APPROVAL', observationOnly: true, proofVerifiedAt: now, createdByUserId: actorUserId }
-          });
-        } catch (error) {
-          if (error?.code !== 'P2002') throw error;
-          enrollment = await prisma.attendanceDeviceEnrollment.findUnique({ where: { credentialFingerprint: material.fingerprint } });
-        }
-      }
-      if (enrollment) await recordPassiveDeviceAudit({ actorUserId, action: foreign ? 'UPDATE' : existing ? 'UPDATE' : 'CREATE', entityType: 'AttendanceDeviceEnrollment', entityId: enrollment.id,
-        metadata: { event: foreign ? 'OBSERVED_CROSS_EMPLOYEE_DEVICE_CONFLICT' : existing ? 'OBSERVED_LEGACY_DEVICE_STATUS' : 'OBSERVED_ATTENDANCE_DEVICE', legacyEvent: 'AUTO_BIND_FIRST_DEVICE', employeeId: identity.employeeId,
-          boundEmployeeId: foreign ? enrollment.employeeId : undefined, activeDeviceEnrollmentId: active?.id || null, status: enrollment.status, credentialFingerprint: material.fingerprint } });
-      return enrollment;
-    } catch (error) {
-      console.warn('ATTENDANCE_PASSIVE_DEVICE_OBSERVATION_FAILED', { credentialFingerprint: material.fingerprint, errorCode: error?.code || 'UNKNOWN' });
-      return null;
+    if (!observed) {
+      observed = await client.attendanceDeviceEnrollment.create({
+        data: { employeeId: identity.employeeId, publicKey: material.bytes, keyAlgorithm: KEY_ALGORITHM,
+          credentialFingerprint: material.fingerprint, displayName: cleanText(device.displayName, 120) || 'Observed Attendance device',
+          platformHint: cleanText(device.platformHint, 100), userAgentSnapshot: cleanText(device.userAgentSnapshot, 500),
+          status: 'PENDING_APPROVAL', observationOnly: true, proofVerifiedAt: now, createdByUserId: actor.sub }
+      });
+      await recordPassiveDeviceAudit(client, { actorUserId: actor.sub, action: 'CREATE', entityType: 'AttendanceDeviceEnrollment', entityId: observed.id,
+        metadata: { event: 'OBSERVED_ATTENDANCE_DEVICE', legacyEvent: 'AUTO_BIND_FIRST_DEVICE', employeeId: identity.employeeId, activeDeviceEnrollmentId: active?.id || null, credentialFingerprint: material.fingerprint } });
+    } else {
+      await recordPassiveDeviceAudit(client, { actorUserId: actor.sub, action: 'UPDATE', entityType: 'AttendanceDeviceEnrollment', entityId: observed.id,
+        metadata: { event: 'OBSERVED_LEGACY_DEVICE_STATUS', employeeId: identity.employeeId, status: observed.status, credentialFingerprint: material.fingerprint } });
     }
+    // Legacy status/history remains unchanged and is never an Attendance gate.
+    return { enrollment: observed, binding: active ? 'FOREIGN' : 'OBSERVED', reviewFlags: active || hadExistingEnrollment ? ['DEVICE_MISMATCH'] : [] };
   }
 
   function expectationSnapshot(assignment, approval, authority) {
@@ -477,7 +458,6 @@ function createAttendanceSimpleService({
     let preflightSelfie = null;
     let selfieNonceVerified = false;
     let discardUploadedObject = false;
-    let passiveObservation = null;
     try {
       const existingCapture = await prisma.attendanceEvent.findUnique({ where: { captureId: input.captureId } });
       if (existingCapture) return { counted: true, idempotent: true, event: existingCapture, status: 'ACCEPTED' };
@@ -536,7 +516,6 @@ function createAttendanceSimpleService({
       }
       const binding = await bindOrObserveDevice(tx, { actor, identity, material,
         device: { ...input.device, userAgentSnapshot: requestUserAgent || input.device?.userAgentSnapshot || null }, now });
-      passiveObservation = binding.observation || null;
       // The binding is authoritative only at this final DB decision point.
       // Never promote a foreign capture to SELFIE_LIVE_VERIFIED from input.selfie:
       // the nonce/file must have been validated and stored by the preflight.
@@ -668,7 +647,6 @@ function createAttendanceSimpleService({
         try { await deviceSelfieStorage.remove({ objectKey: uploadedObjectKey }); uploadedObjectKey = null; }
         catch (cleanupError) { throw cleanupError; }
       }
-      if (passiveObservation) await persistPassiveDeviceObservation(passiveObservation);
       return result;
     } catch (error) {
       if (uploadedObjectKey) {

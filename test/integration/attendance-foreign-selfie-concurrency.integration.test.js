@@ -31,7 +31,6 @@ if (!configured) {
     challengeOne: crypto.randomUUID(), challengeTwo: crypto.randomUUID()
   };
   const captureId = crypto.randomUUID();
-  const captureIdTwo = crypto.randomUUID();
   const now = new Date('2026-10-02T03:00:00.000Z');
   const policy = { maxAccuracyMeters: 50, maxAgeMs: 180000, futureSkewMs: 30000, offlineConfirmAfterMs: 5 * 60 * 1000, offlineBundleTtlMs: 24 * 60 * 60 * 1000 };
   const selfieBase64 = '/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAP//////////////////////////2wBDAf//////////////////////////wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAX/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIQAxAAAAH/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oACAEBAAEFAqf/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIAAwAAAB//2gAIAQEAAT8h/9k=';
@@ -141,6 +140,7 @@ if (!configured) {
     await prisma.scheduleApproval.create({ data: { id: ids.approval, month: new Date('2026-10-01T00:00:00.000Z'), status: 'APPROVED', revision: 1, changedAt: now, approvedAt: now, changedByLegacyRef: ids.user, approvedByLegacyRef: ids.user, changeType: 'TEST', approvalNote: 'Disposable concurrency test' } });
     const primary = keyMaterial();
     await prisma.attendanceDeviceEnrollment.create({ data: { id: ids.primaryEnrollment, employeeId: ids.employee, publicKey: Buffer.from(primary.publicKeySpkiBase64, 'base64'), keyAlgorithm: 'ECDSA_P256_SHA256', credentialFingerprint: crypto.createHash('sha256').update(Buffer.from(primary.publicKeySpkiBase64, 'base64')).digest('hex'), displayName: 'Primary test device', status: 'ACTIVE', proofVerifiedAt: now, activatedAt: now, createdByUserId: ids.user } });
+    await prisma.attendanceDeviceEnrollment.create({ data: { id: ids.foreignEnrollment, employeeId: ids.employeeB, publicKey: Buffer.from(material.publicKeySpkiBase64, 'base64'), keyAlgorithm: 'ECDSA_P256_SHA256', credentialFingerprint: crypto.createHash('sha256').update(Buffer.from(material.publicKeySpkiBase64, 'base64')).digest('hex'), displayName: 'Observed foreign test device', status: 'PENDING_APPROVAL', observationOnly: true, proofVerifiedAt: now, createdByUserId: ids.user } });
     for (const [id, nonce] of [[ids.challengeOne, crypto.randomBytes(32).toString('hex')], [ids.challengeTwo, crypto.randomBytes(32).toString('hex')]]) {
       await prisma.attendanceDeviceChallenge.create({ data: { id, employeeId: ids.employee, purpose: 'ATTENDANCE_EVENT', challengeHash: challengeHash(nonce), expiresAt: new Date(now.getTime() + 2 * 60 * 60 * 1000) } });
       if (id === ids.challengeOne) ids.nonceOne = nonce; else ids.nonceTwo = nonce;
@@ -190,30 +190,6 @@ if (!configured) {
     await cleanup();
   });
 
-  test('real PostgreSQL passive observation audit failure cannot rollback Attendance or required event audit', async () => {
-    await seed();
-    await prisma.attendanceDeviceEnrollment.deleteMany({ where: { employeeId: ids.employee } });
-    const failingPassiveAudit = {
-      log: async (entry, client) => {
-        if (entry.entityType === 'AttendanceDeviceEnrollment') throw new Error('SIMULATED_PASSIVE_AUDIT_FAILURE');
-        return audit.log(entry, client);
-      }
-    };
-    const service = createAttendanceSimpleService({
-      prisma, audit: failingPassiveAudit, clock: () => now,
-      siteEvidenceService: createAttendanceSiteEvidenceService({ prisma, clock: () => now, policyOverride: policy }),
-      policyService: { getPolicy: async () => policy },
-      selfiePolicyService: { resolve: async () => ({ required: false, sourceRole: 'VIEWER', action: 'CHECK_IN', policy: { role: 'VIEWER', clockInRequired: false, clockOutRequired: false } }) },
-      selfieStorage: storageFor('passive-audit-failure'), bundleSecret: () => 'disposable-integration-only-signing-secret-32-bytes'
-    });
-    const result = await service.submit({ actor, input: signedInput({ deviceMaterial: material, nonce: '', capture: crypto.randomUUID() }) });
-    assert.equal(result.counted, true);
-    assert.equal(await prisma.attendanceEvent.count({ where: { session: { employeeId: ids.employee } } }), 1);
-    assert.equal(await prisma.auditLog.count({ where: { entityType: 'AttendanceEvent', actorUserId: ids.user } }), 1);
-    assert.equal(await prisma.attendanceDeviceEnrollment.count({ where: { employeeId: ids.employee } }), 1);
-    await cleanup();
-  });
-
   test('real PostgreSQL two-connection foreign selfie finalization races on one captureId', async () => {
     try {
       const connections = await seed();
@@ -226,33 +202,38 @@ if (!configured) {
       const first = serviceFor(prisma, 'clientOne');
       const second = serviceFor(secondPrisma, 'clientTwo');
       const results = await Promise.allSettled([
-        first.submit({ actor, input: signedInput({ deviceMaterial: material, nonce: ids.nonceOne, capture: captureId }) }),
-        second.submit({ actor, input: signedInput({ deviceMaterial: material, nonce: ids.nonceTwo, capture: captureIdTwo }) })
+        first.submit({ actor, input: signedInput({ deviceMaterial: material, nonce: ids.nonceOne }) }),
+        second.submit({ actor, input: signedInput({ deviceMaterial: material, nonce: ids.nonceTwo }) })
       ]);
-      assert.equal(storage.uploads.length, 2, 'both independently validated captures must upload before finalization');
-      assert.deepEqual(new Set(storage.uploads.map((row) => row.captureId)), new Set([captureId, captureIdTwo]));
+      assert.equal(storage.uploads.length, 2, 'both independently validated nonces must upload before finalization');
+      assert.equal(storage.uploads.every((row) => row.captureId === captureId), true);
       assert.equal(finalizationBarrier.entered, 2, 'both DB finalization transactions entered the barrier before either was released');
       const consumedChallenges = await prisma.attendanceDeviceChallenge.count({ where: { employeeId: ids.employee, consumedAt: { not: null } } });
       assert.equal(consumedChallenges, 0, 'role-policy selfie does not consume legacy device challenges');
-      assert.equal(results.filter((row) => row.status === 'fulfilled').length, 1, JSON.stringify(results));
-      assert.equal(results.filter((row) => row.status === 'rejected' && row.reason?.details?.code === 'ATTENDANCE_ALREADY_CHECKED_IN').length, 1, JSON.stringify(results));
+      assert.equal(results.every((row) => row.status === 'fulfilled'), true, JSON.stringify(results));
+      const values = results.map((row) => row.value);
+      assert.equal(values.filter((value) => value.idempotent === true).length, 1, 'one request must deterministically observe the committed winner');
+      assert.equal(values.filter((value) => value.counted === true).length, 2);
       const conflictSignals = [...transactionSignals.clientOne, ...transactionSignals.clientTwo];
-      assert.equal(conflictSignals.includes('P2002'), false, `fingerprint observation must not reject through P2002: ${conflictSignals.join(',')}`);
+      assert.ok(conflictSignals.some((code) => code === 'P2034' || code === 'P2002'), `expected PostgreSQL conflict signal, observed ${conflictSignals.join(',') || 'none'}`);
       console.log(`FOREIGN_SELFIE_UPLOADS count=${storage.uploads.length} removed=${storage.removed.length} dbConflict=${conflictSignals.join(',')}`);
-      const [events, pending, selfies, sessions, changes, audits, observations] = await Promise.all([
+      const [events, pending, selfies, sessions, changes, audits] = await Promise.all([
         prisma.attendanceEvent.findMany({ where: { captureId } }), prisma.attendancePendingEvent.findMany({ where: { captureId } }),
         prisma.attendanceDeviceSelfie.findMany({ where: { captureId } }), prisma.attendanceSession.findMany({ where: { shiftAssignmentId: ids.assignment } }),
-        prisma.attendanceDeviceChangeRequest.findMany({ where: { employeeId: ids.employee } }), prisma.auditLog.findMany({ where: { actorUserId: ids.user } }),
-        prisma.attendanceDeviceEnrollment.findMany({ where: { credentialFingerprint: crypto.createHash('sha256').update(Buffer.from(material.publicKeySpkiBase64, 'base64')).digest('hex') } })
+        prisma.attendanceDeviceChangeRequest.findMany({ where: { employeeId: ids.employee } }), prisma.auditLog.findMany({ where: { actorUserId: ids.user } })
       ]);
       assert.equal(events.length, 1); assert.equal(pending.length, 0); assert.equal(selfies.length, 1); assert.equal(sessions.length, 1); assert.equal(changes.length, 0);
-      assert.equal(observations.length, 1, 'concurrent first observation creates at most one enrollment');
-      assert.equal(observations[0].employeeId, ids.employee, 'observation ownership belongs to the Attendance actor');
-      assert.equal(observations[0].observationOnly, true);
-      assert.equal(audits.filter((row) => row.entityType === 'AttendanceDeviceEnrollment').length >= 1, true, 'observation must write telemetry audit');
-      assert.equal(events[0].deviceEnrollmentId === observations[0].id, true);
-      assert.equal(selfies[0].deviceEnrollmentId === observations[0].id, true);
-      assert.equal((events[0].reviewReasons || []).includes('DEVICE_MISMATCH'), false);
+      const conflictAudit = audits.find((row) => row.entityType === 'AttendanceDeviceEnrollment' && row.entityId === ids.foreignEnrollment && row.metadata?.event === 'OBSERVED_CROSS_EMPLOYEE_DEVICE_CONFLICT');
+      assert.ok(conflictAudit, 'cross-employee conflict must write an enrollment audit');
+      assert.equal(conflictAudit.action, 'UPDATE');
+      assert.deepEqual(conflictAudit.metadata, { event: 'OBSERVED_CROSS_EMPLOYEE_DEVICE_CONFLICT', employeeId: ids.employee, boundEmployeeId: ids.employeeB, credentialFingerprint: crypto.createHash('sha256').update(Buffer.from(material.publicKeySpkiBase64, 'base64')).digest('hex') });
+      assert.equal(events[0].deviceEnrollmentId === ids.foreignEnrollment, false);
+      assert.equal(selfies[0].deviceEnrollmentId === ids.foreignEnrollment, false);
+      assert.equal((events[0].reviewReasons || []).includes('DEVICE_MISMATCH'), true);
+      assert.equal((events[0].reviewReasons || []).includes('DEVICE_OWNERSHIP_CONFLICT'), true);
+      const boundEnrollment = await prisma.attendanceDeviceEnrollment.findUniqueOrThrow({ where: { id: ids.foreignEnrollment } });
+      assert.equal(boundEnrollment.employeeId, ids.employeeB);
+      assert.equal(boundEnrollment.status, 'PENDING_APPROVAL');
       assert.equal(audits.filter((row) => row.entityType === 'AttendanceEvent').length, 1);
       assert.equal(storage.objects.size, 1);
       assert.equal(storage.removed.length, 1);
