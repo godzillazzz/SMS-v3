@@ -1,0 +1,44 @@
+{
+  "record_type": "POST_RELEASE_RECORD",
+  "release_batch_id": "R8.4-ATTENDANCE-SELFIE-POLICY",
+  "release_id": "sms-v3-prod-83fa98c-20261020",
+  "approved_manifest": ".github/releases/approved-production.json",
+  "release_head_sha": "38b96e02be1715eee9f0d8fd0114236f856426ac",
+  "deployed": {
+    "deployment_id": "dpl_3a3nmJesfu4SrKKF1EbKsuzoy8Lf",
+    "source_sha": "83fa98c9e9cd19fc09e27b5ad106d3eee9551442",
+    "release_head_sha": "83fa98c9e9cd19fc09e27b5ad106d3eee9551442",
+    "deploy_run_id": 39370259546,
+    "conclusion": "SUCCESS",
+    "verified_at": "2026-10-20T04:47:18Z",
+    "checks": {
+      "state": "READY",
+      "environment": "Production",
+      "canonical_alias": true,
+      "canonical_runtime_verify": "PASS",
+      "canonical_cors_verify": "PASS",
+      "migration_evidence": "PASS",
+      "auto_rollback_invoked": false
+    }
+  },
+  "evidence": {
+    "deploy_run_id": 39370259546,
+    "deploy_run_url": "https://github.com/godzillazzz/SMS-v3/actions/runs/39370259546",
+    "deploy_run_status": "SUCCESS",
+    "github_deployment_id": 7191759699,
+    "github_deployment_url": "https://github.com/godzillazzz/SMS-v3/deployments/7191759699",
+    "github_deployment_environment": "Production",
+    "github_deployment_status": "success",
+    "github_source_sha": "83fa98c9e9cd19fc09e27b5ad106d3eee9551442",
+    "migration_manifest_path": ".github/releases/approved-attendance-selfie-policy-migration.json",
+    "migration_evidence_run_id": 39439759403,
+    "migration_status": "UP_TO_DATE",
+    "migration_post_verifier": "PASS",
+    "canonical_health_readiness": "PASS"
+  },
+  "previous_known_good": {
+    "deployment_id": "dpl_BdsHurbb4Q34eMGXgNsxDuTtQHto",
+    "source_sha": "73220e30b03cef7b3c3aa86421e854ff3e613bcb"
+  },
+  "note": "Immutable record of current Production 83fa98c9 and deployment dpl_3a3n. It explicitly supersedes previous canonical deployment dpl_BdsHurbb4Q34eMGXgNsxDuTtQHto (source 73220e30) and cites GitHub deployment 7191759699 plus governed run 39370259546. The next application candidate 56c3399 is separately pinned in approved-production.json and has not been dispatched or deployed."
+}

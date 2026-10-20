@@ -247,23 +247,28 @@ test('R7.1 hotfix manifest preserves exact target, current Production rollback, 
   assert.equal(d.production_cors_config_changed, 'NO');
 });
 
-test('R8.4 ENV redeploy history and next candidate remain explicitly separated', () => {
+test('R8.4 redeploy history and SELFIE-POLICY application candidate remain explicitly separated', () => {
   const manifest = JSON.parse(fs.readFileSync('.github/releases/approved-production.json', 'utf8'));
-  const record = JSON.parse(fs.readFileSync('docs/releases/R8.4-owner-env-redeploy-20261020.json', 'utf8'));
-  assert.equal(record.deployed.source_sha, '73220e30b03cef7b3c3aa86421e854ff3e613bcb');
-  assert.equal(record.deployed.deployment_id, 'dpl_BdsHurbb4Q34eMGXgNsxDuTtQHto');
-  assert.equal(record.evidence.github_deployment_id, 7189764578);
-  assert.equal(record.evidence.vercel_state, 'Ready');
-  assert.equal(record.evidence.health, 'HTTP 200');
-  assert.equal(record.evidence.ready, 'HTTP 200');
-  assert.match(record.note, /not deploy or claim Attendance diagnostics SHA 83fa98c9/);
-  assert.equal(manifest.commit_sha, '83fa98c9e9cd19fc09e27b5ad106d3eee9551442');
-  assert.equal(manifest.tree_sha, 'dc6c0a5d853ce26a11fb94866111ca56fc874e2a');
-  assert.equal(manifest.current_production_source_sha, record.deployed.source_sha);
-  assert.equal(manifest.rollback_deployment_id, record.deployed.deployment_id);
-  assert.equal(manifest.application_exact_sha_ci_run_id, 39362247342);
+  const previous = JSON.parse(fs.readFileSync('docs/releases/R8.4-owner-env-redeploy-20261020.json', 'utf8'));
+  const current = JSON.parse(fs.readFileSync('docs/releases/R8.4-attendance-selfie-policy-post-release-20261020.json', 'utf8'));
+  assert.equal(previous.deployed.source_sha, '73220e30b03cef7b3c3aa86421e854ff3e613bcb');
+  assert.equal(previous.deployed.deployment_id, 'dpl_BdsHurbb4Q34eMGXgNsxDuTtQHto');
+  assert.equal(previous.evidence.github_deployment_id, 7189764578);
+  assert.match(previous.note, /not deploy or claim Attendance diagnostics SHA 83fa98c9/);
+  assert.equal(current.deployed.source_sha, '83fa98c9e9cd19fc09e27b5ad106d3eee9551442');
+  assert.equal(current.deployed.deployment_id, 'dpl_3a3nmJesfu4SrKKF1EbKsuzoy8Lf');
+  assert.equal(current.deployed.deploy_run_id, 39370259546);
+  assert.equal(current.evidence.github_deployment_id, 7191759699);
+  assert.equal(current.evidence.migration_evidence_run_id, 39439759403);
+  assert.equal(manifest.release_batch_id, 'R8.5');
+  assert.equal(manifest.commit_sha, '56c33991503e09c5904279205fe1aaa423a8b219');
+  assert.equal(manifest.tree_sha, '31cbe8da12e8bdaf579e0ca0efe45526b58a0a74');
+  assert.equal(manifest.current_production_source_sha, current.deployed.source_sha);
+  assert.equal(manifest.rollback_deployment_id, current.deployed.deployment_id);
+  assert.equal(manifest.application_exact_sha_ci_run_id, 39434612760);
   assert.equal(manifest.run_migrations, false);
-  assert.equal(manifest.database_change_policy, 'NO_DATABASE_CHANGES');
+  assert.equal(manifest.database_change_policy, 'PRE_APPLIED_APPROVED_MIGRATION');
+  assert.equal(manifest.pre_applied_migration_evidence_run_id, 39439759403);
   assert.equal(manifest.production_dispatch_authorized, false);
 });
 

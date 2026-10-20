@@ -123,8 +123,8 @@ const R82_SOURCE = 'd76d3ff7b70fe9ad1348cec26b0df200cc937147';
 const R82_DEPLOYMENT = 'dpl_4VTx24FVRtDqJjftZ7JB5s2R293k';
 const R83_SOURCE = 'b83bac98a07d543820d2982967553bdd52307dc6';
 const R83_DEPLOYMENT = 'dpl_EyqC3HkLTgRVp5XUDiL8GTWQFDZT';
-const R84_SOURCE = '73220e30b03cef7b3c3aa86421e854ff3e613bcb';
-const R84_DEPLOYMENT = 'dpl_BdsHurbb4Q34eMGXgNsxDuTtQHto';
+const R84_SOURCE = '83fa98c9e9cd19fc09e27b5ad106d3eee9551442';
+const R84_DEPLOYMENT = 'dpl_3a3nmJesfu4SrKKF1EbKsuzoy8Lf';
 const PRE_R8_DEPLOYMENT = 'dpl_7djFpJVzU4r1FjtKJy9i1w18RYzW';
 
 function makeRecord({ file, releaseId, deploymentId, sourceSha, runId, verifiedAt, previous }) {
@@ -261,9 +261,9 @@ test('the committed R8 history and current manifest resolve to the newest verifi
   assert.equal(selection.ok, true, selection.reason);
   assert.equal(selection.canonical.deploymentId, R84_DEPLOYMENT);
   assert.equal(selection.canonical.sourceSha, R84_SOURCE);
-  assert.equal(selection.ordered.length, 5);
+  assert.equal(selection.ordered.length, 6);
   const manifest = JSON.parse(fs.readFileSync('.github/releases/approved-production.json', 'utf8'));
   const binding = checkpointBinding(manifest, selection.canonical);
   assert.equal(binding.ok, true, binding.reason);
-  assert.equal(manifest.database_change_policy, 'NO_DATABASE_CHANGES');
+  assert.equal(manifest.database_change_policy, 'PRE_APPLIED_APPROVED_MIGRATION');
 });

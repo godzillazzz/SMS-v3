@@ -403,6 +403,13 @@ function quietDiff(fromSha, toSha, manifest) {
       'scripts/ci/verify-approved-production-migration.js',
       'scripts/ci/verify-attendance-device-selfie-table.js'
     ];
+  } else if (manifest && manifest.pre_applied_migration_manifest_path === '.github/releases/approved-attendance-selfie-policy-migration.json') {
+    paths = [
+      manifest.pre_applied_migration_manifest_path,
+      '.github/workflows/apply-approved-attendance-selfie-policy-production-migration.yml',
+      'scripts/ci/verify-approved-production-migration.js',
+      'scripts/ci/verify-attendance-selfie-policy-table.js'
+    ];
   }
   try {
     execFileSync('git', ['diff', '--quiet', fromSha, toSha, '--', ...paths], { cwd: ROOT, stdio: 'ignore' });
