@@ -4,6 +4,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+const { executeSqlStatements } = require('./sql-statement-runner');
 
 const target = new URL(process.env.DATABASE_URL || 'postgresql://invalid/invalid');
 const enabled = process.env.RUN_INTEGRATION_TESTS === 'true'
@@ -16,8 +17,13 @@ test('attendance selfie policy migration succeeds on an exact direct second exec
   const prisma = new PrismaClient();
   const sql = fs.readFileSync(path.join(__dirname, '../../prisma/migrations/202610200001_attendance_selfie_policy/migration.sql'), 'utf8');
   try {
-    await prisma.$executeRawUnsafe(sql);
-    await prisma.$executeRawUnsafe(sql);
+    // The disposable database may already contain this additive table from
+    // Prisma's setup migration. Reset only this test-owned object so the
+    // first execution proves the migration's default role seeds, while the
+    // second execution still proves exact idempotency.
+    await prisma.$executeRawUnsafe('DROP TABLE IF EXISTS public."attendance_selfie_policies"');
+    await executeSqlStatements(prisma, sql);
+    await executeSqlStatements(prisma, sql);
     const [columns, constraints, indexes, defaults, policies, privileges, rls] = await Promise.all([
       prisma.$queryRawUnsafe(`SELECT column_name, data_type, column_default, is_nullable FROM information_schema.columns WHERE table_schema='public' AND table_name='attendance_selfie_policies' ORDER BY ordinal_position`),
       prisma.$queryRawUnsafe(`SELECT conname, contype FROM pg_constraint WHERE conrelid='public.attendance_selfie_policies'::regclass ORDER BY conname`),
