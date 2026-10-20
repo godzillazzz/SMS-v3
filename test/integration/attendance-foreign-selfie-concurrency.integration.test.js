@@ -180,8 +180,8 @@ if (!configured) {
       assert.deepEqual(auditRow.metadata, { event: 'OBSERVED_LEGACY_DEVICE_STATUS', employeeId: ids.employee, status, credentialFingerprint: fingerprint });
       assert.equal(await prisma.attendanceDeviceChangeRequest.count({ where: { employeeId: ids.employee } }), 0);
       assert.equal(await prisma.attendanceEvent.count({ where: { session: { employeeId: ids.employee } } }), 1);
-      await prisma.attendanceSession.deleteMany({ where: { employeeId: ids.employee } });
       await prisma.attendanceEvent.deleteMany({ where: { session: { employeeId: ids.employee } } });
+      await prisma.attendanceSession.deleteMany({ where: { employeeId: ids.employee } });
       await prisma.attendanceDeviceEnrollment.deleteMany({ where: { id: enrollment.id } });
       assert.equal(index < 4, true);
     }
