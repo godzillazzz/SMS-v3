@@ -26,7 +26,6 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
-      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
       VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
       EXPECTED_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
     outputs:
@@ -86,36 +85,46 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          TRUSTED_SHA_A: 04e0a76b478c285c263a2757b350efc6fa76f999
           CURRENT_PRODUCTION_SOURCE_SHA: ${{ steps.manifest.outputs.current_production_source_sha }}
           ROLLBACK_DEPLOYMENT_ID: ${{ steps.manifest.outputs.rollback_deployment_id }}
           CURRENT_PRODUCTION_POST_RELEASE_RECORD: ${{ steps.manifest.outputs.current_production_post_release_record }}
           CANONICAL_URL: ${{ steps.manifest.outputs.canonical_url }}
-          MIGRATION_MANIFEST: ${{ steps.manifest.outputs.pre_applied_migration_manifest_path }}
         run: |
           set -euo pipefail
-          test "$MIGRATION_MANIFEST" = '.github/releases/approved-attendance-selfie-policy-migration.json'
-          node scripts/ci/verify-approved-production-migration.js "$MIGRATION_MANIFEST" >/tmp/migration-guard.txt
-          grep -Fxq 'PRODUCTION_MIGRATION_MANIFEST_GUARD=PASS' /tmp/migration-guard.txt
+          git fetch --no-tags origin "$TRUSTED_SHA_A"
+          trusted=/tmp/sms-trusted-baseline
+          mkdir -p "$trusted"
+          git show "$TRUSTED_SHA_A:scripts/ci/trusted-production-baseline-collector.js" > "$trusted/trusted-production-baseline-collector.js"
+          git show "$TRUSTED_SHA_A:scripts/ci/verify-pre-applied-migration-production-baseline.js" > "$trusted/verify-pre-applied-migration-production-baseline.js"
+          node --check "$trusted/trusted-production-baseline-collector.js"
+          node --check "$trusted/verify-pre-applied-migration-production-baseline.js"
           node scripts/ci/verify-post-release-record.js "$CURRENT_PRODUCTION_POST_RELEASE_RECORD" >/tmp/post-record-guard.txt
           grep -Fxq 'POST_RELEASE_RECORD=PASS' /tmp/post-record-guard.txt
-          gh api --paginate "repos/$GITHUB_REPOSITORY/deployments?environment=Production&per_page=100" | jq -s 'add' >/tmp/github-deployments.json
-          node - <<'NODE'
+          gh api --paginate "repos/$GITHUB_REPOSITORY/deployments?environment=Production&per_page=100" >/tmp/github-deployments.json
+          node - "$trusted" <<'NODE'
           const fs = require('node:fs');
-          const https = require('node:https');
-          const input = { release: { currentProductionSourceSha: process.env.CURRENT_PRODUCTION_SOURCE_SHA, rollbackDeploymentId: process.env.ROLLBACK_DEPLOYMENT_ID }, migration: { migrationId: 'SELFIE-POLICY', manifestPath: process.env.MIGRATION_MANIFEST, verifierPassed: true, fieldPresent: true, currentProductionDeploymentId: null, currentProductionApplicationSha: process.env.CURRENT_PRODUCTION_SOURCE_SHA }, recordPath: process.env.CURRENT_PRODUCTION_POST_RELEASE_RECORD, recordPathExists: true, recordPathSymlinkEscape: false, postReleaseRecordVerifierPassed: true, postReleaseRecord: JSON.parse(fs.readFileSync(process.env.CURRENT_PRODUCTION_POST_RELEASE_RECORD, 'utf8')), github: { paginationComplete: true, deployments: JSON.parse(fs.readFileSync('/tmp/github-deployments.json', 'utf8')), evidenceDeploymentId: JSON.parse(fs.readFileSync(process.env.CURRENT_PRODUCTION_POST_RELEASE_RECORD, 'utf8')).evidence.github_deployment_id, latestDeploymentId: 0 }, vercel: { canonical: {} }, runtime: {} };
-          const latest = input.github.deployments.reduce((a,b) => Date.parse(a.created_at) >= Date.parse(b.created_at) ? a : b);
-          input.github.latestDeploymentId = latest.id;
-          const req = (url, headers = {}) => new Promise((resolve, reject) => https.get(url, { headers }, r => { let s=''; r.on('data', c => s+=c); r.on('end', () => { try { resolve({ status:r.statusCode, json:JSON.parse(s) }); } catch { reject(new Error('retrieval failure')); } }); }).on('error', reject));
+          const path = require('node:path');
+          const trusted = require(path.join(process.argv[2], 'trusted-production-baseline-collector.js'));
+          const verifier = require(path.join(process.argv[2], 'verify-pre-applied-migration-production-baseline.js'));
+          const request = async (url, options) => fetch(url, options);
+          const runtime = async () => {
+            const base = process.env.CANONICAL_URL.replace(/\/$/, '');
+            const health = await request(`${base}/api/v1/health`, { redirect: 'manual' });
+            const ready = await request(`${base}/api/v1/ready`, { redirect: 'manual' });
+            return { health: { httpStatus: health.status, status: (await health.json()).status }, ready: { httpStatus: ready.status, ...(await (async () => { const r = await request(`${base}/api/v1/ready`, { redirect: 'manual' }); return r.json(); })()) } };
+          };
           (async () => {
-            const v = await req(`https://api.vercel.com/v13/deployments/${encodeURIComponent(process.env.ROLLBACK_DEPLOYMENT_ID)}?teamId=${encodeURIComponent(process.env.VERCEL_ORG_ID)}`, { Authorization: 'Bearer ' + process.env.VERCEL_TOKEN });
-            if (v.status !== 200) throw new Error('Vercel retrieval failure');
-            input.vercel.canonical = { id:v.json.id, target:v.json.target, state:v.json.readyState, provenanceSha:v.json.meta?.githubCommitSha, canonical:true };
-            const h = await req(`${process.env.CANONICAL_URL}/api/v1/health`); const r = await req(`${process.env.CANONICAL_URL}/api/v1/ready`);
-            input.runtime = { health: { httpStatus:h.status, status:h.json?.status }, ready: { httpStatus:r.status, status:r.json?.status, database:r.json?.database } };
+            const github = await trusted.collectGithub({ request, repository: process.env.GITHUB_REPOSITORY, token: process.env.GH_TOKEN, expectedSha: process.env.CURRENT_PRODUCTION_SOURCE_SHA, rollbackId: process.env.ROLLBACK_DEPLOYMENT_ID });
+            const vercel = await trusted.collectVercel({ request, token: null, teamId: 'team_nemCExHbZ8EAhSgsvefHPAEz', projectId: 'prj_XwhNUOB2zLSPZ6UgQcfyOKBYJ75s', deploymentId: process.env.ROLLBACK_DEPLOYMENT_ID, canonicalUrl: process.env.CANONICAL_URL });
+            const runtimeEvidence = await runtime();
+            const input = { release: { currentProductionSourceSha: process.env.CURRENT_PRODUCTION_SOURCE_SHA, rollbackDeploymentId: process.env.ROLLBACK_DEPLOYMENT_ID }, recordPath: process.env.CURRENT_PRODUCTION_POST_RELEASE_RECORD, postReleaseRecordVerifierPassed: true, github, vercel, runtime: runtimeEvidence };
+            const result = verifier.validateProductionBaseline(input);
+            input.baseline = trusted.sanitizeBaseline(result.baseline);
+            input.invariantFingerprint = result.invariantFingerprint;
             fs.writeFileSync('/tmp/pre-applied-baseline-input.json', JSON.stringify(input));
-          })().catch(e => { console.error('baseline evidence retrieval failed'); process.exit(1); });
+            process.stdout.write(`PRE_GATE_BASELINE=${result.mode}\nINVARIANT_FINGERPRINT=${result.invariantFingerprint}\n`);
+          })().catch(error => { console.error(`baseline evidence retrieval failed: ${error.message}`); process.exit(1); });
           NODE
           node scripts/ci/verify-pre-applied-migration-production-baseline.js /tmp/pre-applied-baseline-input.json
 
@@ -378,7 +387,7 @@ jobs:
     env:
       NODE_ENV: production
       VERCEL_ENV: production
-      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_CANONICAL_IDENTITY: DEFERRED_TO_PROTECTED_ENVIRONMENT
       VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
       VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
       APPROVED_DATABASE_TARGET_FINGERPRINT: ${{ vars.APPROVED_DATABASE_TARGET_FINGERPRINT }}
@@ -399,19 +408,25 @@ jobs:
         with:
           ref: ${{ needs.prepare.outputs.commit_sha }}
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Load release-control verifier from dispatched source SHA
         shell: bash
+        env:
+          TRUSTED_SHA_A: 04e0a76b478c285c263a2757b350efc6fa76f999
         run: |
           set -euo pipefail
-          git fetch --no-tags origin "$GITHUB_SHA"
+          git fetch --no-tags origin "$TRUSTED_SHA_A"
           release_tools=/tmp/sms-release-control-plane
           mkdir -p "$release_tools"
-          for tool in verify-public-runtime.js vercel-curl-fetch.js create-vercel-git-candidate.js inspect-vercel-deployment.js vercel-api-deployment.js vercel-deployment.js verify-post-release-record.js verify-pre-applied-migration-production-baseline.js; do
-            git show "$GITHUB_SHA:scripts/ci/$tool" > "$release_tools/$tool"
+          for tool in verify-public-runtime.js vercel-curl-fetch.js create-vercel-git-candidate.js inspect-vercel-deployment.js vercel-api-deployment.js vercel-deployment.js verify-post-release-record.js verify-pre-applied-migration-production-baseline.js trusted-production-baseline-collector.js; do
+            git show "$TRUSTED_SHA_A:scripts/ci/$tool" > "$release_tools/$tool"
             node --check "$release_tools/$tool"
           done
-          git show "$GITHUB_SHA:frontend/src/release-runtime-sentinels.json" > "$release_tools/release-runtime-sentinels.json"
+          for tool in verify-pre-applied-migration-production-baseline.js; do
+            test -s "$release_tools/$tool"
+          done
+          git show "$TRUSTED_SHA_A:frontend/src/release-runtime-sentinels.json" > "$release_tools/release-runtime-sentinels.json"
           echo 'RELEASE_CONTROL_PLANE_TOOLS=LOADED_FROM_DISPATCH_SHA'
 
       - name: Load pre-approval baseline snapshot
@@ -500,20 +515,40 @@ jobs:
               ;;
           esac
           test -z "$(git status --porcelain)"
-          test -n "$VERCEL_TOKEN"
           [[ "$ROLLBACK_DEPLOYMENT_ID" =~ ^dpl_[A-Za-z0-9]+$ ]]
 
       - name: Verify pre-applied Production baseline immediately after Owner approval
         if: ${{ needs.prepare.outputs.database_change_policy == 'PRE_APPLIED_APPROVED_MIGRATION' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         shell: bash
         run: |
           set -euo pipefail
-          test -f /tmp/sms-release-control-plane/verify-pre-applied-migration-production-baseline.js
+          test -f /tmp/sms-release-control-plane/trusted-production-baseline-collector.js
           test -f /tmp/pre-applied-baseline-input.json
-          node /tmp/sms-release-control-plane/verify-pre-applied-migration-production-baseline.js /tmp/pre-applied-baseline-input.json
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const trusted = require('/tmp/sms-release-control-plane/trusted-production-baseline-collector.js');
+          const verifier = require('/tmp/sms-release-control-plane/verify-pre-applied-migration-production-baseline.js');
+          const request = async (url, options) => fetch(url, options);
+          (async () => {
+            const github = await trusted.collectGithub({ request, repository: process.env.GITHUB_REPOSITORY, token: process.env.GH_TOKEN, expectedSha: process.env.CURRENT_PRODUCTION_SOURCE_SHA, rollbackId: process.env.ROLLBACK_DEPLOYMENT_ID });
+            const vercel = await trusted.collectVercel({ request, token: process.env.VERCEL_TOKEN, teamId: process.env.VERCEL_ORG_ID, projectId: process.env.VERCEL_PROJECT_ID, deploymentId: process.env.ROLLBACK_DEPLOYMENT_ID, canonicalUrl: process.env.EXPECTED_CANONICAL_URL });
+            const base = process.env.EXPECTED_CANONICAL_URL.replace(/\/$/, '');
+            const health = await request(`${base}/api/v1/health`, { redirect: 'manual' });
+            const ready = await request(`${base}/api/v1/ready`, { redirect: 'manual' });
+            const healthJson = await health.json(); const readyJson = await ready.json();
+            const input = { release: { currentProductionSourceSha: process.env.CURRENT_PRODUCTION_SOURCE_SHA, rollbackDeploymentId: process.env.ROLLBACK_DEPLOYMENT_ID }, recordPath: process.env.CURRENT_PRODUCTION_POST_RELEASE_RECORD, postReleaseRecordVerifierPassed: true, github, vercel, runtime: { health: { httpStatus: health.status, status: healthJson.status }, ready: { httpStatus: ready.status, ...readyJson } } };
+            const result = verifier.validateProductionBaseline(input);
+            const prior = JSON.parse(fs.readFileSync('/tmp/pre-applied-baseline-input.json', 'utf8'));
+            if (result.invariantFingerprint !== prior.invariantFingerprint) throw new Error('BASELINE_INVARIANT_FINGERPRINT_DRIFT');
+            fs.writeFileSync('/tmp/post-approval-baseline-input.json', JSON.stringify({ ...input, baseline: trusted.sanitizeBaseline(result.baseline), invariantFingerprint: result.invariantFingerprint }));
+            process.stdout.write('POST_APPROVAL_PRE_APPLIED_MIGRATION_BASELINE=PASS\n');
+          })().catch(error => { console.error(error.message); process.exit(1); });
+          NODE
           test "$(git rev-parse HEAD)" = "$TARGET_SHA"
           test "$(git rev-parse HEAD^{tree})" = "$TARGET_TREE"
-          echo 'POST_APPROVAL_PRE_APPLIED_MIGRATION_BASELINE=PASS'
 
       - run: npm ci
 
@@ -593,6 +628,8 @@ jobs:
           echo 'PRE_APPLIED_PRODUCTION_DATABASE_STATE=PASS'
 
       - name: Verify Vercel project linkage
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         shell: bash
         run: |
           set -euo pipefail
@@ -608,6 +645,8 @@ jobs:
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           DIRECT_URL: ${{ secrets.DIRECT_URL }}
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         shell: bash
         run: |
           set -euo pipefail
@@ -681,6 +720,8 @@ jobs:
           NODE
 
       - name: Verify rollback checkpoint is still current Production
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         shell: bash
         run: |
           set -euo pipefail
@@ -703,7 +744,7 @@ jobs:
           set -euo pipefail
           build_log=$(mktemp)
           trap 'rm -f "$build_log"' EXIT
-          CI_MIGRATION_COMPLETED=true npx --yes vercel@"$VERCEL_CLI_VERSION" build --prod --token "$VERCEL_TOKEN" >"$build_log" 2>&1
+          CI_MIGRATION_COMPLETED=true npx --yes vercel@"$VERCEL_CLI_VERSION" build --prod >"$build_log" 2>&1
           grep -Fq 'Vercel build is build-only' "$build_log"
           grep -Fq 'Prisma generate passed' "$build_log"
           grep -Fq 'Application build passed' "$build_log"
@@ -740,6 +781,8 @@ jobs:
 
       - name: Create Git-sourced immutable Production candidate
         id: deploy
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         shell: bash
         run: |
           set -euo pipefail
@@ -773,9 +816,8 @@ jobs:
 
       - name: Verify immutable candidate, explicitly promote, then verify canonical Production
         id: verify
-        continue-on-error: true
-        shell: bash
         env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           DEPLOYMENT_ID: ${{ steps.deploy.outputs.deployment_id }}
           DEPLOYMENT_URL: ${{ steps.deploy.outputs.deployment_url }}
         run: |

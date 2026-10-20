@@ -215,6 +215,16 @@ test("pre-applied migration release guard requires exact prior Production migrat
 });
 
 
+test('Stage B baseline workflow is pinned, scoped, and fail-closed', () => {
+  const workflow = fs.readFileSync(workflowPath, 'utf8').replace(/\r\n/g, '\n');
+  assert.match(workflow, /TRUSTED_SHA_A: 04e0a76b478c285c263a2757b350efc6fa76f999/);
+  assert.match(workflow, /VERCEL_CANONICAL_IDENTITY: DEFERRED_TO_PROTECTED_ENVIRONMENT/);
+  assert.match(workflow, /persist-credentials: false/);
+  assert.doesNotMatch(workflow, /continue-on-error:/);
+  assert.doesNotMatch(workflow.slice(workflow.indexOf('    env:\n      VERCEL_ORG_ID'), workflow.indexOf('    outputs:')), /VERCEL_TOKEN:/);
+  assert.match(workflow, /BASELINE_INVARIANT_FINGERPRINT|BASELINE_INVARIANT_FINGERPRINT_DRIFT/);
+});
+
 test('SELFIE-POLICY null baseline guard is present before and after the Owner gate', () => {
   const workflow = fs.readFileSync(workflowPath, 'utf8').replace(/\r\n/g, '\n');
   const prepareGuard = workflow.indexOf('Verify pre-applied Production baseline before Owner gate');
