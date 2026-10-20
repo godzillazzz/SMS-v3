@@ -166,6 +166,11 @@ jobs:
                   EVIDENCE_WORKFLOW_PATH='.github/workflows/apply-approved-attendance-device-selfie-production-migration.yml'
                   EVIDENCE_WORKFLOW_EVENT='push'
                   ;;
+                .github/releases/approved-attendance-selfie-policy-migration.json)
+                  EVIDENCE_WORKFLOW_NAME='Apply Approved Attendance Selfie Policy Production Migration'
+                  EVIDENCE_WORKFLOW_PATH='.github/workflows/apply-approved-attendance-selfie-policy-production-migration.yml'
+                  EVIDENCE_WORKFLOW_EVENT='push'
+                  ;;
                 .github/releases/approved-attendance-multilevel-production-migration.json)
                   EVIDENCE_WORKFLOW_NAME='Apply Approved Attendance Multi-Level Approval Production Migration'
                   EVIDENCE_WORKFLOW_PATH='.github/workflows/apply-approved-attendance-multilevel-production-migration.yml'

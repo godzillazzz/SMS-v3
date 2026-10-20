@@ -14,6 +14,7 @@ const {
   validateAttChainMl002Sql,
   validateAttChainMl003Sql,
   validateAttChainMlSql,
+  validateSelfiePolicySql,
   outputLines
 } = require('../scripts/ci/verify-approved-production-migration');
 
@@ -280,4 +281,32 @@ test('existing single-migration profiles remain unchanged and valid', () => {
   const result = validateMigrationManifest(timePolicyManifest);
   assert.equal(result.migrationId, 'G06-TIME-POLICY');
   assert.equal(result.schemaChanged, true);
+});
+
+test('SELFIE-POLICY manifest and additive role seed SQL pass verification', () => {
+  const manifest = JSON.parse(fs.readFileSync('.github/releases/approved-attendance-selfie-policy-migration.json', 'utf8'));
+  const result = validateMigrationManifest(manifest);
+  assert.equal(result.migrationId, 'SELFIE-POLICY');
+  assert.equal(result.currentProductionDeploymentId, null);
+  assert.equal(result.migrationPolicy, 'ADDITIVE_ATTENDANCE_SELFIE_POLICY_TABLE_WITH_ROLE_SEED');
+  assert.equal(result.postVerifyScript, 'scripts/ci/verify-attendance-selfie-policy-table.js');
+  assert.equal(result.statementCount, 8);
+});
+
+test('SELFIE-POLICY rejects DML/destructive SQL and non-exact role seeds', () => {
+  const sql = fs.readFileSync('prisma/migrations/202610200001_attendance_selfie_policy/migration.sql', 'utf8');
+  for (const poison of [
+    'UPDATE public."attendance_selfie_policies" SET "clock_in_required" = true;',
+    'ALTER TABLE public."users" ADD COLUMN "bad" text;',
+    'DELETE FROM public."attendance_selfie_policies";',
+    'INSERT INTO public."attendance_selfie_policies" ("role", "clock_in_required", "clock_out_required") VALUES (\'ADMIN\', true, false);',
+    'INSERT INTO public."attendance_selfie_policies" ("role", "clock_in_required", "clock_out_required") VALUES (\'ADMIN\', false, false), (\'MANAGER\', false, false), (\'SUPERVISOR\', false, false);'
+  ]) assert.throws(() => validateSelfiePolicySql(sql + '\\n' + poison), /SELFIE-POLICY|DROP|DELETE|UPDATE/);
+});
+
+test('SELFIE-POLICY fails closed when manifest fields or SQL sha are wrong', () => {
+  const manifest = JSON.parse(fs.readFileSync('.github/releases/approved-attendance-selfie-policy-migration.json', 'utf8'));
+  assert.throws(() => validateMigrationManifest({ ...manifest, post_verify_script: undefined }), /post_verify_script/);
+  const sql = fs.readFileSync('prisma/migrations/202610200001_attendance_selfie_policy/migration.sql', 'utf8');
+  assert.throws(() => validateSelfiePolicySql(sql.replace("'VIEWER', false, false", "'VIEWER', true, false")), /sha256 mismatch/);
 });

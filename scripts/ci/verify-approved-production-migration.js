@@ -89,6 +89,14 @@ const MIGRATIONS = Object.freeze({
     dataBackfill: false,
     schemaChanged: true
   }),
+  'SELFIE-POLICY': Object.freeze({
+    migrationNames: Object.freeze(['202610200001_attendance_selfie_policy']),
+    migrationPolicy: 'ADDITIVE_ATTENDANCE_SELFIE_POLICY_TABLE_WITH_ROLE_SEED',
+    postVerifyScript: 'scripts/ci/verify-attendance-selfie-policy-table.js',
+    sqlSha256: Object.freeze({ '202610200001_attendance_selfie_policy': 'fe78d650a67a14d7adf5739be7194b3dbc2287dd98d6bf1d83ee831734b47231' }),
+    dataBackfill: false,
+    schemaChanged: true
+  }),
   'ATT-CHAIN-ML': Object.freeze({
     migrationNames: Object.freeze([
       '202610180002_attendance_adjustment_multilevel_approval',
@@ -108,7 +116,7 @@ const MIGRATIONS = Object.freeze({
 const SHA = /^[0-9a-f]{40}$/;
 const DEPLOYMENT = /^dpl_[A-Za-z0-9]+$/;
 const MIGRATION_NAME = /^\d{12,14}_[A-Za-z0-9][A-Za-z0-9_-]*$/;
-const SAFE_SCRIPT = /^scripts\/ci\/verify-(?:[a-z0-9-]+-production-migration|attendance-multilevel-constraints|attendance-device-selfie-table)\.js$/;
+const SAFE_SCRIPT = /^scripts\/ci\/verify-(?:[a-z0-9-]+-production-migration|attendance-multilevel-constraints|attendance-device-selfie-table|attendance-selfie-policy-table)\.js$/;
 
 function assert(condition, message) {
   if (!condition) throw new Error(`production migration guard: ${message}`);
@@ -522,8 +530,33 @@ function validateDevice2SelfieSql(sql) {
   return { statementCount: 7, controlledUpdateCount: 0 };
 }
 
+function validateSelfiePolicySql(sql) {
+  const source = String(sql || '');
+  const normalizedSql = source.replace(/\r\n/g, '\n');
+  const sqlSha256 = crypto.createHash('sha256').update(normalizedSql, 'utf8').digest('hex');
+  assert(sqlSha256 === MIGRATIONS['SELFIE-POLICY'].sqlSha256['202610200001_attendance_selfie_policy'], 'SELFIE-POLICY SQL sha256 mismatch');
+  rejectDestructiveSql(source);
+  assert(!/(^|;)\s*UPDATE\s+/im.test(source), 'SELFIE-POLICY UPDATE is forbidden');
+  const alterTargets = [...source.matchAll(/ALTER\s+TABLE\s+(?:public\.)?\"([^\"]+)\"/gi)].map((match) => match[1]);
+  assert(alterTargets.length === 1 && alterTargets.every((table) => table === 'attendance_selfie_policies'), 'SELFIE-POLICY may not alter another table');
+
+  assert((source.match(/CREATE\s+TABLE\s+IF\s+NOT\s+EXISTS\s+public\.\"attendance_selfie_policies\"/gi) || []).length === 1, 'SELFIE-POLICY requires one target table');
+  assert((source.match(/CREATE\s+INDEX\s+IF\s+NOT\s+EXISTS\s+\"attendance_selfie_policies_updated_by_user_id_idx\"/gi) || []).length === 1, 'SELFIE-POLICY requires the updated_by_user_id index');
+  assert(/CONSTRAINT\s+\"attendance_selfie_policies_pkey\"\s+PRIMARY\s+KEY\s*\(\"id\"\)/i.test(source), 'SELFIE-POLICY primary key missing');
+  assert(/CONSTRAINT\s+\"attendance_selfie_policies_role_key\"\s+UNIQUE\s*\(\"role\"\)/i.test(source), 'SELFIE-POLICY role unique constraint missing');
+  assert(/CONSTRAINT\s+\"attendance_selfie_policies_updated_by_user_id_fkey\"[\s\S]*REFERENCES\s+public\.\"users\"\(\"id\"\)/i.test(source), 'SELFIE-POLICY users FK missing');
+  assert(/INSERT\s+INTO\s+public\.\"attendance_selfie_policies\"\s*\(\"role\",\s*\"clock_in_required\",\s*\"clock_out_required\"\)\s*VALUES\s*\('ADMIN',\s*false,\s*false\),\s*\('MANAGER',\s*false,\s*false\),\s*\('SUPERVISOR',\s*false,\s*false\),\s*\('VIEWER',\s*false,\s*false\)\s*ON CONFLICT\s*\(\"role\"\)\s*DO NOTHING/i.test(source), 'SELFIE-POLICY requires exactly the four default role seeds with ON CONFLICT DO NOTHING');
+  assert((source.match(/INSERT\s+INTO/gi) || []).length === 1, 'SELFIE-POLICY allows only one INSERT');
+  assert(/ALTER\s+TABLE\s+public\.\"attendance_selfie_policies\"\s+ENABLE\s+ROW\s+LEVEL\s+SECURITY/i.test(source), 'SELFIE-POLICY RLS enable missing');
+  assert((source.match(/\bDO\s+\$\$/gi) || []).length === 2, 'SELFIE-POLICY requires drift and privilege guard blocks');
+  assert(/REVOKE\s+ALL\s+ON\s+TABLE\s+public\.\"attendance_selfie_policies\"\s+FROM\s+anon/i.test(source), 'SELFIE-POLICY anon revoke missing');
+  assert(/REVOKE\s+ALL\s+ON\s+TABLE\s+public\.\"attendance_selfie_policies\"\s+FROM\s+authenticated/i.test(source), 'SELFIE-POLICY authenticated revoke missing');
+  return { statementCount: 8, controlledUpdateCount: 0 };
+}
+
 function validateSqlForMigration(migrationId, sql, migrationName) {
   if (migrationId === 'DEVICE2-SELFIE') return validateDevice2SelfieSql(sql);
+  if (migrationId === 'SELFIE-POLICY') return validateSelfiePolicySql(sql);
   if (migrationId === 'ATT-CHAIN-ML') return validateAttChainMlSql(sql, migrationName);
   if (migrationId === 'G06-TIME-POLICY') {
     assert(crypto.createHash('sha256').update(String(sql).replace(/\r\n/g, '\n')).digest('hex') === MIGRATIONS[migrationId].sqlSha256, 'G06 time-policy SQL identity mismatch');
@@ -586,9 +619,13 @@ function validateMigrationManifest(input, { root = process.cwd(), verifySql = tr
   }
 
   assert(input.migration_policy === profile.migrationPolicy, 'migration_policy mismatch');
+  if (input.migration_id === 'SELFIE-POLICY') {
+    assert(input.migration_sha256 === profile.sqlSha256['202610200001_attendance_selfie_policy'], 'SELFIE-POLICY migration_sha256 mismatch');
+  }
   assert(SAFE_SCRIPT.test(input.post_verify_script || ''), 'invalid post_verify_script');
   assert(input.post_verify_script === profile.postVerifyScript, 'unexpected post_verify_script');
-  assert(DEPLOYMENT.test(input.current_production_deployment_id || ''), 'invalid current_production_deployment_id');
+  assert(input.current_production_deployment_id == null || DEPLOYMENT.test(input.current_production_deployment_id), 'invalid current_production_deployment_id');
+  if (input.migration_id !== 'SELFIE-POLICY') assert(DEPLOYMENT.test(input.current_production_deployment_id || ''), 'current_production_deployment_id is required for this migration profile');
   assert(SHA.test(input.current_production_application_sha || ''), 'invalid current_production_application_sha');
   assert(input.target_environment === EXPECTED.targetEnvironment, 'target_environment mismatch');
   assert(input.target_project_name === EXPECTED.targetProjectName, 'target_project_name mismatch');
@@ -708,6 +745,7 @@ module.exports = {
   validateAttChainMl002Sql,
   validateAttChainMl003Sql,
   validateAttChainMlSql,
+  validateSelfiePolicySql,
   validateSqlForMigration,
   validateMigrationManifest
 };
