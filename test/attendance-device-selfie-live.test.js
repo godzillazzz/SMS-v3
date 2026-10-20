@@ -78,7 +78,7 @@ test('known selfie storage/configuration codes survive storage boundary without 
     } } });
     const k = keyMaterial(); const c = await challenge(h);
     await assert.rejects(() => h.service.submit({ actor: { sub: ids.user }, input: inputFor({ ...k, selfie: selfie(), selfieNonce: c.nonce }) }), error => {
-      assert.equal(error.statusCode, 503); assert.equal(error.publicCode, code); assert.equal(error.details.code, code); assert.equal(error.publicMessage, `safe ${code}`); assert.doesNotMatch(error.message, /provider secret/); return true;
+      assert.equal(error.statusCode, code === 'ATTENDANCE_SELFIE_TYPE_INVALID' ? 415 : code === 'ATTENDANCE_SELFIE_STORAGE_UPLOAD_FAILED' ? 502 : 503); assert.equal(error.publicCode, code); assert.equal(error.details.code, code); assert.equal(error.publicMessage, code === 'ATTENDANCE_SELFIE_TYPE_INVALID' ? 'Attendance selfie must be a valid JPEG or PNG image.' : code === 'ATTENDANCE_SELFIE_STORAGE_UPLOAD_FAILED' ? 'Attendance selfie upload failed.' : ({ ATTENDANCE_SELFIE_STORAGE_NOT_CONFIGURED: 'Attendance device selfie storage is not configured.', ATTENDANCE_SELFIE_PATH_SECRET_WEAK: 'Attendance selfie path secret is too weak.', ATTENDANCE_SELFIE_BUCKET_NOT_PRIVATE: 'Attendance selfie storage bucket must be private.' })[code]); assert.doesNotMatch(error.message, /provider secret/); return true;
     });
   }
 });

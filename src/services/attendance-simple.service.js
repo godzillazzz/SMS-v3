@@ -27,20 +27,28 @@ const KEY_ALGORITHM = 'ECDSA_P256_SHA256';
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function http(statusCode, code, message) { return new HttpError(statusCode, message, { code }, { publicCode: code, publicMessage: message }); }
-const SELFIE_STORAGE_SAFE_CODES = new Set([
-  'ATTENDANCE_SELFIE_TYPE_INVALID',
-  'ATTENDANCE_SELFIE_STORAGE_NOT_CONFIGURED',
-  'ATTENDANCE_SELFIE_PATH_SECRET_WEAK',
-  'ATTENDANCE_SELFIE_BUCKET_NOT_PRIVATE',
-  'ATTENDANCE_SELFIE_STORAGE_UPLOAD_FAILED'
-]);
+const SELFIE_STORAGE_PUBLIC_ERRORS = Object.freeze({
+  ATTENDANCE_SELFIE_TYPE_INVALID: Object.freeze({ status: 415, message: 'Attendance selfie must be a valid JPEG or PNG image.' }),
+  ATTENDANCE_SELFIE_STORAGE_NOT_CONFIGURED: Object.freeze({ status: 503, message: 'Attendance device selfie storage is not configured.' }),
+  ATTENDANCE_SELFIE_PATH_SECRET_WEAK: Object.freeze({ status: 503, message: 'Attendance selfie path secret is too weak.' }),
+  ATTENDANCE_SELFIE_BUCKET_NOT_PRIVATE: Object.freeze({ status: 503, message: 'Attendance selfie storage bucket must be private.' }),
+  ATTENDANCE_SELFIE_STORAGE_UPLOAD_FAILED: Object.freeze({ status: 502, message: 'Attendance selfie upload failed.' })
+});
+const SELFIE_STORAGE_UNAVAILABLE = Object.freeze({
+  status: 503,
+  code: 'ATTENDANCE_SELFIE_STORAGE_UNAVAILABLE',
+  message: 'Attendance selfie storage is temporarily unavailable.'
+});
 function selfieStorageError(error) {
-  const code = error?.publicCode || error?.details?.code || error?.code;
-  if (SELFIE_STORAGE_SAFE_CODES.has(code)) {
-    return http(error.statusCode >= 400 && error.statusCode < 600 ? error.statusCode : 503, code,
-      error.publicMessage || error.message || 'Attendance selfie storage is unavailable.');
-  }
-  return http(503, 'ATTENDANCE_SELFIE_STORAGE_UNAVAILABLE', 'Attendance selfie storage is temporarily unavailable.');
+  // Provider errors are untrusted. The code is used only as a lookup key;
+  // neither provider message nor provider publicMessage crosses the HTTP boundary.
+  const candidates = [error?.code, error?.details?.code, error?.publicCode];
+  const code = candidates.find((candidate) => Object.prototype.hasOwnProperty.call(SELFIE_STORAGE_PUBLIC_ERRORS, candidate));
+  const mapped = code ? SELFIE_STORAGE_PUBLIC_ERRORS[code] : SELFIE_STORAGE_UNAVAILABLE;
+  return http(mapped.status, code || SELFIE_STORAGE_UNAVAILABLE.code, mapped.message);
+}
+function captureConflictError() {
+  return http(409, 'ATTENDANCE_CAPTURE_CONCURRENT_FINALIZATION', 'Attendance capture could not be finalized concurrently. Retry with a fresh challenge.');
 }
 function cleanText(value, max = 1000) { const text = String(value ?? '').trim(); return text ? text.slice(0, max) : null; }
 function canonicalize(value) {
@@ -462,7 +470,7 @@ function createAttendanceSimpleService({
           throw selfieStorageError(error);
         }
       }
-      const result = await prisma.$transaction(async (tx) => {
+      const finalize = () => prisma.$transaction(async (tx) => {
       const existingEvent = await tx.attendanceEvent.findUnique({ where: { captureId: input.captureId } });
       if (existingEvent) return { counted: true, idempotent: true, event: existingEvent, status: 'ACCEPTED' };
       const existingPending = await tx.attendancePendingEvent.findUnique({ where: { captureId: input.captureId } });
@@ -573,6 +581,41 @@ function createAttendanceSimpleService({
       return { counted: true, status: reviewRequired ? 'ACCEPTED_REVIEW_FLAGGED' : 'ACCEPTED',
         event, session: finalSession, deviceBinding: binding.binding, reviewRequired, reviewReasons: uniqueRiskFlags };
       }, { isolationLevel: 'Serializable', maxWait: 5000, timeout: 15000 });
+      const readCommittedCapture = async () => {
+        const existingEvent = await prisma.attendanceEvent.findUnique({ where: { captureId: input.captureId } });
+        if (existingEvent) return { counted: true, idempotent: true, event: existingEvent, status: 'ACCEPTED' };
+        const existingPending = await prisma.attendancePendingEvent.findUnique({ where: { captureId: input.captureId } });
+        if (existingPending) return { counted: false, idempotent: true, pendingEvent: existingPending, status: existingPending.status };
+        return null;
+      };
+      let result;
+      try {
+        result = await finalize();
+      } catch (finalizationError) {
+        // PostgreSQL SERIALIZABLE may abort a transaction with P2034 after the
+        // external upload. The upload is not repeated: first compensate it,
+        // then observe a winner or retry only the DB finalization.
+        if (finalizationError?.code !== 'P2034') throw finalizationError;
+        const hadExternalSelfie = Boolean(uploadedObjectKey);
+        if (uploadedObjectKey) {
+          try { await deviceSelfieStorage.remove({ objectKey: uploadedObjectKey }); uploadedObjectKey = null; }
+          catch (cleanupError) { console.warn('ATTENDANCE_SELFIE_ORPHAN_CLEANUP', { objectKey: uploadedObjectKey, success: false, errorCode: cleanupError?.details?.code || cleanupError?.code || 'UNKNOWN' }); }
+        }
+        const committed = await readCommittedCapture();
+        if (committed) return committed;
+        // A DB-only retry cannot recreate a removed external selfie object.
+        // Return a deterministic conflict rather than persist a dangling reference.
+        if (hadExternalSelfie) throw captureConflictError();
+        try { result = await finalize(); }
+        catch (retryError) {
+          if (retryError?.code === 'P2034') {
+            const afterRetry = await readCommittedCapture();
+            if (afterRetry) return afterRetry;
+            throw captureConflictError();
+          }
+          throw retryError;
+        }
+      }
       if (uploadedObjectKey && (result.idempotent || discardUploadedObject)) {
         try { await deviceSelfieStorage.remove({ objectKey: uploadedObjectKey }); uploadedObjectKey = null; }
         catch (cleanupError) { throw cleanupError; }
@@ -585,7 +628,7 @@ function createAttendanceSimpleService({
       }
       // A concurrent request can win the captureId unique constraint. Treat
       // that deterministic loser as idempotent and return the committed row.
-      if (error?.code === 'P2002') {
+      if (error?.code === 'P2002' || error?.code === 'P2034') {
         const existingEvent = await prisma.attendanceEvent.findUnique({ where: { captureId: input.captureId } });
         if (existingEvent) return { counted: true, idempotent: true, event: existingEvent, status: 'ACCEPTED' };
         const existingPending = await prisma.attendancePendingEvent.findUnique({ where: { captureId: input.captureId } });
@@ -718,6 +761,7 @@ function createAttendanceSimpleService({
 module.exports = {
   SIMPLE_EVENT_VERSION, OFFLINE_BUNDLE_VERSION, MOVE_REQUEST_VERSION,
   canonicalize, canonicalJson, objectDigest, signedEventPayload, integrityRiskFlags,
+  selfieStorageError, captureConflictError,
   assertFirstDeviceCanAutoBind,
   createAttendanceSimpleService
 };
