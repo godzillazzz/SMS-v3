@@ -29,6 +29,7 @@ import {
   storeEncryptedBootstrap,
   type DeviceIdentity
 } from './attendance-simple-storage';
+import { paintAttendanceSelfieStamp } from './attendance-selfie-stamp';
 import './attendance-simple.css';
 
 type Props = {
@@ -245,6 +246,7 @@ export function AttendanceSimplePage({
   const [selfie, setSelfie] = useState<SimpleEventInput['selfie'] | null>(null);
   const [selfieNonce, setSelfieNonce] = useState<string | null>(null);
   const [nonceIssuedAt, setNonceIssuedAt] = useState<string | null>(null);
+  const [selfiePreview, setSelfiePreview] = useState<SimpleEventInput['selfie'] | null>(null);
   const [cameraOpen, setCameraOpen] = useState(false);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -413,6 +415,11 @@ export function AttendanceSimplePage({
   }, [busy, cameraOpen, stopCamera]);
 
   const recordAttendance = async (capturedSelfie = selfie, capturedSelfieNonce = selfieNonce) => {
+    if (bootstrap?.selfiePolicy?.required && !online) {
+      setTone('danger');
+      setMessage('บทบาทนี้ต้องเชื่อมต่ออินเทอร์เน็ตก่อนลงเวลาเข้า/ออกด้วยเซลฟี่');
+      return;
+    }
 
     const pendingSelfie = pendingSiteCapture?.selfie || null;
     const pendingNonce = pendingSiteCapture?.selfieNonce || null;
@@ -551,6 +558,18 @@ export function AttendanceSimplePage({
       const context = canvas.getContext('2d', { alpha: false });
       if (!context) throw new Error('ไม่สามารถเตรียมภาพสดได้');
       context.drawImage(video, 0, 0, canvas.width, canvas.height);
+      const location = await getLocation();
+      const decision = gpsGeofenceDecision(bootstrap!.assignment.site, location, bootstrap?.eligibleSites || []);
+      paintAttendanceSelfieStamp(context, canvas.width, canvas.height, {
+        employeeName,
+        employeeCode: bootstrap?.employee.employeeCode || '',
+        action: selectedAction || bootstrap?.eventIntent || 'CHECK_IN',
+        capturedAt: new Date(),
+        siteName: decision.actualSite?.name || decision.assignedSite?.name || 'นอก Active Site',
+        supportSite: decision.workSiteContext === 'SUPPORT_SITE',
+        accuracyMeters: location.accuracyMeters,
+        reference: uuid().slice(0, 8)
+      });
       stopCamera();
       setCameraOpen(false);
       const blob = await canvasToOptimizedJpeg(canvas, 'ATTENDANCE_FACE');
@@ -561,17 +580,33 @@ export function AttendanceSimplePage({
         reader.onerror = () => reject(new Error('อ่านภาพสดไม่สำเร็จ'));
         reader.readAsDataURL(blob);
       });
-      const challenge = await simpleAttendanceSelfieProof(token);
       const capturedAt = new Date().toISOString();
       const nextSelfie = { mimeType: 'image/jpeg' as const, base64, checksum, captureMode: 'LIVE_CAMERA' as const, overlay: { capturedAt } };
-      setSelfie(nextSelfie); setSelfieNonce(challenge.nonce);
-      await recordAttendance(nextSelfie, challenge.nonce);
+      setSelfiePreview(nextSelfie);
+      setTone('neutral'); setMessage('ตรวจสอบภาพตัวอย่างและเลือกใช้ภาพนี้ หรือถ่ายใหม่');
     } catch (error) {
       setTone('danger'); setMessage(error instanceof Error ? error.message : 'ถ่ายภาพยืนยันตัวตนไม่สำเร็จ กรุณาลองใหม่');
     } finally {
       stopCamera();
       setBusy(false);
     }
+  };
+
+  const useSelfiePreview = async () => {
+    if (!selfiePreview || !token) return;
+    setBusy(true);
+    try {
+      const challenge = await simpleAttendanceSelfieProof(token);
+      setSelfie(selfiePreview); setSelfieNonce(challenge.nonce); setSelfiePreview(null);
+      await recordAttendance(selfiePreview, challenge.nonce);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const retakeSelfie = () => {
+    setSelfiePreview(null); setSelfie(null); setSelfieNonce(null); setNonceIssuedAt(null);
+    void openSelfieCamera();
   };
 
   const employeeName = bootstrap?.employee.displayName || displayName || 'พนักงาน';
@@ -629,6 +664,16 @@ export function AttendanceSimplePage({
                 : null;
 
   return <section className="attendance-simple layout-page-surface" aria-label="ลงเวลา">
+    {selfiePreview && <div role="dialog" aria-modal="true" aria-label="ตรวจสอบภาพเซลฟี่" className="attendance-simple__camera-modal">
+      <div className="attendance-simple__camera-panel">
+        <h2>ตรวจสอบภาพก่อนส่ง</h2>
+        <img src={`data:image/jpeg;base64,${selfiePreview.base64}`} alt="ภาพตัวอย่างพร้อมข้อมูลกำกับ" />
+        <div className="attendance-simple__camera-actions">
+          <button type="button" onClick={retakeSelfie} disabled={busy}>ถ่ายใหม่</button>
+          <button type="button" onClick={() => void useSelfiePreview()} disabled={busy}>ใช้ภาพนี้</button>
+        </div>
+      </div>
+    </div>}
     {cameraOpen && <div role="dialog" aria-modal="true" aria-label="ถ่ายภาพยืนยันตัวตน" className="attendance-simple__camera-modal">
       <div className="attendance-simple__camera-panel">
         <h2>ยืนยันตัวตนด้วยเซลฟี่สด</h2>

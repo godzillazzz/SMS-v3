@@ -162,6 +162,13 @@ jobs:
           DATABASE_URL: postgresql://ci_user:ci_test_only@127.0.0.1:55438/sms_v3_test?schema=public
           DIRECT_URL: postgresql://ci_user:ci_test_only@127.0.0.1:55438/sms_v3_test?schema=public
         run: node --test --test-concurrency=1 test/integration/attendance-foreign-selfie-concurrency.integration.test.js
+      - name: Run attendance selfie policy migration direct re-run integration
+        env:
+          RUN_INTEGRATION_TESTS: 'true'
+          TEST_DATABASE_RUNNER: g06-attendance-event-disposable-local
+          DATABASE_URL: postgresql://ci_user:ci_test_only@127.0.0.1:55438/sms_v3_test?schema=public
+          DIRECT_URL: postgresql://ci_user:ci_test_only@127.0.0.1:55438/sms_v3_test?schema=public
+        run: node --test --test-concurrency=1 test/integration/attendance-selfie-policy-migration.integration.test.js
       - name: Verify physical acceptance SQL and PostgreSQL read-only enforcement
         env:
           RUN_INTEGRATION_TESTS: 'true'

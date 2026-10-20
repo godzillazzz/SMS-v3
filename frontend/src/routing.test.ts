@@ -126,6 +126,11 @@ describe('application History API routes', () => {
     expect(canViewRoutePage('approvals', { user: { role: 'ADMIN' }, isViewingAs: true })).toBe(false);
     expect(canViewRoutePage('leavePending', { user: { role: 'SUPERVISOR' }, isViewingAs: false })).toBe(true);
     expect(canViewRoutePage('leavePending', { user: { role: 'SUPERVISOR' }, isViewingAs: true })).toBe(false);
+    expect(canViewRoutePage('attendanceDevice', { user: { role: 'VIEWER' }, isViewingAs: false })).toBe(false);
+    expect(canViewRoutePage('attendanceDevice', { user: { role: 'MANAGER' }, isViewingAs: false })).toBe(false);
+    expect(canViewRoutePage('attendanceDevice', { user: { role: 'SUPERVISOR' }, isViewingAs: false })).toBe(false);
+    expect(canViewRoutePage('attendanceDevice', { user: { role: 'ADMIN' }, isViewingAs: false })).toBe(true);
+    expect(pageFromPath('/app/devices')).toBe('attendanceDevice');
     expect(pageTitle('schedule')).toBe('ตารางกะรายเดือน');
     expect(pageTitle('dashboardDetails')).toBe('รายละเอียดตัวชี้วัด');
     expect(canViewRoutePage('dashboardDetails', { user: { role: 'VIEWER' }, isViewingAs: false })).toBe(true);

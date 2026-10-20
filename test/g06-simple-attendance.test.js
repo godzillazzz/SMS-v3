@@ -42,14 +42,13 @@ test('device integrity risks are review flags, not a device bypass', () => {
   ]);
 });
 
-test('only a genuinely new device can use first-device auto-binding', () => {
-  assert.doesNotThrow(() => assertFirstDeviceCanAutoBind(null, null));
-  for (const status of ['REVOKED', 'REJECTED', 'CANCELLED', 'PENDING_APPROVAL']) {
-    assert.throws(() => assertFirstDeviceCanAutoBind(null, { status }), (error) =>
-      error.statusCode === 409 && error.details?.code === 'ATTENDANCE_DEVICE_NOT_ALLOWED',
-      `${status} enrollment must not be reactivated by self-service Attendance`);
+test('legacy device status is passive telemetry and never an Attendance gate', () => {
+  for (const active of [null, { status: 'ACTIVE' }]) {
+    for (const status of ['REVOKED', 'REJECTED', 'CANCELLED', 'PENDING_APPROVAL', 'ACTIVE']) {
+      assert.doesNotThrow(() => assertFirstDeviceCanAutoBind(active, { status }), `${status} must not block Attendance`);
+    }
   }
-  assert.doesNotThrow(() => assertFirstDeviceCanAutoBind({ status: 'ACTIVE' }, { status: 'ACTIVE' }));
+  assert.doesNotThrow(() => assertFirstDeviceCanAutoBind(null, null));
 });
 
 test('simple attendance keeps GPS geofence and admin review contracts', () => {
@@ -59,7 +58,7 @@ test('simple attendance keeps GPS geofence and admin review contracts', () => {
   assert.match(service, /DEVICE_MISMATCH/);
   assert.match(service, /PENDING_CONFIRMATION/);
   assert.match(service, /AttendanceDeviceChangeRequest/);
-  assert.match(service, /AUTO_BIND_FIRST_DEVICE/);
+  assert.match(service, /OBSERVED_ATTENDANCE_DEVICE|OBSERVED_LEGACY_DEVICE_STATUS/);
   assert.match(routes, /simple\/pending\/:id\/confirm/);
   assert.match(routes, /authorize\('ADMIN'\)/);
 });
