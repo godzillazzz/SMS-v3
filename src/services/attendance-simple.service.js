@@ -735,9 +735,12 @@ function createAttendanceSimpleService({
       }
       const snapshot = pending.deviceSnapshot && typeof pending.deviceSnapshot === 'object' ? pending.deviceSnapshot : {};
       const pendingRiskFlags = Array.isArray(pending.riskFlags) ? [...new Set(pending.riskFlags.filter((flag) => typeof flag === 'string' && flag))] : [];
-      // Preserve the legacy queue/report reason while retaining the explicit
-      // Phase 1 observed-device flag.
-      if (pendingRiskFlags.includes('FOREIGN_DEVICE_OBSERVED') && !pendingRiskFlags.includes('DEVICE_MISMATCH')) pendingRiskFlags.push('DEVICE_MISMATCH');
+      // Device/browser mismatch is passive telemetry under the Owner policy.
+      // Keep the observations in the pending/audit record, but do not promote
+      // them to an Attendance review reason or gate on confirmation.
+      const eventReviewReasons = pendingRiskFlags.filter((flag) => ![
+        'DEVICE_MISMATCH', 'DEVICE_OWNERSHIP_CONFLICT', 'FOREIGN_DEVICE_OBSERVED'
+      ].includes(flag));
       const pendingLocation = pending.locationEvidence && typeof pending.locationEvidence === 'object' ? pending.locationEvidence : {};
       const event = await tx.attendanceEvent.create({
         data: { sessionId: session.id, faceVerificationSessionId: null, deviceEnrollmentId: snapshot.deviceEnrollmentId || null,
@@ -745,8 +748,8 @@ function createAttendanceSimpleService({
           receivedAt: pending.receivedAt, effectiveEventAt: pending.capturedAt, deviceCapturedAt: pending.capturedAt, timeBasis: 'SERVER_RECEIVED',
           punctuality: timeClassification.punctuality, checkoutCondition: timeClassification.checkoutCondition, timePolicySnapshot,
           contextDigest: pending.payloadDigest, locationEvidence: pending.locationEvidence,
-          verificationSnapshot: snapshot, reviewRequired: pendingRiskFlags.length > 0,
-          reviewReasons: pendingRiskFlags.length > 0 ? pendingRiskFlags : null }
+          verificationSnapshot: snapshot, reviewRequired: eventReviewReasons.length > 0,
+          reviewReasons: eventReviewReasons.length > 0 ? eventReviewReasons : null }
       });
       if (pending.eventType === 'CHECK_OUT') await tx.attendanceSession.update({ where: { id: session.id }, data: { state: 'CLOSED', closedAt: now } });
       const confirmed = await tx.attendancePendingEvent.update({ where: { id: pending.id },

@@ -261,7 +261,7 @@ test('delayed offline support attendance stays uncounted until ADMIN confirms an
   assert.equal(confirmed.event.locationEvidence.workSiteContext, 'SUPPORT_SITE');
   assert.equal(confirmed.event.punctuality, 'LATE');
   assert.equal(confirmed.event.reviewRequired, true);
-  assert.ok(confirmed.event.reviewReasons.includes('DEVICE_MISMATCH'));
+  assert.equal(confirmed.event.reviewReasons.includes('DEVICE_MISMATCH'), false);
   assert.ok(confirmed.event.reviewReasons.includes('ASSIST_OTHER_SITE'));
   assert.equal(h.state.events.size, 1);
 });
