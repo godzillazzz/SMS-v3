@@ -76,8 +76,10 @@ test(
       .readFileSync(workflowPath, "utf8")
       .replace(/\r\n/g, "\n");
     for (const stepName of [
+      "Verify pre-applied Production baseline before Owner gate",
       "Validate exact source identity, branch ancestry, migration policy, and clean tree",
       "Revalidate exact source after Owner approval",
+      "Verify pre-applied Production baseline immediately after Owner approval",
       "Create Git-sourced immutable Production candidate",
       "Verify immutable candidate, explicitly promote, then verify canonical Production",
     ]) {
@@ -210,6 +212,23 @@ test("pre-applied migration release guard requires exact prior Production migrat
   assert.match(rollbackGuard, /ROLLBACK_CHECKPOINT_CURRENT=PASS/);
   assert.match(rollbackGuard, /inspect-vercel-deployment\.js "\$ROLLBACK_DEPLOYMENT_ID" "\$CURRENT_PRODUCTION_SOURCE_SHA" "\$CURRENT_PRODUCTION_SOURCE_REF" production false/);
   assert.match(workflow, /current_production_source_ref: \$\{\{ steps\.manifest\.outputs\.current_production_source_ref \}\}/);
+});
+
+
+test('SELFIE-POLICY null baseline guard is present before and after the Owner gate', () => {
+  const workflow = fs.readFileSync(workflowPath, 'utf8').replace(/\r\n/g, '\n');
+  const prepareGuard = workflow.indexOf('Verify pre-applied Production baseline before Owner gate');
+  const environment = workflow.indexOf('environment:\n      name: production-sms-v3-staging');
+  const postGuard = workflow.indexOf('Verify pre-applied Production baseline immediately after Owner approval');
+  const npmCi = workflow.indexOf('      - run: npm ci', postGuard);
+  assert.ok(prepareGuard >= 0 && prepareGuard < environment, 'pre-approval guard must precede the Owner environment gate');
+  assert.ok(postGuard > environment && postGuard < npmCi, 'post-approval guard must precede npm ci');
+  assert.match(workflow, /verify-pre-applied-migration-production-baseline\.js/);
+  assert.match(workflow, /verify-post-release-record\.js/);
+  assert.match(workflow, /git show "\$GITHUB_SHA:scripts\/ci\/\$tool"/);
+  assert.match(workflow, /verify-pre-applied-migration-production-baseline\.js; do/);
+  assert.match(workflow, /gh api --paginate .*deployments\?environment=Production/);
+  assert.match(workflow, /POST_APPROVAL_PRE_APPLIED_MIGRATION_BASELINE=PASS/);
 });
 
 

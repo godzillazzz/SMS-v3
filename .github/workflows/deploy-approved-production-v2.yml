@@ -46,6 +46,7 @@ jobs:
       database_change_policy: ${{ steps.manifest.outputs.database_change_policy }}
       pre_applied_migration_manifest_path: ${{ steps.manifest.outputs.pre_applied_migration_manifest_path }}
       pre_applied_migration_evidence_run_id: ${{ steps.manifest.outputs.pre_applied_migration_evidence_run_id }}
+      current_production_post_release_record: ${{ steps.manifest.outputs.current_production_post_release_record }}
       manifest_sha256: ${{ steps.hash.outputs.manifest_sha256 }}
     steps:
       - uses: actions/checkout@v4
@@ -73,11 +74,59 @@ jobs:
           grep -Fxq 'RELEASE_MANIFEST_GUARD=PASS' "$manifest_output"
           while IFS='=' read -r key value; do
             case "$key" in
-              release_id|commit_sha|tree_sha|current_production_source_sha|current_production_source_ref|rollback_deployment_id|target_project_name|target_project_id|target_org_id|target_environment|canonical_url|source_branch|run_migrations|database_change_policy|pre_applied_migration_manifest_path|pre_applied_migration_evidence_run_id)
+              release_id|commit_sha|tree_sha|current_production_source_sha|current_production_source_ref|rollback_deployment_id|target_project_name|target_project_id|target_org_id|target_environment|canonical_url|source_branch|run_migrations|database_change_policy|pre_applied_migration_manifest_path|pre_applied_migration_evidence_run_id|current_production_post_release_record)
                 echo "$key=$value" >> "$GITHUB_OUTPUT"
                 ;;
             esac
           done <"$manifest_output"
+          echo "current_production_post_release_record=$(node -e \"process.stdout.write(JSON.parse(require('fs').readFileSync(process.env.RELEASE_MANIFEST_PATH, 'utf8')).current_production_post_release_record || '')\")" >> "$GITHUB_OUTPUT"
+
+      - name: Verify pre-applied Production baseline before Owner gate
+        if: ${{ steps.manifest.outputs.database_change_policy == 'PRE_APPLIED_APPROVED_MIGRATION' }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          CURRENT_PRODUCTION_SOURCE_SHA: ${{ steps.manifest.outputs.current_production_source_sha }}
+          ROLLBACK_DEPLOYMENT_ID: ${{ steps.manifest.outputs.rollback_deployment_id }}
+          CURRENT_PRODUCTION_POST_RELEASE_RECORD: ${{ steps.manifest.outputs.current_production_post_release_record }}
+          CANONICAL_URL: ${{ steps.manifest.outputs.canonical_url }}
+          MIGRATION_MANIFEST: ${{ steps.manifest.outputs.pre_applied_migration_manifest_path }}
+        run: |
+          set -euo pipefail
+          test "$MIGRATION_MANIFEST" = '.github/releases/approved-attendance-selfie-policy-migration.json'
+          node scripts/ci/verify-approved-production-migration.js "$MIGRATION_MANIFEST" >/tmp/migration-guard.txt
+          grep -Fxq 'PRODUCTION_MIGRATION_MANIFEST_GUARD=PASS' /tmp/migration-guard.txt
+          node scripts/ci/verify-post-release-record.js "$CURRENT_PRODUCTION_POST_RELEASE_RECORD" >/tmp/post-record-guard.txt
+          grep -Fxq 'POST_RELEASE_RECORD=PASS' /tmp/post-record-guard.txt
+          gh api --paginate "repos/$GITHUB_REPOSITORY/deployments?environment=Production&per_page=100" | jq -s 'add' >/tmp/github-deployments.json
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const https = require('node:https');
+          const input = { release: { currentProductionSourceSha: process.env.CURRENT_PRODUCTION_SOURCE_SHA, rollbackDeploymentId: process.env.ROLLBACK_DEPLOYMENT_ID }, migration: { migrationId: 'SELFIE-POLICY', manifestPath: process.env.MIGRATION_MANIFEST, verifierPassed: true, fieldPresent: true, currentProductionDeploymentId: null, currentProductionApplicationSha: process.env.CURRENT_PRODUCTION_SOURCE_SHA }, recordPath: process.env.CURRENT_PRODUCTION_POST_RELEASE_RECORD, recordPathExists: true, recordPathSymlinkEscape: false, postReleaseRecordVerifierPassed: true, postReleaseRecord: JSON.parse(fs.readFileSync(process.env.CURRENT_PRODUCTION_POST_RELEASE_RECORD, 'utf8')), github: { paginationComplete: true, deployments: JSON.parse(fs.readFileSync('/tmp/github-deployments.json', 'utf8')), evidenceDeploymentId: JSON.parse(fs.readFileSync(process.env.CURRENT_PRODUCTION_POST_RELEASE_RECORD, 'utf8')).evidence.github_deployment_id, latestDeploymentId: 0 }, vercel: { canonical: {} }, runtime: {} };
+          const latest = input.github.deployments.reduce((a,b) => Date.parse(a.created_at) >= Date.parse(b.created_at) ? a : b);
+          input.github.latestDeploymentId = latest.id;
+          const req = (url, headers = {}) => new Promise((resolve, reject) => https.get(url, { headers }, r => { let s=''; r.on('data', c => s+=c); r.on('end', () => { try { resolve({ status:r.statusCode, json:JSON.parse(s) }); } catch { reject(new Error('retrieval failure')); } }); }).on('error', reject));
+          (async () => {
+            const v = await req(`https://api.vercel.com/v13/deployments/${encodeURIComponent(process.env.ROLLBACK_DEPLOYMENT_ID)}?teamId=${encodeURIComponent(process.env.VERCEL_ORG_ID)}`, { Authorization: 'Bearer ' + process.env.VERCEL_TOKEN });
+            if (v.status !== 200) throw new Error('Vercel retrieval failure');
+            input.vercel.canonical = { id:v.json.id, target:v.json.target, state:v.json.readyState, provenanceSha:v.json.meta?.githubCommitSha, canonical:true };
+            const h = await req(`${process.env.CANONICAL_URL}/api/v1/health`); const r = await req(`${process.env.CANONICAL_URL}/api/v1/ready`);
+            input.runtime = { health: { httpStatus:h.status, status:h.json?.status }, ready: { httpStatus:r.status, status:r.json?.status, database:r.json?.database } };
+            fs.writeFileSync('/tmp/pre-applied-baseline-input.json', JSON.stringify(input));
+          })().catch(e => { console.error('baseline evidence retrieval failed'); process.exit(1); });
+          NODE
+          node scripts/ci/verify-pre-applied-migration-production-baseline.js /tmp/pre-applied-baseline-input.json
+
+      - name: Persist read-only baseline snapshot for post-approval recheck
+        if: ${{ steps.manifest.outputs.database_change_policy == 'PRE_APPLIED_APPROVED_MIGRATION' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: pre-applied-production-baseline-${{ github.run_id }}
+          path: /tmp/pre-applied-baseline-input.json
+          if-no-files-found: error
+          retention-days: 1
 
       - name: Validate exact source identity, branch ancestry, migration policy, and clean tree
         shell: bash
@@ -344,6 +393,7 @@ jobs:
       DATABASE_CHANGE_POLICY: ${{ needs.prepare.outputs.database_change_policy }}
       PRE_APPLIED_MIGRATION_MANIFEST_PATH: ${{ needs.prepare.outputs.pre_applied_migration_manifest_path }}
       PRE_APPLIED_MIGRATION_EVIDENCE_RUN_ID: ${{ needs.prepare.outputs.pre_applied_migration_evidence_run_id }}
+      CURRENT_PRODUCTION_POST_RELEASE_RECORD: ${{ needs.prepare.outputs.current_production_post_release_record }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -357,17 +407,29 @@ jobs:
           git fetch --no-tags origin "$GITHUB_SHA"
           release_tools=/tmp/sms-release-control-plane
           mkdir -p "$release_tools"
-          for tool in verify-public-runtime.js vercel-curl-fetch.js create-vercel-git-candidate.js inspect-vercel-deployment.js vercel-api-deployment.js vercel-deployment.js; do
+          for tool in verify-public-runtime.js vercel-curl-fetch.js create-vercel-git-candidate.js inspect-vercel-deployment.js vercel-api-deployment.js vercel-deployment.js verify-post-release-record.js verify-pre-applied-migration-production-baseline.js; do
             git show "$GITHUB_SHA:scripts/ci/$tool" > "$release_tools/$tool"
             node --check "$release_tools/$tool"
           done
           git show "$GITHUB_SHA:frontend/src/release-runtime-sentinels.json" > "$release_tools/release-runtime-sentinels.json"
           echo 'RELEASE_CONTROL_PLANE_TOOLS=LOADED_FROM_DISPATCH_SHA'
 
+      - name: Load pre-approval baseline snapshot
+        if: ${{ needs.prepare.outputs.database_change_policy == 'PRE_APPLIED_APPROVED_MIGRATION' }}
+        uses: actions/download-artifact@v4
+        with:
+          name: pre-applied-production-baseline-${{ github.run_id }}
+          path: /tmp
+
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
+
+      - name: Assert baseline snapshot path
+        if: ${{ needs.prepare.outputs.database_change_policy == 'PRE_APPLIED_APPROVED_MIGRATION' }}
+        shell: bash
+        run: test -f /tmp/pre-applied-baseline-input.json
 
       - name: Revalidate exact source after Owner approval
         shell: bash
@@ -377,6 +439,11 @@ jobs:
           test "$VERCEL_ORG_ID" = "$EXPECTED_ORG_ID"
           test "$(git rev-parse HEAD)" = "$TARGET_SHA"
           test "$(git rev-parse HEAD^{tree})" = "$TARGET_TREE"
+          if test "$DATABASE_CHANGE_POLICY" = 'PRE_APPLIED_APPROVED_MIGRATION'; then
+            test -f /tmp/sms-release-control-plane/verify-pre-applied-migration-production-baseline.js
+            test -f "$CURRENT_PRODUCTION_POST_RELEASE_RECORD"
+            node /tmp/sms-release-control-plane/verify-pre-applied-migration-production-baseline.js /tmp/pre-applied-baseline-input.json
+          fi
           git cat-file -e "${CURRENT_PRODUCTION_SOURCE_SHA}^{commit}"
           case "$DATABASE_CHANGE_POLICY" in
             NO_DATABASE_CHANGES)
@@ -435,6 +502,18 @@ jobs:
           test -z "$(git status --porcelain)"
           test -n "$VERCEL_TOKEN"
           [[ "$ROLLBACK_DEPLOYMENT_ID" =~ ^dpl_[A-Za-z0-9]+$ ]]
+
+      - name: Verify pre-applied Production baseline immediately after Owner approval
+        if: ${{ needs.prepare.outputs.database_change_policy == 'PRE_APPLIED_APPROVED_MIGRATION' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f /tmp/sms-release-control-plane/verify-pre-applied-migration-production-baseline.js
+          test -f /tmp/pre-applied-baseline-input.json
+          node /tmp/sms-release-control-plane/verify-pre-applied-migration-production-baseline.js /tmp/pre-applied-baseline-input.json
+          test "$(git rev-parse HEAD)" = "$TARGET_SHA"
+          test "$(git rev-parse HEAD^{tree})" = "$TARGET_TREE"
+          echo 'POST_APPROVAL_PRE_APPLIED_MIGRATION_BASELINE=PASS'
 
       - run: npm ci
 
