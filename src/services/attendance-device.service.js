@@ -111,13 +111,14 @@ function createAttendanceDeviceService({ prisma = prismaDefault, audit = auditDe
     } catch (error) { throw mapConflict(error); }
   }
 
-  async function createSelfieChallenge({ actor }) {
+  async function createSelfieChallenge({ actor, action = null, assignmentId = null }) {
     const now = clock();
     const nonce = randomBytes(32).toString('hex');
     const employee = await loadLinkedEmployee(prisma, actor);
     const expiresAt = new Date(now.getTime() + SELFIE_CHALLENGE_TTL_MS);
     await prisma.attendanceDeviceChallenge.updateMany({ where: { employeeId: employee.id, purpose: 'ATTENDANCE_EVENT', consumedAt: null }, data: { consumedAt: now } });
-    await prisma.attendanceDeviceChallenge.create({ data: { employeeId: employee.id, purpose: 'ATTENDANCE_EVENT', challengeHash: challengeHash(nonce), expiresAt } });
+    const binding = [employee.id, String(action || ''), String(assignmentId || '')].join('|');
+    await prisma.attendanceDeviceChallenge.create({ data: { employeeId: employee.id, purpose: 'ATTENDANCE_EVENT', challengeHash: challengeHash(`${nonce}|${binding}`), expiresAt } });
     return { nonce, expiresAt };
   }
 

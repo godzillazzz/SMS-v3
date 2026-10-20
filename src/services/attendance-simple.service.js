@@ -68,6 +68,7 @@ function canonicalize(value) {
 }
 function canonicalJson(value) { return JSON.stringify(canonicalize(value)); }
 function sha256(value) { return crypto.createHash('sha256').update(Buffer.isBuffer(value) ? value : String(value)).digest('hex'); }
+function challengeHash(value) { return sha256(String(value)); }
 function objectDigest(value) { return sha256(canonicalJson(value)); }
 function normalizedUuid(value, code) {
   const text = String(value || '').trim().toLowerCase();
@@ -312,14 +313,19 @@ function createAttendanceSimpleService({
 
   async function bindOrObserveDevice(client, { actor, identity, material, device, now }) {
     const existing = await client.attendanceDeviceEnrollment.findUnique({ where: { credentialFingerprint: material.fingerprint } });
+    const priorEmployeeEnrollment = existing ? null : await client.attendanceDeviceEnrollment.findFirst({ where: { employeeId: identity.employeeId }, orderBy: { createdAt: 'asc' } });
     const active = await client.attendanceDeviceEnrollment.findFirst({ where: { employeeId: identity.employeeId, status: 'ACTIVE' }, orderBy: { activatedAt: 'desc' } });
+    const priorEnrollment = active || await client.attendanceDeviceEnrollment.findFirst({ where: { employeeId: identity.employeeId }, orderBy: { createdAt: 'desc' } });
     assertFirstDeviceCanAutoBind(active, existing);
     // A fingerprint conflict is an audit/telemetry signal only. Do not mutate
     // the other employee's enrollment and never make it an Attendance gate.
     if (existing && existing.employeeId !== identity.employeeId) {
       await audit.log({ actorUserId: actor.sub, action: 'READ', entityType: 'AttendanceDeviceEnrollment', entityId: existing.id,
         metadata: { event: 'OBSERVED_CROSS_EMPLOYEE_DEVICE_CONFLICT', employeeId: identity.employeeId, boundEmployeeId: existing.employeeId, credentialFingerprint: material.fingerprint } }, client);
-      return { enrollment: existing, binding: 'FOREIGN', reviewFlags: ['DEVICE_MISMATCH', 'DEVICE_OWNERSHIP_CONFLICT'] };
+      // Keep the conflicting enrollment only in audit metadata. A foreign row is
+      // never a valid FK for this employee's event or selfie.
+      return { enrollment: active || priorEnrollment || null, binding: 'FOREIGN', observedEnrollmentId: existing.id,
+        reviewFlags: ['DEVICE_MISMATCH', 'DEVICE_OWNERSHIP_CONFLICT'] };
     }
     if (active?.credentialFingerprint === material.fingerprint) return { enrollment: active, binding: 'PRIMARY', reviewFlags: [] };
     let observed = existing;
@@ -337,7 +343,9 @@ function createAttendanceSimpleService({
         metadata: { event: 'OBSERVED_LEGACY_DEVICE_STATUS', employeeId: identity.employeeId, status: observed.status, credentialFingerprint: material.fingerprint } }, client);
     }
     // Legacy status/history remains unchanged and is never an Attendance gate.
-    return { enrollment: observed, binding: active ? 'FOREIGN' : 'OBSERVED', reviewFlags: active || (existing && !existing.observationOnly) ? ['DEVICE_MISMATCH'] : [] };
+    const observedAsForeign = Boolean(existing && existing.employeeId !== identity.employeeId)
+      || Boolean(active && active.credentialFingerprint !== material.fingerprint);
+    return { enrollment: observed, binding: observedAsForeign ? 'FOREIGN' : 'OBSERVED', reviewFlags: (observedAsForeign || (existing && !existing.observationOnly)) ? ['DEVICE_MISMATCH'] : [] };
   }
 
   function expectationSnapshot(assignment, approval, authority) {
@@ -373,7 +381,7 @@ function createAttendanceSimpleService({
   }
 
   function deviceSnapshot(binding, signals, material) {
-    return { mode: 'ACCOUNT_DEVICE_GPS_GEOFENCE_V1', deviceEnrollmentId: binding.enrollment.id,
+    return { mode: 'ACCOUNT_DEVICE_GPS_GEOFENCE_V1', deviceEnrollmentId: binding.enrollment?.id || null,
       credentialFingerprint: material.fingerprint, binding: binding.binding,
       signals: { standalone: signals.standalone === true, secureContext: signals.secureContext === true,
         serviceWorkerControlled: signals.serviceWorkerControlled === true, webCrypto: signals.webCrypto === true,
@@ -435,6 +443,7 @@ function createAttendanceSimpleService({
 
     let uploadedObjectKey = null;
     let preflightSelfie = null;
+    let selfieNonceVerified = false;
     let discardUploadedObject = false;
     try {
       const existingCapture = await prisma.attendanceEvent.findUnique({ where: { captureId: input.captureId } });
@@ -454,6 +463,17 @@ function createAttendanceSimpleService({
         }
         if (selfieFile.buffer.length > 1048576) throw http(422, 'ATTENDANCE_SELFIE_TOO_LARGE', 'Attendance selfie exceeds the 1 MB limit.');
         if (selfieFile.checksum !== signedPayload.selfieChecksum) throw http(422, 'ATTENDANCE_SELFIE_CHECKSUM_MISMATCH', 'Attendance selfie does not match the signed capture.');
+        // A client boolean or nonce-shaped string is not proof. When supplied,
+        // consume the server-issued challenge atomically before storing evidence.
+        // Missing/invalid nonce remains reviewable but can never earn the
+        // SELFIE_LIVE_VERIFIED assertion.
+        if (input.selfieNonce) {
+          const consumed = await prisma.$transaction(async (tx) => tx.attendanceDeviceChallenge.updateMany({
+            where: { employeeId: identity.employeeId, purpose: 'ATTENDANCE_EVENT', challengeHash: challengeHash(`${input.selfieNonce}|${identity.employeeId}|${action}|${assignment.id}`), consumedAt: null, expiresAt: { gt: now } },
+            data: { consumedAt: now }
+          }));
+          selfieNonceVerified = consumed.count === 1;
+        }
         const overlayCapturedAt = new Date(input.selfie?.overlay?.capturedAt || input.capturedAt);
         if (Number.isNaN(overlayCapturedAt.getTime()) || Math.abs(now.getTime() - overlayCapturedAt.getTime()) > 120000) throw http(422, 'ATTENDANCE_SELFIE_OVERLAY_STALE', 'Selfie capture overlay is stale.', { reason: 'STALE' });
         preflightSelfie = { selfieFile, overlayCapturedAt };
@@ -496,18 +516,21 @@ function createAttendanceSimpleService({
       const selfieFile = selfiePolicy.required ? preflightSelfie.selfieFile : null;
       riskFlags.push(...binding.reviewFlags);
       if (binding.binding === 'FOREIGN') riskFlags.push('FOREIGN_DEVICE_OBSERVED');
-      if (selfiePolicy.required) riskFlags.push('ROLE_SELFIE_REQUIRED', 'SELFIE_LIVE_VERIFIED');
-      const selfieMetadata = preflightSelfie ? { captureMode: 'LIVE_CAMERA', capturedAt: preflightSelfie.overlayCapturedAt.toISOString(), nonceVerified: Boolean(input.selfieNonce) } : null;
+      const nonceVerified = selfiePolicy.required && selfieNonceVerified;
+      if (selfiePolicy.required) riskFlags.push('ROLE_SELFIE_REQUIRED');
+      if (nonceVerified) riskFlags.push('SELFIE_LIVE_VERIFIED');
+      const selfieMetadata = preflightSelfie ? { captureMode: 'LIVE_CAMERA', capturedAt: preflightSelfie.overlayCapturedAt.toISOString(), nonceVerified } : null;
       const uniqueRiskFlags = [...new Set(riskFlags)];
       let selfieRow = null;
       if (selfieFile) {
         const stored = preflightSelfie.stored;
-        selfieRow = await tx.attendanceDeviceSelfie.create({ data: {
+        if (binding.enrollment?.id) selfieRow = await tx.attendanceDeviceSelfie.create({ data: {
           employeeId: identity.employeeId, enrollmentId: binding.enrollment.id, captureId: input.captureId,
           storageProvider: stored.provider, storageBucket: stored.bucket, storageObjectKey: stored.objectKey,
           mimeType: stored.mimeType, sizeBytes: stored.sizeBytes, checksum: stored.checksum,
           capturedAt, retentionUntil: new Date(capturedAt.getTime() + RETENTION_DAYS * 86400000)
         } });
+        else discardUploadedObject = true;
       }
       const snapshot = deviceSnapshot(binding, input.device?.signals || {}, material);
       if (selfieMetadata) snapshot.selfie = selfieMetadata;
@@ -526,7 +549,8 @@ function createAttendanceSimpleService({
         await audit.log({ actorUserId: actor.sub, action: 'CREATE', entityType: 'AttendancePendingEvent', entityId: pending.id,
           metadata: { event: 'OFFLINE_DELAYED_PENDING_CONFIRMATION', employeeId: identity.employeeId,
             shiftAssignmentId: assignment.id, captureId: input.captureId, delayMs,
-            eventType: action, capturedAt: capturedAt.toISOString(), deviceEnrollmentId: binding.enrollment.id,
+            eventType: action, capturedAt: capturedAt.toISOString(), deviceEnrollmentId: binding.enrollment?.id || null,
+            observedEnrollmentId: binding.observedEnrollmentId || null,
             assignedSiteId: locationResult.evidenceRef.expectedSiteId, assignedSiteCode: locationResult.evidenceRef.assignedSite?.code || null,
             actualSiteId: locationResult.evidenceRef.actualSiteId, actualSiteCode: locationResult.evidenceRef.actualSite?.code || null,
             workSiteContext: locationResult.evidenceRef.workSiteContext, gpsEvidenceDigest: locationResult.locationBindingDigest,
@@ -542,9 +566,9 @@ function createAttendanceSimpleService({
         captureId: input.captureId, eventIntent: action, locationEvidence: locationResult.evidenceRef,
         assignedSiteId: locationResult.evidenceRef.expectedSiteId, actualSiteId: locationResult.evidenceRef.actualSiteId,
         workSiteContext: locationResult.evidenceRef.workSiteContext,
-        deviceEnrollmentId: binding.enrollment.id, credentialFingerprint: material.fingerprint };
+        deviceEnrollmentId: binding.enrollment?.id || null, credentialFingerprint: material.fingerprint };
       const event = await tx.attendanceEvent.create({
-        data: { sessionId: session.id, faceVerificationSessionId: null, deviceEnrollmentId: binding.enrollment.id,
+        data: { sessionId: session.id, faceVerificationSessionId: null, deviceEnrollmentId: binding.enrollment?.id || null,
           captureId: input.captureId, eventType: action, provenance: 'ONLINE', sourceMode: offline ? 'OFFLINE' : 'ONLINE',
           receivedAt: now, effectiveEventAt: offline ? capturedAt : now, deviceCapturedAt: offline ? capturedAt : null,
           timeBasis: 'SERVER_RECEIVED', punctuality: timeClassification.punctuality,
@@ -558,7 +582,8 @@ function createAttendanceSimpleService({
       await audit.log({ actorUserId: actor.sub, action: 'CREATE', entityType: 'AttendanceEvent', entityId: event.id,
         metadata: { event: 'ATTENDANCE_SIMPLE_ACCEPTED', employeeId: identity.employeeId,
           shiftAssignmentId: assignment.id, captureId: input.captureId, eventType: action,
-          sourceMode: offline ? 'OFFLINE' : 'ONLINE', deviceEnrollmentId: binding.enrollment.id,
+          sourceMode: offline ? 'OFFLINE' : 'ONLINE', deviceEnrollmentId: binding.enrollment?.id || null,
+          observedEnrollmentId: binding.observedEnrollmentId || null,
           deviceBinding: binding.binding, assignedSiteId: locationResult.evidenceRef.expectedSiteId,
           assignedSiteCode: locationResult.evidenceRef.assignedSite?.code || null,
           actualSiteId: locationResult.evidenceRef.actualSiteId, actualSiteCode: locationResult.evidenceRef.actualSite?.code || null,
@@ -712,6 +737,9 @@ function createAttendanceSimpleService({
       }
       const snapshot = pending.deviceSnapshot && typeof pending.deviceSnapshot === 'object' ? pending.deviceSnapshot : {};
       const pendingRiskFlags = Array.isArray(pending.riskFlags) ? [...new Set(pending.riskFlags.filter((flag) => typeof flag === 'string' && flag))] : [];
+      // Preserve the legacy queue/report reason while retaining the explicit
+      // Phase 1 observed-device flag.
+      if (pendingRiskFlags.includes('FOREIGN_DEVICE_OBSERVED') && !pendingRiskFlags.includes('DEVICE_MISMATCH')) pendingRiskFlags.push('DEVICE_MISMATCH');
       const pendingLocation = pending.locationEvidence && typeof pending.locationEvidence === 'object' ? pending.locationEvidence : {};
       const event = await tx.attendanceEvent.create({
         data: { sessionId: session.id, faceVerificationSessionId: null, deviceEnrollmentId: snapshot.deviceEnrollmentId || null,
@@ -741,7 +769,10 @@ function createAttendanceSimpleService({
   }
 
   async function createSelfieChallenge({ actor }) {
-    return attendanceDevice.createSelfieChallenge({ actor });
+    const identity = await resolveIdentity(prisma, actor);
+    const assignment = await resolveCurrentAssignment(prisma, identity.employeeId, clock());
+    const action = await eventIntentForAssignment(prisma, identity, assignment);
+    return attendanceDevice.createSelfieChallenge({ actor, action, assignmentId: assignment.id });
   }
 
   return { bootstrap, submit, createSelfieChallenge, requestDeviceMove, listPending, reviewPending, verifyBundle };
