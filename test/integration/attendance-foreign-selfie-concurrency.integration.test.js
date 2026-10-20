@@ -177,7 +177,7 @@ if (!configured) {
         prisma.attendanceDeviceSelfie.findMany({ where: { captureId } }), prisma.attendanceSession.findMany({ where: { shiftAssignmentId: ids.assignment } }),
         prisma.attendanceDeviceChangeRequest.findMany({ where: { employeeId: ids.employee } }), prisma.auditLog.findMany({ where: { actorUserId: ids.user } })
       ]);
-      assert.equal(events.length, 1); assert.equal(pending.length, 0); assert.equal(selfies.length, 1); assert.equal(sessions.length, 1); assert.equal(changes.length, 1);
+      assert.equal(events.length, 1); assert.equal(pending.length, 0); assert.equal(selfies.length, 1); assert.equal(sessions.length, 1); assert.equal(changes.length, 0);
       assert.equal(audits.filter((row) => row.entityType === 'AttendanceEvent').length, 1);
       assert.equal(storage.objects.size, 1);
       assert.equal(storage.removed.length, 1);
