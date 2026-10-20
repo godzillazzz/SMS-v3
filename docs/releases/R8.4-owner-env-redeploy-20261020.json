@@ -1,0 +1,40 @@
+{
+  "record_type": "POST_RELEASE_RECORD",
+  "release_batch_id": "R8.4-ENV-REDEPLOY",
+  "release_id": "sms-v3-prod-73220e3-env-redeploy-20261020",
+  "approved_manifest": ".github/releases/approved-production.json",
+  "release_head_sha": "73220e30b03cef7b3c3aa86421e854ff3e613bcb",
+  "deployed": {
+    "deployment_id": "dpl_BdsHurbb4Q34eMGXgNsxDuTtQHto",
+    "source_sha": "73220e30b03cef7b3c3aa86421e854ff3e613bcb",
+    "release_head_sha": "73220e30b03cef7b3c3aa86421e854ff3e613bcb",
+    "deploy_run_id": 7189764578,
+    "conclusion": "SUCCESS",
+    "verified_at": "2026-10-20T02:17:35Z",
+    "checks": {
+      "state": "READY",
+      "environment": "Production",
+      "canonical_alias": true,
+      "health_http_status": 200,
+      "ready_http_status": 200
+    }
+  },
+  "evidence": {
+    "github_deployment_id": 7189764578,
+    "github_deployment_url": "https://github.com/godzillazzz/SMS-v3/deployments/7189764578",
+    "github_deployment_environment": "Production",
+    "github_deployment_status": "success",
+    "github_source_sha": "73220e30b03cef7b3c3aa86421e854ff3e613bcb",
+    "owner_evidence_provenance": "OWNER clarification: OWNER manually redeployed after adding required Production ENV values; this intentionally rebuilt the existing application SHA and was not the Attendance diagnostics release.",
+    "vercel_state": "Ready",
+    "vercel_environment": "Production",
+    "vercel_canonical_alias": true,
+    "health": "HTTP 200",
+    "ready": "HTTP 200"
+  },
+  "previous_known_good": {
+    "deployment_id": "dpl_EyqC3HkLTgRVp5XUDiL8GTWQFDZT",
+    "source_sha": "b83bac98a07d543820d2982967553bdd52307dc6"
+  },
+  "note": "Immutable historical record of the OWNER environment-configuration redeploy. It rebuilt source SHA 73220e30; it did not deploy or claim Attendance diagnostics SHA 83fa98c9. The next approved application target is separately pinned in approved-production.json and has not been dispatched or deployed."
+}
