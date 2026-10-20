@@ -18,6 +18,7 @@ const {
 const { bangkokParts, isOvernightAssignment, actionableAssignment } = require('./attendance-verification-context.service');
 const { createSupabaseAttendanceDeviceSelfieStorage, normalizeSelfie, RETENTION_DAYS } = require('./attendance-device-selfie-storage.service');
 const { createAttendanceDeviceService } = require('./attendance-device.service');
+const { createAttendanceSelfiePolicyService } = require('./attendance-selfie-policy.service');
 
 const SIMPLE_EVENT_VERSION = 'SMS_ATTENDANCE_SIMPLE_EVENT_V1';
 const OFFLINE_BUNDLE_VERSION = 'SMS_ATTENDANCE_OFFLINE_BUNDLE_V2';
@@ -164,7 +165,8 @@ function createAttendanceSimpleService({
   timePolicyService = null,
   bundleSecret = () => process.env.JWT_SECRET,
   selfieStorage = null,
-  deviceService = null
+  deviceService = null,
+  selfiePolicyService = null
 } = {}) {
   const deviceSelfieStorage = selfieStorage || createSupabaseAttendanceDeviceSelfieStorage({ prisma, audit, clock });
   const attendanceDevice = deviceService || createAttendanceDeviceService({ prisma, audit, clock });
@@ -172,16 +174,17 @@ function createAttendanceSimpleService({
   const siteAuthority = siteAuthorityService || createSecuritySiteAuthorityService({ prisma });
   const policies = policyService || createAttendancePolicyService({ prisma });
   const timePolicies = timePolicyService || createAttendanceTimePolicyService({ prisma, audit, clock });
+  const selfiePolicies = selfiePolicyService || createAttendanceSelfiePolicyService({ prisma, audit, clock });
 
   async function resolveIdentity(client, actor) {
     const user = await client.user.findUnique({
       where: { id: actor?.sub },
-      select: { id: true, employeeId: true, isActive: true, accountStatus: true,
+      select: { id: true, employeeId: true, role: true, isActive: true, accountStatus: true,
         employee: { select: { id: true, employeeCode: true, displayName: true, firstName: true, lastName: true, department: true, isActive: true, deletedAt: true } } }
     });
     if (!user?.employeeId || !user.employee) throw http(403, 'ATTENDANCE_EMPLOYEE_LINK_REQUIRED', 'A linked employee account is required.');
     if (!user.isActive || user.accountStatus !== 'ACTIVE' || !user.employee.isActive || user.employee.deletedAt) throw http(409, 'INACTIVE_EMPLOYEE_OPERATION', 'Inactive employees cannot use Attendance.');
-    return { userId: user.id, employeeId: user.employee.id, employeeCode: user.employee.employeeCode, employee: user.employee };
+    return { userId: user.id, role: user.role, employeeId: user.employee.id, employeeCode: user.employee.employeeCode, employee: user.employee };
   }
 
   async function resolveCurrentAssignment(client, employeeId, now) {
@@ -258,7 +261,7 @@ function createAttendanceSimpleService({
     const identity = await resolveIdentity(prisma, actor);
     const assignment = await resolveCurrentAssignment(prisma, identity.employeeId, now);
     if (!actionableAssignment(assignment)) throw http(409, 'ATTENDANCE_SHIFT_NOT_ACTIONABLE', 'The current shift is not eligible for Attendance.');
-    const [approval, existingSession, policy, pendingDeviceRequest] = await Promise.all([
+    const [approval, existingSession, policy, pendingDeviceRequest, selfiePolicy] = await Promise.all([
       approvedSchedule(prisma, assignment),
       prisma.attendanceSession.findUnique({ where: { shiftAssignmentId: assignment.id } }),
       policies.getPolicy(prisma),
@@ -268,7 +271,8 @@ function createAttendanceSimpleService({
           orderBy: { createdAt: 'desc' },
           select: { id: true, status: true, createdAt: true, candidateDevice: { select: { credentialFingerprint: true } } }
         })
-        : Promise.resolve(null)
+        : Promise.resolve(null),
+      selfiePolicies.resolve({ role: identity.role, action: await eventIntentForAssignment(prisma, identity, assignment) }, prisma)
     ]);
     const authority = await siteAuthority.resolve({ assignment, employee: identity.employee, existingSession }, prisma);
     const eventIntent = await eventIntentForAssignment(prisma, identity, assignment);
@@ -301,6 +305,7 @@ function createAttendanceSimpleService({
         requestedAt: pendingDeviceRequest.createdAt,
         candidateFingerprint: pendingDeviceRequest.candidateDevice?.credentialFingerprint || null
       } : null,
+      selfiePolicy: selfiePolicy,
       offline: { bundle: issueBundle(payload), issuedAt: payload.issuedAt, expiresAt: payload.expiresAt, confirmAfterMs: policy.offlineConfirmAfterMs, maxAccuracyMeters: policy.maxAccuracyMeters } };
   }
 
@@ -393,6 +398,8 @@ function createAttendanceSimpleService({
 
     const identity = await resolveIdentity(prisma, actor);
     const assignment = await loadAssignment(prisma, identity, input.shiftAssignmentId);
+    const selfiePolicy = await selfiePolicies.resolve({ role: identity.role, action }, prisma);
+    if (selfiePolicy.required && !input.selfie) throw http(422, 'ATTENDANCE_SELFIE_REQUIRED', 'A selfie is required for this Attendance action.');
     const approval = await approvedSchedule(prisma, assignment);
     const existingSession = await prisma.attendanceSession.findUnique({ where: { shiftAssignmentId: assignment.id } });
     const authority = await siteAuthority.resolve({ assignment, employee: identity.employee, existingSession }, prisma);
@@ -445,23 +452,30 @@ function createAttendanceSimpleService({
       // fresh challenge), while a later DB failure is compensated below.
       const activeForSelfie = await prisma.attendanceDeviceEnrollment.findFirst({ where: { employeeId: identity.employeeId, status: 'ACTIVE' }, orderBy: { activatedAt: 'desc' } });
       const foreignSelfieExpected = activeForSelfie && activeForSelfie.credentialFingerprint !== material.fingerprint;
-      if (foreignSelfieExpected) {
+      if (selfiePolicy.required) {
         if (!input.selfie) throw http(422, 'ATTENDANCE_FOREIGN_DEVICE_SELFIE_REQUIRED', 'A selfie is required when using a foreign Attendance device.');
         const selfieFile = normalizeSelfie(input.selfie);
+        if (input.selfie.captureMode !== 'LIVE_CAMERA' || input.selfie.mimeType !== 'image/jpeg') {
+          throw http(422, 'ATTENDANCE_SELFIE_CAMERA_REQUIRED', 'Attendance selfie must be a live front-camera JPEG.');
+        }
+        if (selfieFile.buffer.length > 1048576) throw http(422, 'ATTENDANCE_SELFIE_TOO_LARGE', 'Attendance selfie exceeds the 1 MB limit.');
         if (selfieFile.checksum !== signedPayload.selfieChecksum) throw http(422, 'ATTENDANCE_SELFIE_CHECKSUM_MISMATCH', 'Attendance selfie does not match the signed capture.');
-        const nonce = String(input.selfieNonce || '');
-        if (!nonce || input.selfie?.captureMode !== 'LIVE_CAMERA') throw http(422, 'ATTENDANCE_FOREIGN_DEVICE_SELFIE_LIVE_REQUIRED', 'Foreign device selfie must be captured live with a valid nonce.');
         const overlayCapturedAt = new Date(input.selfie?.overlay?.capturedAt || input.capturedAt);
         if (Number.isNaN(overlayCapturedAt.getTime()) || Math.abs(now.getTime() - overlayCapturedAt.getTime()) > 120000) throw http(422, 'ATTENDANCE_SELFIE_OVERLAY_STALE', 'Selfie capture overlay is stale.', { reason: 'STALE' });
-        preflightSelfie = await prisma.$transaction(async (tx) => {
-          const challengeStore = tx.attendanceDeviceChallenge;
-          if (!challengeStore || typeof challengeStore.findFirst !== 'function' || typeof challengeStore.updateMany !== 'function') throw http(503, 'ATTENDANCE_SELFIE_GUARD_UNAVAILABLE', 'Attendance selfie live-capture guard is unavailable.');
-          const challenge = await challengeStore.findFirst({ where: { employeeId: identity.employeeId, purpose: 'ATTENDANCE_EVENT', challengeHash: sha256(nonce), consumedAt: null, expiresAt: { gt: now } } });
-          if (!challenge) throw http(422, 'ATTENDANCE_SELFIE_NONCE_INVALID', 'Selfie nonce is invalid, expired, consumed, or belongs to another employee.');
-          const consumed = await challengeStore.updateMany({ where: { id: challenge.id, employeeId: identity.employeeId, purpose: 'ATTENDANCE_EVENT', consumedAt: null, expiresAt: { gt: now } }, data: { consumedAt: now } });
-          if (consumed.count !== 1) throw http(422, 'ATTENDANCE_SELFIE_NONCE_INVALID', 'Selfie nonce is invalid, expired, consumed, or belongs to another employee.');
-          return { selfieFile, overlayCapturedAt };
-        });
+        preflightSelfie = { selfieFile, overlayCapturedAt };
+        // Legacy foreign-device captures may still use the existing nonce guard;
+        // role policy selfie does not introduce a new challenge or signature gate.
+        if (foreignSelfieExpected && input.selfieNonce) {
+          preflightSelfie = await prisma.$transaction(async (tx) => {
+            const challengeStore = tx.attendanceDeviceChallenge;
+            if (!challengeStore || typeof challengeStore.findFirst !== 'function' || typeof challengeStore.updateMany !== 'function') throw http(503, 'ATTENDANCE_SELFIE_GUARD_UNAVAILABLE', 'Attendance selfie live-capture guard is unavailable.');
+            const challenge = await challengeStore.findFirst({ where: { employeeId: identity.employeeId, purpose: 'ATTENDANCE_EVENT', challengeHash: sha256(input.selfieNonce), consumedAt: null, expiresAt: { gt: now } } });
+            if (!challenge) throw http(422, 'ATTENDANCE_SELFIE_NONCE_INVALID', 'Selfie nonce is invalid, expired, consumed, or belongs to another employee.');
+            const consumed = await challengeStore.updateMany({ where: { id: challenge.id, employeeId: identity.employeeId, purpose: 'ATTENDANCE_EVENT', consumedAt: null, expiresAt: { gt: now } }, data: { consumedAt: now } });
+            if (consumed.count !== 1) throw http(422, 'ATTENDANCE_SELFIE_NONCE_INVALID', 'Selfie nonce is invalid, expired, consumed, or belongs to another employee.');
+            return { selfieFile, overlayCapturedAt };
+          });
+        }
         try {
           const stored = await deviceSelfieStorage.put({ employeeId: identity.employeeId, captureId: input.captureId, selfie: selfieFile });
           uploadedObjectKey = stored.objectKey;
@@ -481,25 +495,27 @@ function createAttendanceSimpleService({
       const timePolicySnapshot = timePolicySnapshotFor(resolvedTimePolicy);
       const timeClassification = classifyAttendanceEventTime({ assignment, eventIntent: action, effectiveAt, policy: resolvedTimePolicy.values });
       const activeBeforeBind = await tx.attendanceDeviceEnrollment.findFirst({ where: { employeeId: identity.employeeId, status: 'ACTIVE' }, orderBy: { activatedAt: 'desc' } });
-      if (activeBeforeBind && activeBeforeBind.credentialFingerprint !== material.fingerprint && !input.selfie) {
-        throw http(422, 'ATTENDANCE_FOREIGN_DEVICE_SELFIE_REQUIRED', 'A selfie is required when using a foreign Attendance device.');
+      // Device identity is telemetry only; selfie enforcement is resolved solely by role/action policy.
+      if (selfiePolicy.required && (!preflightSelfie || !preflightSelfie.stored)) {
+        throw http(422, 'ATTENDANCE_SELFIE_REQUIRED', 'A validated live selfie is required for this Attendance action.');
       }
       const binding = await bindOrObserveDevice(tx, { actor, identity, material,
         device: { ...input.device, userAgentSnapshot: requestUserAgent || input.device?.userAgentSnapshot || null }, now });
       // The binding is authoritative only at this final DB decision point.
       // Never promote a foreign capture to SELFIE_LIVE_VERIFIED from input.selfie:
       // the nonce/file must have been validated and stored by the preflight.
-      if (binding.binding === 'FOREIGN' && (!preflightSelfie || !preflightSelfie.stored)) {
-        throw http(422, 'ATTENDANCE_FOREIGN_DEVICE_SELFIE_REQUIRED', 'A validated live selfie is required for this device.');
+      if (selfiePolicy.required && (!preflightSelfie || !preflightSelfie.stored)) {
+        throw http(422, 'ATTENDANCE_SELFIE_REQUIRED', 'A validated live selfie is required for this Attendance action.');
       }
       // The active-device decision may have reversed while the external upload
       // was in flight. In that case this capture is primary and the upload is
       // never referenced; compensate it after the transaction.
-      if (binding.binding !== 'FOREIGN' && uploadedObjectKey) discardUploadedObject = true;
-      const selfieFile = binding.binding === 'FOREIGN' ? preflightSelfie.selfieFile : null;
+      if (binding.binding !== 'FOREIGN' && uploadedObjectKey && !selfiePolicy.required) discardUploadedObject = true;
+      const selfieFile = selfiePolicy.required ? preflightSelfie.selfieFile : null;
       riskFlags.push(...binding.reviewFlags);
-      if (binding.binding === 'FOREIGN') riskFlags.push('FOREIGN_DEVICE_SELFIE', 'SELFIE_LIVE_VERIFIED');
-      const selfieMetadata = preflightSelfie ? { captureMode: 'LIVE_CAMERA', capturedAt: preflightSelfie.overlayCapturedAt.toISOString(), nonceVerified: true } : null;
+      if (binding.binding === 'FOREIGN') riskFlags.push('FOREIGN_DEVICE_OBSERVED');
+      if (selfiePolicy.required) riskFlags.push('ROLE_SELFIE_REQUIRED', 'SELFIE_LIVE_VERIFIED');
+      const selfieMetadata = preflightSelfie ? { captureMode: 'LIVE_CAMERA', capturedAt: preflightSelfie.overlayCapturedAt.toISOString(), nonceVerified: Boolean(input.selfieNonce) } : null;
       const uniqueRiskFlags = [...new Set(riskFlags)];
       let selfieRow = null;
       if (selfieFile) {
@@ -510,15 +526,6 @@ function createAttendanceSimpleService({
           mimeType: stored.mimeType, sizeBytes: stored.sizeBytes, checksum: stored.checksum,
           capturedAt, retentionUntil: new Date(capturedAt.getTime() + RETENTION_DAYS * 86400000)
         } });
-        const active = await tx.attendanceDeviceEnrollment.findFirst({ where: { employeeId: identity.employeeId, status: 'ACTIVE' }, orderBy: { activatedAt: 'desc' } });
-        if (active) {
-          const pending = await tx.attendanceDeviceChangeRequest.findFirst({ where: { employeeId: identity.employeeId, candidateDeviceEnrollmentId: binding.enrollment.id, status: 'PENDING_APPROVAL' } });
-          if (!pending) await tx.attendanceDeviceChangeRequest.create({ data: {
-            employeeId: identity.employeeId, requestType: 'REPLACEMENT', requestedByUserId: actor.sub,
-            candidateDeviceEnrollmentId: binding.enrollment.id, currentDeviceEnrollmentId: active.id,
-            reason: 'Foreign device selfie review'
-          } });
-        }
       }
       const snapshot = deviceSnapshot(binding, input.device?.signals || {}, material);
       if (selfieMetadata) snapshot.selfie = selfieMetadata;

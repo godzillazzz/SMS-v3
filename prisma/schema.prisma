@@ -220,6 +220,7 @@ model User {
   attendanceDeviceRequestsCreated   AttendanceDeviceChangeRequest[]   @relation("AttendanceDeviceRequestedBy")
   attendanceDeviceRequestsReviewed  AttendanceDeviceChangeRequest[]   @relation("AttendanceDeviceReviewedBy")
   attendanceTimePoliciesCreated     AttendanceTimePolicy[]            @relation("AttendanceTimePolicyCreatedBy")
+  attendanceSelfiePoliciesUpdated   AttendanceSelfiePolicy[]          @relation("AttendanceSelfiePolicyUpdatedBy")
   referencePhotosUploaded           EmployeeReferencePhoto[]          @relation("EmployeeReferencePhotoUploadedBy")
   referencePhotosReviewed           EmployeeReferencePhoto[]          @relation("EmployeeReferencePhotoReviewedBy")
   faceVerificationSessions          FaceVerificationSession[]         @relation("FaceVerificationSessionUser")
@@ -1265,6 +1266,20 @@ model AttendanceTimePolicy {
   @@index([scopeType, shiftTypeId, effectiveFrom])
   @@index([createdByUserId, createdAt])
   @@map("attendance_time_policies")
+}
+
+model AttendanceSelfiePolicy {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  role             UserRole @unique
+  clockInRequired  Boolean  @default(false) @map("clock_in_required")
+  clockOutRequired Boolean  @default(false) @map("clock_out_required")
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedByUserId  String?  @map("updated_by_user_id") @db.Uuid
+  updatedBy        User?    @relation("AttendanceSelfiePolicyUpdatedBy", fields: [updatedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([updatedByUserId])
+  @@map("attendance_selfie_policies")
 }
 
 model RetentionPolicyChange {

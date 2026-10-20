@@ -31,6 +31,7 @@ const { createAutoSchedulePatternService } = require('../services/auto-schedule-
 const { createApprovalPolicyService, positionClass } = require('../services/approval-policy.service');
 const { createDataRetentionService } = require('../services/data-retention.service');
 const { createAttendanceTimePolicyService } = require('../services/attendance-time-policy.service');
+const { createAttendanceSelfiePolicyService, ROLES } = require('../services/attendance-selfie-policy.service');
 const { createSupabaseLicenseDocumentStorage } = require('../services/license-document-storage.service');
 const { createLicenseDocumentService } = require('../services/license-document.service');
 const { optimizeAttachment, ATTACHMENT_PROFILES } = require('../services/attachment-optimizer.service');
@@ -54,6 +55,10 @@ const { listMatrix, updateEmailEvent, providerReadiness } = require('../services
 
 const router = express.Router();
 const attendanceTimePolicyService = createAttendanceTimePolicyService({ prisma, audit });
+const attendanceSelfiePolicyService = createAttendanceSelfiePolicyService({ prisma, audit });
+const attendanceSelfiePolicyPayload = z.object({
+  role: z.enum(ROLES), clockInRequired: z.boolean(), clockOutRequired: z.boolean()
+}).strict();
 const paging = z.object({
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(1000).default(100)
@@ -1095,6 +1100,19 @@ router.put('/system-settings/:key', authorize('ADMIN'), async (req, res, next) =
     });
     res.set('Cache-Control', 'no-store');
     res.json({ data: result });
+  } catch (error) { next(error); }
+});
+
+router.get('/attendance/selfie-policies', authorize('ADMIN'), async (_req, res, next) => {
+  try { res.set('Cache-Control', 'no-store'); res.json({ data: await attendanceSelfiePolicyService.list() }); }
+  catch (error) { next(error); }
+});
+
+router.put('/attendance/selfie-policies/:role', authorize('ADMIN'), async (req, res, next) => {
+  try {
+    const input = attendanceSelfiePolicyPayload.parse({ ...req.body, role: req.params.role });
+    const data = await attendanceSelfiePolicyService.update({ actor: req.user, ...input });
+    res.set('Cache-Control', 'no-store'); res.json({ data });
   } catch (error) { next(error); }
 });
 
