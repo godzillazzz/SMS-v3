@@ -40,6 +40,7 @@ function json(route: Parameters<Parameters<Page['route']>[1]>[0], payload: unkno
 }
 
 type RequestRecord = { path: string; lifecycle: string; started: number; responded?: number };
+type AuthRequestRecord = { method: string; path: string; status?: number };
 const SUMMARY_DELAY_MS = 1500;
 const SUMMARY_TTL_MS = 2000;
 const READY_POLL_INTERVALS = [100, 250, 500, 1000];
@@ -47,6 +48,7 @@ const READY_POLL_INTERVALS = [100, 250, 500, 1000];
 async function installFixture(page: Page, role: 'ADMIN' | 'MANAGER' | 'SUPERVISOR' | 'VIEWER' = 'ADMIN') {
   const requests: RequestRecord[] = [];
   const intercepted: string[] = [];
+  const authRequests: AuthRequestRecord[] = [];
   let lifecycle = 'dashboard';
   // Closure state belongs to this Playwright Page only. It models the browser
   // refresh-cookie contract without changing production authentication.
@@ -54,13 +56,20 @@ async function installFixture(page: Page, role: 'ADMIN' | 'MANAGER' | 'SUPERVISO
   const user = { id: 'synthetic-r71-user', email: 'r71@example.test', displayName: 'R7.1 Fixture', role };
   await page.route('**/api/v1/**', async (route) => {
     const path = new URL(route.request().url()).pathname;
-    intercepted.push(`${route.request().method()} ${path}`);
-    if (path === '/api/v1/auth/refresh') return syntheticSession
-      ? json(route, { accessToken: 'synthetic-r71-token', user })
-      : json(route, { message: 'No active session' }, 401);
-    if (path === '/api/v1/auth/passkeys/config') return json(route, { enabled: false });
+    const method = route.request().method();
+    intercepted.push(`${method} ${path}`);
+    if (path === '/api/v1/auth/refresh' || path === '/api/v1/auth/passkeys/config') {
+      const responseStatus = path === '/api/v1/auth/refresh' && !syntheticSession ? 401 : 200;
+      authRequests.push({ method, path, status: responseStatus });
+      return path === '/api/v1/auth/refresh' && !syntheticSession
+        ? json(route, { message: 'No active session' }, responseStatus)
+        : path === '/api/v1/auth/refresh'
+          ? json(route, { accessToken: 'synthetic-r71-token', user })
+          : json(route, { enabled: false });
+    }
     if (path === '/api/v1/auth/login') {
       syntheticSession = true;
+      authRequests.push({ method, path, status: 200 });
       return json(route, { accessToken: 'synthetic-r71-token', user });
     }
     if (path === '/api/v1/dashboard/summary' || path === '/api/v1/dashboard') {
@@ -94,6 +103,7 @@ async function installFixture(page: Page, role: 'ADMIN' | 'MANAGER' | 'SUPERVISO
   return {
     requests,
     intercepted,
+    authRequests,
     assertInstalled: () => expect(intercepted, 'R71 API fixture was registered but intercepted no API request').toContainEqual(expect.stringContaining('/api/v1/')),
     setLifecycle: (value: string) => { lifecycle = value; },
   };
@@ -106,7 +116,12 @@ async function navigateFromShell(page: Page, navigationId: string, mobile: boole
   await item.click();
 }
 
-async function signIn(page: Page, fixture: { requests: RequestRecord[]; intercepted: string[]; assertInstalled: () => void }, role: 'ADMIN' | 'MANAGER' | 'SUPERVISOR' | 'VIEWER' = 'ADMIN') {
+async function signIn(page: Page, fixture: {
+  requests: RequestRecord[];
+  intercepted: string[];
+  authRequests: AuthRequestRecord[];
+  assertInstalled: () => void;
+}, role: 'ADMIN' | 'MANAGER' | 'SUPERVISOR' | 'VIEWER' = 'ADMIN') {
   test.info().setTimeout(readinessTimeout() + 10_000);
   const consoleErrors: string[] = [];
   const failedRequests: string[] = [];
@@ -114,22 +129,53 @@ async function signIn(page: Page, fixture: { requests: RequestRecord[]; intercep
     if (message.type() === 'error') consoleErrors.push(message.text());
   });
   page.on('requestfailed', request => failedRequests.push(`${request.method()} ${new URL(request.url()).pathname}: ${request.failure()?.errorText ?? 'unknown failure'}`));
+
+  const refreshResponse = page.waitForResponse(response => {
+    const url = new URL(response.url());
+    return response.request().method() === 'POST' && url.pathname === '/api/v1/auth/refresh';
+  }, { timeout: readinessTimeout() });
+  const passkeyConfigResponse = page.waitForResponse(response => {
+    const url = new URL(response.url());
+    return response.request().method() === 'GET' && url.pathname === '/api/v1/auth/passkeys/config';
+  }, { timeout: readinessTimeout() });
   await page.goto('/app');
   await expect(page.locator('#auth-login-form')).toBeVisible();
-  await page.locator('#email').fill('r71@example.test');
-  await page.locator('#password').fill('synthetic-password');
+  await Promise.all([refreshResponse, passkeyConfigResponse]);
+
+  const email = page.locator('#email');
+  const password = page.locator('#password');
+  await email.fill('r71@example.test');
+  await password.fill('synthetic-password');
+  const formState = await page.locator('#auth-login-form').evaluate(form => ({
+    email: (form.querySelector('#email') as HTMLInputElement | null)?.value ?? '',
+    passwordPresent: Boolean((form.querySelector('#password') as HTMLInputElement | null)?.value),
+    valid: (form as HTMLFormElement).checkValidity(),
+  }));
+  if (formState.email !== 'r71@example.test' || !formState.passwordPresent || !formState.valid) {
+    throw new Error([
+      'R71 sign-in precondition failed before submit',
+      `url=${page.url()}`,
+      `email=${JSON.stringify(formState.email)}`,
+      `passwordPresent=${formState.passwordPresent}`,
+      `formValidity=${formState.valid}`,
+    ].join('\n'));
+  }
+
   const loginResponse = page.waitForResponse(response => {
-    return new URL(response.url()).pathname === '/api/v1/auth/login';
+    const url = new URL(response.url());
+    return response.request().method() === 'POST' && url.pathname === '/api/v1/auth/login';
   }, { timeout: readinessTimeout() });
   const dashboardResponse = page.waitForResponse(response => {
     const path = new URL(response.url()).pathname;
-    return response.ok() && (path === '/api/v1/dashboard' || path === '/api/v1/dashboard/summary');
+    return response.request().method() === 'GET' && response.ok() &&
+      (path === '/api/v1/dashboard' || path === '/api/v1/dashboard/summary');
   }, { timeout: readinessTimeout() });
-  await page.locator('#auth-login-form button[type="submit"]').click();
-  const login = await loginResponse;
-  fixture.assertInstalled();
-  expect(login.status(), `R71 fixture login was not intercepted: ${JSON.stringify(fixture.intercepted)}`).toBe(200);
+
   try {
+    await page.locator('#auth-login-form button[type="submit"]').click();
+    const login = await loginResponse;
+    fixture.assertInstalled();
+    expect(login.status(), `R71 fixture login was not intercepted: ${JSON.stringify(fixture.intercepted)}`).toBe(200);
     await dashboardResponse;
     await expect.poll(async () => {
       const shellReady = await page.locator('.app-shell').isVisible().catch(() => false);
@@ -147,13 +193,21 @@ async function signIn(page: Page, fixture: { requests: RequestRecord[]; intercep
       ).length, { timeout: readinessTimeout(), intervals: READY_POLL_INTERVALS }).toBe(1);
     }
   } catch (error) {
+    const formStateAfterFailure = await page.locator('#auth-login-form').evaluate(form => ({
+      email: (form.querySelector('#email') as HTMLInputElement | null)?.value ?? '',
+      passwordPresent: Boolean((form.querySelector('#password') as HTMLInputElement | null)?.value),
+      valid: (form as HTMLFormElement).checkValidity(),
+    })).catch(() => ({ email: '', passwordPresent: false, valid: false }));
     const pending = fixture.requests
       .filter(record => record.responded === undefined)
       .map(record => `${record.path} [${record.lifecycle}]`);
     throw new Error([
-      `R71 readiness timed out after ${readinessTimeout()}ms`,
+      `R71 sign-in/dashboard synchronization failed after ${readinessTimeout()}ms`,
       `url=${page.url()}`,
-      `shellVisible=${await page.locator('.app-shell').isVisible().catch(() => false)}`,
+      `email=${JSON.stringify(formStateAfterFailure.email)}`,
+      `passwordPresent=${formStateAfterFailure.passwordPresent}`,
+      `formValidity=${formStateAfterFailure.valid}`,
+      `authRequests=${JSON.stringify(fixture.authRequests)}`,
       `pendingApi=${JSON.stringify(pending)}`,
       `requests=${JSON.stringify(fixture.requests)}`,
       `consoleErrors=${JSON.stringify(consoleErrors.slice(-10))}`,
