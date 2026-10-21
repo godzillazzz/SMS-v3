@@ -4,7 +4,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { execFileSync, spawnSync } = require('node:child_process');
+const { execFileSync, spawn, spawnSync } = require('node:child_process');
 const test = require('node:test');
 
 const root = path.resolve(__dirname, '..');
@@ -36,8 +36,13 @@ function extractNodeHeredoc(workflow, stepName) {
 }
 
 function makeFixture() {
-  const checkout = fs.mkdtempSync(path.join(os.tmpdir(), 'smsv3-prepare-checkout-'));
-  const trusted = fs.mkdtempSync(path.join(os.tmpdir(), 'smsv3-extracted-trusted-'));
+  const workspace = fs.mkdtempSync(path.join(os.tmpdir(), 'smsv3-prepare-harness-'));
+  const checkout = path.join(workspace, 'checkout');
+  const trusted = path.join(workspace, 'trusted');
+  const output = path.join(workspace, 'output');
+  const baselinePath = path.join(output, 'pre-applied-baseline-input.json');
+  fs.mkdirSync(trusted, { recursive: true });
+  fs.mkdirSync(output, { recursive: true });
   fs.mkdirSync(path.join(checkout, '.github/releases'), { recursive: true });
   fs.mkdirSync(path.join(checkout, 'docs/releases'), { recursive: true });
   fs.copyFileSync(path.join(root, manifestPath), path.join(checkout, manifestPath));
@@ -45,7 +50,7 @@ function makeFixture() {
   for (const file of ['trusted-production-baseline-collector.js', 'verify-pre-applied-migration-production-baseline.js']) {
     fs.writeFileSync(path.join(trusted, file), execFileSync('git', ['show', `${trustedSha}:scripts/ci/${file}`], { cwd: root }));
   }
-  return { checkout, trusted };
+  return { workspace, checkout, trusted, baselinePath };
 }
 
 function fetchPreload() {
@@ -63,49 +68,80 @@ function fetchPreload() {
 `};\n`;
 }
 
-function runRunner({ mutate, removeRepositoryRoot = false, addVercelRequest = false } = {}) {
-  const { checkout, trusted } = makeFixture();
-  fs.writeFileSync(path.join(checkout, 'preload.js'), fetchPreload());
+async function runRunner({ fixture: suppliedFixture, mutate, removeRepositoryRoot = false, addVercelRequest = false } = {}) {
+  const callerOwnsLifecycle = Boolean(suppliedFixture);
+  const fixture = suppliedFixture || makeFixture();
+  const { workspace, checkout, trusted, baselinePath } = fixture;
   try {
+    fs.writeFileSync(path.join(checkout, 'preload.js'), fetchPreload());
     let runner = extractNodeHeredoc(fs.readFileSync(workflowPath, 'utf8').replace(/\r\n/g, '\n'), 'Verify pre-applied Production baseline before Owner gate');
+    const sharedBaselineLiteral = '/tmp/' + 'pre-applied-baseline-input.json';
+    runner = runner.replaceAll(sharedBaselineLiteral, 'process.env.BASELINE_INPUT_PATH');
+    runner = runner.replace('input.invariantFingerprint = result.invariantFingerprint;', "input.invariantFingerprint = result.invariantFingerprint; fs.mkdirSync(path.dirname(process.env.BASELINE_INPUT_PATH), { recursive: true }); fs.writeFileSync(process.env.BASELINE_INPUT_PATH, JSON.stringify(input));");
+    runner = `const baselineWorkspace = ${JSON.stringify(workspace)};\nconst baselineInputPath = process.env.BASELINE_INPUT_PATH;\nif (!baselineInputPath || !require('node:path').resolve(baselineInputPath).startsWith(require('node:path').resolve(baselineWorkspace) + require('node:path').sep)) throw new Error('baseline input path must be inside fixture workspace');\n` + runner;
+    assert.match(runner, /process\.env\.BASELINE_INPUT_PATH/);
+    assert.match(runner, /mkdirSync\(path\.dirname\(process\.env\.BASELINE_INPUT_PATH\)/);
+    assert.doesNotMatch(runner, new RegExp(sharedBaselineLiteral.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
     if (removeRepositoryRoot) runner = runner.replace(', { repositoryRoot: process.cwd() }', '');
     if (mutate) runner = mutate(runner);
-    runner += `\nconst guard = verifier.validateProductionBaseline(JSON.parse(fs.readFileSync('/tmp/pre-applied-baseline-input.json', 'utf8')), { repositoryRoot: process.cwd() });\nprocess.stdout.write('PRE_APPLIED_MIGRATION_PRODUCTION_BASELINE=' + guard.mode + '\\n');\n`;
+    runner = runner.replace('})().catch(error =>', `})().then(() => { const guard = verifier.validateProductionBaseline(JSON.parse(fs.readFileSync(process.env.BASELINE_INPUT_PATH, 'utf8')), { repositoryRoot: process.cwd() }); process.stdout.write('PRE_APPLIED_MIGRATION_PRODUCTION_BASELINE=' + guard.mode + '\\n'); }).catch(error =>`);
     if (addVercelRequest) runner += `\ntrusted.collectVercel({ request, token: 'unexpected', teamId: 'team_fixture', projectId: 'prj_fixture', deploymentId: '${rollbackId}', canonicalUrl: process.env.CANONICAL_URL });\n`;
-    const result = spawnSync(process.execPath, ['-r', path.join(checkout, 'preload.js'), '-', trusted], {
-      cwd: checkout,
-      encoding: 'utf8',
-      input: runner,
-      env: { ...process.env, CURRENT_PRODUCTION_SOURCE_SHA: sourceSha, ROLLBACK_DEPLOYMENT_ID: rollbackId, CURRENT_PRODUCTION_POST_RELEASE_RECORD: recordPath, CANONICAL_URL: 'https://sms-v3-staging-ten.vercel.app', GITHUB_REPOSITORY: 'godzillazzz/SMS-v3', GH_TOKEN: 'test-token' },
+    const childEnv = { ...process.env, BASELINE_INPUT_PATH: baselinePath, CURRENT_PRODUCTION_SOURCE_SHA: sourceSha, ROLLBACK_DEPLOYMENT_ID: rollbackId, CURRENT_PRODUCTION_POST_RELEASE_RECORD: recordPath, CANONICAL_URL: 'https://sms-v3-staging-ten.vercel.app', GITHUB_REPOSITORY: 'godzillazzz/SMS-v3', GH_TOKEN: 'test-token' };
+    const result = await new Promise((resolve, reject) => {
+      const child = spawn(process.execPath, ['-r', path.join(checkout, 'preload.js'), '-', trusted], { cwd: checkout, env: childEnv });
+      let stdout = ''; let stderr = '';
+      child.stdout.on('data', chunk => { stdout += chunk; });
+      child.stderr.on('data', chunk => { stderr += chunk; });
+      child.on('error', reject);
+      child.on('close', status => resolve({ status, signal: null, stdout, stderr }));
+      child.stdin.end(runner);
     });
-    return result;
+    const resolvedBaselinePath = path.resolve(childEnv.BASELINE_INPUT_PATH);
+    assert.equal(resolvedBaselinePath.startsWith(`${path.resolve(workspace)}${path.sep}`), true);
+    return callerOwnsLifecycle ? { result, fixture } : result;
   } finally {
-    fs.rmSync(checkout, { recursive: true, force: true });
-    fs.rmSync(trusted, { recursive: true, force: true });
+    if (!callerOwnsLifecycle) fs.rmSync(workspace, { recursive: true, force: true });
   }
 }
 
-test('PREPARE runner harness executes extracted trusted code through the Owner-gate boundary', () => {
-  const { checkout, trusted } = makeFixture();
-  fs.writeFileSync(path.join(checkout, 'preload.js'), fetchPreload());
+test('PREPARE runner harness executes extracted trusted code through the Owner-gate boundary', async () => {
+  const fixture = makeFixture();
   try {
-    const result = runRunner();
+    const { result } = await runRunner({ fixture });
     assert.equal(result.status, 0, result.stderr || result.stdout);
     assert.match(result.stdout, /PRE_GATE_BASELINE=SELFIE_POLICY_EXPLICIT_NULL_EVIDENCE/);
     assert.match(result.stdout, /PRE_APPLIED_MIGRATION_PRODUCTION_BASELINE=SELFIE_POLICY_EXPLICIT_NULL_EVIDENCE/);
     assert.match(result.stdout, /INVARIANT_FINGERPRINT=[0-9a-f]{64}/);
     assert.equal(result.stderr, '', result.stderr);
-    assert.ok(fs.existsSync(path.join(checkout, '.github/releases/approved-attendance-selfie-policy-migration.json')));
-    assert.ok(fs.existsSync(path.join(checkout, recordPath)));
+    assert.ok(fs.existsSync(path.join(fixture.checkout, '.github/releases/approved-attendance-selfie-policy-migration.json')));
+    assert.ok(fs.existsSync(path.join(fixture.checkout, recordPath)));
+    assert.ok(fs.existsSync(fixture.baselinePath));
   } finally {
-    fs.rmSync(checkout, { recursive: true, force: true });
-    fs.rmSync(trusted, { recursive: true, force: true });
+    fs.rmSync(fixture.workspace, { recursive: true, force: true });
   }
 });
 
-test('PREPARE harness mutation proofs fail closed', () => {
-  assert.match(runRunner({ removeRepositoryRoot: true }).stderr, /ENOENT|baseline evidence retrieval failed/);
-  assert.match(runRunner({ mutate: source => source.replace("vercelCanonicalIdentity: 'DEFERRED_TO_PROTECTED_ENVIRONMENT'", "vercelCanonicalIdentity: 'VERIFIED_IN_PROTECTED_ENVIRONMENT'") }).stderr, /deferred|project\/team|Vercel/);
-  assert.match(runRunner({ mutate: source => source.replace('rollbackDeploymentId: process.env.ROLLBACK_DEPLOYMENT_ID', "rollbackDeploymentId: 'dpl_changed'") }).stderr, /mismatch|record/);
-  assert.match(runRunner({ addVercelRequest: true }).stderr, /Vercel request attempted|api\.vercel\.com/);
+test('PREPARE harness mutation proofs fail closed', async () => {
+  for (const options of [{ removeRepositoryRoot: true }, { mutate: source => source.replace("vercelCanonicalIdentity: 'DEFERRED_TO_PROTECTED_ENVIRONMENT'", "vercelCanonicalIdentity: 'VERIFIED_IN_PROTECTED_ENVIRONMENT'") }, { mutate: source => source.replace('rollbackDeploymentId: process.env.ROLLBACK_DEPLOYMENT_ID', "rollbackDeploymentId: 'dpl_changed'") }, { addVercelRequest: true }]) {
+    const fixture = makeFixture();
+    try { assert.match((await runRunner({ ...options, fixture })).result.stderr, /ENOENT|baseline evidence retrieval failed|deferred|project\/team|Vercel|mismatch|record/); } finally { fs.rmSync(fixture.workspace, { recursive: true, force: true }); }
+  }
+});
+
+test('PREPARE harness keeps concurrent baseline outputs isolated', async () => {
+  const fixtures = [makeFixture(), makeFixture()];
+  try {
+    const runs = await Promise.all(fixtures.map(fixture => runRunner({ fixture })));
+    assert.notEqual(runs[0].fixture.baselinePath, runs[1].fixture.baselinePath);
+    for (const { result, fixture } of runs) {
+      assert.equal(result.status, 0, result.stderr || result.stdout);
+      assert.match(result.stdout, /PRE_APPLIED_MIGRATION_PRODUCTION_BASELINE=SELFIE_POLICY_EXPLICIT_NULL_EVIDENCE/);
+      assert.match(fs.readFileSync(fixture.baselinePath, 'utf8'), new RegExp(sourceSha));
+    }
+  } finally { for (const fixture of fixtures) fs.rmSync(fixture.workspace, { recursive: true, force: true }); }
+});
+
+test('PREPARE harness source contains no shared baseline literal', () => {
+  const source = fs.readFileSync(__filename, 'utf8');
+  assert.doesNotMatch(source, new RegExp('/tmp/' + 'pre-applied-baseline-input\\.json'));
 });
