@@ -25,16 +25,23 @@ async function checksum(file) {
   return hash.digest('hex');
 }
 function countResult() { return { scanned: 0, wouldCopy: 0, mismatch: 0, verified: 0, failed: 0, dryRun: true, failures: [] }; }
+async function assertContainedRoots(sourceRoot, destinationRoot) {
+  const [sourceReal, destinationReal] = await Promise.all([fs.realpath(sourceRoot), fs.realpath(destinationRoot)]);
+  const sourceStat = await fs.lstat(sourceRoot); const destinationStat = await fs.lstat(destinationRoot);
+  if (!sourceStat.isDirectory() || !destinationStat.isDirectory() || sourceStat.isSymbolicLink() || destinationStat.isSymbolicLink()) throw new Error('ROOT_SYMLINK_OR_NOT_DIRECTORY');
+  return { sourceReal, destinationReal };
+}
 async function plan({ sourceRoot, destinationRoot, manifestPath, dryRun = true }) {
   if (!dryRun) throw new Error('COPY_DRY_RUN_ONLY: explicit write mode is not implemented or authorized.');
+  const { sourceReal, destinationReal } = await assertContainedRoots(sourceRoot, destinationRoot);
   const manifest = JSON.parse(await fs.readFile(manifestPath, 'utf8'));
   const result = countResult();
   for (const item of manifest) {
     result.scanned += 1;
     try {
       if (!safeKey(item.key) || !/^[a-f0-9]{64}$/i.test(item.sha256)) throw new Error('INVALID_MANIFEST_ITEM');
-      const source = path.join(sourceRoot, item.key);
-      const destination = path.join(destinationRoot, item.key);
+      const source = path.join(sourceReal, item.key);
+      const destination = path.join(destinationReal, item.key);
       const sourceHash = await checksum(source);
       if (sourceHash.toLowerCase() !== item.sha256.toLowerCase()) throw new Error('SOURCE_CHECKSUM_MISMATCH');
       try {

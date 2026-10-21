@@ -33,6 +33,7 @@ const { createDataRetentionService } = require('../services/data-retention.servi
 const { createAttendanceTimePolicyService } = require('../services/attendance-time-policy.service');
 const { createAttendanceSelfiePolicyService, ROLES } = require('../services/attendance-selfie-policy.service');
 const { createSupabaseLicenseDocumentStorage } = require('../services/license-document-storage.service');
+const { selectContractStorage } = require('../services/storage-contract-wrappers');
 const { createLicenseDocumentService } = require('../services/license-document.service');
 const { optimizeAttachment, ATTACHMENT_PROFILES } = require('../services/attachment-optimizer.service');
 const { cleanupDueLicenseDocuments, expireDueLicenseDocuments } = require('../services/license-document-retention.service');
@@ -240,9 +241,9 @@ const ensureOperationalEmployee = async (client, employeeId) => {
   return employee;
 };
 const approvalPositionClass = (employee, policy) => positionClass(employee?.jobTitle, policy);
-const licenseStorage = createSupabaseLicenseDocumentStorage();
+const licenseStorage = selectContractStorage({ environment: process.env, contract: 'license', supabaseFactory: () => createSupabaseLicenseDocumentStorage() });
 const licenseDocuments = createLicenseDocumentService({ prisma, storage: licenseStorage, audit, reconcileSchedules: reconcileEmployeeLicenseSchedules });
-const attendanceEvidenceStorage = createSupabaseAttendanceFaceEvidenceStorage({ prisma, audit });
+const attendanceEvidenceStorage = selectContractStorage({ environment: process.env, contract: 'evidence', supabaseFactory: () => createSupabaseAttendanceFaceEvidenceStorage({ prisma, audit }) });
 const leavePolicyService = createLeavePolicyService({ prisma });
 const leaveTypeService = createLeaveTypeService({ prisma, audit });
 const autoSchedulePatternService = createAutoSchedulePatternService({ prisma, audit });

@@ -19,6 +19,7 @@ const {
 } = require('./attendance-time-policy.service');
 const { bangkokParts, isOvernightAssignment, actionableAssignment } = require('./attendance-verification-context.service');
 const { createSupabaseAttendanceDeviceSelfieStorage, normalizeSelfie, RETENTION_DAYS } = require('./attendance-device-selfie-storage.service');
+const { selectContractStorage } = require('./storage-contract-wrappers');
 const { createAttendanceDeviceService } = require('./attendance-device.service');
 const { createAttendanceSelfiePolicyService } = require('./attendance-selfie-policy.service');
 
@@ -180,7 +181,7 @@ function createAttendanceSimpleService({
   deviceService = null,
   selfiePolicyService = null
 } = {}) {
-  const deviceSelfieStorage = selfieStorage || createSupabaseAttendanceDeviceSelfieStorage({ prisma, audit, clock });
+  const deviceSelfieStorage = selfieStorage || selectContractStorage({ environment: process.env, contract: 'selfie', supabaseFactory: () => createSupabaseAttendanceDeviceSelfieStorage({ prisma, audit, clock }) });
   const attendanceDevice = deviceService || createAttendanceDeviceService({ prisma, audit, clock });
   const siteEvidence = siteEvidenceService || createAttendanceSiteEvidenceService({ prisma, clock });
   const siteAuthority = siteAuthorityService || createSecuritySiteAuthorityService({ prisma });
