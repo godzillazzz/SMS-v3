@@ -131,7 +131,7 @@ test('mutation barrier: validator does not execute candidate helpers or accept c
 
 test('GitHub/Vercel collectors enforce GET-only allowlists and double reads', async () => {
   const calls = []; let n = 0;
-  const request = async (url, init) => { calls.push([url, init.method]); n += 1; return { status: 200, headers: new Map(), json: async () => url.includes('/deployments/') ? (url.includes('/statuses') ? [{ state: 'success', created_at: '2026-10-20T00:00:00Z' }] : { id: rollback, projectId: 'prj_x', teamId: 'team_x', target: 'production', readyState: 'READY', meta: { githubCommitSha: sha } }) : url.includes('/aliases/') ? { deployment: { id: rollback } } : [{ id: 1, sha, environment: 'Production', created_at: '2026-10-20T00:00:00Z' }], text: async () => '' }; };
+  const request = async (url, init) => { calls.push([url, init.method]); n += 1; return { status: 200, headers: new Map(), json: async () => url.includes('/deployments/') ? (url.includes('/statuses') ? [{ state: 'success', created_at: '2026-10-20T00:00:00Z' }] : { id: rollback, projectId: 'prj_x', ownerId: 'team_x', target: 'production', readyState: 'READY', meta: { githubCommitSha: sha } }) : url.includes('/aliases/') ? { deployment: { id: rollback } } : [{ id: 1, sha, environment: 'Production', created_at: '2026-10-20T00:00:00Z' }], text: async () => '' }; };
   await collector.collectGithub({ request, repository: 'o/r', expectedSha: sha, rollbackId: rollback });
   assert.ok(calls.every(([, method]) => method === 'GET'));
   assert.ok(n > 0);
@@ -151,7 +151,7 @@ test('protected Vercel collector requires token and performs deployment plus ali
     calls.push([url, init.method]);
     return { status: 200, headers: new Map(), json: async () => url.includes('/aliases/')
       ? { deployment: { id: rollback } }
-      : { id: rollback, projectId: 'prj_x', teamId: 'team_x', target: 'production', readyState: 'READY', meta: { githubCommitSha: sha } } };
+      : { id: rollback, projectId: 'prj_x', ownerId: 'team_x', target: 'production', readyState: 'READY', meta: { githubCommitSha: sha } } };
   };
   await assert.rejects(() => collector.collectVercel({ request, token: '', teamId: 'team_x', projectId: 'prj_x', deploymentId: rollback, canonicalUrl: 'https://sms-v3-staging-ten.vercel.app' }), /token/);
   const verified = await collector.collectVercel({ request, token: 'fixture-token', teamId: 'team_x', projectId: 'prj_x', deploymentId: rollback, canonicalUrl: 'https://sms-v3-staging-ten.vercel.app' });
@@ -160,6 +160,35 @@ test('protected Vercel collector requires token and performs deployment plus ali
   assert.equal(calls.filter(([url]) => url.includes('/deployments/')).length, 2);
   assert.equal(calls.filter(([url]) => url.includes('/aliases/')).length, 2);
   assert.ok(calls.every(([, method]) => method === 'GET'));
+});
+
+test('protected Vercel collector requires exact ownerId and preserves every identity/state guard', async () => {
+  const base = { id: rollback, projectId: 'prj_x', ownerId: 'team_x', target: 'production', readyState: 'READY', meta: { githubCommitSha: sha } };
+  const collect = async (deployment) => collector.collectVercel({
+    request: async (url) => ({ status: 200, headers: new Map(), json: async () => url.includes('/aliases/') ? { deployment: { id: rollback } } : deployment }),
+    token: 'fixture-token', teamId: 'team_x', projectId: 'prj_x', deploymentId: rollback,
+    canonicalUrl: 'https://sms-v3-staging-ten.vercel.app',
+  });
+  await collect(base);
+  for (const [label, mutate] of [
+    ['missing ownerId', d => { delete d.ownerId; }],
+    ['wrong ownerId', d => { d.ownerId = 'team_other'; }],
+    ['teamId fallback only', d => { delete d.ownerId; d.teamId = 'team_x'; }],
+    ['wrong id', d => { d.id = 'dpl_other'; }],
+    ['wrong project', d => { d.projectId = 'prj_other'; }],
+    ['wrong target', d => { d.target = 'preview'; }],
+    ['wrong ready state', d => { d.readyState = 'BUILDING'; }],
+    ['wrong source SHA', d => { d.meta.githubCommitSha = 'b'.repeat(40); }],
+  ]) {
+    const mutatedDeployment = JSON.parse(JSON.stringify(base));
+    mutate(mutatedDeployment);
+    await assert.rejects(() => collect(mutatedDeployment), /mismatch/, label);
+  }
+  await assert.rejects(() => collector.collectVercel({
+    request: async () => ({ status: 200, headers: new Map(), json: async () => ({ deployment: { id: 'dpl_other' } }) }),
+    token: 'fixture-token', teamId: 'team_x', projectId: 'prj_x', deploymentId: rollback,
+    canonicalUrl: 'https://sms-v3-staging-ten.vercel.app',
+  }), /canonical alias target mismatch/);
 });
 
 test('baseline comparator permits only deferred to verified transition and catches forged or shared drift', () => {

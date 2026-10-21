@@ -65,6 +65,19 @@ test('workflow-style extraction preserves split-trust deferred and verified beha
     assert.equal(prior.mode, 'SELFIE_POLICY_EXPLICIT_NULL_EVIDENCE');
     assert.equal(typeof verifier.compareBaselineTransition, 'function');
 
+    const deployment = { id: rollback, projectId: 'prj_fixture', ownerId: 'team_fixture', target: 'production', readyState: 'READY', meta: { githubCommitSha: sha } };
+    const request = async (url) => ({
+      status: 200,
+      headers: new Map(),
+      json: async () => url.includes('/aliases/') ? { deployment: { id: rollback } } : deployment,
+    });
+    const collected = await collector.collectVercel({ request, token: 'fixture-token', teamId: 'team_fixture', projectId: 'prj_fixture', deploymentId: rollback, canonicalUrl: 'https://sms-v3-staging-ten.vercel.app' });
+    assert.equal(collected.deploymentId, rollback);
+    await assert.rejects(() => collector.collectVercel({
+      request: async (url) => ({ status: 200, headers: new Map(), json: async () => url.includes('/aliases/') ? { deployment: { id: rollback } } : { ...deployment, ownerId: undefined, teamId: 'team_fixture' } }),
+      token: 'fixture-token', teamId: 'team_fixture', projectId: 'prj_fixture', deploymentId: rollback, canonicalUrl: 'https://sms-v3-staging-ten.vercel.app',
+    }), /mismatch/);
+
     const verified = {
       ...prior.baseline,
       vercel: {
