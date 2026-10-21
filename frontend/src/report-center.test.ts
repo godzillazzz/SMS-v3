@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
+import { createRequire } from 'node:module';
+
+const require = createRequire(import.meta.url);
+const { attendanceApiEnabled } = require('../../src/config/attendance-api-policy');
 
 const read = (file: string) => fs.readFileSync(path.join(__dirname, file), 'utf8').replace(/\r\n/g, '\n');
 const app = read('main.tsx');
@@ -52,7 +56,22 @@ describe('Unified Report Center V1 source contract', () => {
     expect(page).toContain('รูปแบบที่รองรับ: PDF');
     expect(page).toContain('<ExecutiveReportPrint report={executiveReport} />');
     expect(page).not.toContain('Export Excel');
-    expect(attendanceGovernanceRoute).toContain("if (environment.VERCEL_ENV === 'production') return false;");
+    expect(attendanceGovernanceRoute).toContain("require('../config/attendance-api-policy')");
+    expect(attendanceGovernanceRoute).toContain('return attendanceApiEnabled() ? next() : next(new HttpError(404, \'Not found.\'));');
+    expect(attendanceGovernanceRoute).not.toContain("if (environment.VERCEL_ENV === 'production') return false;");
+
+    expect(attendanceApiEnabled({ VERCEL_ENV: 'production', ATTENDANCE_API_PRODUCTION_ENABLED: 'true' })).toBe(true);
+    expect(attendanceApiEnabled({ VERCEL_ENV: 'preview', ATTENDANCE_API_PREVIEW_ENABLED: 'true' })).toBe(true);
+    expect(attendanceApiEnabled({ NODE_ENV: 'production', SELF_HOSTED_ATTENDANCE_API_ENABLED: 'true' })).toBe(true);
+    expect(attendanceApiEnabled({ NODE_ENV: 'production', SELF_HOSTED_ATTENDANCE_API_ENABLED: 'TRUE' })).toBe(false);
+    expect(attendanceApiEnabled({ NODE_ENV: 'production', SELF_HOSTED_ATTENDANCE_API_ENABLED: '1' })).toBe(false);
+    expect(attendanceApiEnabled({ VERCEL_ENV: 'preview', SELF_HOSTED_ATTENDANCE_API_ENABLED: 'true' })).toBe(false);
+    const attendanceRoute = fs.readFileSync(path.resolve(__dirname, '../../src/routes/attendance.routes.js'), 'utf8').replace(/\r\n/g, '\n');
+    expect(attendanceRoute).toContain("return environment.VERCEL_ENV === 'preview' && environment.G06_FACE_CHALLENGE_UAT_PREVIEW_ENABLED === 'true';");
+    expect(attendanceRoute).toContain("return environment.VERCEL_ENV === 'production'\n    && attendanceApiEnabled(environment)\n    && environment.G06_GEOFENCE_ONLY_UAT_ENABLED === 'true';");
+    expect(attendanceRoute).toContain("if (environment.VERCEL_ENV === 'production') return false;\n  if (!attendanceApiEnabled(environment)) return false;");
+    expect(attendanceRoute).not.toContain("return environment.VERCEL_ENV == null && environment.NODE_ENV === 'production'");
+
     expect(page).toContain("const ATTENDANCE_OFFICIAL_REPORT_ENABLED = import.meta.env.VITE_ATTENDANCE_GOVERNANCE_REPORT_ENABLED === 'true';");
     expect(page).toContain("['ADMIN', 'SUPERVISOR'].includes(role) && ATTENDANCE_OFFICIAL_REPORT_ENABLED && <AttendanceOfficialReportPanel");
     expect(page).toContain("month={attendanceMonth} role={role} enabled={activeTab === 'export'}");
