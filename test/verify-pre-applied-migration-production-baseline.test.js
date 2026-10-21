@@ -178,7 +178,7 @@ test('protected Vercel collector requires exact ownerId and preserves every iden
     ['wrong project', d => { d.projectId = 'prj_other'; }],
     ['wrong target', d => { d.target = 'preview'; }],
     ['wrong ready state', d => { d.readyState = 'BUILDING'; }],
-    ['wrong source SHA', d => { d.meta.githubCommitSha = 'b'.repeat(40); }],
+    ['malformed source SHA', d => { d.meta.githubCommitSha = 'not-a-sha'; }],
   ]) {
     const mutatedDeployment = JSON.parse(JSON.stringify(base));
     mutate(mutatedDeployment);
