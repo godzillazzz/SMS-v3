@@ -48,7 +48,19 @@ function createS3ObjectStorage({ environment = process.env, client } = {}) {
     provider: PROVIDERS.S3,
     async put(bucket, key, file) { assertObjectKey(key); if (!bucket || !/^[A-Za-z0-9._-]{1,255}$/.test(bucket)) throw new HttpError(400, 'Storage bucket is invalid.', { code: 'STORAGE_BUCKET_INVALID' }); await send(new sdk.PutObjectCommand({ Bucket: bucket, Key: key, Body: file.buffer, ContentType: file.mimetype, ContentLength: file.buffer.length, Metadata: { sha256: crypto.createHash('sha256').update(file.buffer).digest('hex') } })); return { provider: PROVIDERS.S3, bucket, objectKey: key }; },
     async remove(bucket, key) { assertObjectKey(key); await send(new sdk.DeleteObjectCommand({ Bucket: bucket, Key: key })); },
-    async get(bucket, key) { assertObjectKey(key); const result = await send(new sdk.GetObjectCommand({ Bucket: bucket, Key: key })); if (!result?.Body?.transformToByteArray) throw new HttpError(502, 'Object storage read failed.', { code: 'S3_STORAGE_READ_FAILED' }); return Buffer.from(await result.Body.transformToByteArray()); }
+    async get(bucket, key) { assertObjectKey(key); const result = await send(new sdk.GetObjectCommand({ Bucket: bucket, Key: key })); if (!result?.Body?.transformToByteArray) throw new HttpError(502, 'Object storage read failed.', { code: 'S3_STORAGE_READ_FAILED' }); return Buffer.from(await result.Body.transformToByteArray()); },
+    async createSignedUrl(bucket, key, expiresIn = 300) {
+      assertObjectKey(key);
+      const seconds = Number(expiresIn);
+      if (!Number.isInteger(seconds) || seconds < 1 || seconds > 3600) throw new HttpError(400, 'Signed URL expiry is invalid.', { code: 'STORAGE_SIGNED_URL_EXPIRY_INVALID' });
+      let getSignedUrl;
+      try {
+        ({ getSignedUrl } = require('@aws-sdk/s3-request-presigner'));
+      } catch {
+        throw new HttpError(503, 'Object storage provider is unavailable.', { code: 'S3_SIGNER_NOT_INSTALLED' });
+      }
+      return getSignedUrl(sdk.client, new sdk.GetObjectCommand({ Bucket: bucket, Key: key }), { expiresIn: seconds });
+    }
   });
 }
 module.exports = { PROVIDERS, providerConfig, assertObjectKey, createS3ObjectStorage };
