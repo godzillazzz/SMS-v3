@@ -81,7 +81,7 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-          TRUSTED_SHA_A: 371138533fd9c6cb738fb45e0f59702946192267
+          TRUSTED_SHA_A: 77555d216b6addb3ec91ce8b3b5ea839166ff383
           CURRENT_PRODUCTION_SOURCE_SHA: ${{ steps.manifest.outputs.current_production_source_sha }}
           ROLLBACK_DEPLOYMENT_ID: ${{ steps.manifest.outputs.rollback_deployment_id }}
           CURRENT_PRODUCTION_POST_RELEASE_RECORD: ${{ steps.manifest.outputs.current_production_post_release_record }}
@@ -419,7 +419,7 @@ jobs:
       - name: Load release-control verifier from dispatched source SHA
         shell: bash
         env:
-          TRUSTED_SHA_A: 371138533fd9c6cb738fb45e0f59702946192267
+          TRUSTED_SHA_A: 77555d216b6addb3ec91ce8b3b5ea839166ff383
         run: |
           set -euo pipefail
           git fetch --no-tags origin "$TRUSTED_SHA_A"

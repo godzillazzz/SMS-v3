@@ -1,10 +1,11 @@
 const fs = require("node:fs");
 const path = require("node:path");
-const { spawnSync } = require("node:child_process");
+const { execFileSync, spawnSync } = require("node:child_process");
 const test = require("node:test");
 const assert = require("node:assert/strict");
 
 const sentinelManifest = require('../frontend/src/release-runtime-sentinels.json');
+const root = process.cwd();
 const workflowPath = path.join(
   process.cwd(),
   ".github",
@@ -408,8 +409,8 @@ test("pre-applied migration release guard requires exact prior Production migrat
 
 
 test('Stage B baseline workflow uses one exact trusted pin at both trust boundaries', () => {
-  const shaT = '371138533fd9c6cb738fb45e0f59702946192267';
-  const oldPin = '04e0a76b478c285c263a2757b350efc6fa76f999';
+  const shaT = '77555d216b6addb3ec91ce8b3b5ea839166ff383';
+  const oldPin = '371138533fd9c6cb738fb45e0f59702946192267';
   const workflow = fs.readFileSync(workflowPath, 'utf8').replace(/\r\n/g, '\n');
   const assertTrustedPinContract = (source) => {
     const pins = [...source.matchAll(/TRUSTED_SHA_A:\s*([0-9a-f]{40})/g)].map((match) => match[1]);
@@ -419,6 +420,14 @@ test('Stage B baseline workflow uses one exact trusted pin at both trust boundar
   };
 
   assertTrustedPinContract(workflow);
+  const extractedCollector = execFileSync(
+    'git',
+    ['show', `${shaT}:scripts/ci/trusted-production-baseline-collector.js`],
+    { cwd: root, encoding: 'utf8' },
+  );
+  assert.match(extractedCollector, /d\.ownerId === teamId/, 'pinned trusted collector must enforce ownerId');
+  assert.doesNotMatch(extractedCollector, /d\.teamId === teamId/, 'pinned trusted collector must not use teamId deployment check');
+
 
   const firstPinOnly = workflow.replace(`TRUSTED_SHA_A: ${shaT}`, 'TRUSTED_SHA_A: 1111111111111111111111111111111111111111');
   assert.throws(() => assertTrustedPinContract(firstPinOnly), /both TRUSTED_SHA_A values must equal SHA_T/);
