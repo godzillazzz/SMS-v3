@@ -431,6 +431,27 @@ test('legacy null guard rule matrix is explicit, propagated, and mutation-protec
   assert.doesNotMatch(mutated, /approved-attendance-selfie-policy-migration\.json.*PRE_GATE_BASELINE/, 'mutation proof: changing the manifest path invalidates the exact null allowlist');
 });
 
+test('post-approval record provenance is extracted from the dispatched control SHA before validation', () => {
+  const workflow = fs.readFileSync(workflowPath, 'utf8').replace(/\\r\\n/g, '\\n');
+  const postApproval = extractRunBlock(workflow, 'Revalidate exact source after Owner approval');
+  const show = 'git show "$GITHUB_SHA:$CURRENT_PRODUCTION_POST_RELEASE_RECORD" > /tmp/current-production-post-release-record.json';
+  const sourcePathGuard = postApproval.indexOf('[[ "$CURRENT_PRODUCTION_POST_RELEASE_RECORD" =~ ^[A-Za-z0-9._/-]+$ ]]');
+  const showIndex = postApproval.indexOf(show);
+  const fileCheck = postApproval.indexOf('test -f "$record_file"');
+  const verifier = postApproval.indexOf('verify-post-release-record.js');
+  assert.ok(sourcePathGuard >= 0, 'record source path must be validated before git show');
+  assert.ok(postApproval.includes('[[ "$CURRENT_PRODUCTION_POST_RELEASE_RECORD" != /* ]]'));
+  assert.ok(postApproval.includes('test "$component" != ..'));
+  assert.ok(showIndex > sourcePathGuard, 'control-SHA extraction must follow path validation');
+  assert.ok(fileCheck > showIndex, 'record existence check must inspect the extracted control-SHA file');
+  assert.ok(verifier > showIndex, 'record verifier must run after control-SHA extraction');
+  assert.match(postApproval, /POST_RELEASE_RECORD_VALIDATION_ROOT/);
+  assert.match(postApproval, /repositoryRoot: process\.env\.POST_RELEASE_RECORD_VALIDATION_ROOT/);
+  assert.doesNotMatch(postApproval, /test -f "\\$CURRENT_PRODUCTION_POST_RELEASE_RECORD"/);
+  assert.match(workflow, /git show "\$GITHUB_SHA:\$CURRENT_PRODUCTION_POST_RELEASE_RECORD"/);
+  assert.match(workflow, /recordPath: process\.env\.CURRENT_PRODUCTION_POST_RELEASE_RECORD/);
+});
+
 test('SELFIE-POLICY null baseline guard is present before and after the Owner gate', () => {
   const workflow = fs.readFileSync(workflowPath, 'utf8').replace(/\r\n/g, '\n');
   const prepareGuard = workflow.indexOf('Verify pre-applied Production baseline before Owner gate');
@@ -447,9 +468,10 @@ test('SELFIE-POLICY null baseline guard is present before and after the Owner ga
   assert.match(workflow, /POST_APPROVAL_PRE_APPLIED_MIGRATION_BASELINE=PASS/);
   assert.equal(
     (workflow.match(/validateProductionBaseline\(input, \{ repositoryRoot: process\.cwd\(\) \}\)/g) || []).length,
-    2,
-    'both trusted baseline calls must receive the checkout root explicitly',
+    1,
+    'pre-gate trusted baseline call must receive the application checkout root explicitly',
   );
+  assert.match(workflow, /validateProductionBaseline\(input, \{ repositoryRoot: process\.env\.POST_RELEASE_RECORD_VALIDATION_ROOT \}\)/);
   const pre = extractRunBlock(workflow, 'Verify pre-applied Production baseline before Owner gate');
   assert.doesNotMatch(pre, /api\.vercel\.com|collectVercel|vercel@|VERCEL_TOKEN/);
   assert.ok(

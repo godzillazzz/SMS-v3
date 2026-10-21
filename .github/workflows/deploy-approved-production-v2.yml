@@ -429,6 +429,17 @@ jobs:
             git show "$GITHUB_SHA:scripts/ci/$tool" > "$release_tools/$tool"
             node --check "$release_tools/$tool"
           done
+          # The post-release verifier resolves its repository root from its own
+          # path. Keep a disposable control-plane validation root so its record
+          # and Git object lookup cannot fall back to the TARGET checkout.
+          record_validation_root="$release_tools/record-validation-repo"
+          git init -q "$record_validation_root"
+          git -C "$record_validation_root" fetch --no-tags "$PWD" "$CURRENT_PRODUCTION_SOURCE_SHA"
+          mkdir -p "$record_validation_root/scripts/ci" "$record_validation_root/.github/releases"
+          cp "$release_tools/verify-post-release-record.js" "$record_validation_root/scripts/ci/verify-post-release-record.js"
+          git show "$GITHUB_SHA:.github/releases/approved-attendance-selfie-policy-migration.json" > "$record_validation_root/.github/releases/approved-attendance-selfie-policy-migration.json"
+          echo "POST_RELEASE_RECORD_VALIDATION_ROOT=$record_validation_root" >> "$GITHUB_ENV"
+          echo "POST_RELEASE_RECORD_VALIDATION_ROOT=$record_validation_root"
           for tool in verify-pre-applied-migration-production-baseline.js trusted-production-baseline-collector.js; do
             git show "$TRUSTED_SHA_A:scripts/ci/$tool" > "$release_tools/$tool"
             node --check "$release_tools/$tool"
@@ -467,8 +478,29 @@ jobs:
           test "$(git rev-parse HEAD^{tree})" = "$TARGET_TREE"
           if test "$DATABASE_CHANGE_POLICY" = 'PRE_APPLIED_APPROVED_MIGRATION'; then
             test -f /tmp/sms-release-control-plane/verify-pre-applied-migration-production-baseline.js
-            test -f "$CURRENT_PRODUCTION_POST_RELEASE_RECORD"
-            node /tmp/sms-release-control-plane/verify-pre-applied-migration-production-baseline.js /tmp/pre-applied-baseline-input.json
+            # The record is control-plane evidence, not an application artifact.
+            # Validate the manifest-provided source path before passing it to git.
+            [[ "$CURRENT_PRODUCTION_POST_RELEASE_RECORD" =~ ^[A-Za-z0-9._/-]+$ ]]
+            [[ "$CURRENT_PRODUCTION_POST_RELEASE_RECORD" != /* ]]
+            [[ "$CURRENT_PRODUCTION_POST_RELEASE_RECORD" != *\\\\* ]]
+            while IFS= read -r component; do
+              test "$component" != .
+              test "$component" != ..
+            done < <(tr '/' '\\n' <<< "$CURRENT_PRODUCTION_POST_RELEASE_RECORD")
+            git show "$GITHUB_SHA:$CURRENT_PRODUCTION_POST_RELEASE_RECORD" > /tmp/current-production-post-release-record.json
+            record_file="$POST_RELEASE_RECORD_VALIDATION_ROOT/$CURRENT_PRODUCTION_POST_RELEASE_RECORD"
+            mkdir -p "$(dirname "$record_file")"
+            cp /tmp/current-production-post-release-record.json "$record_file"
+            test -f /tmp/current-production-post-release-record.json
+            test -f "$record_file"
+            (cd "$POST_RELEASE_RECORD_VALIDATION_ROOT" && node scripts/ci/verify-post-release-record.js "$CURRENT_PRODUCTION_POST_RELEASE_RECORD") >/tmp/post-record-guard.txt
+            grep -Fxq 'POST_RELEASE_RECORD=PASS' /tmp/post-record-guard.txt
+            node - <<'NODE'
+          const fs = require('node:fs');
+          const verifier = require('/tmp/sms-release-control-plane/verify-pre-applied-migration-production-baseline.js');
+          const input = JSON.parse(fs.readFileSync('/tmp/pre-applied-baseline-input.json', 'utf8'));
+          verifier.validateProductionBaseline(input, { repositoryRoot: process.env.POST_RELEASE_RECORD_VALIDATION_ROOT });
+          NODE
           fi
           git cat-file -e "${CURRENT_PRODUCTION_SOURCE_SHA}^{commit}"
           case "$DATABASE_CHANGE_POLICY" in
@@ -562,7 +594,7 @@ jobs:
             const ready = await request(`${base}/api/v1/ready`, { redirect: 'manual' });
             const healthJson = await health.json(); const readyJson = await ready.json();
             const input = { release: { currentProductionSourceSha: process.env.CURRENT_PRODUCTION_SOURCE_SHA, rollbackDeploymentId: process.env.ROLLBACK_DEPLOYMENT_ID }, recordPath: process.env.CURRENT_PRODUCTION_POST_RELEASE_RECORD, postReleaseRecordVerifierPassed: true, github, vercel, runtime: { health: { httpStatus: health.status, status: healthJson.status }, ready: { httpStatus: ready.status, ...readyJson } } };
-            const result = verifier.validateProductionBaseline(input, { repositoryRoot: process.cwd() });
+            const result = verifier.validateProductionBaseline(input, { repositoryRoot: process.env.POST_RELEASE_RECORD_VALIDATION_ROOT });
             const prior = JSON.parse(fs.readFileSync('/tmp/pre-applied-baseline-input.json', 'utf8'));
             verifier.compareBaselineTransition(prior.baseline, result.baseline);
             fs.writeFileSync('/tmp/post-approval-baseline-input.json', JSON.stringify({ ...input, baseline: trusted.sanitizeBaseline(result.baseline), invariantFingerprint: result.invariantFingerprint }));
