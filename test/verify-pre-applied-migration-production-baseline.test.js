@@ -185,7 +185,11 @@ test('protected Vercel collector requires exact ownerId and preserves every iden
     await assert.rejects(() => collect(mutatedDeployment), /mismatch/, label);
   }
   await assert.rejects(() => collector.collectVercel({
-    request: async () => ({ status: 200, headers: new Map(), json: async () => ({ deployment: { id: 'dpl_other' } }) }),
+    request: async (url) => ({
+      status: 200,
+      headers: new Map(),
+      json: async () => url.includes('/aliases/') ? { deployment: { id: 'dpl_other' } } : base,
+    }),
     token: 'fixture-token', teamId: 'team_x', projectId: 'prj_x', deploymentId: rollback,
     canonicalUrl: 'https://sms-v3-staging-ten.vercel.app',
   }), /canonical alias target mismatch/);
