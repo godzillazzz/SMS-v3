@@ -104,5 +104,5 @@ module.exports = {
   correctionInput,
   unlockInput,
   requireOfficialReport,
-  attendanceGovernanceApiEnabled
+  attendanceGovernanceApiEnabled: attendanceApiEnabled
 };
