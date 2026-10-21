@@ -1,5 +1,6 @@
 const express = require('express');
 const cors = require('cors');
+const { trustProxyAddress } = require('./security/trusted-proxy');
 const helmet = require('helmet');
 const env = require('./config/env');
 const routes = require('./routes');
@@ -18,14 +19,9 @@ const {
 
 const app = express();
 
-function isLoopbackAddress(address) {
-  const normalized = String(address || '').replace(/^::ffff:/i, '');
-  return normalized === '127.0.0.1' || normalized === '::1' || normalized === '0:0:0:0:0:0:0:1';
-}
-
 // Trust forwarded client identity only when explicitly enabled and the immediate
 // peer is loopback (the documented nginx/Cloudflare-origin topology).
-app.set('trust proxy', env.trustProxyLoopback ? (address) => isLoopbackAddress(address) : false);
+app.set('trust proxy', (address, index) => trustProxyAddress(address, index, env.trustProxyLoopback));
 
 function attendanceSelfieStorageReadiness(environment = process.env) {
   const url = String(environment.SUPABASE_URL || '').trim();

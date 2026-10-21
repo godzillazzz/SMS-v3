@@ -1,16 +1,26 @@
-# SMS-v3 Debian self-host package (current host topology)
+# SMS-v3 Debian self-host package (verified current host topology)
 
-This is a versioned package for the approved host layout. It does not deploy, restart, migrate, or contact a remote server.
+Versioned templates only. No remote server, service, database, secret, DNS, TLS, or Cloudflare state is changed by this package.
 
-## Verified target assumptions and unknowns
+## Verified topology and ingress decision
 
-Known from the task: application release root `/opt/sms-v3/app`, release store `/opt/sms-v3/releases`, environment `/opt/sms-v3/shared/app.env`, frontend web root `/var/www/sms`, systemd unit `sms-v3.service`, API `127.0.0.1:3000`, public nginx listener `8080`, and public URL `https://sms.xvela.app`.
+Read-only inspection evidence for `192.168.23.94` confirms nginx listens on `0.0.0.0:8080` and `[::]:8080`, Node listens on `*:3000`, PostgreSQL is loopback-only, nginx serves `/var/www/sms`, and `/api/` proxies to `127.0.0.1:3000`. The current public URL is `https://sms.xvela.app`; the origin also answers HTTP without an observed redirect. The current firewall does not restrict `8080` to Cloudflare CIDRs.
 
-Cloudflare mode, whether Cloudflare terminates TLS or passes through to the host, the origin TLS certificate paths, firewall allowlist, and current nginx server block are UNKNOWN until an authorized read-only server inspection. Do not change the `8080` listener or TLS topology based on this template. The nginx example intentionally listens on `8080` only and leaves TLS termination to the existing host/Cloudflare configuration.
+No `cloudflared` binary, process, systemd unit, or configuration was found. Therefore Cloudflare proxied-DNS versus an external tunnel remains UNKNOWN. The nginx artifact is a single explicit Variant A for Cloudflare proxied DNS, with the required real-IP directives shown as fail-closed placeholders. It does not pretend that a tunnel exists. Do not enable it until the actual Cloudflare DNS mode and CIDR list are verified.
 
-## Runtime and deterministic release layout
+For proxied DNS Variant A, configure the complete current Cloudflare IPv4 and IPv6 CIDR list:
 
-Build from the exact reviewed Git SHA with Node.js 22.x:
+```nginx
+set_real_ip_from <EACH_CLOUDFLARE_CIDR>;
+real_ip_header CF-Connecting-IP;
+real_ip_recursive off;
+```
+
+The host firewall must allow public `8080` only from those Cloudflare CIDRs and deny all other sources. Direct Node `3000` and PostgreSQL `5432` must remain unreachable from the public network. If evidence later proves a loopback tunnel, use `TRUST_PROXY_LOOPBACK=true` only for that loopback peer and a separate approved tunnel artifact; do not mix trust models.
+
+## Deterministic build and release layout
+
+Build from the exact reviewed Git SHA with Node 22.x:
 
 ```text
 npm ci --ignore-scripts --no-audit --no-fund
@@ -19,45 +29,55 @@ npm --prefix frontend ci --ignore-scripts --no-audit --no-fund
 npm --prefix frontend run build
 ```
 
-The release must contain the root `node_modules`, `frontend/dist`, Prisma generated client, source, lockfiles, and `package.json`. Do not rely on a globally installed Prisma CLI: `npm run prisma:generate` and `npm run prisma:deploy` resolve the pinned local Prisma 6.12.0 binary. `systemd` never runs migrations automatically.
+The release must contain root `node_modules`, `frontend/dist`, Prisma generated client, source, lockfiles, `package.json`, and the pinned local Prisma CLI. Do not rely on a global Prisma install. `systemd` never runs migrations automatically.
 
-Copy the complete build to `/opt/sms-v3/releases/<full-git-sha>`, make the directory immutable to the service user after validation, then update `/opt/sms-v3/app` atomically to the selected release (a symlink is recommended). Keep at least one previously verified release for rollback. The service and nginx templates use `/opt/sms-v3/app` and `/var/www/sms` respectively.
+### One-time legacy directory migration
+
+If `/opt/sms-v3/app` is a real directory, do not overwrite it. During a maintenance window, after a backup and checksum inventory:
+
+```text
+set -euo pipefail
+mkdir -p /opt/sms-v3/releases /opt/sms-v3/shared
+old=/opt/sms-v3/app
+[ -d "$old" ] && [ ! -L "$old" ] || { echo 'already migrated or invalid'; exit 1; }
+legacy="/opt/sms-v3/releases/legacy-$(date -u +%Y%m%dT%H%M%SZ)"
+mv -- "$old" "$legacy"
+ln -s -- "$legacy" "$old"
+readlink -f "$old" | grep -Fx -- "$legacy"
+```
+
+This is an operator migration procedure, not executed by CI. Abort if the directory is absent, already a symlink, or the assertion fails.
+
+### Release cutover
+
+Each build is copied to `/opt/sms-v3/releases/<full-git-sha>`. Frontend output is staged from that exact release to `/var/www/sms.<full-git-sha>.next`, then atomically renamed to `/var/www/sms.<full-git-sha>` and linked as `/var/www/sms`. Keep the prior release and webroot for rollback. A cutover rehearsal must run in a scratch filesystem first; it must assert `readlink -f` for both API and frontend targets equals the same full SHA, and must run health/readiness checks only against a running scratch service. No green result may be claimed without those assertions.
 
 ## Environment and migration gate
 
-Install the secret-managed file as `/opt/sms-v3/shared/app.env` with owner `root:smsv3`, mode `0640`. Do not commit or print it. Use `deploy/debian/app.env.example` only as a variable checklist. Production requires a real `DATABASE_URL`, `JWT_SECRET` (>=32 random characters), `CORS_ORIGIN=https://sms.xvela.app`, and the configured private storage values.
+Install the secret-managed file at `/opt/sms-v3/shared/app.env`, owner `root:smsv3`, mode `0640`. Use `deploy/debian/app.env.example` only as a checklist. Production requires real `DATABASE_URL`, `JWT_SECRET` (>=32 random characters), `CORS_ORIGIN=https://sms.xvela.app`, `RATE_LIMIT_STORE=postgres`, and a random `RATE_LIMIT_HASH_SECRET` (>=32 characters). For the loopback PostgreSQL endpoint, use `sslmode=require` only if the local PostgreSQL TLS configuration is actually enabled; otherwise use the reviewed local policy, never an unreviewed downgrade.
 
-After a backup and explicit migration review, run from the selected release directory against the intended database only:
+After backup and explicit migration review, run only against the intended database:
 
 ```text
 npm run prisma:deploy
 ```
 
-This is forward-only `prisma migrate deploy`; never use `prisma migrate dev` or `prisma migrate reset`. If migrations are not approved, do not run this command. Application rollback does not undo an applied schema or business-data change.
+Never use `prisma migrate dev` or `prisma migrate reset`. Application rollback does not undo applied schema or business-data changes.
 
-## Cutover and rollback
+## Cutover, rollback, and rehearsal
 
-```text
-# Operator procedure; review exact SHA and current symlink first.
-ln -sfn /opt/sms-v3/releases/<full-git-sha> /opt/sms-v3/app.next
-mv -Tf /opt/sms-v3/app.next /opt/sms-v3/app
-systemctl restart sms-v3.service
-curl --fail --silent --show-error http://127.0.0.1:3000/api/v1/health
-curl --fail --silent --show-error http://127.0.0.1:3000/api/v1/ready
-```
+Before production cutover, record `readlink -f /opt/sms-v3/app` and `readlink -f /var/www/sms`, expected full SHA, backup ID, and prior release. Atomically switch both symlinks, restart the service, then verify local `/api/v1/health`, `/api/v1/ready`, and static asset HTTP 200. Rollback atomically switches both symlinks to the same prior SHA and repeats all checks. Preserve logs; never retry a failed migration blindly. A rollback rehearsal on a disposable scratch tree is required evidence, but it does not authorize a remote cutover.
 
-To roll back, atomically point `/opt/sms-v3/app` to the prior verified release, restart the service, and verify both endpoints. Preserve logs and do not retry a failed migration blindly. Nginx continues serving the deployed frontend from `/var/www/sms`; update that directory atomically from the same release only after the API is ready.
+## Proxy identity and security
 
-## Health, proxy identity, and security
+`TRUST_PROXY_LOOPBACK=false` is the safe default. The runtime trusts forwarded identity only when explicitly enabled, only for the first loopback peer, and never for a public peer. This protects per-IP login/passkey buckets and prevents forged forwarded chains. In proxied-DNS mode, nginx must normalize the client address using the verified Cloudflare CIDRs and `CF-Connecting-IP`; the firewall must enforce that nginx receives traffic only from those CIDRs.
 
-`/api/v1/health` checks process health. `/api/v1/ready` checks PostgreSQL and must return HTTP 200 before traffic is cut over. `TRUST_PROXY_LOOPBACK=false` is the safe default. Set it to `true` only when nginx is the immediate loopback peer; the application then trusts forwarded identity only from loopback. Direct public Node access must be blocked. This protects per-IP login/passkey rate buckets and audit request identity from forged `X-Forwarded-For` headers.
-
-The systemd unit enables `NoNewPrivileges`, `PrivateTmp`, `ProtectSystem=strict`, `ProtectHome`, a restricted address family, and explicit writable paths. Nginx adds security headers and immutable hashed-asset caching while keeping HTML/API responses non-cacheable.
+Systemd uses `NoNewPrivileges`, `PrivateTmp`, `ProtectSystem=strict`, `ProtectHome`, kernel/control-group protection, restricted address families, and explicit writable paths. Nginx headers are defined once at server level to avoid duplicate API headers; hashed assets use immutable caching and HTML/API responses are non-cacheable.
 
 ## Backup and restore
 
-Use the repository's `npm run backup` with `BACKUP_DATABASE_URL`, a restricted backup directory, retention, and externally managed encryption/off-host transfer. It creates a custom-format dump, validates it with `pg_restore --list`, writes a SHA-256 sidecar, and removes partial files on failure. Use `npm run verify-backup -- <dump> <sha256>` only with `VERIFY_ADMIN_DATABASE_URL` pointing to a local disposable PostgreSQL endpoint. Never restore or verify against Production.
+Use `npm run backup` with `BACKUP_DATABASE_URL`, restricted directory, retention, encryption, and off-host transfer configured externally. It creates and validates a custom-format dump, writes a SHA-256 sidecar, and removes partial output on failure. Run `npm run verify-backup -- <dump> <sha256>` only with `VERIFY_ADMIN_DATABASE_URL` pointing to a local disposable PostgreSQL endpoint. Never restore or verify against Production.
 
-## Explicit prerequisites/blockers
+## Explicit blockers
 
-A real secret file, PostgreSQL role/database, backup destination/encryption, firewall policy, current nginx/Cloudflare TLS mode, certificate paths, DNS, and monitoring are operator prerequisites. No remote server, service, database, secret, DNS, TLS, or Cloudflare state was changed by this package.
+Cloudflare DNS mode and CIDRs, TLS termination/certificate paths, and the 8080 firewall allowlist require operator verification before Variant A is enabled. No tunnel evidence exists. No deployment, restart, migration, firewall change, DNS/TLS change, or database mutation was performed.
