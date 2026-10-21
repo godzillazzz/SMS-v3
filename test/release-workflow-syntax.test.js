@@ -359,9 +359,24 @@ test("pre-applied migration release guard requires exact prior Production migrat
 });
 
 
-test('Stage B baseline workflow is pinned, scoped, and fail-closed', () => {
+test('Stage B baseline workflow uses one exact trusted pin at both trust boundaries', () => {
+  const shaT = '371138533fd9c6cb738fb45e0f59702946192267';
+  const oldPin = '04e0a76b478c285c263a2757b350efc6fa76f999';
   const workflow = fs.readFileSync(workflowPath, 'utf8').replace(/\r\n/g, '\n');
-  assert.match(workflow, /TRUSTED_SHA_A: 04e0a76b478c285c263a2757b350efc6fa76f999/);
+  const assertTrustedPinContract = (source) => {
+    const pins = [...source.matchAll(/TRUSTED_SHA_A:\s*([0-9a-f]{40})/g)].map((match) => match[1]);
+    assert.equal(pins.length, 2, 'workflow must contain exactly two TRUSTED_SHA_A pin occurrences');
+    assert.deepEqual(pins, [shaT, shaT], 'both TRUSTED_SHA_A values must equal SHA_T');
+    assert.equal((source.match(new RegExp(oldPin, 'g')) || []).length, 0, 'old trusted pin must not occur');
+  };
+
+  assertTrustedPinContract(workflow);
+
+  const firstPinOnly = workflow.replace(`TRUSTED_SHA_A: ${shaT}`, 'TRUSTED_SHA_A: 1111111111111111111111111111111111111111');
+  assert.throws(() => assertTrustedPinContract(firstPinOnly), /both TRUSTED_SHA_A values must equal SHA_T/);
+
+  const secondPinOld = workflow.replace(`TRUSTED_SHA_A: ${shaT}`, `TRUSTED_SHA_A: ${oldPin}`);
+  assert.throws(() => assertTrustedPinContract(secondPinOld), /both TRUSTED_SHA_A values must equal SHA_T|old trusted pin must not occur/);
   assert.match(workflow, /VERCEL_CANONICAL_IDENTITY: DEFERRED_TO_PROTECTED_ENVIRONMENT/);
   assert.match(workflow, /persist-credentials: false/);
   assert.doesNotMatch(workflow, /continue-on-error:/);
