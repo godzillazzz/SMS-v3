@@ -81,6 +81,7 @@
   "sourceValidatedKeys": [
     "NODE_ENV",
     "VERCEL_ENV",
+    "SELF_HOSTED_ATTENDANCE_API_ENABLED",
     "DATABASE_URL",
     "JWT_SECRET",
     "JWT_EXPIRES_IN",
@@ -147,6 +148,17 @@
     "ALERT_FUNCTION_TIMEOUT_THRESHOLD"
   ],
   "variables": {
+    "SELF_HOSTED_ATTENDANCE_API_ENABLED": {
+      "purpose": "Explicit opt-in for the Attendance API on self-hosted production where VERCEL_ENV is absent",
+      "masterSource": "Owner-approved self-hosted deployment environment configuration",
+      "sensitive": false,
+      "runtimeRequired": false,
+      "default": "false",
+      "shared": false,
+      "scopes": ["production", "development"],
+      "branchOverrideAllowed": false,
+      "ownerNotes": "Must not be used to emulate Vercel Preview; UAT-only routes remain Preview-gated."
+    },
     "DATABASE_URL": {
       "purpose": "Runtime connection for the environment's application database",
       "masterSource": "Owner-controlled recoverable secret manager or database provider credentials",

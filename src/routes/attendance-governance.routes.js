@@ -4,6 +4,7 @@ const express = require('express');
 const { z } = require('zod');
 const HttpError = require('../utils/http-error');
 const { authenticate } = require('../middlewares/authenticate');
+const { attendanceApiEnabled } = require('../config/attendance-api-policy');
 const { createAttendanceCorrectionService } = require('../services/attendance-correction.service');
 const { createAttendanceMonthGovernanceService } = require('../services/attendance-month-governance.service');
 const { createAttendanceReportService } = require('../services/attendance-report.service');
@@ -21,13 +22,8 @@ const correctionInput = z.object({
 }).strict();
 const unlockInput = z.object({ reason: z.string().trim().min(5).max(1000) }).strict();
 
-function attendanceGovernanceApiEnabled(environment = process.env) {
-  if (environment.VERCEL_ENV === 'production') return false;
-  return environment.VERCEL_ENV === 'preview' && environment.ATTENDANCE_API_PREVIEW_ENABLED === 'true';
-}
-
 function requirePreviewAttendance(_req, _res, next) {
-  return attendanceGovernanceApiEnabled() ? next() : next(new HttpError(404, 'Not found.'));
+  return attendanceApiEnabled() ? next() : next(new HttpError(404, 'Not found.'));
 }
 
 function requireManagerOrAdmin(req, _res, next) {

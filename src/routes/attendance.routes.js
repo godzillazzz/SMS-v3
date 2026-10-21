@@ -13,6 +13,7 @@ const { createAttendanceSelfService } = require('../services/attendance-self.ser
 const { createAttendanceSimpleService } = require('../services/attendance-simple.service');
 const { createSupabaseAttendanceFaceEvidenceStorage } = require('../services/attendance-face-evidence-storage.service');
 const { authorize } = require('../middlewares/authenticate');
+const { attendanceApiEnabled } = require('../config/attendance-api-policy');
 
 const uuid = z.string().uuid();
 const decimal = z.union([z.number().finite(), z.string().trim().regex(/^-?\d+(?:\.\d+)?$/).max(32)]);
@@ -126,11 +127,6 @@ function faceCaptureUpload(req, res, next) {
       return next();
     } catch (validationError) { return next(validationError); }
   });
-}
-
-function attendanceApiEnabled(environment = process.env) {
-  if (environment.VERCEL_ENV === 'production') return environment.ATTENDANCE_API_PRODUCTION_ENABLED === 'true';
-  return environment.VERCEL_ENV === 'preview' && environment.ATTENDANCE_API_PREVIEW_ENABLED === 'true';
 }
 
 function attendanceGeofenceOnlyUatEnabled(environment = process.env) {

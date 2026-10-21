@@ -4,6 +4,7 @@ const express = require('express');
 const { z } = require('zod');
 const HttpError = require('../utils/http-error');
 const { authenticate, authorize } = require('../middlewares/authenticate');
+const { attendanceApiEnabled } = require('../config/attendance-api-policy');
 const { createAttendanceSupervisorService } = require('../services/attendance-supervisor.service');
 
 const router = express.Router();
@@ -31,13 +32,8 @@ const historyFiltersSchema = z.object({
   pageSize: z.coerce.number().int().min(1).max(100).optional()
 }).strict();
 
-function attendanceSupervisorApiEnabled(environment = process.env) {
-  if (environment.VERCEL_ENV === 'production') return environment.ATTENDANCE_API_PRODUCTION_ENABLED === 'true';
-  return environment.VERCEL_ENV === 'preview' && environment.ATTENDANCE_API_PREVIEW_ENABLED === 'true';
-}
-
 function requireAttendanceApi(_req, _res, next) {
-  if (attendanceSupervisorApiEnabled()) return next();
+  if (attendanceApiEnabled()) return next();
   return next(new HttpError(404, 'Not found.'));
 }
 
@@ -63,4 +59,4 @@ router.get('/assignments/:id/detail', async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
-module.exports = { router, filtersSchema, historyFiltersSchema, attendanceSupervisorApiEnabled };
+module.exports = { router, filtersSchema, historyFiltersSchema, attendanceSupervisorApiEnabled: attendanceApiEnabled };

@@ -6,6 +6,7 @@ const { z } = require('zod');
 const HttpError = require('../utils/http-error');
 const { authenticate, authorize } = require('../middlewares/authenticate');
 const { createAttendanceAdjustmentService } = require('../services/attendance-adjustment.service');
+const { attendanceApiEnabled } = require('../config/attendance-api-policy');
 
 const router = express.Router();
 const service = createAttendanceAdjustmentService();
@@ -41,13 +42,8 @@ const commentInput = z.object({
   comment: z.string().trim().min(3).max(1000)
 }).strict();
 
-function attendanceAdjustmentApiEnabled(environment = process.env) {
-  if (environment.VERCEL_ENV === 'production') return environment.ATTENDANCE_API_PRODUCTION_ENABLED === 'true';
-  return environment.VERCEL_ENV === 'preview' && environment.ATTENDANCE_API_PREVIEW_ENABLED === 'true';
-}
-
 function requireAttendanceApi(_req, _res, next) {
-  return attendanceAdjustmentApiEnabled()
+  return attendanceApiEnabled()
     ? next()
     : next(new HttpError(404, 'Not found.'));
 }
@@ -156,5 +152,5 @@ module.exports = {
   revisionInput,
   listQuery,
   commentInput,
-  attendanceAdjustmentApiEnabled
+  attendanceAdjustmentApiEnabled: attendanceApiEnabled
 };

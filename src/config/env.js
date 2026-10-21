@@ -11,6 +11,7 @@ const optionalPositiveInteger = z.preprocess(emptyToUndefined, z.coerce.number()
 const schema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   VERCEL_ENV: z.enum(['development', 'preview', 'production']).optional(),
+  SELF_HOSTED_ATTENDANCE_API_ENABLED: z.enum(['true', 'false']).default('false'),
   DATABASE_URL: z.string().url().min(1),
   JWT_SECRET: z.string().min(32, 'JWT_SECRET must be at least 32 characters.'),
   JWT_EXPIRES_IN: z.string().regex(/^\d+[smhd]$/, 'JWT_EXPIRES_IN must use forms such as 30m or 1h.').default('30m'),
