@@ -18,6 +18,15 @@ const {
 
 const app = express();
 
+function isLoopbackAddress(address) {
+  const normalized = String(address || '').replace(/^::ffff:/i, '');
+  return normalized === '127.0.0.1' || normalized === '::1' || normalized === '0:0:0:0:0:0:0:1';
+}
+
+// Trust forwarded client identity only when explicitly enabled and the immediate
+// peer is loopback (the documented nginx/Cloudflare-origin topology).
+app.set('trust proxy', env.trustProxyLoopback ? (address) => isLoopbackAddress(address) : false);
+
 function attendanceSelfieStorageReadiness(environment = process.env) {
   const url = String(environment.SUPABASE_URL || '').trim();
   const serviceKey = String(environment.SUPABASE_SERVICE_ROLE_KEY || '').trim();

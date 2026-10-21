@@ -18,6 +18,7 @@ const schema = z.object({
   JWT_ISSUER: z.string().min(1).default('smsv3-api'),
   JWT_AUDIENCE: z.string().min(1).default('smsv3-clients'),
   PORT: z.coerce.number().int().min(1).max(65535).default(3000),
+  TRUST_PROXY_LOOPBACK: z.enum(['true', 'false']).default('false'),
   CORS_ORIGIN: z.string().min(1).refine((value) => !value.split(',').map((origin) => origin.trim()).includes('*'), 'CORS_ORIGIN cannot contain a wildcard when credentials are enabled.').default('http://localhost:5173'),
   LOGIN_RATE_LIMIT_WINDOW_MS: z.coerce.number().int().min(1000).default(15 * 60 * 1000),
   LOGIN_RATE_LIMIT_MAX: z.coerce.number().int().min(1).max(1000).default(10),
@@ -169,7 +170,7 @@ if (allowLocalTestDefaults) {
 }
 
 module.exports = {
-  port: parsed.PORT, nodeEnv: parsed.NODE_ENV, jwtSecret: parsed.JWT_SECRET,
+  port: parsed.PORT, trustProxyLoopback: parsed.TRUST_PROXY_LOOPBACK === 'true', nodeEnv: parsed.NODE_ENV, jwtSecret: parsed.JWT_SECRET,
   jwtExpiresIn: parsed.JWT_EXPIRES_IN, jwtAlgorithm: parsed.JWT_ALGORITHM,
   jwtIssuer: parsed.JWT_ISSUER, jwtAudience: parsed.JWT_AUDIENCE,
   corsOrigins: parsed.CORS_ORIGIN.split(',').map((origin) => origin.trim()).filter(Boolean),

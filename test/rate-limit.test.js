@@ -10,6 +10,7 @@ const { createRateLimitEvaluator } = require('../src/services/rate-limit.service
 const { getRequestIpIdentity, normalizeAccountIdentity, normalizeIpIdentity } = require('../src/services/rate-limit-key');
 const { createLoginRateLimit, publicLimitMessage, publicStoreFailureMessage } = require('../src/middlewares/login-rate-limit');
 const { createLogger } = require('../src/utils/logger');
+const app = require('../src/app');
 
 const hashSecret = 'test-rate-limit-secret-with-at-least-thirty-two-chars';
 
@@ -66,6 +67,11 @@ test('different hashed identities are isolated', async () => {
   assert.equal((await evaluate({ scope: 'login-account', identity: 'first@example.invalid' })).allowed, true);
   assert.equal((await evaluate({ scope: 'login-account', identity: 'second@example.invalid' })).allowed, true);
   assert.equal((await evaluate({ scope: 'login-account', identity: 'first@example.invalid' })).allowed, false);
+});
+
+test('explicit proxy trust is disabled by default and loopback-only when enabled', () => {
+  assert.equal(app.get('trust proxy fn')('127.0.0.1', 0), false);
+  assert.equal(app.get('trust proxy fn')('198.51.100.7', 0), false);
 });
 
 test('Vercel client IP uses the platform header while local requests ignore forwarded spoofing', () => {
