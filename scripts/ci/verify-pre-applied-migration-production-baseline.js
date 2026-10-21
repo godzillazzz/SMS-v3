@@ -32,6 +32,13 @@ function assertVerifiedVercel(vercel, release) {
 function sharedBaseline(baseline) {
   const copy = JSON.parse(JSON.stringify(baseline));
   delete copy.vercel;
+  assert(object(copy.runtime?.ready), 'runtime.ready must be an object');
+  if (Object.prototype.hasOwnProperty.call(copy.runtime.ready, 'requestId')) {
+    assert(typeof copy.runtime.ready.requestId === 'string', 'runtime.ready.requestId must be a string');
+    assert(copy.runtime.ready.requestId.length > 0 && copy.runtime.ready.requestId.length <= 128, 'runtime.ready.requestId length is invalid');
+    assert(/^[A-Za-z0-9:_-]+$/.test(copy.runtime.ready.requestId), 'runtime.ready.requestId format is invalid');
+    delete copy.runtime.ready.requestId;
+  }
   return copy;
 }
 

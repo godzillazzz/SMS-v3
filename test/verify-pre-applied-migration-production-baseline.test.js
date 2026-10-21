@@ -197,14 +197,87 @@ test('protected Vercel collector requires exact ownerId and preserves every iden
 
 test('baseline comparator permits only deferred to verified transition and catches forged or shared drift', () => {
   const prior = valid();
+  prior.runtime.ready.requestId = 'ready-prior_1';
   const priorResult = validateProductionBaseline(prior, { repositoryRoot: fixtureRoot });
   const current = JSON.parse(JSON.stringify(priorResult.baseline));
+  current.runtime.ready.requestId = 'ready-current:2';
   current.vercel = { vercelCanonicalIdentity: 'VERIFIED_IN_PROTECTED_ENVIRONMENT', deploymentId: rollback, projectId: 'prj_x', teamId: 'team_x', target: 'production', readyState: 'READY', sourceSha: sha, canonicalAliasTarget: rollback };
   current.release = prior.release;
   assert.equal(compareBaselineTransition(priorResult.baseline, current), true);
+  assert.equal(Object.prototype.hasOwnProperty.call(priorResult.baseline.runtime.ready, 'requestId'), true);
   assert.throws(() => compareBaselineTransition({ ...priorResult.baseline, vercel: {} }, current), /deferred/);
   assert.throws(() => compareBaselineTransition({ ...priorResult.baseline, vercel: { vercelCanonicalIdentity: 'VERIFIED_IN_PROTECTED_ENVIRONMENT' } }, current), /deferred/);
-  assert.throws(() => compareBaselineTransition(priorResult.baseline, { ...current, runtime: { health: { status: 'tampered' } } }), /drift/);
+  assert.throws(() => compareBaselineTransition(priorResult.baseline, { ...current, runtime: { health: { status: 'tampered' }, ready: current.runtime.ready } }), /drift/);
+});
+
+test('ready requestId normalization is narrow, validated, and non-mutating', () => {
+  const prior = valid();
+  prior.runtime.ready.requestId = 'baseline-1';
+  const priorResult = validateProductionBaseline(prior, { repositoryRoot: fixtureRoot });
+  const current = JSON.parse(JSON.stringify(priorResult.baseline));
+  current.runtime.ready.requestId = 'current:2_ABC';
+  current.vercel = { vercelCanonicalIdentity: 'VERIFIED_IN_PROTECTED_ENVIRONMENT', deploymentId: rollback, projectId: 'prj_x', teamId: 'team_x', target: 'production', readyState: 'READY', sourceSha: sha, canonicalAliasTarget: rollback };
+  current.release = prior.release;
+  assert.equal(compareBaselineTransition(priorResult.baseline, current), true);
+  assert.equal(priorResult.baseline.runtime.ready.requestId, 'baseline-1');
+
+  for (const value of [null, '', 'x'.repeat(129), 'bad value', 'bad/slash']) {
+    const left = JSON.parse(JSON.stringify(priorResult.baseline));
+    const right = JSON.parse(JSON.stringify(current));
+    right.runtime.ready.requestId = value;
+    assert.throws(() => compareBaselineTransition(left, right), /runtime\.ready|drift/, `invalid requestId ${String(value)}`);
+  }
+  const missingReady = JSON.parse(JSON.stringify(current));
+  delete missingReady.runtime.ready;
+  assert.throws(() => compareBaselineTransition(priorResult.baseline, missingReady), /runtime\.ready|drift/);
+
+  for (const location of ['health', 'github']) {
+    const left = JSON.parse(JSON.stringify(priorResult.baseline));
+    const right = JSON.parse(JSON.stringify(current));
+    right.runtime[location] = { ...(right.runtime[location] || {}), requestId: `wrong-${location}` };
+    assert.throws(() => compareBaselineTransition(left, right), /drift/, `requestId under runtime.${location}`);
+  }
+  const unexpected = JSON.parse(JSON.stringify(current));
+  unexpected.unexpected = { requestId: 'unexpected-location' };
+  assert.throws(() => compareBaselineTransition(priorResult.baseline, unexpected), /drift/);
+});
+
+test('every other shared baseline field remains drift-sensitive', () => {
+  const prior = valid();
+  prior.runtime.ready.requestId = 'prior';
+  const priorResult = validateProductionBaseline(prior, { repositoryRoot: fixtureRoot });
+  const current = JSON.parse(JSON.stringify(priorResult.baseline));
+  current.runtime.ready.requestId = 'current';
+  current.vercel = { vercelCanonicalIdentity: 'VERIFIED_IN_PROTECTED_ENVIRONMENT', deploymentId: rollback, projectId: 'prj_x', teamId: 'team_x', target: 'production', readyState: 'READY', sourceSha: sha, canonicalAliasTarget: rollback };
+  current.release = prior.release;
+  for (const [label, mutate] of [
+    ['release', value => { value.release.currentProductionSourceSha = 'b'.repeat(40); value.vercel.sourceSha = 'b'.repeat(40); }],
+    ['github', value => { value.github.latestStatus = 'failure'; }],
+    ['health', value => { value.runtime.health.status = 'tampered'; }],
+    ['ready status', value => { value.runtime.ready.status = 'not-ready'; }],
+    ['ready database', value => { value.runtime.ready.database = 'error'; }],
+    ['record', value => { value.record.sourceSha = 'b'.repeat(40); }],
+  ]) {
+    const mutated = JSON.parse(JSON.stringify(current));
+    mutate(mutated);
+    assert.throws(() => compareBaselineTransition(priorResult.baseline, mutated), /drift/, label);
+  }
+});
+
+test('requestId normalization mutation proof: without the narrow deletion, valid differing IDs drift', () => {
+  const prior = valid();
+  prior.runtime.ready.requestId = 'prior';
+  const priorResult = validateProductionBaseline(prior, { repositoryRoot: fixtureRoot });
+  const current = JSON.parse(JSON.stringify(priorResult.baseline));
+  current.runtime.ready.requestId = 'current';
+  current.vercel = { vercelCanonicalIdentity: 'VERIFIED_IN_PROTECTED_ENVIRONMENT', deploymentId: rollback, projectId: 'prj_x', teamId: 'team_x', target: 'production', readyState: 'READY', sourceSha: sha, canonicalAliasTarget: rollback };
+  current.release = prior.release;
+  const strippedPrior = JSON.parse(JSON.stringify(priorResult.baseline));
+  const strippedCurrent = JSON.parse(JSON.stringify(current));
+  delete strippedPrior.vercel;
+  delete strippedCurrent.vercel;
+  assert.notEqual(collector.invariantFingerprint(strippedPrior), collector.invariantFingerprint(strippedCurrent));
+  assert.equal(compareBaselineTransition(priorResult.baseline, current), true);
 });
 
 // Keep the existing release-workflow assertions in the dedicated workflow contract suite.
