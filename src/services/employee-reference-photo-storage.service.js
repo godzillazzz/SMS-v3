@@ -61,22 +61,25 @@ function storageConfig(environment = process.env) {
   return { url: storageOrigin, serviceKey, bucket };
 }
 
-function createSupabaseEmployeeReferencePhotoStorage({ environment = process.env, fetchImpl = globalThis.fetch } = {}) {
+function createSupabaseEmployeeReferencePhotoStorage({ environment = process.env, fetchImpl = globalThis.fetch, objectBackend = null } = {}) {
   const config = () => storageConfig(environment);
   return {
     async put(objectKey, file) {
+      if (objectBackend) return objectBackend.put(objectKey, file);
       const { url, serviceKey, bucket } = config();
       const response = await fetchImpl(`${url}/storage/v1/object/${encodeURIComponent(bucket)}/${objectKey.split('/').map(encodeURIComponent).join('/')}`, { method: 'POST', headers: { authorization: `Bearer ${serviceKey}`, apikey: serviceKey, 'content-type': file.mimetype, 'x-upsert': 'false' }, body: file.buffer });
       if (!response.ok) throw new HttpError(502, 'Reference photo upload failed.', { code: 'REFERENCE_PHOTO_STORAGE_UPLOAD_FAILED' });
       return { provider: 'supabase', bucket };
     },
     async remove(objectKey) {
+      if (objectBackend) return objectBackend.remove(objectKey);
       const { url, serviceKey, bucket } = config();
       const response = await fetchImpl(`${url}/storage/v1/object/${encodeURIComponent(bucket)}/${objectKey.split('/').map(encodeURIComponent).join('/')}`, { method: 'DELETE', headers: { authorization: `Bearer ${serviceKey}`, apikey: serviceKey } });
       if (response.status === 404) return;
       if (!response.ok) throw new HttpError(502, 'Reference photo cleanup failed.', { code: 'REFERENCE_PHOTO_STORAGE_DELETE_FAILED' });
     },
     async getBytes(objectKey) {
+      if (objectBackend) return objectBackend.get(objectKey);
       const { url, serviceKey, bucket } = config();
       const response = await fetchImpl(`${url}/storage/v1/object/${encodeURIComponent(bucket)}/${objectKey.split('/').map(encodeURIComponent).join('/')}`, { method: 'GET', headers: { authorization: `Bearer ${serviceKey}`, apikey: serviceKey } });
       if (!response.ok) throw new HttpError(502, 'Reference photo read failed.', { code: 'REFERENCE_PHOTO_STORAGE_READ_FAILED' });
@@ -87,6 +90,7 @@ function createSupabaseEmployeeReferencePhotoStorage({ environment = process.env
       return buffer;
     },
     async createSignedUrl(objectKey, expiresIn = 300) {
+      if (objectBackend) return objectBackend.sign(objectKey, expiresIn);
       const { url, serviceKey, bucket } = config();
       const response = await fetchImpl(`${url}/storage/v1/object/sign/${encodeURIComponent(bucket)}/${objectKey.split('/').map(encodeURIComponent).join('/')}`, { method: 'POST', headers: { authorization: `Bearer ${serviceKey}`, apikey: serviceKey, 'content-type': 'application/json' }, body: JSON.stringify({ expiresIn }) });
       if (!response.ok) throw new HttpError(502, 'Reference photo viewer is temporarily unavailable.', { code: 'REFERENCE_PHOTO_SIGNED_URL_FAILED' });

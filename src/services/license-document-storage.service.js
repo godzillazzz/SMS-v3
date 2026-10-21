@@ -34,21 +34,24 @@ function storageConfig(environment = process.env) {
   return { url: url.replace(/\/$/, ''), serviceKey, bucket };
 }
 
-function createSupabaseLicenseDocumentStorage({ environment = process.env, fetchImpl = globalThis.fetch } = {}) {
+function createSupabaseLicenseDocumentStorage({ environment = process.env, fetchImpl = globalThis.fetch, objectBackend = null } = {}) {
   const config = () => storageConfig(environment);
   return {
     async put(objectKey, file) {
+      if (objectBackend) return objectBackend.put(objectKey, file);
       const { url, serviceKey, bucket } = config();
       const response = await fetchImpl(`${url}/storage/v1/object/${encodeURIComponent(bucket)}/${objectKey.split('/').map(encodeURIComponent).join('/')}`, { method: 'POST', headers: { authorization: `Bearer ${serviceKey}`, apikey: serviceKey, 'content-type': file.mimetype, 'x-upsert': 'false' }, body: file.buffer });
       if (!response.ok) throw new HttpError(502, 'License document upload failed.');
       return { provider: 'supabase', bucket };
     },
     async remove(objectKey) {
+      if (objectBackend) return objectBackend.remove(objectKey);
       const { url, serviceKey, bucket } = config();
       const response = await fetchImpl(`${url}/storage/v1/object/${encodeURIComponent(bucket)}/${objectKey.split('/').map(encodeURIComponent).join('/')}`, { method: 'DELETE', headers: { authorization: `Bearer ${serviceKey}`, apikey: serviceKey } });
       if (!response.ok) throw new HttpError(502, 'License document cleanup failed.');
     },
     async createSignedUrl(objectKey, expiresIn = 600) {
+      if (objectBackend) return objectBackend.sign(objectKey, expiresIn);
       const { url, serviceKey, bucket } = config();
       const response = await fetchImpl(`${url}/storage/v1/object/sign/${encodeURIComponent(bucket)}/${objectKey.split('/').map(encodeURIComponent).join('/')}`, { method: 'POST', headers: { authorization: `Bearer ${serviceKey}`, apikey: serviceKey, 'content-type': 'application/json' }, body: JSON.stringify({ expiresIn }) });
       if (!response.ok) throw new HttpError(502, 'License document viewer is temporarily unavailable.');
