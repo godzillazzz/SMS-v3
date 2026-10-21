@@ -2,6 +2,14 @@ process.env.NODE_ENV = 'test';
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { createSupabaseLicenseDocumentStorage } = require('../src/services/license-document-storage.service');
+const licenseSource = require('node:fs').readFileSync(require('node:path').join(__dirname, '..', 'src/services/license-document-storage.service.js'), 'utf8');
+
+test('mutation deleting license objectBackend branches is detected', () => {
+  assert.match(licenseSource, /if \(objectBackend\) return assertStoredResult\(await objectBackend\.put\(objectKey, file\)\)/);
+  assert.match(licenseSource, /if \(objectBackend\) return objectBackend\.sign\(objectKey, expiresIn\)/);
+});
+
+function realLicense(backend) { return createSupabaseLicenseDocumentStorage({ objectBackend: backend, environment: {} }); }
 
 test('license storage injected backend preserves put/remove/sign arguments and errors', async () => {
   const calls = [];
@@ -10,7 +18,7 @@ test('license storage injected backend preserves put/remove/sign arguments and e
     remove: async (...args) => { calls.push(['remove', ...args]); },
     sign: async (...args) => { calls.push(['sign', ...args]); return 'signed://license'; }
   };
-  const storage = createSupabaseLicenseDocumentStorage({ objectBackend: backend, environment: {} });
+  const storage = realLicense(backend);
   const file = { buffer: Buffer.from('pdf'), mimetype: 'application/pdf' };
   assert.deepEqual(await storage.put('licenses/e1/a.pdf', file), { provider: 's3', bucket: 'licenses' });
   await storage.remove('licenses/e1/a.pdf');

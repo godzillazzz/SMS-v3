@@ -34,18 +34,21 @@ function storageConfig(environment = process.env) {
   return { url: url.replace(/\/$/, ''), serviceKey, bucket };
 }
 
+function storageError(code, message) { return new HttpError(502, message, { code }); }
+function assertStoredResult(result) { if (!result || typeof result.provider !== 'string' || !result.provider || typeof result.bucket !== 'string' || !result.bucket) throw storageError('LICENSE_DOCUMENT_STORAGE_UPLOAD_FAILED', 'License document upload failed.'); return result; }
+function missingObject(error) { return Number(error?.statusCode || error?.$metadata?.httpStatusCode) === 404 || ['NoSuchKey', 'NotFound'].includes(error?.code); }
 function createSupabaseLicenseDocumentStorage({ environment = process.env, fetchImpl = globalThis.fetch, objectBackend = null } = {}) {
   const config = () => storageConfig(environment);
   return {
     async put(objectKey, file) {
-      if (objectBackend) return objectBackend.put(objectKey, file);
+      if (objectBackend) return assertStoredResult(await objectBackend.put(objectKey, file));
       const { url, serviceKey, bucket } = config();
       const response = await fetchImpl(`${url}/storage/v1/object/${encodeURIComponent(bucket)}/${objectKey.split('/').map(encodeURIComponent).join('/')}`, { method: 'POST', headers: { authorization: `Bearer ${serviceKey}`, apikey: serviceKey, 'content-type': file.mimetype, 'x-upsert': 'false' }, body: file.buffer });
       if (!response.ok) throw new HttpError(502, 'License document upload failed.');
       return { provider: 'supabase', bucket };
     },
     async remove(objectKey) {
-      if (objectBackend) return objectBackend.remove(objectKey);
+      if (objectBackend) { try { return await objectBackend.remove(objectKey); } catch (error) { if (missingObject(error)) return; throw storageError('LICENSE_DOCUMENT_STORAGE_DELETE_FAILED', 'License document cleanup failed.'); } }
       const { url, serviceKey, bucket } = config();
       const response = await fetchImpl(`${url}/storage/v1/object/${encodeURIComponent(bucket)}/${objectKey.split('/').map(encodeURIComponent).join('/')}`, { method: 'DELETE', headers: { authorization: `Bearer ${serviceKey}`, apikey: serviceKey } });
       if (!response.ok) throw new HttpError(502, 'License document cleanup failed.');
