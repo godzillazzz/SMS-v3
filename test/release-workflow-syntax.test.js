@@ -398,6 +398,17 @@ test('SELFIE-POLICY null baseline guard is present before and after the Owner ga
   assert.match(workflow, /verify-pre-applied-migration-production-baseline\.js; do/);
   assert.match(workflow, /gh api --paginate .*deployments\?environment=Production/);
   assert.match(workflow, /POST_APPROVAL_PRE_APPLIED_MIGRATION_BASELINE=PASS/);
+  assert.equal(
+    (workflow.match(/validateProductionBaseline\(input, \{ repositoryRoot: process\.cwd\(\) \}\)/g) || []).length,
+    2,
+    'both trusted baseline calls must receive the checkout root explicitly',
+  );
+  const pre = extractRunBlock(workflow, 'Verify pre-applied Production baseline before Owner gate');
+  assert.doesNotMatch(pre, /api\.vercel\.com|collectVercel|vercel@|VERCEL_TOKEN/);
+  assert.ok(
+    workflow.indexOf('Verify pre-applied Production baseline immediately after Owner approval') < workflow.indexOf('      - run: npm ci'),
+    'post-gate baseline must remain before npm ci',
+  );
 });
 
 

@@ -113,7 +113,7 @@ jobs:
             const vercel = { vercelCanonicalIdentity: 'DEFERRED_TO_PROTECTED_ENVIRONMENT' };
             const runtimeEvidence = await runtime();
             const input = { release: { currentProductionSourceSha: process.env.CURRENT_PRODUCTION_SOURCE_SHA, rollbackDeploymentId: process.env.ROLLBACK_DEPLOYMENT_ID }, recordPath: process.env.CURRENT_PRODUCTION_POST_RELEASE_RECORD, postReleaseRecordVerifierPassed: true, github, vercel, runtime: runtimeEvidence };
-            const result = verifier.validateProductionBaseline(input);
+            const result = verifier.validateProductionBaseline(input, { repositoryRoot: process.cwd() });
             input.baseline = trusted.sanitizeBaseline(result.baseline);
             input.invariantFingerprint = result.invariantFingerprint;
             fs.writeFileSync('/tmp/pre-applied-baseline-input.json', JSON.stringify(input));
@@ -540,7 +540,7 @@ jobs:
             const ready = await request(`${base}/api/v1/ready`, { redirect: 'manual' });
             const healthJson = await health.json(); const readyJson = await ready.json();
             const input = { release: { currentProductionSourceSha: process.env.CURRENT_PRODUCTION_SOURCE_SHA, rollbackDeploymentId: process.env.ROLLBACK_DEPLOYMENT_ID }, recordPath: process.env.CURRENT_PRODUCTION_POST_RELEASE_RECORD, postReleaseRecordVerifierPassed: true, github, vercel, runtime: { health: { httpStatus: health.status, status: healthJson.status }, ready: { httpStatus: ready.status, ...readyJson } } };
-            const result = verifier.validateProductionBaseline(input);
+            const result = verifier.validateProductionBaseline(input, { repositoryRoot: process.cwd() });
             const prior = JSON.parse(fs.readFileSync('/tmp/pre-applied-baseline-input.json', 'utf8'));
             verifier.compareBaselineTransition(prior.baseline, result.baseline);
             fs.writeFileSync('/tmp/post-approval-baseline-input.json', JSON.stringify({ ...input, baseline: trusted.sanitizeBaseline(result.baseline), invariantFingerprint: result.invariantFingerprint }));
