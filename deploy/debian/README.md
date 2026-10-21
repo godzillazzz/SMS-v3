@@ -8,7 +8,7 @@ Read-only inspection evidence for `192.168.23.94` confirms nginx listens on `0.0
 
 No `cloudflared` binary, process, systemd unit, or configuration was found. Therefore Cloudflare proxied-DNS versus an external tunnel remains UNKNOWN. The nginx artifact is a single explicit Variant A for Cloudflare proxied DNS, with the required real-IP directives shown as fail-closed placeholders. It does not pretend that a tunnel exists. Do not enable it until the actual Cloudflare DNS mode and CIDR list are verified.
 
-For proxied DNS Variant A, configure the complete current Cloudflare IPv4 and IPv6 CIDR list:
+For proxied DNS Variant A, configure the complete current Cloudflare IPv4 and IPv6 CIDR list, verifying it against https://www.cloudflare.com/ips/ on the installation date and recording that retrieval date in the change record:
 
 ```nginx
 set_real_ip_from <EACH_CLOUDFLARE_CIDR>;

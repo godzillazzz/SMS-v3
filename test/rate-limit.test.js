@@ -10,7 +10,7 @@ const { createRateLimitEvaluator } = require('../src/services/rate-limit.service
 const { getRequestIpIdentity, normalizeAccountIdentity, normalizeIpIdentity } = require('../src/services/rate-limit-key');
 const { createLoginRateLimit, publicLimitMessage, publicStoreFailureMessage } = require('../src/middlewares/login-rate-limit');
 const { createLogger } = require('../src/utils/logger');
-const app = require('../src/app');
+const { trustProxyAddress } = require('../src/security/trusted-proxy');
 
 const hashSecret = 'test-rate-limit-secret-with-at-least-thirty-two-chars';
 
@@ -69,9 +69,18 @@ test('different hashed identities are isolated', async () => {
   assert.equal((await evaluate({ scope: 'login-account', identity: 'first@example.invalid' })).allowed, false);
 });
 
-test('explicit proxy trust is disabled by default and loopback-only when enabled', () => {
-  assert.equal(app.get('trust proxy fn')('127.0.0.1', 0), false);
-  assert.equal(app.get('trust proxy fn')('198.51.100.7', 0), false);
+test('proxy trust helper remains independent of ambient TRUST_PROXY_LOOPBACK', () => {
+  const previous = process.env.TRUST_PROXY_LOOPBACK;
+  for (const value of [undefined, 'true']) {
+    if (value === undefined) delete process.env.TRUST_PROXY_LOOPBACK;
+    else process.env.TRUST_PROXY_LOOPBACK = value;
+    assert.equal(trustProxyAddress('127.0.0.1', 0, false), false);
+    assert.equal(trustProxyAddress('127.0.0.1', 0, true), true);
+    assert.equal(trustProxyAddress('198.51.100.7', 0, false), false);
+    assert.equal(trustProxyAddress('198.51.100.7', 0, true), false);
+  }
+  if (previous === undefined) delete process.env.TRUST_PROXY_LOOPBACK;
+  else process.env.TRUST_PROXY_LOOPBACK = previous;
 });
 
 test('Vercel client IP uses the platform header while local requests ignore forwarded spoofing', () => {
