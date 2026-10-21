@@ -212,6 +212,54 @@ test("Production workflow loads every referenced release-control helper before u
   }
 });
 
+function extractPostReleasePathGuard(workflow) {
+  const startMarker = "            # The record is control-plane evidence, not an application artifact.\n";
+  const endMarker = "            git show \"$GITHUB_SHA:$CURRENT_PRODUCTION_POST_RELEASE_RECORD\"";
+  const start = workflow.indexOf(startMarker);
+  const end = workflow.indexOf(endMarker, start);
+  assert.ok(start >= 0, "post-release path guard must exist");
+  assert.ok(end > start, "post-release path guard must precede git show");
+  return workflow.slice(start, end)
+    .split("\n")
+    .map((line) => (line.startsWith("          ") ? line.slice(10) : line))
+    .join("\n");
+}
+
+test("post-approval record path guard executes the complete traversal matrix", { skip: process.platform === "win32" }, () => {
+  const workflow = fs.readFileSync(workflowPath, "utf8").replace(/\r\n/g, "\n");
+  const guard = extractPostReleasePathGuard(workflow);
+  const cases = [
+    ["valid", "docs/releases/R8.4-attendance-selfie-policy-post-release-20261020.json", true],
+    ["empty", "", false],
+    ["absolute", "/docs/releases/record.json", false],
+    ["dot-prefix", "./docs/releases/record.json", false],
+    ["dot-component", "docs/./releases/record.json", false],
+    ["parent-prefix", "../docs/releases/record.json", false],
+    ["nested-parent", "docs/releases/../record.json", false],
+    ["double-slash", "docs//releases/record.json", false],
+    ["trailing-slash", "docs/releases/record.json/", false],
+    ["backslash", "docs\\\\releases/record.json", false],
+    ["unsafe-character", "docs/releases/record$.json", false],
+  ];
+  for (const [name, value, expected] of cases) {
+    const result = spawnSync("bash", ["-c", `set -euo pipefail\n${guard}\nprintf 'GUARD_PASS\\n'`], {
+      encoding: "utf8",
+      env: { ...process.env, CURRENT_PRODUCTION_POST_RELEASE_RECORD: value },
+    });
+    assert.equal(result.status === 0, expected, `${name}: ${result.stderr || result.stdout}`);
+  }
+  const mutation = guard.replace('test "$component" != ..', ':');
+  const mutated = spawnSync("bash", ["-c", `set -euo pipefail\n${mutation}\nprintf 'GUARD_PASS\\n'`], {
+    encoding: "utf8",
+    env: { ...process.env, CURRENT_PRODUCTION_POST_RELEASE_RECORD: "docs/releases/../record.json" },
+  });
+  assert.equal(mutated.status, 0, "mutated guard accepts nested traversal");
+  assert.throws(
+    () => assert.equal(mutated.status === 0, false),
+    "turning .. acceptance on must make the traversal contract fail",
+  );
+});
+
 test(
   "Production release guard shell blocks are syntactically valid on bash runners",
   { skip: process.platform === "win32" },

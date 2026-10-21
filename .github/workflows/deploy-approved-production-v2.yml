@@ -480,13 +480,19 @@ jobs:
             test -f /tmp/sms-release-control-plane/verify-pre-applied-migration-production-baseline.js
             # The record is control-plane evidence, not an application artifact.
             # Validate the manifest-provided source path before passing it to git.
+            # Keep the original path unchanged after this guard.
+            test -n "$CURRENT_PRODUCTION_POST_RELEASE_RECORD"
             [[ "$CURRENT_PRODUCTION_POST_RELEASE_RECORD" =~ ^[A-Za-z0-9._/-]+$ ]]
             [[ "$CURRENT_PRODUCTION_POST_RELEASE_RECORD" != /* ]]
             [[ "$CURRENT_PRODUCTION_POST_RELEASE_RECORD" != *\\\\* ]]
-            while IFS= read -r component; do
+            [[ "$CURRENT_PRODUCTION_POST_RELEASE_RECORD" != *'//'* ]]
+            [[ "$CURRENT_PRODUCTION_POST_RELEASE_RECORD" != */ ]]
+            IFS='/' read -r -a record_path_components <<< "$CURRENT_PRODUCTION_POST_RELEASE_RECORD"
+            for component in "${record_path_components[@]}"; do
+              test -n "$component"
               test "$component" != .
               test "$component" != ..
-            done < <(tr '/' '\\n' <<< "$CURRENT_PRODUCTION_POST_RELEASE_RECORD")
+            done
             git show "$GITHUB_SHA:$CURRENT_PRODUCTION_POST_RELEASE_RECORD" > /tmp/current-production-post-release-record.json
             record_file="$POST_RELEASE_RECORD_VALIDATION_ROOT/$CURRENT_PRODUCTION_POST_RELEASE_RECORD"
             mkdir -p "$(dirname "$record_file")"
