@@ -12,6 +12,8 @@ const DEPLOYMENT = /^dpl_[A-Za-z0-9]+$/;
 const SAFE_PATH = /^[A-Za-z0-9._/-]+$/;
 const SELFIE_MANIFEST = '.github/releases/approved-attendance-selfie-policy-migration.json';
 const CANONICAL_HOST = 'sms-v3-staging-ten.vercel.app';
+// This module is extracted from the immutable trusted control-plane source.
+// Candidate helpers and candidate-controlled imports must never be used here.
 
 function fail(message) { throw new Error(`trusted Production baseline: ${message}`); }
 function assert(ok, message) { if (!ok) fail(message); }

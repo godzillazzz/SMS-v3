@@ -1,5 +1,7 @@
 'use strict';
 
+// Trusted control-plane verifier extracted by the protected workflow.
+// Candidate helpers and candidate-controlled imports are intentionally excluded.
 const fs = require('node:fs');
 const path = require('node:path');
 const {
