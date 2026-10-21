@@ -1103,18 +1103,26 @@ router.put('/system-settings/:key', authorize('ADMIN'), async (req, res, next) =
   } catch (error) { next(error); }
 });
 
-router.get('/attendance/selfie-policies', authorize('ADMIN'), async (_req, res, next) => {
+async function listAttendanceSelfiePolicies(_req, res, next) {
   try { res.set('Cache-Control', 'no-store'); res.json({ data: await attendanceSelfiePolicyService.list() }); }
   catch (error) { next(error); }
-});
+}
 
-router.put('/attendance/selfie-policies/:role', authorize('ADMIN'), async (req, res, next) => {
+async function updateAttendanceSelfiePolicy(req, res, next) {
   try {
     const input = attendanceSelfiePolicyPayload.parse({ ...req.body, role: req.params.role });
     const data = await attendanceSelfiePolicyService.update({ actor: req.user, ...input });
     res.set('Cache-Control', 'no-store'); res.json({ data });
   } catch (error) { next(error); }
-});
+}
+
+const attendanceSelfiePolicyPaths = [
+  '/attendance/selfie-policies',
+  '/operations/attendance/selfie-policies'
+];
+const attendanceSelfiePolicyRolePaths = attendanceSelfiePolicyPaths.map((path) => `${path}/:role`);
+router.get(attendanceSelfiePolicyPaths, authorize('ADMIN'), listAttendanceSelfiePolicies);
+router.put(attendanceSelfiePolicyRolePaths, authorize('ADMIN'), updateAttendanceSelfiePolicy);
 
 router.get('/attendance/time-policies', authorize('ADMIN'), async (_req, res, next) => {
   try {

@@ -1,6 +1,6 @@
 'use strict';
 
-const CACHE_NAME = 'sms-pwa-shell-v4';
+const CACHE_NAME = 'sms-pwa-shell-v5';
 const SHELL_URLS = ['/', '/manifest.webmanifest', '/pwa-icon-192.png', '/pwa-icon-512.png', '/brand/sms-logo.webp', '/brand/sms-logo-dark.webp', '/brand/sms-logo-splash.webp', '/brand/sms-logo-splash-dark.webp', '/brand/sms-logo-horizontal.webp', '/brand/sms-logo-horizontal-dark.webp'];
 
 self.addEventListener('install', (event) => {
