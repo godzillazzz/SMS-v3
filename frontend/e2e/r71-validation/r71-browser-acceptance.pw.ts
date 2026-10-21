@@ -139,27 +139,25 @@ async function signIn(page: Page, fixture: {
     return response.request().method() === 'GET' && url.pathname === '/api/v1/auth/passkeys/config';
   }, { timeout: readinessTimeout() });
   await page.goto('/app');
-  await expect(page.locator('#auth-login-form')).toBeVisible();
   await Promise.all([refreshResponse, passkeyConfigResponse]);
 
-  const email = page.locator('#email');
-  const password = page.locator('#password');
-  await email.fill('r71@example.test');
-  await password.fill('synthetic-password');
-  const formState = await page.locator('#auth-login-form').evaluate(form => ({
-    email: (form.querySelector('#email') as HTMLInputElement | null)?.value ?? '',
-    passwordPresent: Boolean((form.querySelector('#password') as HTMLInputElement | null)?.value),
-    valid: (form as HTMLFormElement).checkValidity(),
-  }));
-  if (formState.email !== 'r71@example.test' || !formState.passwordPresent || !formState.valid) {
-    throw new Error([
-      'R71 sign-in precondition failed before submit',
-      `url=${page.url()}`,
-      `email=${JSON.stringify(formState.email)}`,
-      `passwordPresent=${formState.passwordPresent}`,
-      `formValidity=${formState.valid}`,
-    ].join('\n'));
-  }
+  // The Suspense fallback and resolved AwardPublicExperience both render the
+  // login form. Acquire controls only after the resolved subtree is stable.
+  const resolvedAccess = page.locator('.nexus-public__access');
+  await expect(resolvedAccess.locator('#auth-login-form')).toBeVisible();
+
+  const form = resolvedAccess.locator('#auth-login-form');
+  const email = form.locator('#email');
+  const password = form.locator('#password');
+  const submit = form.locator('button[type="submit"]');
+  await email.click();
+  await email.pressSequentially('r71@example.test');
+  await expect(email).toHaveValue('r71@example.test');
+  await password.click();
+  await password.pressSequentially('synthetic-password');
+  await expect(email).toHaveValue('r71@example.test');
+  await expect(password).toHaveValue(/.+/);
+  await expect.poll(() => form.evaluate(element => (element as HTMLFormElement).checkValidity())).toBe(true);
 
   const loginResponse = page.waitForResponse(response => {
     const url = new URL(response.url());
@@ -172,7 +170,7 @@ async function signIn(page: Page, fixture: {
   }, { timeout: readinessTimeout() });
 
   try {
-    await page.locator('#auth-login-form button[type="submit"]').click();
+    await submit.click();
     const login = await loginResponse;
     fixture.assertInstalled();
     expect(login.status(), `R71 fixture login was not intercepted: ${JSON.stringify(fixture.intercepted)}`).toBe(200);
