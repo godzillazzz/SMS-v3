@@ -115,15 +115,22 @@ async function collectGithub({ request, repository, token, expectedSha, rollback
   return { latestDeploymentId: latest.id, latestSha: latest.sha, latestStatus: latestStatus.state, paginationComplete: true, rollbackId };
 }
 
+function collectDeferredVercel() {
+  // Pre-approval is intentionally untrusted: no Vercel URL, CLI, alias or
+  // deployment inspection is permitted before the protected Environment.
+  return Object.freeze({ vercelCanonicalIdentity: 'DEFERRED_TO_PROTECTED_ENVIRONMENT' });
+}
+
 function assertVercelUrl(raw, canonical) { const u = new URL(raw); assert(u.protocol === 'https:' && u.hostname === 'api.vercel.com' && !u.username && !u.password && !u.port, 'Vercel endpoint not allowlisted'); assert(!u.pathname.includes('..'), 'Vercel endpoint traversal'); assert(canonical === normalizeCanonicalUrl(canonical), 'canonical identity invalid'); return u; }
 async function collectVercel({ request, token, teamId, projectId, deploymentId: id, canonicalUrl }) {
+  assert(typeof token === 'string' && token.length > 0, 'Vercel token is required in protected environment');
   assert(/^team_[A-Za-z0-9]+$/.test(teamId) && /^prj_[A-Za-z0-9]+$/.test(projectId) && deploymentId(id), 'Vercel identity malformed');
   const endpoint = assertVercelUrl(`https://api.vercel.com/v13/deployments/${encodeURIComponent(id)}?teamId=${encodeURIComponent(teamId)}`, canonicalUrl);
   const readDeployment = async () => { const r = await getJson(request, endpoint, 'Vercel deployment', token); const d = r.data; assert(d.id === id && d.projectId === projectId && d.teamId === teamId && d.target === 'production' && d.readyState === 'READY' && sha(d.meta?.githubCommitSha), 'Vercel deployment identity/state mismatch'); return d; };
   const before = await readDeployment(); const aliasEndpoint = assertVercelUrl(`https://api.vercel.com/v4/aliases/${encodeURIComponent(new URL(canonicalUrl).hostname)}?teamId=${encodeURIComponent(teamId)}`, canonicalUrl);
   const aliasBefore = (await getJson(request, aliasEndpoint, 'Vercel canonical alias', token)).data; assert(aliasBefore.deployment?.id === id, 'canonical alias target mismatch');
   const after = await readDeployment(); const aliasAfter = (await getJson(request, aliasEndpoint, 'Vercel canonical alias reread', token)).data; assert(after.id === before.id && after.meta.githubCommitSha === before.meta.githubCommitSha && aliasAfter.deployment?.id === aliasBefore.deployment?.id, 'Vercel evidence changed during read');
-  return { deploymentId: id, projectId, teamId, target: after.target, readyState: after.readyState, sourceSha: after.meta.githubCommitSha, canonicalAliasTarget: aliasAfter.deployment.id };
+  return { vercelCanonicalIdentity: 'VERIFIED_IN_PROTECTED_ENVIRONMENT', deploymentId: id, projectId, teamId, target: after.target, readyState: after.readyState, sourceSha: after.meta.githubCommitSha, canonicalAliasTarget: aliasAfter.deployment.id };
 }
 
-module.exports = { MAX_JSON_BYTES, MAX_JSON_DEPTH, SELFIE_MANIFEST, parseBoundedJson, normalizeCanonicalUrl, verifySafeRecordPath, validateManifestValue, invariantFingerprint, sanitizeBaseline, collectGithub, collectVercel };
+module.exports = { MAX_JSON_BYTES, MAX_JSON_DEPTH, SELFIE_MANIFEST, parseBoundedJson, normalizeCanonicalUrl, verifySafeRecordPath, validateManifestValue, invariantFingerprint, sanitizeBaseline, collectGithub, collectDeferredVercel, collectVercel };

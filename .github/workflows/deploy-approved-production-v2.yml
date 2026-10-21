@@ -52,13 +52,6 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Verify Production attendance selfie environment contract
-        env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-          EXPECTED_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
-        run: node scripts/ci/verify-environment-contract.js --verify-vercel-production-env
-
       - name: Verify environment governance contract definition
         run: node scripts/ci/verify-environment-contract.js --contract-only
 
@@ -117,7 +110,7 @@ jobs:
           };
           (async () => {
             const github = await trusted.collectGithub({ request, repository: process.env.GITHUB_REPOSITORY, token: process.env.GH_TOKEN, expectedSha: process.env.CURRENT_PRODUCTION_SOURCE_SHA, rollbackId: process.env.ROLLBACK_DEPLOYMENT_ID });
-            const vercel = await trusted.collectVercel({ request, token: null, teamId: 'team_nemCExHbZ8EAhSgsvefHPAEz', projectId: 'prj_XwhNUOB2zLSPZ6UgQcfyOKBYJ75s', deploymentId: process.env.ROLLBACK_DEPLOYMENT_ID, canonicalUrl: process.env.CANONICAL_URL });
+            const vercel = { vercelCanonicalIdentity: 'DEFERRED_TO_PROTECTED_ENVIRONMENT' };
             const runtimeEvidence = await runtime();
             const input = { release: { currentProductionSourceSha: process.env.CURRENT_PRODUCTION_SOURCE_SHA, rollbackDeploymentId: process.env.ROLLBACK_DEPLOYMENT_ID }, recordPath: process.env.CURRENT_PRODUCTION_POST_RELEASE_RECORD, postReleaseRecordVerifierPassed: true, github, vercel, runtime: runtimeEvidence };
             const result = verifier.validateProductionBaseline(input);
@@ -540,7 +533,8 @@ jobs:
           const request = async (url, options) => fetch(url, options);
           (async () => {
             const github = await trusted.collectGithub({ request, repository: process.env.GITHUB_REPOSITORY, token: process.env.GH_TOKEN, expectedSha: process.env.CURRENT_PRODUCTION_SOURCE_SHA, rollbackId: process.env.ROLLBACK_DEPLOYMENT_ID });
-            const vercel = await trusted.collectVercel({ request, token: process.env.VERCEL_TOKEN, teamId: process.env.VERCEL_ORG_ID, projectId: process.env.VERCEL_PROJECT_ID, deploymentId: process.env.ROLLBACK_DEPLOYMENT_ID, canonicalUrl: process.env.EXPECTED_CANONICAL_URL });
+            if (!process.env.VERCEL_TOKEN) throw new Error('VERCEL_TOKEN is required in protected environment');
+            const vercel = { vercelCanonicalIdentity: 'VERIFIED_IN_PROTECTED_ENVIRONMENT', ...(await trusted.collectVercel({ request, token: process.env.VERCEL_TOKEN, teamId: process.env.VERCEL_ORG_ID, projectId: process.env.VERCEL_PROJECT_ID, deploymentId: process.env.ROLLBACK_DEPLOYMENT_ID, canonicalUrl: process.env.EXPECTED_CANONICAL_URL })) };
             const base = process.env.EXPECTED_CANONICAL_URL.replace(/\/$/, '');
             const health = await request(`${base}/api/v1/health`, { redirect: 'manual' });
             const ready = await request(`${base}/api/v1/ready`, { redirect: 'manual' });
@@ -548,7 +542,7 @@ jobs:
             const input = { release: { currentProductionSourceSha: process.env.CURRENT_PRODUCTION_SOURCE_SHA, rollbackDeploymentId: process.env.ROLLBACK_DEPLOYMENT_ID }, recordPath: process.env.CURRENT_PRODUCTION_POST_RELEASE_RECORD, postReleaseRecordVerifierPassed: true, github, vercel, runtime: { health: { httpStatus: health.status, status: healthJson.status }, ready: { httpStatus: ready.status, ...readyJson } } };
             const result = verifier.validateProductionBaseline(input);
             const prior = JSON.parse(fs.readFileSync('/tmp/pre-applied-baseline-input.json', 'utf8'));
-            if (result.invariantFingerprint !== prior.invariantFingerprint) throw new Error('BASELINE_INVARIANT_FINGERPRINT_DRIFT');
+            verifier.compareBaselineTransition(prior.baseline, result.baseline);
             fs.writeFileSync('/tmp/post-approval-baseline-input.json', JSON.stringify({ ...input, baseline: trusted.sanitizeBaseline(result.baseline), invariantFingerprint: result.invariantFingerprint }));
             process.stdout.write('POST_APPROVAL_PRE_APPLIED_MIGRATION_BASELINE=PASS\n');
           })().catch(error => { console.error(error.message); process.exit(1); });

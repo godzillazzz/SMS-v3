@@ -15,6 +15,32 @@ function fail(message) { throw new Error(`pre-applied Production baseline guard:
 function assert(ok, message) { if (!ok) fail(message); }
 function object(v) { return v !== null && typeof v === 'object' && !Array.isArray(v); }
 
+function assertDeferredVercel(vercel) {
+  assert(object(vercel) && vercel.vercelCanonicalIdentity === 'DEFERRED_TO_PROTECTED_ENVIRONMENT', 'Vercel identity must be deferred before Owner approval');
+  assert(Object.keys(vercel).length === 1, 'deferred Vercel identity contains unexpected fields');
+}
+
+function assertVerifiedVercel(vercel, release) {
+  assert(object(vercel) && vercel.vercelCanonicalIdentity === 'VERIFIED_IN_PROTECTED_ENVIRONMENT', 'Vercel identity was not verified in protected environment');
+  assert(vercel.deploymentId === release.rollbackDeploymentId && vercel.target === 'production' && vercel.readyState === 'READY', 'verified Vercel identity mismatch');
+  assert(vercel.sourceSha === release.currentProductionSourceSha && vercel.canonicalAliasTarget === release.rollbackDeploymentId, 'verified Vercel provenance mismatch');
+  assert(/^prj_[A-Za-z0-9]+$/.test(vercel.projectId || '') && /^team_[A-Za-z0-9]+$/.test(vercel.teamId || ''), 'verified Vercel project/team missing');
+}
+
+function sharedBaseline(baseline) {
+  const copy = JSON.parse(JSON.stringify(baseline));
+  delete copy.vercel;
+  return copy;
+}
+
+function compareBaselineTransition(prior, current) {
+  assert(object(prior) && object(current), 'baseline comparison inputs are missing');
+  assertDeferredVercel(prior.vercel);
+  assertVerifiedVercel(current.vercel, current.release);
+  assert(invariantFingerprint(sharedBaseline(prior)) === invariantFingerprint(sharedBaseline(current)), 'shared baseline invariant drift');
+  return true;
+}
+
 function validateProductionBaseline(input, { repositoryRoot = path.resolve(__dirname, '..', '..'), manifestPath = SELFIE_MANIFEST, fsApi = fs } = {}) {
   assert(object(input), 'inputs are missing');
   const manifest = parseBoundedJson(fsApi.readFileSync(path.resolve(repositoryRoot, manifestPath)), 'migration manifest');
@@ -36,8 +62,9 @@ function validateProductionBaseline(input, { repositoryRoot = path.resolve(__dir
   assert(record?.deployed?.source_sha === release.currentProductionSourceSha, 'record source mismatch');
   assert(input.github?.paginationComplete === true, 'GitHub evidence incomplete');
   assert(input.github.latestStatus === 'success', 'GitHub latest status is not success');
-  assert(input.vercel?.readyState === 'READY' && input.vercel?.target === 'production', 'Vercel evidence is not READY Production');
   assert(input.runtime?.health?.status === 'ok' && input.runtime?.ready?.status === 'ready' && input.runtime?.ready?.database === 'ok', 'runtime evidence failed');
+  if (input.vercel?.vercelCanonicalIdentity === 'DEFERRED_TO_PROTECTED_ENVIRONMENT') assertDeferredVercel(input.vercel);
+  else assertVerifiedVercel(input.vercel, release);
   const baseline = sanitizeBaseline({ release, github: input.github, vercel: input.vercel, runtime: input.runtime, record: { deploymentId: record.deployed.deployment_id, sourceSha: record.deployed.source_sha } });
   return Object.freeze({ mode: 'SELFIE_POLICY_EXPLICIT_NULL_EVIDENCE', rollbackDeploymentId: release.rollbackDeploymentId, invariantFingerprint: invariantFingerprint(baseline), baseline });
 }
@@ -49,4 +76,4 @@ if (require.main === module) {
   process.stdout.write(`PRE_APPLIED_MIGRATION_PRODUCTION_BASELINE=${result.mode}\nIMMUTABLE_INVARIANT_FINGERPRINT=${result.invariantFingerprint || 'NON_NULL_EXACT'}\n`);
 }
 
-module.exports = { MIGRATION_ID: 'SELFIE-POLICY', MIGRATION_PATH: SELFIE_MANIFEST, validateProductionBaseline };
+module.exports = { MIGRATION_ID: 'SELFIE-POLICY', MIGRATION_PATH: SELFIE_MANIFEST, validateProductionBaseline, compareBaselineTransition };

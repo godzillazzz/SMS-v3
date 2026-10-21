@@ -366,7 +366,7 @@ test('Stage B baseline workflow is pinned, scoped, and fail-closed', () => {
   assert.match(workflow, /persist-credentials: false/);
   assert.doesNotMatch(workflow, /continue-on-error:/);
   assert.doesNotMatch(workflow.slice(workflow.indexOf('    env:\n      VERCEL_ORG_ID'), workflow.indexOf('    outputs:')), /VERCEL_TOKEN:/);
-  assert.match(workflow, /BASELINE_INVARIANT_FINGERPRINT|BASELINE_INVARIANT_FINGERPRINT_DRIFT/);
+  assert.match(workflow, /INVARIANT_FINGERPRINT|BASELINE_INVARIANT_FINGERPRINT_DRIFT/);
 });
 
 test('SELFIE-POLICY null baseline guard is present before and after the Owner gate', () => {
@@ -383,6 +383,20 @@ test('SELFIE-POLICY null baseline guard is present before and after the Owner ga
   assert.match(workflow, /verify-pre-applied-migration-production-baseline\.js; do/);
   assert.match(workflow, /gh api --paginate .*deployments\?environment=Production/);
   assert.match(workflow, /POST_APPROVAL_PRE_APPLIED_MIGRATION_BASELINE=PASS/);
+});
+
+
+test('split-trust baseline contract defers Vercel before Owner approval and verifies it after', () => {
+  const workflow = fs.readFileSync(workflowPath, 'utf8').replace(/\r\n/g, '\n');
+  const pre = extractRunBlock(workflow, 'Verify pre-applied Production baseline before Owner gate');
+  const post = extractRunBlock(workflow, 'Verify pre-applied Production baseline immediately after Owner approval');
+  assert.doesNotMatch(pre, /VERCEL_TOKEN|api\\.vercel\\.com|vercel@|collectVercel/);
+  assert.match(pre, /vercelCanonicalIdentity: ['"]DEFERRED_TO_PROTECTED_ENVIRONMENT['"]/);
+  assert.match(workflow, /VERCEL_CANONICAL_IDENTITY: DEFERRED_TO_PROTECTED_ENVIRONMENT/);
+  assert.match(workflow, /name: Verify pre-applied Production baseline immediately after Owner approval[\s\S]*?VERCEL_TOKEN: \$\{\{ secrets\.VERCEL_TOKEN \}\}/);
+  assert.match(post, /collectVercel/);
+  assert.match(post, /compareBaselineTransition/);
+  assert.ok(workflow.indexOf('Verify pre-applied Production baseline immediately after Owner approval') < workflow.indexOf('      - run: npm ci'));
 });
 
 

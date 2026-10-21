@@ -8,6 +8,7 @@ const path = require('node:path');
 const {
   MIGRATION_PATH,
   validateProductionBaseline,
+  compareBaselineTransition,
 } = require('../scripts/ci/verify-pre-applied-migration-production-baseline');
 const collector = require('../scripts/ci/trusted-production-baseline-collector');
 
@@ -37,7 +38,7 @@ function valid() {
     recordPath: recordRel,
     postReleaseRecordVerifierPassed: true,
     github: { paginationComplete: true, latestStatus: 'success' },
-    vercel: { target: 'production', readyState: 'READY' },
+    vercel: { vercelCanonicalIdentity: 'DEFERRED_TO_PROTECTED_ENVIRONMENT' },
     runtime: { health: { status: 'ok' }, ready: { status: 'ready', database: 'ok' } },
   };
 }
@@ -134,6 +135,43 @@ test('GitHub/Vercel collectors enforce GET-only allowlists and double reads', as
   await collector.collectGithub({ request, repository: 'o/r', expectedSha: sha, rollbackId: rollback });
   assert.ok(calls.every(([, method]) => method === 'GET'));
   assert.ok(n > 0);
+});
+
+test('pre-gate deferred collector makes zero Vercel requests and emits deterministic state', () => {
+  let requests = 0;
+  const deferred = collector.collectDeferredVercel({ request: () => { requests += 1; } });
+  assert.deepEqual(deferred, { vercelCanonicalIdentity: 'DEFERRED_TO_PROTECTED_ENVIRONMENT' });
+  assert.equal(requests, 0);
+  assert.equal(collector.invariantFingerprint(deferred), collector.invariantFingerprint({ ...deferred }));
+});
+
+test('protected Vercel collector requires token and performs deployment plus alias double reads', async () => {
+  const calls = [];
+  const request = async (url, init) => {
+    calls.push([url, init.method]);
+    return { status: 200, headers: new Map(), json: async () => url.includes('/aliases/')
+      ? { deployment: { id: rollback } }
+      : { id: rollback, projectId: 'prj_x', teamId: 'team_x', target: 'production', readyState: 'READY', meta: { githubCommitSha: sha } } };
+  };
+  await assert.rejects(() => collector.collectVercel({ request, token: '', teamId: 'team_x', projectId: 'prj_x', deploymentId: rollback, canonicalUrl: 'https://sms-v3-staging-ten.vercel.app' }), /token/);
+  const verified = await collector.collectVercel({ request, token: 'fixture-token', teamId: 'team_x', projectId: 'prj_x', deploymentId: rollback, canonicalUrl: 'https://sms-v3-staging-ten.vercel.app' });
+  assert.equal(verified.vercelCanonicalIdentity, 'VERIFIED_IN_PROTECTED_ENVIRONMENT');
+  assert.equal(calls.length, 4);
+  assert.equal(calls.filter(([url]) => url.includes('/deployments/')).length, 2);
+  assert.equal(calls.filter(([url]) => url.includes('/aliases/')).length, 2);
+  assert.ok(calls.every(([, method]) => method === 'GET'));
+});
+
+test('baseline comparator permits only deferred to verified transition and catches forged or shared drift', () => {
+  const prior = valid();
+  const priorResult = validateProductionBaseline(prior, { repositoryRoot: fixtureRoot });
+  const current = JSON.parse(JSON.stringify(priorResult.baseline));
+  current.vercel = { vercelCanonicalIdentity: 'VERIFIED_IN_PROTECTED_ENVIRONMENT', deploymentId: rollback, projectId: 'prj_x', teamId: 'team_x', target: 'production', readyState: 'READY', sourceSha: sha, canonicalAliasTarget: rollback };
+  current.release = prior.release;
+  assert.equal(compareBaselineTransition(priorResult.baseline, current), true);
+  assert.throws(() => compareBaselineTransition({ ...priorResult.baseline, vercel: {} }, current), /deferred/);
+  assert.throws(() => compareBaselineTransition({ ...priorResult.baseline, vercel: { vercelCanonicalIdentity: 'VERIFIED_IN_PROTECTED_ENVIRONMENT' } }, current), /deferred/);
+  assert.throws(() => compareBaselineTransition(priorResult.baseline, { ...current, runtime: { health: { status: 'tampered' } } }), /drift/);
 });
 
 // Keep the existing release-workflow assertions in the dedicated workflow contract suite.
