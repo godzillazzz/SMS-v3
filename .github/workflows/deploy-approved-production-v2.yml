@@ -46,6 +46,7 @@ jobs:
       pre_applied_migration_manifest_path: ${{ steps.manifest.outputs.pre_applied_migration_manifest_path }}
       pre_applied_migration_evidence_run_id: ${{ steps.manifest.outputs.pre_applied_migration_evidence_run_id }}
       current_production_post_release_record: ${{ steps.manifest.outputs.current_production_post_release_record }}
+      pre_gate_baseline: ${{ steps.baseline.outputs.pre_gate_baseline }}
       manifest_sha256: ${{ steps.hash.outputs.manifest_sha256 }}
     steps:
       - uses: actions/checkout@v4
@@ -75,6 +76,7 @@ jobs:
           echo "current_production_post_release_record=$record" >> "$GITHUB_OUTPUT"
 
       - name: Verify pre-applied Production baseline before Owner gate
+        id: baseline
         if: ${{ steps.manifest.outputs.database_change_policy == 'PRE_APPLIED_APPROVED_MIGRATION' }}
         shell: bash
         env:
@@ -118,6 +120,7 @@ jobs:
             input.invariantFingerprint = result.invariantFingerprint;
             fs.writeFileSync('/tmp/pre-applied-baseline-input.json', JSON.stringify(input));
             process.stdout.write(`PRE_GATE_BASELINE=${result.mode}\nINVARIANT_FINGERPRINT=${result.invariantFingerprint}\n`);
+            fs.appendFileSync(process.env.GITHUB_OUTPUT, `pre_gate_baseline=${result.mode}\n`);
           })().catch(error => { console.error(`baseline evidence retrieval failed: ${error.message}`); process.exit(1); });
           NODE
           node scripts/ci/verify-pre-applied-migration-production-baseline.js /tmp/pre-applied-baseline-input.json
@@ -144,6 +147,7 @@ jobs:
           PRE_APPLIED_MIGRATION_MANIFEST_PATH: ${{ steps.manifest.outputs.pre_applied_migration_manifest_path }}
           PRE_APPLIED_MIGRATION_EVIDENCE_RUN_ID: ${{ steps.manifest.outputs.pre_applied_migration_evidence_run_id }}
           ROLLBACK_DEPLOYMENT_ID: ${{ steps.manifest.outputs.rollback_deployment_id }}
+          PRE_GATE_BASELINE: ${{ steps.baseline.outputs.pre_gate_baseline }}
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
@@ -189,7 +193,14 @@ jobs:
                 true|false) ;;
                 *) echo 'Invalid prisma_schema_changed migration metadata.'; exit 1 ;;
               esac
-              test "$MIGRATION_CURRENT_PRODUCTION_DEPLOYMENT_ID" = "$ROLLBACK_DEPLOYMENT_ID"
+              if [[ "$MIGRATION_CURRENT_PRODUCTION_DEPLOYMENT_ID" =~ ^dpl_[A-Za-z0-9]+$ ]]; then
+                test "$MIGRATION_CURRENT_PRODUCTION_DEPLOYMENT_ID" = "$ROLLBACK_DEPLOYMENT_ID"
+              elif [[ "$MIGRATION_CURRENT_PRODUCTION_DEPLOYMENT_ID" = 'null' && "$MIGRATION_ID" = 'SELFIE-POLICY' && "$PRE_APPLIED_MIGRATION_MANIFEST_PATH" = '.github/releases/approved-attendance-selfie-policy-migration.json' && "$DATABASE_CHANGE_POLICY" = 'PRE_APPLIED_APPROVED_MIGRATION' && "$PRE_GATE_BASELINE" = 'SELFIE_POLICY_EXPLICIT_NULL_EVIDENCE' ]]; then
+                :
+              else
+                echo 'Invalid or unauthorized current production deployment identity.'
+                exit 1
+              fi
               test "$MIGRATION_CURRENT_PRODUCTION_APPLICATION_SHA" = "$CURRENT_PRODUCTION_SOURCE_SHA"
               [[ "$MIGRATION_SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]]
               [[ "$MIGRATION_SOURCE_TREE" =~ ^[0-9a-f]{40}$ ]]
@@ -397,6 +408,7 @@ jobs:
       PRE_APPLIED_MIGRATION_MANIFEST_PATH: ${{ needs.prepare.outputs.pre_applied_migration_manifest_path }}
       PRE_APPLIED_MIGRATION_EVIDENCE_RUN_ID: ${{ needs.prepare.outputs.pre_applied_migration_evidence_run_id }}
       CURRENT_PRODUCTION_POST_RELEASE_RECORD: ${{ needs.prepare.outputs.current_production_post_release_record }}
+      PRE_GATE_BASELINE: ${{ needs.prepare.outputs.pre_gate_baseline }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -492,7 +504,14 @@ jobs:
               POST_VERIFY_SCRIPT=$(printf '%s\n' "$migration_meta" | sed -n 's/^post_verify_script=//p')
               MIGRATION_CURRENT_PRODUCTION_DEPLOYMENT_ID=$(printf '%s\n' "$migration_meta" | sed -n 's/^current_production_deployment_id=//p')
               MIGRATION_CURRENT_PRODUCTION_APPLICATION_SHA=$(printf '%s\n' "$migration_meta" | sed -n 's/^current_production_application_sha=//p')
-              test "$MIGRATION_CURRENT_PRODUCTION_DEPLOYMENT_ID" = "$ROLLBACK_DEPLOYMENT_ID"
+              if [[ "$MIGRATION_CURRENT_PRODUCTION_DEPLOYMENT_ID" =~ ^dpl_[A-Za-z0-9]+$ ]]; then
+                test "$MIGRATION_CURRENT_PRODUCTION_DEPLOYMENT_ID" = "$ROLLBACK_DEPLOYMENT_ID"
+              elif [[ "$MIGRATION_CURRENT_PRODUCTION_DEPLOYMENT_ID" = 'null' && "$MIGRATION_ID" = 'SELFIE-POLICY' && "$PRE_APPLIED_MIGRATION_MANIFEST_PATH" = '.github/releases/approved-attendance-selfie-policy-migration.json' && "$DATABASE_CHANGE_POLICY" = 'PRE_APPLIED_APPROVED_MIGRATION' && "$PRE_GATE_BASELINE" = 'SELFIE_POLICY_EXPLICIT_NULL_EVIDENCE' ]]; then
+                :
+              else
+                echo 'Invalid or unauthorized current production deployment identity.'
+                exit 1
+              fi
               test "$MIGRATION_CURRENT_PRODUCTION_APPLICATION_SHA" = "$CURRENT_PRODUCTION_SOURCE_SHA"
               [[ "$MIGRATION_SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]]
               test "$(git rev-parse "${MIGRATION_SOURCE_SHA}^{tree}")" = "$MIGRATION_SOURCE_TREE"

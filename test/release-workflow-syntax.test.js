@@ -384,6 +384,28 @@ test('Stage B baseline workflow uses one exact trusted pin at both trust boundar
   assert.match(workflow, /INVARIANT_FINGERPRINT|BASELINE_INVARIANT_FINGERPRINT_DRIFT/);
 });
 
+test('legacy null guard rule matrix is explicit, propagated, and mutation-protected', () => {
+  const workflow = fs.readFileSync(workflowPath, 'utf8').replace(/\r\n/g, '\n');
+  const sourceGuard = extractRunBlock(workflow, 'Validate exact source identity, branch ancestry, migration policy, and clean tree');
+  const postApproval = extractRunBlock(workflow, 'Revalidate exact source after Owner approval');
+  for (const literal of [
+    'MIGRATION_CURRENT_PRODUCTION_DEPLOYMENT_ID',
+    "= 'null'",
+    'MIGRATION_ID" = \'SELFIE-POLICY\'',
+    'PRE_APPLIED_MIGRATION_MANIFEST_PATH" = \'.github/releases/approved-attendance-selfie-policy-migration.json\'',
+    'DATABASE_CHANGE_POLICY" = \'PRE_APPLIED_APPROVED_MIGRATION\'',
+    'PRE_GATE_BASELINE" = \'SELFIE_POLICY_EXPLICIT_NULL_EVIDENCE\'',
+  ]) assert.ok(sourceGuard.includes(literal), `missing null allowlist literal: ${literal}`);
+  assert.match(sourceGuard, /MIGRATION_CURRENT_PRODUCTION_DEPLOYMENT_ID.*\^dpl_/);
+  assert.match(postApproval, /MIGRATION_CURRENT_PRODUCTION_DEPLOYMENT_ID.*'null'/);
+  assert.ok(workflow.includes('pre_gate_baseline: ${{ steps.baseline.outputs.pre_gate_baseline }}'));
+  assert.ok(workflow.includes('fs.appendFileSync(process.env.GITHUB_OUTPUT, `pre_gate_baseline=${result.mode}\\n`)'));
+  assert.ok(workflow.includes('PRE_GATE_BASELINE: ${{ needs.prepare.outputs.pre_gate_baseline }}'));
+  assert.ok(workflow.includes('test "$MIGRATION_CURRENT_PRODUCTION_APPLICATION_SHA" = "$CURRENT_PRODUCTION_SOURCE_SHA"'));
+  const mutated = sourceGuard.replace("'.github/releases/approved-attendance-selfie-policy-migration.json'", "'.github/releases/other-migration.json'");
+  assert.doesNotMatch(mutated, /approved-attendance-selfie-policy-migration\.json.*PRE_GATE_BASELINE/, 'mutation proof: changing the manifest path invalidates the exact null allowlist');
+});
+
 test('SELFIE-POLICY null baseline guard is present before and after the Owner gate', () => {
   const workflow = fs.readFileSync(workflowPath, 'utf8').replace(/\r\n/g, '\n');
   const prepareGuard = workflow.indexOf('Verify pre-applied Production baseline before Owner gate');

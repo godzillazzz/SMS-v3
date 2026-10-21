@@ -50,7 +50,7 @@ function makeFixture() {
   for (const file of ['trusted-production-baseline-collector.js', 'verify-pre-applied-migration-production-baseline.js']) {
     fs.writeFileSync(path.join(trusted, file), execFileSync('git', ['show', `${trustedSha}:scripts/ci/${file}`], { cwd: root }));
   }
-  return { workspace, checkout, trusted, baselinePath };
+  return { workspace, checkout, trusted, output, baselinePath };
 }
 
 function fetchPreload() {
@@ -71,7 +71,7 @@ function fetchPreload() {
 async function runRunner({ fixture: suppliedFixture, mutate, removeRepositoryRoot = false, addVercelRequest = false } = {}) {
   const callerOwnsLifecycle = Boolean(suppliedFixture);
   const fixture = suppliedFixture || makeFixture();
-  const { workspace, checkout, trusted, baselinePath } = fixture;
+  const { workspace, checkout, trusted, baselinePath, output } = fixture;
   try {
     fs.writeFileSync(path.join(checkout, 'preload.js'), fetchPreload());
     let runner = extractNodeHeredoc(fs.readFileSync(workflowPath, 'utf8').replace(/\r\n/g, '\n'), 'Verify pre-applied Production baseline before Owner gate');
@@ -86,7 +86,7 @@ async function runRunner({ fixture: suppliedFixture, mutate, removeRepositoryRoo
     if (mutate) runner = mutate(runner);
     runner = runner.replace('})().catch(error =>', `})().then(() => { const guard = verifier.validateProductionBaseline(JSON.parse(fs.readFileSync(process.env.BASELINE_INPUT_PATH, 'utf8')), { repositoryRoot: process.cwd() }); process.stdout.write('PRE_APPLIED_MIGRATION_PRODUCTION_BASELINE=' + guard.mode + '\\n'); }).catch(error =>`);
     if (addVercelRequest) runner += `\ntrusted.collectVercel({ request, token: 'unexpected', teamId: 'team_fixture', projectId: 'prj_fixture', deploymentId: '${rollbackId}', canonicalUrl: process.env.CANONICAL_URL });\n`;
-    const childEnv = { ...process.env, BASELINE_INPUT_PATH: baselinePath, CURRENT_PRODUCTION_SOURCE_SHA: sourceSha, ROLLBACK_DEPLOYMENT_ID: rollbackId, CURRENT_PRODUCTION_POST_RELEASE_RECORD: recordPath, CANONICAL_URL: 'https://sms-v3-staging-ten.vercel.app', GITHUB_REPOSITORY: 'godzillazzz/SMS-v3', GH_TOKEN: 'test-token' };
+    const childEnv = { ...process.env, BASELINE_INPUT_PATH: baselinePath, GITHUB_OUTPUT: path.join(output, 'github-output'), CURRENT_PRODUCTION_SOURCE_SHA: sourceSha, ROLLBACK_DEPLOYMENT_ID: rollbackId, CURRENT_PRODUCTION_POST_RELEASE_RECORD: recordPath, CANONICAL_URL: 'https://sms-v3-staging-ten.vercel.app', GITHUB_REPOSITORY: 'godzillazzz/SMS-v3', GH_TOKEN: 'test-token' };
     const result = await new Promise((resolve, reject) => {
       const child = spawn(process.execPath, ['-r', path.join(checkout, 'preload.js'), '-', trusted], { cwd: checkout, env: childEnv });
       let stdout = ''; let stderr = '';
