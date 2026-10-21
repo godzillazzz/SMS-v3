@@ -8,7 +8,7 @@ MinIO is an optional S3-compatible provider for private object storage. Keep the
 
 ## Provider behavior
 
-The application keeps the existing injected storage contracts and records `storageProvider`, bucket, object key, checksum, and retention metadata in PostgreSQL. `STORAGE_PROVIDER=supabase` preserves current behavior. `STORAGE_PROVIDER=s3` uses the optional AWS S3 SDK adapter with endpoint, region, credentials, and path-style configuration. Missing SDK/configuration fails closed; it does not silently fall back to Supabase. Signed-download wiring remains service authorization first, then short-lived private-object access.
+The application keeps the existing injected storage contracts and records `storageProvider`, bucket, object key, checksum, and retention metadata in PostgreSQL. `STORAGE_PROVIDER=supabase` preserves current behavior. `STORAGE_PROVIDER=s3` is intentionally rejected outside `NODE_ENV=test` until follow-up WIRE-02 explicitly wires all four existing service factories; this package does not activate MinIO. Missing SDK/configuration fails closed; it does not silently fall back to Supabase. Signed-download wiring remains service authorization first, then short-lived private-object access.
 
 Before any test or cutover, all target buckets must be private, keys must be contract-prefixed, and credentials must be supplied only through an untracked secret manager/environment file. No bucket policy or object is changed by this repository package.
 

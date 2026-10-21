@@ -5,6 +5,13 @@ const HttpError = require('../utils/http-error');
 
 const PROVIDERS = Object.freeze({ SUPABASE: 'supabase', S3: 's3' });
 const KEY = /^[A-Za-z0-9][A-Za-z0-9._/-]{0,499}$/;
+function bucketAllowlist(environment = process.env) {
+  return new Set(String(environment.S3_ALLOWED_BUCKETS || [environment.ATTENDANCE_DEVICE_SELFIE_BUCKET, environment.ATTENDANCE_FACE_EVIDENCE_BUCKET, environment.EMPLOYEE_REFERENCE_PHOTOS_BUCKET, environment.LICENSE_DOCUMENTS_BUCKET].filter(Boolean).join(',')).split(',').map((value) => value.trim()).filter(Boolean));
+}
+function assertBucket(bucket, environment = process.env) {
+  if (!bucket || !/^[A-Za-z0-9._-]{1,255}$/.test(bucket) || !bucketAllowlist(environment).has(bucket)) throw new HttpError(400, 'Storage bucket is not allowed.', { code: 'STORAGE_BUCKET_NOT_ALLOWED' });
+  return bucket;
+}
 function providerConfig(environment = process.env) {
   const provider = String(environment.STORAGE_PROVIDER || PROVIDERS.SUPABASE).trim().toLowerCase();
   if (!Object.values(PROVIDERS).includes(provider)) throw new Error('STORAGE_PROVIDER must be supabase or s3.');
@@ -13,7 +20,7 @@ function providerConfig(environment = process.env) {
     const region = String(environment.S3_REGION || 'us-east-1').trim();
     const accessKeyId = String(environment.S3_ACCESS_KEY_ID || '').trim();
     const secretAccessKey = String(environment.S3_SECRET_ACCESS_KEY || '').trim();
-    if (!endpoint || !/^https?:\/\//i.test(endpoint) || !region || !accessKeyId || !secretAccessKey) {
+    if (!endpoint || !/^https:\/\//i.test(endpoint) && !/^http:\/\/(?:localhost|127\.0\.0\.1|\[::1\])(?::\d+)?$/i.test(endpoint) || !region || !accessKeyId || !secretAccessKey) {
       throw new HttpError(503, 'Object storage provider is unavailable.', { code: 'S3_STORAGE_NOT_CONFIGURED' });
     }
     return { provider, endpoint: new URL(endpoint).origin, region, accessKeyId, secretAccessKey, forcePathStyle: String(environment.S3_FORCE_PATH_STYLE || 'true') === 'true' };
@@ -46,11 +53,12 @@ function createS3ObjectStorage({ environment = process.env, client } = {}) {
   const send = (command) => sdk.client.send(command);
   return Object.freeze({
     provider: PROVIDERS.S3,
-    async put(bucket, key, file) { assertObjectKey(key); if (!bucket || !/^[A-Za-z0-9._-]{1,255}$/.test(bucket)) throw new HttpError(400, 'Storage bucket is invalid.', { code: 'STORAGE_BUCKET_INVALID' }); await send(new sdk.PutObjectCommand({ Bucket: bucket, Key: key, Body: file.buffer, ContentType: file.mimetype, ContentLength: file.buffer.length, Metadata: { sha256: crypto.createHash('sha256').update(file.buffer).digest('hex') } })); return { provider: PROVIDERS.S3, bucket, objectKey: key }; },
-    async remove(bucket, key) { assertObjectKey(key); await send(new sdk.DeleteObjectCommand({ Bucket: bucket, Key: key })); },
-    async get(bucket, key) { assertObjectKey(key); const result = await send(new sdk.GetObjectCommand({ Bucket: bucket, Key: key })); if (!result?.Body?.transformToByteArray) throw new HttpError(502, 'Object storage read failed.', { code: 'S3_STORAGE_READ_FAILED' }); return Buffer.from(await result.Body.transformToByteArray()); },
+    async put(bucket, key, file) { assertObjectKey(key); assertBucket(bucket, environment); await send(new sdk.PutObjectCommand({ Bucket: bucket, Key: key, Body: file.buffer, ContentType: file.mimetype, ContentLength: file.buffer.length, Metadata: { sha256: crypto.createHash('sha256').update(file.buffer).digest('hex') } })); return { provider: PROVIDERS.S3, bucket, objectKey: key }; },
+    async remove(bucket, key) { assertObjectKey(key); assertBucket(bucket, environment); await send(new sdk.DeleteObjectCommand({ Bucket: bucket, Key: key })); },
+    async get(bucket, key) { assertObjectKey(key); assertBucket(bucket, environment); const result = await send(new sdk.GetObjectCommand({ Bucket: bucket, Key: key })); if (!result?.Body?.transformToByteArray) throw new HttpError(502, 'Object storage read failed.', { code: 'S3_STORAGE_READ_FAILED' }); return Buffer.from(await result.Body.transformToByteArray()); },
     async createSignedUrl(bucket, key, expiresIn = 300) {
       assertObjectKey(key);
+      assertBucket(bucket, environment);
       const seconds = Number(expiresIn);
       if (!Number.isInteger(seconds) || seconds < 1 || seconds > 3600) throw new HttpError(400, 'Signed URL expiry is invalid.', { code: 'STORAGE_SIGNED_URL_EXPIRY_INVALID' });
       let getSignedUrl;
@@ -63,4 +71,4 @@ function createS3ObjectStorage({ environment = process.env, client } = {}) {
     }
   });
 }
-module.exports = { PROVIDERS, providerConfig, assertObjectKey, createS3ObjectStorage };
+module.exports = { PROVIDERS, providerConfig, bucketAllowlist, assertBucket, assertObjectKey, createS3ObjectStorage };

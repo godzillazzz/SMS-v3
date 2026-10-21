@@ -8,14 +8,27 @@ function safeKey(key) {
   return typeof key === 'string' && /^[A-Za-z0-9][A-Za-z0-9._/-]{0,499}$/.test(key) && !key.includes('..') && !key.includes('//') && !key.split('/').some((part) => !part || part === '.' || part === '..');
 }
 async function checksum(file) {
+  const stat = await fs.lstat(file);
+  if (!stat.isFile()) throw new Error(stat.isSymbolicLink() ? 'SYMLINK_REJECTED' : 'SOURCE_NOT_REGULAR_FILE');
   const hash = crypto.createHash('sha256');
-  hash.update(await fs.readFile(file));
+  const handle = await fs.open(file, 'r');
+  try {
+    const buffer = Buffer.allocUnsafe(1024 * 1024);
+    let bytes;
+    do {
+      ({ bytesRead: bytes } = await handle.read(buffer, 0, buffer.length, null));
+      if (bytes) hash.update(buffer.subarray(0, bytes));
+    } while (bytes);
+  } finally {
+    await handle.close();
+  }
   return hash.digest('hex');
 }
+function countResult() { return { scanned: 0, wouldCopy: 0, mismatch: 0, verified: 0, failed: 0, dryRun: true, failures: [] }; }
 async function plan({ sourceRoot, destinationRoot, manifestPath, dryRun = true }) {
   if (!dryRun) throw new Error('COPY_DRY_RUN_ONLY: explicit write mode is not implemented or authorized.');
   const manifest = JSON.parse(await fs.readFile(manifestPath, 'utf8'));
-  const result = { scanned: 0, copied: 0, verified: 0, skipped: 0, failed: 0, dryRun: true, failures: [] };
+  const result = countResult();
   for (const item of manifest) {
     result.scanned += 1;
     try {
@@ -27,10 +40,10 @@ async function plan({ sourceRoot, destinationRoot, manifestPath, dryRun = true }
       try {
         const destinationHash = await checksum(destination);
         if (destinationHash.toLowerCase() === sourceHash.toLowerCase()) result.verified += 1;
-        else result.copied += 1;
+        else { result.mismatch += 1; result.wouldCopy += 1; }
       } catch (error) {
         if (error.code !== 'ENOENT') throw error;
-        result.copied += 1;
+        result.wouldCopy += 1;
       }
     } catch (error) {
       result.failed += 1;

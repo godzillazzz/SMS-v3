@@ -16,7 +16,7 @@ test('checksum-first copy plan is idempotent and never writes by default', async
   const sha256 = crypto.createHash('sha256').update(file).digest('hex');
   const manifest = path.join(root, 'manifest.json'); await fs.writeFile(manifest, JSON.stringify([{ key, sha256 }]));
   const result = await plan({ sourceRoot: source, destinationRoot: destination, manifestPath: manifest });
-  assert.deepEqual(result, { scanned: 1, copied: 1, verified: 0, skipped: 0, failed: 0, dryRun: true, failures: [] });
+  assert.deepEqual(result, { scanned: 1, wouldCopy: 1, mismatch: 0, verified: 0, failed: 0, dryRun: true, failures: [] });
   await assert.rejects(fs.access(path.join(destination, key)));
   await assert.rejects(plan({ sourceRoot: source, destinationRoot: destination, manifestPath: manifest, dryRun: false }), /COPY_DRY_RUN_ONLY/);
 });
