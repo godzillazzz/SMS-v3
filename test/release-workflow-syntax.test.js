@@ -398,6 +398,31 @@ test('legacy null guard rule matrix is explicit, propagated, and mutation-protec
   ]) assert.ok(sourceGuard.includes(literal), `missing null allowlist literal: ${literal}`);
   assert.match(sourceGuard, /MIGRATION_CURRENT_PRODUCTION_DEPLOYMENT_ID.*\^dpl_/);
   assert.match(postApproval, /MIGRATION_CURRENT_PRODUCTION_DEPLOYMENT_ID.*'null'/);
+  const migrationMetaOutput = postApproval.indexOf('`migration_id=${result.migrationId}`');
+  const migrationIdParse = postApproval.indexOf('MIGRATION_ID=$(printf');
+  const nullRuleUse = postApproval.indexOf('"$MIGRATION_ID" = \'SELFIE-POLICY\'');
+  assert.ok(migrationMetaOutput >= 0, 'post-approval metadata must export migration_id');
+  assert.ok(migrationIdParse > migrationMetaOutput, 'post-approval must parse migration_id after exporting it');
+  assert.ok(nullRuleUse > migrationIdParse, 'post-approval must parse migration_id before using it');
+
+  const nullRule = (value) => value.deploymentId === 'null'
+    && value.migrationId === 'SELFIE-POLICY'
+    && value.manifestPath === '.github/releases/approved-attendance-selfie-policy-migration.json'
+    && value.policy === 'PRE_APPLIED_APPROVED_MIGRATION'
+    && value.baseline === 'SELFIE_POLICY_EXPLICIT_NULL_EVIDENCE';
+  const valid = { deploymentId: 'null', migrationId: 'SELFIE-POLICY', manifestPath: '.github/releases/approved-attendance-selfie-policy-migration.json', policy: 'PRE_APPLIED_APPROVED_MIGRATION', baseline: 'SELFIE_POLICY_EXPLICIT_NULL_EVIDENCE' };
+  assert.equal(nullRule(valid), true, 'exact SELFIE null exception must pass');
+  for (const [field, bad] of [['migrationId', ''], ['migrationId', 'OTHER'], ['manifestPath', '.github/releases/other.json'], ['policy', 'NO_DATABASE_CHANGES'], ['baseline', 'OTHER'], ['deploymentId', 'dpl_wrong'], ['deploymentId', 'null\\0']]) {
+    assert.equal(nullRule({ ...valid, [field]: bad }), false, `null exception must fail for ${field}=${bad}`);
+  }
+  const condition = postApproval.slice(postApproval.indexOf("elif [[ "), postApproval.indexOf(" ]]; then", postApproval.indexOf("elif [[ ")));
+  for (const literal of ['"$MIGRATION_ID"', "'SELFIE-POLICY'", 'approved-attendance-selfie-policy-migration.json', "'PRE_APPLIED_APPROVED_MIGRATION'", "'SELFIE_POLICY_EXPLICIT_NULL_EVIDENCE'"]) {
+    assert.ok(condition.includes(literal), `post-approval condition missing ${literal}`);
+  }
+  const mutatedCondition = condition.replace("SELFIE-POLICY", "OTHER");
+  assert.notEqual(mutatedCondition, condition, 'mutation fixture must change the rule');
+  assert.equal(nullRule(valid), true, 'mutation control must retain the exact valid case');
+  assert.equal(nullRule({ ...valid, migrationId: 'OTHER' }), false, 'mutation target must fail the matrix');
   assert.ok(workflow.includes('pre_gate_baseline: ${{ steps.baseline.outputs.pre_gate_baseline }}'));
   assert.ok(workflow.includes('fs.appendFileSync(process.env.GITHUB_OUTPUT, `pre_gate_baseline=${result.mode}\\n`)'));
   assert.ok(workflow.includes('PRE_GATE_BASELINE: ${{ needs.prepare.outputs.pre_gate_baseline }}'));

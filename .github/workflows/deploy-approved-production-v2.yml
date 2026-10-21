@@ -492,6 +492,7 @@ jobs:
           }
           process.stdout.write([
             `source_sha=${result.sourceCommitSha}`,
+            `migration_id=${result.migrationId}`,
             `source_tree=${result.sourceTreeSha}`,
             `post_verify_script=${result.postVerifyScript}`,
             `current_production_deployment_id=${result.currentProductionDeploymentId}`,
@@ -499,6 +500,8 @@ jobs:
           ].join('\n'));
           NODE
               )
+              MIGRATION_ID=$(printf '%s\n' "$migration_meta" | sed -n 's/^migration_id=//p')
+              test -n "$MIGRATION_ID"
               MIGRATION_SOURCE_SHA=$(printf '%s\n' "$migration_meta" | sed -n 's/^source_sha=//p')
               MIGRATION_SOURCE_TREE=$(printf '%s\n' "$migration_meta" | sed -n 's/^source_tree=//p')
               POST_VERIFY_SCRIPT=$(printf '%s\n' "$migration_meta" | sed -n 's/^post_verify_script=//p')
