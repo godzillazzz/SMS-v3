@@ -597,7 +597,7 @@ export function AttendanceSimplePage({
     setBusy(true);
     try {
       const challenge = await simpleAttendanceSelfieProof(token);
-      setSelfie(selfiePreview); setSelfieNonce(challenge.nonce); setSelfiePreview(null);
+      setSelfie(selfiePreview); setSelfieNonce(challenge.nonce); setNonceIssuedAt(new Date().toISOString()); setSelfiePreview(null);
       await recordAttendance(selfiePreview, challenge.nonce);
     } finally {
       setBusy(false);
@@ -614,6 +614,12 @@ export function AttendanceSimplePage({
     ? `${bootstrap.assignment.shift.code || ''} ${bootstrap.assignment.shift.startTime || ''}–${bootstrap.assignment.shift.endTime || ''}`.trim()
     : '—';
   const nextActionLabel = bootstrap?.eventIntent === 'CHECK_OUT' ? 'ลงเวลาออก' : 'ลงเวลาเข้า';
+  const selfieRequired = Boolean(bootstrap?.selfiePolicy?.required);
+  const selfieStepLabel = selfiePreview
+    ? 'ตรวจสอบภาพตัวอย่างก่อนยืนยัน'
+    : selfie
+      ? 'ยืนยันภาพแล้ว · รอส่งพร้อม Nonce จาก Server'
+      : 'ถ่าย Selfie พร้อมข้อมูลกำกับ';
   const nowLabel = !bootstrap
     ? 'กำลังเตรียมระบบลงเวลา'
     : bootstrap.eventIntent === 'CHECK_OUT'
@@ -717,6 +723,32 @@ export function AttendanceSimplePage({
       {siteContext?.workSiteContext === 'SUPPORT_SITE' || pendingSiteCapture
         ? <small>ระบบเก็บ Site ตามตารางและ Site ที่ลงเวลาจริงแยกกันเพื่อการตรวจสอบ</small>
         : null}
+    </section>}
+
+    <section className="attendance-simple__site-summary" aria-label="สถานที่และการยืนยันตำแหน่ง">
+      <div>
+        <span>Site ตามตาราง</span>
+        <strong>{siteDisplayName(siteContext?.assignedSite || bootstrap?.assignment.site)}</strong>
+      </div>
+      <div>
+        <span>สถานะ GPS / Site</span>
+        <strong>{siteContext ? (siteContext.workSiteContext === 'SUPPORT_SITE' ? `พบ ${siteDisplayName(siteContext.actualSite)} · ต้องยืนยันซ้ำ` : 'ตรวจแล้ว · อยู่ในขอบเขต') : 'ยังไม่ได้ตรวจ · จะตรวจเมื่อกดยืนยัน'}</strong>
+      </div>
+    </section>
+
+    {selfieRequired && <section className="attendance-simple__selfie-step" aria-label="ขั้นตอน Selfie">
+      <div className="attendance-simple__selfie-step-heading">
+        <span>ต้องทำก่อนลงเวลา</span>
+        <strong>{selfieStepLabel}</strong>
+      </div>
+      <p>นโยบายจาก Server กำหนดให้ใช้ภาพสด · ระบบจะประทับข้อมูลตำแหน่ง แล้วขอ Challenge/Nonce ก่อนส่งรายการ</p>
+      <ol>
+        <li className={selfie ? 'is-done' : ''}>ถ่าย Selfie</li>
+        <li className={selfiePreview ? 'is-current' : selfie ? 'is-done' : ''}>ตรวจสอบภาพและยืนยัน</li>
+        <li className={selfieNonce ? 'is-done' : ''}>รับ Nonce จาก Server และส่งลงเวลา</li>
+      </ol>
+      {!selfie && !selfiePreview && <button type="button" onClick={() => void openSelfieCamera()} disabled={clockDisabled || busy}>ถ่าย Selfie</button>}
+      {selfiePreview && <div className="attendance-simple__selfie-step-actions"><button type="button" onClick={retakeSelfie} disabled={busy}>ถ่ายใหม่</button><button type="button" onClick={() => void useSelfiePreview()} disabled={busy}>ยืนยันภาพนี้</button></div>}
     </section>}
 
     <div className={`attendance-simple__status is-${tone}`} role="status">

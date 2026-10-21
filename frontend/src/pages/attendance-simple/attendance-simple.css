@@ -37,7 +37,34 @@
 .attendance-simple__status.is-danger { border-color:#a13c45; background:#2b1115; }
 .attendance-simple__status.is-danger strong { color:#ffccd2; }
 
+.attendance-simple__site-summary { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
+.attendance-simple__site-summary > div { display:grid; gap:4px; padding:12px 14px; border:1px solid #234a64; border-radius:14px; background:#091b29; }
+.attendance-simple__site-summary span { color:#7fa8c4; font-size:11px; font-weight:800; }
+.attendance-simple__site-summary strong { color:#edf5fc; font-size:14px; line-height:1.4; overflow-wrap:anywhere; }
+.attendance-simple__selfie-step { display:grid; gap:10px; padding:14px 16px; border:1px solid #2a64a7; border-radius:16px; background:#0b2032; }
+.attendance-simple__selfie-step-heading { display:grid; gap:4px; }
+.attendance-simple__selfie-step-heading span { color:#8ec5ff; font-size:11px; font-weight:850; letter-spacing:.06em; }
+.attendance-simple__selfie-step-heading strong { color:#f2f8ff; font-size:16px; line-height:1.35; }
+.attendance-simple__selfie-step p { margin:0; color:#b8ccdd; font-size:12px; line-height:1.5; }
+.attendance-simple__selfie-step ol { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; margin:0; padding:0; list-style:none; counter-reset:selfie-step; }
+.attendance-simple__selfie-step li { counter-increment:selfie-step; display:grid; gap:5px; padding:9px 8px; border:1px solid #315168; border-radius:10px; color:#9db2c3; font-size:11px; line-height:1.35; }
+.attendance-simple__selfie-step li::before { content:counter(selfie-step); display:grid; place-items:center; width:22px; height:22px; border-radius:50%; background:#163852; color:#d4e9fb; font-weight:850; }
+.attendance-simple__selfie-step li.is-current { border-color:#5ba5ed; color:#e9f5ff; }
+.attendance-simple__selfie-step li.is-current::before { background:#176de3; color:#fff; }
+.attendance-simple__selfie-step li.is-done { border-color:#2b9d7c; color:#baf4df; }
+.attendance-simple__selfie-step li.is-done::before { content:'✓'; background:#1d8c69; color:#fff; }
+.attendance-simple__selfie-step button { min-height:44px; justify-self:start; padding:8px 16px; border:1px solid #5ba5ed; border-radius:10px; background:#176de3; color:#fff; font:inherit; font-weight:800; cursor:pointer; }
+.attendance-simple__selfie-step button:focus-visible { outline:3px solid #ffd166; outline-offset:2px; }
+.attendance-simple__selfie-step button:disabled { opacity:.55; cursor:not-allowed; }
+.attendance-simple__selfie-step-actions { display:flex; flex-wrap:wrap; gap:8px; }
+.attendance-simple__selfie-step-actions button:first-child { background:transparent; color:#cde5f8; }
+
 .attendance-simple__action { display:grid; grid-template-columns:minmax(220px,340px) minmax(0,1fr); align-items:center; gap:16px; }
+.attendance-simple__action-choice { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:6px; align-self:start; }
+.attendance-simple__action-choice button { min-height:46px; border:1px solid #315168; border-radius:10px; background:#0b1d2a; color:#aac0d1; font:inherit; font-weight:800; cursor:pointer; }
+.attendance-simple__action-choice button[aria-pressed="true"] { border-color:#5ba5ed; background:#123c62; color:#fff; box-shadow:inset 0 -3px 0 #2f8df0; }
+.attendance-simple__action-choice button:focus-visible { outline:3px solid #86d8f2; outline-offset:2px; }
+.attendance-simple__action-choice button:disabled { opacity:.55; cursor:not-allowed; }
 .attendance-simple__clock-stack { display:grid; justify-items:center; gap:10px; width:min(340px,100%); margin:0 auto; }
 .attendance-simple__assurance { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; }
 .attendance-simple__assurance article { min-height:92px; border:1px solid #1f4860; border-radius:15px; background:#081a28; display:grid; align-content:center; justify-items:center; text-align:center; gap:7px; padding:10px; }
@@ -115,6 +142,16 @@
 [data-theme="light"] .app-shell:not(.pwa-shell) .attendance-simple__journey span { color:#1d4ed8; }
 [data-theme="light"] .app-shell:not(.pwa-shell) .attendance-simple__journey strong { color:#14263d; }
 [data-theme="light"] .app-shell:not(.pwa-shell) .attendance-simple__journey small { color:#475569; }
+[data-theme="light"] .app-shell:not(.pwa-shell) .attendance-simple__site-summary > div { border-color:#d7e1ec; background:#f8fafc; }
+[data-theme="light"] .app-shell:not(.pwa-shell) .attendance-simple__site-summary span { color:#475569; }
+[data-theme="light"] .app-shell:not(.pwa-shell) .attendance-simple__site-summary strong { color:#14263d; }
+[data-theme="light"] .app-shell:not(.pwa-shell) .attendance-simple__selfie-step { border-color:#9fc6ea; background:#eff6ff; }
+[data-theme="light"] .app-shell:not(.pwa-shell) .attendance-simple__selfie-step-heading span { color:#1d4ed8; }
+[data-theme="light"] .app-shell:not(.pwa-shell) .attendance-simple__selfie-step-heading strong { color:#14263d; }
+[data-theme="light"] .app-shell:not(.pwa-shell) .attendance-simple__selfie-step p { color:#475569; }
+[data-theme="light"] .app-shell:not(.pwa-shell) .attendance-simple__selfie-step li { border-color:#cbd5e1; color:#475569; }
+[data-theme="light"] .app-shell:not(.pwa-shell) .attendance-simple__action-choice button { border-color:#cbd5e1; background:#f8fafc; color:#475569; }
+[data-theme="light"] .app-shell:not(.pwa-shell) .attendance-simple__action-choice button[aria-pressed="true"] { border-color:#2563eb; background:#dbeafe; color:#1e3a8a; }
 [data-theme="light"] .app-shell:not(.pwa-shell) .attendance-simple__exception { border-color:#d6a23a; background:#fffbeb; }
 [data-theme="light"] .app-shell:not(.pwa-shell) .attendance-simple__exception > span { color:#854d0e; }
 [data-theme="light"] .app-shell:not(.pwa-shell) .attendance-simple__exception strong { color:#451a03; }
@@ -160,6 +197,9 @@
   .attendance-simple__assurance b { font-size:12px; }
   .attendance-simple__assurance span { font-size:10px; }
   .attendance-simple__action { grid-template-columns:1fr; gap:10px; }
+  .attendance-simple__site-summary { grid-template-columns:1fr; gap:8px; }
+  .attendance-simple__selfie-step ol { grid-template-columns:1fr; gap:6px; }
+  .attendance-simple__selfie-step li { grid-template-columns:28px minmax(0,1fr); align-items:center; }
   .attendance-simple__clock-stack { width:min(340px,100%); }
   .attendance-simple .attendance-simple__clock { width:min(300px,78vw); }
   .attendance-simple__clock span { font-size:26px; }
