@@ -18,7 +18,11 @@ export type AttendanceTimePolicy = {
   maxShiftDurationMinutes: number | null;
 };
 
-export type AttendanceTimePolicyScope = 'COMPANY' | 'SITE' | 'SHIFT_TYPE';
+export type AttendanceTimePolicyScope = 'COMPANY';
+
+export type AttendanceTimePolicyScopeInput = {
+  scopeType: 'COMPANY';
+};
 export type AttendanceTimePolicyRow = {
   id: string;
   scopeType: AttendanceTimePolicyScope;
@@ -58,9 +62,7 @@ export async function loadAttendanceTimePolicies(token: string): Promise<Attenda
 }
 
 export async function saveAttendanceTimePolicy(token: string, input: {
-  scopeType: AttendanceTimePolicyScope;
-  siteId?: string | null;
-  shiftTypeId?: string | null;
+  scopeType: 'COMPANY';
   effectiveFrom?: string;
   policy: AttendanceTimePolicy;
 }): Promise<AttendanceTimePolicyRow> {

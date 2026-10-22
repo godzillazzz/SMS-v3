@@ -11,7 +11,8 @@ const {
   validateAttendanceTime,
   classifyAttendanceEventTime,
   snapshotFor,
-  createAttendanceTimePolicyService
+  createAttendanceTimePolicyService,
+  validateScopeInput
 } = require('../src/services/attendance-time-policy.service');
 const { reportRowProjection } = require('../src/services/attendance-report.service');
 
@@ -126,7 +127,7 @@ test('early checkout tolerance and anomaly toggle are applied independently', ()
   assert.equal(disabled.checkoutCondition, 'NORMAL');
 });
 
-test('effective policy resolution selects Shift Type then Site then Company', async () => {
+test('effective policy resolution selects Company while legacy rows are ignored', async () => {
   const assigned = assignment();
   const company = source('COMPANY', null, { ...DEFAULT_ATTENDANCE_TIME_POLICY, lateGraceMinutes: 1 }, 'company-policy');
   const site = source('SITE', 'site-a', { ...DEFAULT_ATTENDANCE_TIME_POLICY, lateGraceMinutes: 5 }, 'site-policy');
@@ -135,29 +136,56 @@ test('effective policy resolution selects Shift Type then Site then Company', as
   const client = { attendanceTimePolicy: { findFirst: async (query) => rows
     .filter((row) => row.scopeType === query.where.scopeType && row.siteId === query.where.siteId && row.shiftTypeId === query.where.shiftTypeId && row.effectiveFrom <= query.where.effectiveFrom.lte)
     .sort((a, b) => b.effectiveFrom - a.effectiveFrom)[0] || null } };
-  const service = createAttendanceTimePolicyService({ prisma: client });
-  const result = await service.resolveForAssignment({ assignment: assigned, at: instant('2026-10-02T00:00:00.000Z') });
-  assert.equal(result.values.lateGraceMinutes, 10);
-  assert.equal(result.source.policyId, 'shift-policy');
-  assert.equal(snapshotFor(result).scopeType, 'SHIFT_TYPE');
-
-  const siteOnlyService = createAttendanceTimePolicyService({ prisma: { attendanceTimePolicy: { findFirst: async (query) => rows
-    .filter((row) => row.scopeType !== 'SHIFT_TYPE' && row.scopeType === query.where.scopeType && row.siteId === query.where.siteId && row.effectiveFrom <= query.where.effectiveFrom.lte)
-    .sort((a, b) => b.effectiveFrom - a.effectiveFrom)[0] || null } } });
-  assert.equal((await siteOnlyService.resolveForAssignment({ assignment: assigned, at: instant('2026-10-02T00:00:00.000Z') })).values.lateGraceMinutes, 5);
-
-  const companyOnlyService = createAttendanceTimePolicyService({ prisma: { attendanceTimePolicy: { findFirst: async (query) => query.where.scopeType === 'COMPANY' ? company : null } } });
-  assert.equal((await companyOnlyService.resolveForAssignment({ assignment: assigned, at: instant('2026-10-02T00:00:00.000Z') })).values.lateGraceMinutes, 1);
+  const result = await createAttendanceTimePolicyService({ prisma: client }).resolveForAssignment({ assignment: assigned, at: instant('2026-10-02T00:00:00.000Z') });
+  assert.equal(result.values.lateGraceMinutes, 1);
+  assert.equal(result.source.policyId, 'company-policy');
+  assert.equal(snapshotFor(result).scopeType, 'COMPANY');
 });
 
-test('effective policy resolution normalizes Prisma array-valued attendanceSession and selects Site policy', async () => {
+test('company-only policy ignores legacy Site and Shift Type rows during resolution', async () => {
+  const assigned = assignment();
+  const rows = [
+    source('COMPANY', null, { ...DEFAULT_ATTENDANCE_TIME_POLICY, lateGraceMinutes: 2 }, 'company-policy'),
+    source('SITE', 'site-a', { ...DEFAULT_ATTENDANCE_TIME_POLICY, lateGraceMinutes: 99 }, 'legacy-site-policy'),
+    source('SHIFT_TYPE', 'shift-d', { ...DEFAULT_ATTENDANCE_TIME_POLICY, lateGraceMinutes: 88 }, 'legacy-shift-policy')
+  ];
+  const client = { attendanceTimePolicy: { findFirst: async (query) => rows
+    .filter((row) => row.scopeType === query.where.scopeType && row.siteId === query.where.siteId && row.shiftTypeId === query.where.shiftTypeId)
+    .find((row) => row.effectiveFrom <= query.where.effectiveFrom.lte) || null } };
+  const result = await createAttendanceTimePolicyService({ prisma: client }).resolveForAssignment({ assignment: assigned, at: instant('2026-10-02T00:00:00.000Z') });
+  assert.equal(result.values.lateGraceMinutes, 2);
+  assert.equal(result.source.scopeType, 'COMPANY');
+});
+
+test('company-only bulk hydration queries Company policies and emits Company snapshots', async () => {
+  const assigned = assignment();
+  const company = source('COMPANY', null, { ...DEFAULT_ATTENDANCE_TIME_POLICY, lateGraceMinutes: 3 }, 'company-policy');
+  const legacySite = source('SITE', 'site-a', { ...DEFAULT_ATTENDANCE_TIME_POLICY, lateGraceMinutes: 77 }, 'legacy-site-policy');
+  let query;
+  const service = createAttendanceTimePolicyService({ prisma: { attendanceTimePolicy: {
+    findMany: async (input) => { query = input; return [company, legacySite]; }
+  } } });
+  const [hydrated] = await service.hydrateAssignmentsEvents([{ assignment: assigned, events: [event('CHECK_IN', '2026-10-02T00:00:00.000Z')] }]);
+  assert.deepEqual(query.where.OR, [{ scopeType: 'COMPANY', siteId: null, shiftTypeId: null }]);
+  assert.equal(hydrated[0].timePolicySnapshot.scopeType, 'COMPANY');
+  assert.equal(hydrated[0].timePolicySnapshot.policyId, 'company-policy');
+});
+
+test('company-only scope validation rejects legacy scopes and extra identifiers', () => {
+  assert.deepEqual(validateScopeInput({ scopeType: 'COMPANY' }), { scopeType: 'COMPANY', siteId: null, shiftTypeId: null });
+  for (const input of [{ scopeType: 'SITE', siteId: 'site-a' }, { scopeType: 'SHIFT_TYPE', shiftTypeId: 'shift-d' }, { scopeType: 'COMPANY', siteId: 'site-a' }, { scopeType: 'COMPANY', shiftTypeId: 'shift-d' }]) {
+    assert.throws(() => validateScopeInput(input), (error) => error.details?.code === 'ATTENDANCE_TIME_POLICY_SCOPE_INVALID');
+  }
+});
+
+test('effective policy resolution keeps Company scope with Prisma array-valued attendanceSession', async () => {
   const assigned = assignment({ attendanceSession: [{ expectedSiteId: 'site-a', expectedSite: { id: 'site-a' } }] });
-  const site = source('SITE', 'site-a', { ...DEFAULT_ATTENDANCE_TIME_POLICY, lateGraceMinutes: 17 }, 'site-policy-array-session');
-  const client = { attendanceTimePolicy: { findFirst: async (query) => query.where.scopeType === 'SITE' ? site : null } };
+  const company = source('COMPANY', null, { ...DEFAULT_ATTENDANCE_TIME_POLICY, lateGraceMinutes: 17 }, 'company-policy-array-session');
+  const client = { attendanceTimePolicy: { findFirst: async (query) => query.where.scopeType === 'COMPANY' ? company : null } };
   const service = createAttendanceTimePolicyService({ prisma: client });
   const result = await service.resolveForAssignment({ assignment: assigned, at: instant('2026-10-02T00:00:00.000Z') });
   assert.equal(result.values.lateGraceMinutes, 17);
-  assert.equal(result.source.scopeType, 'SITE');
+  assert.equal(result.source.scopeType, 'COMPANY');
 });
 
 test('supervisor event hydration batches policy reads and preserves scope/effective-date precedence', async () => {
@@ -180,13 +208,27 @@ test('supervisor event hydration batches policy reads and preserves scope/effect
   ]);
   assert.equal(calls, 1);
   assert.equal(args.where.effectiveFrom.lte.toISOString(), '2026-10-04T00:00:00.000Z');
-  assert.deepEqual(args.where.OR.map((row) => row.scopeType), ['COMPANY', 'SITE', 'SHIFT_TYPE']);
-  assert.equal(hydrated[0][0].timePolicySnapshot.policyId, 'shift-old');
-  assert.equal(hydrated[0][0].timePolicySnapshot.values.lateGraceMinutes, 10);
-  assert.equal(hydrated[0][1].timePolicySnapshot.policyId, 'shift-new');
-  assert.equal(hydrated[0][1].timePolicySnapshot.values.lateGraceMinutes, 12);
-  assert.equal(hydrated[1][0].timePolicySnapshot.policyId, 'site-policy');
-  assert.equal(hydrated[1][0].timePolicySnapshot.values.lateGraceMinutes, 5);
+  assert.deepEqual(args.where.OR.map((row) => row.scopeType), ['COMPANY']);
+  assert.equal(hydrated[0][0].timePolicySnapshot.policyId, 'company-policy');
+  assert.equal(hydrated[0][0].timePolicySnapshot.values.lateGraceMinutes, 1);
+  assert.equal(hydrated[0][1].timePolicySnapshot.policyId, 'company-policy');
+  assert.equal(hydrated[0][1].timePolicySnapshot.values.lateGraceMinutes, 1);
+  assert.equal(hydrated[1][0].timePolicySnapshot.policyId, 'company-policy');
+  assert.equal(hydrated[1][0].timePolicySnapshot.values.lateGraceMinutes, 1);
+});
+
+test('historical legacy Site snapshot is preserved verbatim and remains readable', () => {
+  const assigned = assignment();
+  const legacySnapshot = {
+    version: 'ATTENDANCE_TIME_POLICY_V1', policyId: 'legacy-site-policy', scopeType: 'SITE', scopeId: 'site-a',
+    siteId: 'site-a', shiftTypeId: null, effectiveFrom: '2026-10-01T00:00:00.000Z',
+    values: { ...DEFAULT_ATTENDANCE_TIME_POLICY, lateGraceMinutes: 0 }, legacyMarker: 'preserve-me'
+  };
+  const captured = event('CHECK_IN', '2026-10-02T00:05:00.000Z', legacySnapshot);
+  const service = createAttendanceTimePolicyService({ prisma: { attendanceTimePolicy: { findFirst: async () => { throw new Error('must not resolve policy for snapshot'); } } } });
+  return service.hydrateEvents({ assignment: assigned, events: [captured] }).then((hydrated) => {
+    assert.deepEqual(hydrated[0].timePolicySnapshot, legacySnapshot);
+  });
 });
 
 test('event policy snapshot keeps historical lateness classification after a later policy change', () => {

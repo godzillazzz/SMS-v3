@@ -1,7 +1,5 @@
 'use strict';
 
-const { sessionOf } = require('./attendance-session-history');
-
 const prismaDefault = require('../config/prisma');
 const auditDefault = require('./audit.service');
 const HttpError = require('../utils/http-error');
@@ -16,18 +14,6 @@ const MAX_FUTURE_EFFECTIVE_DAYS = 365;
 
 function http(statusCode, code, message) {
   return new HttpError(statusCode, message, { code });
-}
-
-function scopeParts(assignment) {
-  const session = sessionOf(assignment?.attendanceSession);
-  return {
-    siteId: session?.expectedSiteId
-      || session?.expectedSite?.id
-      || assignment?.securitySiteId
-      || assignment?.securitySite?.id
-      || null,
-    shiftTypeId: assignment?.shiftTypeId || assignment?.shiftType?.id || null
-  };
 }
 
 function sourceFor(row) {
@@ -102,15 +88,12 @@ function classifyAttendanceEventTime({ assignment, eventIntent, effectiveAt, pol
 
 function validateScopeInput(input = {}) {
   const scopeType = String(input.scopeType || '').trim().toUpperCase();
-  if (!['COMPANY', 'SITE', 'SHIFT_TYPE'].includes(scopeType)) throw http(400, 'ATTENDANCE_TIME_POLICY_SCOPE_INVALID', 'Choose a company, Site, or Shift Type policy scope.');
   const siteId = input.siteId == null || input.siteId === '' ? null : String(input.siteId);
   const shiftTypeId = input.shiftTypeId == null || input.shiftTypeId === '' ? null : String(input.shiftTypeId);
-  if ((scopeType === 'COMPANY' && (siteId || shiftTypeId))
-    || (scopeType === 'SITE' && (!siteId || shiftTypeId))
-    || (scopeType === 'SHIFT_TYPE' && (!shiftTypeId || siteId))) {
-    throw http(400, 'ATTENDANCE_TIME_POLICY_SCOPE_INVALID', 'The selected policy scope does not match its Site or Shift Type.');
+  if (scopeType !== 'COMPANY' || siteId || shiftTypeId) {
+    throw http(400, 'ATTENDANCE_TIME_POLICY_SCOPE_INVALID', 'Attendance time policies support COMPANY scope only.');
   }
-  return { scopeType, siteId, shiftTypeId };
+  return { scopeType: 'COMPANY', siteId: null, shiftTypeId: null };
 }
 
 function scopeWhere(scope) {
@@ -149,13 +132,7 @@ function createAttendanceTimePolicyService({ prisma = prismaDefault, audit = aud
     if (!client?.attendanceTimePolicy?.findFirst) {
       return { values: { ...DEFAULT_ATTENDANCE_TIME_POLICY }, source: sourceFor(null), effectiveAt };
     }
-    const { siteId, shiftTypeId } = scopeParts(assignment);
-    const rows = await Promise.all([
-      latestForScope({ scopeType: 'COMPANY', siteId: null, shiftTypeId: null }, effectiveAt, client),
-      siteId ? latestForScope({ scopeType: 'SITE', siteId, shiftTypeId: null }, effectiveAt, client) : null,
-      shiftTypeId ? latestForScope({ scopeType: 'SHIFT_TYPE', siteId: null, shiftTypeId }, effectiveAt, client) : null
-    ]);
-    const row = rows[2] || rows[1] || rows[0] || null;
+    const row = await latestForScope({ scopeType: 'COMPANY', siteId: null, shiftTypeId: null }, effectiveAt, client);
     return {
       values: row ? normalizeAttendanceTimePolicy(row.policy) : { ...DEFAULT_ATTENDANCE_TIME_POLICY },
       source: sourceFor(row),
@@ -197,11 +174,7 @@ function createAttendanceTimePolicyService({ prisma = prismaDefault, audit = aud
       return Promise.all(prepared.map((entry) => hydrateEvents({ assignment: entry.assignment, events: entry.events.map((row) => row.event) }, client)));
     }
 
-    const siteIds = [...new Set(pending.map((row) => scopeParts(row.assignment).siteId).filter(Boolean))];
-    const shiftTypeIds = [...new Set(pending.map((row) => scopeParts(row.assignment).shiftTypeId).filter(Boolean))];
     const scopes = [{ scopeType: 'COMPANY', siteId: null, shiftTypeId: null }];
-    if (siteIds.length) scopes.push({ scopeType: 'SITE', siteId: { in: siteIds }, shiftTypeId: null });
-    if (shiftTypeIds.length) scopes.push({ scopeType: 'SHIFT_TYPE', siteId: null, shiftTypeId: { in: shiftTypeIds } });
     const latestAt = new Date(Math.max(...pending.map((row) => row.effectiveAt.getTime())));
     const policyRows = await client.attendanceTimePolicy.findMany({
       where: { effectiveFrom: { lte: latestAt }, OR: scopes },
@@ -222,10 +195,7 @@ function createAttendanceTimePolicyService({ prisma = prismaDefault, audit = aud
 
     return prepared.map((entry) => entry.events.map((item) => {
       if (!item.effectiveAt) return item.event;
-      const { siteId, shiftTypeId } = scopeParts(entry.assignment);
-      const row = (shiftTypeId && latestAtScope(`SHIFT_TYPE:${shiftTypeId}`, item.effectiveAt))
-        || (siteId && latestAtScope(`SITE:${siteId}`, item.effectiveAt))
-        || latestAtScope('COMPANY', item.effectiveAt);
+      const row = latestAtScope('COMPANY', item.effectiveAt);
       return { ...item.event, timePolicySnapshot: snapshotFor({
         values: row ? normalizeAttendanceTimePolicy(row.policy) : { ...DEFAULT_ATTENDANCE_TIME_POLICY },
         source: sourceFor(row),
@@ -236,12 +206,11 @@ function createAttendanceTimePolicyService({ prisma = prismaDefault, audit = aud
 
   async function list() {
     const now = clock();
-    const [sites, shiftTypes, rows] = await Promise.all([
-      prisma.securitySite.findMany({ where: { isActive: true }, orderBy: [{ code: 'asc' }, { name: 'asc' }], select: { id: true, code: true, name: true } }),
-      prisma.shiftType.findMany({ where: { isActive: true }, orderBy: [{ code: 'asc' }], select: { id: true, code: true, name: true, startTime: true, endTime: true } }),
-      prisma.attendanceTimePolicy.findMany({ orderBy: [{ effectiveFrom: 'desc' }, { createdAt: 'desc' }], take: 500 })
-    ]);
-    return { now, defaultPolicy: { ...DEFAULT_ATTENDANCE_TIME_POLICY }, sites, shiftTypes, policies: rows.map(policyResponse) };
+    const rows = await prisma.attendanceTimePolicy.findMany({
+      where: { scopeType: 'COMPANY', siteId: null, shiftTypeId: null },
+      orderBy: [{ effectiveFrom: 'desc' }, { createdAt: 'desc' }], take: 500
+    });
+    return { now, defaultPolicy: { ...DEFAULT_ATTENDANCE_TIME_POLICY }, sites: [], shiftTypes: [], policies: rows.map(policyResponse) };
   }
 
   async function save({ actor, input } = {}) {
@@ -255,15 +224,6 @@ function createAttendanceTimePolicyService({ prisma = prismaDefault, audit = aud
     if (Number.isNaN(effectiveFrom.getTime())) throw http(400, 'ATTENDANCE_TIME_POLICY_EFFECTIVE_TIME_INVALID', 'Effective time is invalid.');
     if (effectiveFrom.getTime() < now.getTime() - 1000) throw http(400, 'ATTENDANCE_TIME_POLICY_RETROACTIVE_DENIED', 'Attendance time policy cannot be made effective in the past.');
     if (effectiveFrom.getTime() > now.getTime() + MAX_FUTURE_EFFECTIVE_DAYS * 86400000) throw http(400, 'ATTENDANCE_TIME_POLICY_EFFECTIVE_TIME_TOO_FAR', 'Effective time cannot be more than one year in the future.');
-
-    if (scope.scopeType === 'SITE') {
-      const site = await prisma.securitySite.findUnique({ where: { id: scope.siteId }, select: { id: true, isActive: true } });
-      if (!site?.isActive) throw http(404, 'ATTENDANCE_TIME_POLICY_SITE_NOT_FOUND', 'An active registered Site is required for a Site override.');
-    }
-    if (scope.scopeType === 'SHIFT_TYPE') {
-      const shift = await prisma.shiftType.findUnique({ where: { id: scope.shiftTypeId }, select: { id: true, isActive: true } });
-      if (!shift?.isActive) throw http(404, 'ATTENDANCE_TIME_POLICY_SHIFT_TYPE_NOT_FOUND', 'An active Shift Type is required for a Shift Type override.');
-    }
 
     return prisma.$transaction(async (tx) => {
       if (typeof tx.$queryRawUnsafe === 'function') {

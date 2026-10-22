@@ -71,7 +71,16 @@ describe('Attendance time policy Admin screen', () => {
     });
     render(<AttendanceTimePolicySettingsCard token="admin-session" />);
 
-    expect(await screen.findByText('โหลดนโยบายเวลาและรายการ Site/ประเภทกะแล้ว')).toBeTruthy();
+    expect(await screen.findByText('โหลดนโยบายเวลาบริษัทแล้ว')).toBeTruthy();
+    expect(screen.getByText('บริษัท (COMPANY)')).toBeTruthy();
+    expect(screen.queryByText('WCS — Wang Noi')).toBeNull();
+    expect(screen.queryByText('D — Day')).toBeNull();
+    expect(screen.queryByLabelText('ระดับการตั้งค่า')).toBeNull();
+    expect(screen.queryByRole('option', { name: 'รายไซต์' })).toBeNull();
+    expect(screen.queryByRole('option', { name: 'รายประเภทกะ' })).toBeNull();
+
+    /* Company-only UI has no scope selector; all policy controls remain editable. */
+
     expect(screen.getByLabelText('ผ่อนผันการมาสาย (นาที)')).toBeTruthy();
     expect((screen.getByLabelText('ผ่อนผันการมาสาย (นาที)') as HTMLInputElement).value).toBe('0');
     expect(screen.getByLabelText(/จำกัดเวลาลงเวลาเข้าก่อนกะ/)).toBeTruthy();
@@ -82,12 +91,6 @@ describe('Attendance time policy Admin screen', () => {
     expect(screen.getByLabelText(/ตรวจรายการที่ไม่มีเวลาออก/)).toBeTruthy();
     expect(screen.getByLabelText(/ตรวจเวลากะที่เปิดค้าง/)).toBeTruthy();
 
-    fireEvent.change(screen.getByLabelText('ระดับการตั้งค่า'), { target: { value: 'SITE' } });
-    expect(screen.getByRole('option', { name: 'WCS — Wang Noi' })).toBeTruthy();
-    fireEvent.change(screen.getByLabelText('ระดับการตั้งค่า'), { target: { value: 'SHIFT_TYPE' } });
-    expect(screen.getByRole('option', { name: 'D — Day' })).toBeTruthy();
-
-    fireEvent.change(screen.getByLabelText('ระดับการตั้งค่า'), { target: { value: 'COMPANY' } });
     fireEvent.change(screen.getByLabelText(/จำกัดเวลาลงเวลาเข้าก่อนกะ/), { target: { value: 'true' } });
     expect(screen.getByLabelText('ลงเวลาเข้าก่อนเริ่มกะได้ (นาที)')).toBeTruthy();
     fireEvent.change(screen.getByLabelText(/จำกัดเวลาลงเวลาเข้าสูงสุด/), { target: { value: 'true' } });

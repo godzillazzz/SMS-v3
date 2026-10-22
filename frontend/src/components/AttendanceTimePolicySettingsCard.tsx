@@ -4,8 +4,7 @@ import {
   loadAttendanceTimePolicies,
   saveAttendanceTimePolicy,
   type AttendanceTimePolicy,
-  type AttendanceTimePolicyList,
-  type AttendanceTimePolicyScope
+  type AttendanceTimePolicyList
 } from '../attendance-time-policy-client';
 
 type Props = { token: string };
@@ -29,14 +28,10 @@ function parseBangkokDateTime(value: string) {
 
 export const attendanceTimePolicyDateTime = { format: bangkokDateTimeValue, parse: parseBangkokDateTime };
 
-function policyForEditor(data: AttendanceTimePolicyList, scopeType: AttendanceTimePolicyScope, scopeId: string) {
+function policyForEditor(data: AttendanceTimePolicyList) {
   const now = new Date(data.now).getTime();
-  const rows = data.policies.filter((row) => {
-    if (new Date(row.effectiveFrom).getTime() > now) return false;
-    if (scopeType === 'COMPANY') return row.scopeType === 'COMPANY';
-    if (scopeType === 'SITE') return row.scopeType === 'SITE' && row.siteId === scopeId;
-    return row.scopeType === 'SHIFT_TYPE' && row.shiftTypeId === scopeId;
-  }).sort((a, b) => b.effectiveFrom.localeCompare(a.effectiveFrom));
+  const rows = data.policies.filter((row) => new Date(row.effectiveFrom).getTime() <= now && row.scopeType === 'COMPANY')
+    .sort((a, b) => b.effectiveFrom.localeCompare(a.effectiveFrom));
   if (rows[0]) return { policy: rows[0].policy, source: rows[0] };
   const companyRows = data.policies.filter((row) => row.scopeType === 'COMPANY' && new Date(row.effectiveFrom).getTime() <= now)
     .sort((a, b) => b.effectiveFrom.localeCompare(a.effectiveFrom));
@@ -50,8 +45,7 @@ function numeric(value: string, current: number) {
 
 export function AttendanceTimePolicySettingsCard({ token }: Props) {
   const [data, setData] = useState<AttendanceTimePolicyList>();
-  const [scopeType, setScopeType] = useState<AttendanceTimePolicyScope>('COMPANY');
-  const [scopeId, setScopeId] = useState('');
+
   const [form, setForm] = useState<AttendanceTimePolicy>();
   const [effectiveFrom, setEffectiveFrom] = useState('');
   const [loading, setLoading] = useState(true);
@@ -80,12 +74,11 @@ export function AttendanceTimePolicySettingsCard({ token }: Props) {
 
   useEffect(() => {
     if (!data) return;
-    const selected = policyForEditor(data, scopeType, scopeId);
+    const selected = policyForEditor(data);
     setForm({ ...selected.policy });
-  }, [data, scopeId, scopeType]);
+  }, [data]);
 
-  const options = useMemo(() => scopeType === 'SITE' ? data?.sites || [] : scopeType === 'SHIFT_TYPE' ? data?.shiftTypes || [] : [], [data, scopeType]);
-  const selectedSource = useMemo(() => data ? policyForEditor(data, scopeType, scopeId).source : null, [data, scopeId, scopeType]);
+  const selectedSource = useMemo(() => data ? policyForEditor(data).source : null, [data]);
 
   const updateNumber = (key: PolicyKey, value: string) => {
     setForm((current) => {
@@ -105,15 +98,13 @@ export function AttendanceTimePolicySettingsCard({ token }: Props) {
   };
 
   const save = async () => {
-    if (!form || (scopeType !== 'COMPANY' && !scopeId)) { setError('กรุณาเลือก Site หรือประเภทกะก่อนบันทึก'); return; }
+    if (!form) { setError('ยังโหลดนโยบายบริษัทไม่เสร็จ'); return; }
     setSaving(true); setError(''); setNotice('');
     try {
       const selectedDate = effectiveFrom ? parseBangkokDateTime(effectiveFrom) : null;
       if (effectiveFrom && !selectedDate) throw new Error('วันและเวลาประเทศไทยที่เริ่มใช้ไม่ถูกต้อง');
       await saveAttendanceTimePolicy(token, {
-        scopeType,
-        ...(scopeType === 'SITE' ? { siteId: scopeId } : {}),
-        ...(scopeType === 'SHIFT_TYPE' ? { shiftTypeId: scopeId } : {}),
+        scopeType: 'COMPANY',
         ...(selectedDate ? { effectiveFrom: selectedDate.toISOString() } : {}),
         policy: form
       });
@@ -137,8 +128,7 @@ export function AttendanceTimePolicySettingsCard({ token }: Props) {
   return <section className="line-settings-card attendance-policy-settings-card" aria-label="นโยบายเวลาลงงาน" aria-busy={loading}>
     <div className="line-settings-title"><span>◷</span><div><h2>นโยบายเวลาลงงาน</h2><p>ปรับการจัดประเภทเวลาและช่วงที่อนุญาตลงเวลาได้ โดยมาสายยังลงเวลาได้ตามปกติ เว้นแต่ Admin เปิดข้อจำกัดล่าสุด</p></div></div>
     <div className="line-secure-grid">
-      <label className="field-group"><span>ระดับการตั้งค่า</span><select value={scopeType} disabled={saving} onChange={(event) => { setScopeType(event.target.value as AttendanceTimePolicyScope); setScopeId(''); }}><option value="COMPANY">ค่าเริ่มต้นบริษัท</option><option value="SITE">รายไซต์</option><option value="SHIFT_TYPE">รายประเภทกะ</option></select></label>
-      {scopeType !== 'COMPANY' && <label className="field-group"><span>{scopeType === 'SITE' ? 'Site' : 'ประเภทกะ'}</span><select value={scopeId} disabled={loading || saving} onChange={(event) => setScopeId(event.target.value)}><option value="">เลือก…</option>{options.map((option) => <option key={option.id} value={option.id}>{option.code} — {option.name}</option>)}</select></label>}
+      <div className="field-group"><span>ระดับการตั้งค่า</span><strong>บริษัท (COMPANY)</strong><small>นโยบายเวลาลงงานใช้ร่วมกันทั้งบริษัท ไม่แยกตาม Site หรือประเภทกะ</small></div>
       {numericField('lateGraceMinutes', 'ผ่อนผันการมาสาย (นาที)', 0, 360)}
       {booleanField('earliestCheckInEnabled', 'จำกัดเวลาลงเวลาเข้าก่อนกะ', 'ปิดโดยค่าเริ่มต้นเพื่อคงพฤติกรรมเดิม หากเปิดจะกำหนดช่วงก่อนเริ่มกะ', 60)}
       {form?.earliestCheckInEnabled && numericField('earliestCheckInMinutesBeforeStart', 'ลงเวลาเข้าก่อนเริ่มกะได้ (นาที)', 0, 720)}
@@ -156,13 +146,13 @@ export function AttendanceTimePolicySettingsCard({ token }: Props) {
       {form?.maxShiftDurationEnabled && numericField('maxShiftDurationMinutes', 'เวลากะสูงสุด (นาที)', 60, 2880)}
       <label className="field-group"><span>เริ่มใช้นโยบาย (เวลาไทย)</span><input type="datetime-local" value={effectiveFrom} disabled={saving} onChange={(event) => setEffectiveFrom(event.target.value)} /><small>เว้นว่างเพื่อเริ่มใช้ทันทีตามเวลาเซิร์ฟเวอร์ · วันและเวลานี้ตีความเป็น Asia/Bangkok · ย้อนวันที่ไม่ได้</small></label>
     </div>
-    {scopeType !== 'COMPANY' && <p className="line-settings-footnote">ค่าที่แสดงเริ่มจากนโยบายบริษัทเมื่อยังไม่มี override ระดับนี้ · override ที่มีผลแล้ว: {selectedSource ? `${selectedSource.scopeType} · ${bangkokDateTimeValue(selectedSource.effectiveFrom).replace('T', ' ')}` : 'ยังไม่มี'}</p>}
+    {selectedSource && <p className="line-settings-footnote">เวอร์ชันที่มีผล: {bangkokDateTimeValue(selectedSource.effectiveFrom).replace('T', ' ')}</p>}
     {loading && <div className="settings-notice" role="status">กำลังโหลดนโยบายเวลา…</div>}
     {loadError && <div className="settings-notice error" role="alert"><strong>โหลดนโยบายเวลาไม่สำเร็จ</strong><span>{loadError}</span><span>ยังไม่แสดงค่าเริ่มต้นหรือช่องแก้ไข จนกว่าจะโหลดข้อมูลจากระบบได้</span></div>}
-    {!loading && !loadError && data && form && <div className="settings-notice success" role="status">โหลดนโยบายเวลาและรายการ Site/ประเภทกะแล้ว</div>}
+    {!loading && !loadError && data && form && <div className="settings-notice success" role="status">โหลดนโยบายเวลาบริษัทแล้ว</div>}
     {error && <div className="settings-notice error" role="alert">{error}</div>}
     {notice && <div className="settings-notice success" role="status">{notice}</div>}
-    <div className="line-settings-actions"><button type="button" className="btn-primary compact" disabled={saving || loading || !form || (scopeType !== 'COMPANY' && !scopeId)} onClick={() => void save()}>💾 {saving ? 'กำลังบันทึก…' : 'บันทึกนโยบายเวลา'}</button><button type="button" className="btn-neutral small-action" disabled={saving || loading} onClick={() => void refresh()}>↻ รีเฟรช</button></div>
+    <div className="line-settings-actions"><button type="button" className="btn-primary compact" disabled={saving || loading || !form} onClick={() => void save()}>💾 {saving ? 'กำลังบันทึก…' : 'บันทึกนโยบายเวลา'}</button><button type="button" className="btn-neutral small-action" disabled={saving || loading} onClick={() => void refresh()}>↻ รีเฟรช</button></div>
     <p className="line-settings-footnote">ทุกการเปลี่ยนสร้าง policy version แบบ effective-dated และ Audit Log โดยไม่แก้รายการลงเวลาย้อนหลัง · GPS/GEOFENCE, ตารางอนุมัติ, device binding และการป้องกันรายการซ้ำยังบังคับเหมือนเดิม</p>
   </section>;
 }

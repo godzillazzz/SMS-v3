@@ -64,9 +64,7 @@ const paging = z.object({
   pageSize: z.coerce.number().int().min(1).max(1000).default(100)
 });
 const attendanceTimePolicyPayload = z.object({
-  scopeType: z.enum(['COMPANY', 'SITE', 'SHIFT_TYPE']),
-  siteId: z.string().uuid().nullable().optional(),
-  shiftTypeId: z.string().uuid().nullable().optional(),
+  scopeType: z.literal('COMPANY'),
   effectiveFrom: z.string().datetime({ offset: true }).optional(),
   policy: z.object({
     lateGraceMinutes: z.number().int().min(0).max(360),
