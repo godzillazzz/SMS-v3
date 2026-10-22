@@ -309,6 +309,7 @@ export function AttendanceSimplePage({
             const fresh = await simpleAttendanceBootstrap(token, fingerprint);
             await storeEncryptedBootstrap(fresh);
             setBootstrap(fresh);
+            setSelectedAction(fresh.eventIntent);
             await removeQueued(row.captureId);
             setLastResult(result);
             const evidence = result.event?.locationEvidence || result.pendingEvent?.locationEvidence;
@@ -646,6 +647,7 @@ export function AttendanceSimplePage({
     ? `${bootstrap.assignment.shift.code || ''} ${bootstrap.assignment.shift.startTime || ''}–${bootstrap.assignment.shift.endTime || ''}`.trim()
     : '—';
   const nextActionLabel = bootstrap?.eventIntent === 'CHECK_OUT' ? 'ลงเวลาออก' : 'ลงเวลาเข้า';
+  const selectedActionLabel = (selectedAction || bootstrap?.eventIntent) === 'CHECK_OUT' ? 'ลงเวลาออก' : 'ลงเวลาเข้า';
   const selfieRequired = Boolean(bootstrap?.selfiePolicy?.required);
   const selfieStepLabel = selfiePreview
     ? 'ตรวจสอบภาพตัวอย่างก่อนยืนยัน'
@@ -812,8 +814,9 @@ export function AttendanceSimplePage({
     <div className="attendance-simple__action">
       <div className="attendance-simple__action-choice" role="group" aria-label="เลือกประเภทการลงเวลา">
         {(['CHECK_IN', 'CHECK_OUT'] as const).map((action) => {
-          const impossible = action !== bootstrap?.eventIntent;
-          return <button key={action} type="button" aria-pressed={(selectedAction || bootstrap?.eventIntent) === action} disabled={clockDisabled || impossible} onClick={() => setSelectedAction(action)}>{action === 'CHECK_IN' ? 'ลงเวลาเข้า' : 'ลงเวลาออก'}</button>;
+          const label = action === 'CHECK_IN' ? 'ลงเวลาเข้า' : 'ลงเวลาออก';
+          const recommended = action === bootstrap?.eventIntent;
+          return <button key={action} type="button" className={recommended ? 'is-recommended' : undefined} aria-label={label} title={recommended ? `${label} · แนะนำตามสถานะล่าสุด` : label} aria-pressed={(selectedAction || bootstrap?.eventIntent) === action} disabled={clockDisabled} onClick={() => setSelectedAction(action)}>{label}</button>;
         })}
       </div>
       <div className="attendance-simple__clock-stack">
@@ -824,7 +827,7 @@ export function AttendanceSimplePage({
           aria-describedby={clockDisabled ? 'attendance-simple-clock-disabled-reason' : undefined}
           onClick={() => void recordAttendance()}
         >
-          <span>{busy ? 'กำลังตรวจ…' : pendingSiteCapture ? `ยืนยัน${selectedAction === 'CHECK_OUT' ? 'ลงเวลาออก' : 'ลงเวลาเข้า'}ที่ ${siteDisplayName(pendingSiteCapture.context)}` : (selectedAction === 'CHECK_OUT' ? 'ลงเวลาออก' : nextActionLabel)}</span>
+          <span>{busy ? 'กำลังตรวจ…' : pendingSiteCapture ? `ยืนยัน${selectedActionLabel}ที่ ${siteDisplayName(pendingSiteCapture.context)}` : selectedActionLabel}</span>
           <small>{online ? 'กดครั้งเดียว · บันทึกกับ Server' : 'กดครั้งเดียว · เก็บไว้และส่งเมื่อออนไลน์'}</small>
         </button>
         {clockDisabled && disabledGuidance && <div className="attendance-simple__disabled-guidance">

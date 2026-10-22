@@ -55,11 +55,24 @@ describe('device-independent selfie policy', () => {
     await waitFor(() => expect(mocks.submit).toHaveBeenCalled());
     expect(screen.queryByRole('dialog', { name: 'ถ่ายภาพยืนยันตัวตน' })).toBeNull();
   });
-  it('keeps explicit action controls aligned with the server-selected action', async () => {
+  it('keeps both explicit action controls available while marking the server suggestion', async () => {
     mocks.bootstrap.mockResolvedValue({ ...base, eventIntent: 'CHECK_OUT', selfiePolicy: { ...base.selfiePolicy, action: 'CHECK_OUT' } });
     render(<AttendanceSimplePage token="t" online />);
     await screen.findByText('ลงเวลาออก');
-    expect((screen.getByRole('button', { name: 'ลงเวลาเข้า' }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole('button', { name: 'ลงเวลาเข้า' }) as HTMLButtonElement).disabled).toBe(false);
+    expect((screen.getByRole('button', { name: 'ลงเวลาออก' }) as HTMLButtonElement).disabled).toBe(false);
+    expect((screen.getByRole('button', { name: 'ลงเวลาออก' }) as HTMLButtonElement).getAttribute('title')).toContain('แนะนำ');
     expect(document.querySelector<HTMLButtonElement>('.attendance-simple__clock')?.textContent).toContain('ลงเวลาออก');
+  });
+
+  it('submits the explicitly selected action instead of the server suggestion', async () => {
+    mocks.bootstrap.mockResolvedValue({ ...base, eventIntent: 'CHECK_OUT', selfiePolicy: { ...base.selfiePolicy, action: 'CHECK_OUT' } });
+    render(<AttendanceSimplePage token="t" online />);
+    await screen.findByRole('button', { name: 'ลงเวลาเข้า' });
+    fireEvent.click(document.querySelector<HTMLButtonElement>('.attendance-simple__action-choice button')!);
+    expect(document.querySelector<HTMLButtonElement>('.attendance-simple__clock')?.textContent).toContain('ลงเวลาเข้า');
+    fireEvent.click(document.querySelector<HTMLButtonElement>('.attendance-simple__clock')!);
+    await waitFor(() => expect(mocks.submit).toHaveBeenCalled());
+    expect(mocks.submit.mock.calls.at(-1)?.[1]).toMatchObject({ eventIntent: 'CHECK_IN' });
   });
 });
