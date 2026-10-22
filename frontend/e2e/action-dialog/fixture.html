@@ -2,20 +2,35 @@
 <html data-theme="light">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <script>
+    const theme = new URLSearchParams(location.search).get('theme');
+    if (theme === 'light' || theme === 'dark') document.documentElement.dataset.theme = theme;
+  </script>
   <title>Action dialog theme fixture</title>
+  <link rel="stylesheet" href="/src/styles.css">
+  <link rel="stylesheet" href="/src/design-system.css">
+  <link rel="stylesheet" href="/src/styles/dashboard.css">
+  <link rel="stylesheet" href="/src/styles/action-system.css">
   <link rel="stylesheet" href="/src/styles/tokens.css">
+  <link rel="stylesheet" href="/src/styles/theme-foundation.css">
   <link rel="stylesheet" href="/src/styles/action-dialog.css">
-  <style>
-    [data-theme="dark"] { --color-surface-elevated:#161e30; --color-surface:#161e30; --color-surface-muted:#1b2334; --color-primary-soft:#272249; --color-text:#f3f4f6; --color-text-secondary:#b6bfd2; --color-border:#3b4763; --color-border-strong:#3b4763; --color-primary:#8b7cf6; --color-danger:#f87171; --color-warning:#fbbf24; }
-    [data-theme="dark"] .sms-action-dialog { width:min(520px,100%); max-height:min(760px,calc(100dvh - 40px)); overflow:auto; border:1px solid var(--color-border); border-radius:18px; background:var(--color-surface-elevated); }
-    [data-theme="dark"] .sms-action-dialog--danger { border-top:4px solid var(--color-danger); }
-  </style>
 </head>
 <body>
+  <main class="app-shell" aria-label="Application root"></main>
   <div class="sms-action-dialog-backdrop">
     <section class="sms-action-dialog sms-action-dialog--danger" role="dialog" aria-label="Action dialog">
-      <header class="sms-action-dialog__header"><div><p>Action</p><h2>Confirm action</h2></div></header>
-      <div class="sms-action-dialog__body"><p class="sms-action-dialog__message">This action requires confirmation.</p></div>
+      <header class="sms-action-dialog__header">
+        <div><p>Action</p><h2>Confirm action</h2></div>
+      </header>
+      <div class="sms-action-dialog__body">
+        <p class="sms-action-dialog__message">This action requires confirmation. This intentionally long message exercises the real dialog overflow behavior. It contains enough operational context to require scrolling while preserving readable text and controls inside the viewport. Confirm that the request, affected personnel, timing, and audit details are correct before continuing. Review the complete record carefully because this action is auditable and may require a follow-up correction if any information is inaccurate. The dialog must remain usable in both light and dark themes even when the message is substantially longer than the available viewport. Confirm the request, affected personnel, timing, and audit details before continuing. Review the complete record carefully because this action is auditable and may require a follow-up correction if any information is inaccurate. Confirm the request, affected personnel, timing, and audit details before continuing. Review the complete record carefully because this action is auditable and may require a follow-up correction if any information is inaccurate. Confirm the request, affected personnel, timing, and audit details before continuing. Review the complete record carefully because this action is auditable and may require a follow-up correction if any information is inaccurate. Confirm the request, affected personnel, timing, and audit details before continuing. Review the complete record carefully because this action is auditable and may require a follow-up correction if any information is inaccurate. Confirm the request, affected personnel, timing, and audit details before continuing. Review the complete record carefully because this action is auditable and may require a follow-up correction if any information is inaccurate.</p>
+        <div class="sms-action-dialog__context">Operational context and audit information</div>
+      </div>
+      <div class="sms-action-dialog__actions">
+        <button class="btn-neutral" type="button">Cancel</button>
+        <button class="btn-danger" type="button">Confirm</button>
+      </div>
     </section>
   </div>
 </body>
