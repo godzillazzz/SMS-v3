@@ -8,7 +8,7 @@ Do not use these selectors or tokens to style the landing page, guest/public rou
 
 ## Tokens
 
-Use semantic tokens from `frontend/src/styles/tokens.css`: `--color-*` for text, surfaces, borders and status; `--space-*` for rhythm; `--radius-*` and `--shadow-*` for geometry/elevation; `--font-*` and `--line-height-*` for type. The adopted corporate baseline is navy `#1e3a5f`, accent blue `#2563eb`, cool page background `#f4f6f9`, white surfaces, border `#e3e8ef`, text `#1f2937`, secondary text `#5b6675`, and muted text `#8a94a6`; page title/section/body/metadata/metric roles are 22px/15px/14px/12px/26px 700. Legacy `--sms-*` and compatibility aliases remain supported. Use `--focus-ring` and `--focus-color` for keyboard focus.
+Use semantic tokens from `frontend/src/styles/tokens.css`: `--color-*` for text, surfaces, borders and status; `--space-*` for rhythm; `--radius-*` and `--shadow-*` for geometry/elevation; `--font-*` and `--line-height-*` for type. The adopted corporate baseline is navy `#1e3a5f`, accent blue `#2563eb`, cool page background `#f4f6f9`, white surfaces, border `#e3e8ef`, text `#1f2937`, secondary text `#5b6675`, and muted text `#616c80`; page title/section/body/metadata/metric roles are 22px/15px/14px/12px/26px 700. Legacy `--sms-*` and compatibility aliases remain supported. Use `--focus-ring` and `--focus-color` for keyboard focus.
 
 ## Component contracts
 

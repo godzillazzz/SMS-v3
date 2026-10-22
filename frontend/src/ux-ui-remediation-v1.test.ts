@@ -18,14 +18,49 @@ const reports = read('./pages/reports/ReportCenterPage.tsx');
 const systemHealth = read('./pages/system-health/SystemHealthPage.tsx');
 const overlay = read('./components/useAccessibleOverlay.ts');
 
+const lightTheme = tokens.match(/\[data-theme="light"\]\s*\{([\s\S]*?)\n\}/)?.[1] || '';
+const declarations = new Map([...lightTheme.matchAll(/(--[\w-]+):\s*([^;]+);/g)].map(([, name, value]) => [name, value.trim()]));
+const resolveToken = (name: string, seen = new Set<string>()): string => {
+  if (seen.has(name)) throw new Error(`cyclic token alias: ${name}`);
+  const value = declarations.get(name);
+  if (!value) throw new Error(`missing light token: ${name}`);
+  const alias = value.match(/^var\((--[\w-]+)\)$/)?.[1];
+  return alias ? resolveToken(alias, new Set(seen).add(name)) : value;
+};
+const hexToRgb = (value: string): [number, number, number] => {
+  const match = value.trim().toLowerCase().match(/^#([\da-f]{6})$/);
+  if (!match) throw new Error(`expected six-digit hex token, received ${value}`);
+  return [0, 1, 2].map((index) => Number.parseInt(match[1].slice(index * 2, index * 2 + 2), 16)) as [number, number, number];
+};
+const contrastRatio = (foreground: string, background: string) => {
+  const luminance = (value: string) => hexToRgb(value).map((channel) => channel / 255).map((channel) => channel <= 0.03928 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4).reduce((sum, channel, index) => sum + channel * [0.2126, 0.7152, 0.0722][index], 0);
+  const values = [luminance(foreground), luminance(background)].sort((a, b) => b - a);
+  return (values[0] + 0.05) / (values[1] + 0.05);
+};
+const assertRemediationContracts = (source: string) => {
+  expect(contrastRatio(resolveToken('--color-text-muted'), resolveToken('--color-bg'))).toBeGreaterThanOrEqual(4.5);
+  for (const surface of ['--color-surface', '--color-surface-muted', '--color-surface-subtle', '--color-primary-soft']) {
+    expect(contrastRatio(resolveToken('--color-text-muted'), resolveToken(surface)), surface).toBeGreaterThanOrEqual(4.5);
+  }
+  expect(source).toContain('.auth-skip-link');
+  expect(source).toContain('href="#auth-login-form"');
+  expect(source).toContain('id="auth-login-form"');
+};
+
 describe('UXUI-REM-01 audited remediation contracts', () => {
   it('raises light-theme muted text contrast and exposes a keyboard skip link on authentication', () => {
-    expect(tokens).toContain('--color-text-muted: #716c80;');
+    expect(resolveToken('--color-text-muted')).toBe('#616c80');
     expect(signature).toContain('--signature-text-muted: #66758a;');
-    expect(authCss).toContain('.auth-skip-link');
     expect(authCss).toContain('.auth-form input::placeholder { color: var(--color-text-muted); opacity: 1; }');
-    expect(main).toContain('href="#auth-login-form"');
-    expect(main).toContain('id="auth-login-form"');
+    assertRemediationContracts(`${tokens}\n${authCss}\n${main}`);
+  });
+
+  it('mutation checks fail for the previous muted color and for a removed skip link', () => {
+    expect(() => {
+      const mutatedValue = '#8a94a6';
+      expect(contrastRatio(mutatedValue, '#f4f6f9')).toBeGreaterThanOrEqual(4.5);
+    }).toThrow();
+    expect(() => assertRemediationContracts(`${tokens}\n${authCss.replaceAll('.auth-skip-link', '.removed-skip-link')}\n${main}`)).toThrow();
   });
 
   it('exposes Approval Center selection semantics without mixing audit events into the approval queue', () => {

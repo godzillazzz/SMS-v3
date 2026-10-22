@@ -123,12 +123,51 @@ describe('G04.2 VF-03 colorful pastel + midnight dark visual contract', () => {
   });
 
   it('keeps decorative pastel separate from semantic status truth', () => {
-    expect(tokens).toContain('--color-success-soft: #ecfaf5');
-    expect(tokens).toContain('--color-warning-soft: #fff6dc');
-    expect(tokens).toContain('--color-attention-soft: #fff0e7');
-    expect(tokens).toContain('--color-danger-soft: #fff1f6');
-    expect(tokens).toContain('--color-info-soft: #effafe');
-    for (const tone of ['success', 'warning', 'attention', 'danger', 'info']) expect(dataCss).toContain(`.status-badge--${tone}`);
+    const rootTheme = tokens.match(/:root\s*\{([\s\S]*?)\n\}/)?.[1] || '';
+    const lightTheme = tokens.match(/\[data-theme="light"\]\s*\{([\s\S]*?)\n\}/)?.[1] || '';
+    const declarations = new Map([...lightTheme.matchAll(/(--[\w-]+):\s*([^;]+);/g)].map(([, name, value]) => [name, value.trim()]));
+    const rootDeclarations = new Map([...rootTheme.matchAll(/(--[\w-]+):\s*([^;]+);/g)].map(([, name, value]) => [name, value.trim()]));
+    const resolve = (name: string, seen = new Set<string>()): string => {
+      if (seen.has(name)) throw new Error(`cyclic token alias: ${name}`);
+      const value = declarations.get(name) ?? rootDeclarations.get(name);
+      if (!value) throw new Error(`missing light token: ${name}`);
+      const alias = value.match(/^var\((--[\w-]+)\)$/)?.[1];
+      return alias ? resolve(alias, new Set(seen).add(name)) : value.toLowerCase();
+    };
+    const hexToRgb = (value: string): [number, number, number] => {
+      const match = value.match(/^#([\da-f]{6})$/i);
+      if (!match) throw new Error(`expected six-digit hex token, received ${value}`);
+      return [0, 1, 2].map((index) => Number.parseInt(match[1].slice(index * 2, index * 2 + 2), 16)) as [number, number, number];
+    };
+    const contrast = (foreground: string, background: string) => {
+      const luminance = (value: string) => hexToRgb(value).map((channel) => channel / 255).map((channel) => channel <= 0.03928 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4).reduce((sum, channel, index) => sum + channel * [0.2126, 0.7152, 0.0722][index], 0);
+      const values = [luminance(foreground), luminance(background)].sort((a, b) => b - a);
+      return (values[0] + 0.05) / (values[1] + 0.05);
+    };
+    const tones = ['success', 'warning', 'attention', 'danger', 'info'];
+    const decorative = ['primary', 'success', 'warning', 'attention', 'danger', 'info'].map((tone) => resolve(`--surface-accent-${tone}`));
+    for (const tone of tones) {
+      const semantic = resolve(`--color-${tone}-soft`);
+      expect(semantic).toBeTruthy();
+      expect(decorative).not.toContain(semantic);
+      expect(contrast(resolve(`--color-${tone}`), semantic), tone).toBeGreaterThanOrEqual(4.5);
+      expect(dataCss).toContain(`.status-badge--${tone}`);
+    }
+    for (const tone of ['primary', 'success', 'warning', 'attention', 'danger', 'info']) {
+      expect(resolve(`--surface-accent-${tone}`)).toBe(resolve(`--pastel-${tone === 'primary' ? 'lavender' : tone === 'success' ? 'mint' : tone === 'warning' ? 'cream' : tone === 'attention' ? 'peach' : tone === 'danger' ? 'blush' : 'sky'}-100`));
+    }
+  });
+
+  it('mutation check fails when semantic success-soft becomes decorative pastel mint', () => {
+    const semanticSuccess = '--color-success-soft: #dcfce7;';
+    const mutatedTokens = tokens.replace(semanticSuccess, '--color-success-soft: var(--pastel-mint-100);');
+    const mutated = new Map([...mutatedTokens.matchAll(/(--[\w-]+):\s*([^;]+);/g)].map(([, name, value]) => [name, value.trim()]));
+    const resolve = (name: string): string => {
+      const value = mutated.get(name);
+      const alias = value?.match(/^var\((--[\w-]+)\)$/)?.[1];
+      return alias ? resolve(alias) : value || '';
+    };
+    expect(resolve('--color-success-soft')).not.toBe(resolve('--surface-accent-success'));
   });
 
   it('locks the authorized API source after T25 cross-tab refresh coordination', () => {

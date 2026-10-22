@@ -33,7 +33,7 @@ describe('internal authenticated design-system contract', () => {
     for (const value of [
       '--color-bg: #f4f6f9', '--color-primary: #1e3a5f', '--color-accent: #2563eb',
       '--color-surface: #ffffff', '--color-border: #e3e8ef', '--color-text: #1f2937',
-      '--color-text-secondary: #5b6675', '--color-text-muted: #8a94a6',
+      '--color-text-secondary: #5b6675', '--color-text-muted: #616c80',
       '--font-size-page-title: 22px', '--font-size-section-title: 15px',
       '--font-size-body: 0.875rem', '--font-size-metric: 26px',
       '--radius-sm: 7px', '--radius-md: 10px', '--radius-lg: 16px',
