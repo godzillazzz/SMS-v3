@@ -29,6 +29,22 @@ describe('internal authenticated design-system contract', () => {
     expect(tokens).toContain('--sms-text: var(--color-text)');
   });
 
+  it('adopts the corporate internal palette and typography contract', () => {
+    for (const value of [
+      '--color-bg: #f4f6f9', '--color-primary: #1e3a5f', '--color-accent: #2563eb',
+      '--color-surface: #ffffff', '--color-border: #e3e8ef', '--color-text: #1f2937',
+      '--color-text-secondary: #5b6675', '--color-text-muted: #8a94a6',
+      '--font-size-page-title: 22px', '--font-size-section-title: 15px',
+      '--font-size-body: 0.875rem', '--font-size-metric: 26px',
+      '--radius-sm: 7px', '--radius-md: 10px', '--radius-lg: 16px',
+    ]) expect(tokens).toContain(value);
+    expect(tokens).toContain('--focus-color: var(--color-accent)');
+    expect(tokens).toContain('--status-success-text: var(--color-success)');
+    expect(tokens).toContain('--status-warning-text: var(--color-warning)');
+    expect(tokens).toContain('--status-danger-text: var(--color-danger)');
+    expect(tokens).toContain('--status-info-text: var(--color-info)');
+  });
+
   it('scopes reusable contracts to the authenticated app shell', () => {
     expect(design).toContain('.app-shell .ds-button');
     expect(design).toContain('.app-shell .ds-field');
@@ -63,5 +79,11 @@ describe('internal authenticated design-system contract', () => {
       const absolute = path.join(root, file);
       if (fs.existsSync(absolute)) expect(design).not.toContain(`import './${path.basename(file)}'`);
     }
+  });
+
+  it('keeps the explicitly public-owned files out of the internal diff', () => {
+    const { execFileSync } = require('node:child_process');
+    const changed = execFileSync('git', ['diff', '--name-only', '7b38f0c7aaadfe0279c65bb928ea0015eede2732', '--'], { cwd: root, encoding: 'utf8' });
+    for (const file of publicOwnedFiles) expect(changed).not.toContain(file);
   });
 });
