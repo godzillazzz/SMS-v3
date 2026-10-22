@@ -1,0 +1,22 @@
+<!doctype html>
+<html data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <title>Action dialog theme fixture</title>
+  <link rel="stylesheet" href="/src/styles/tokens.css">
+  <link rel="stylesheet" href="/src/styles/action-dialog.css">
+  <style>
+    [data-theme="dark"] { --color-surface-elevated:#161e30; --color-surface:#161e30; --color-surface-muted:#1b2334; --color-primary-soft:#272249; --color-text:#f3f4f6; --color-text-secondary:#b6bfd2; --color-border:#3b4763; --color-border-strong:#3b4763; --color-primary:#8b7cf6; --color-danger:#f87171; --color-warning:#fbbf24; }
+    [data-theme="dark"] .sms-action-dialog { width:min(520px,100%); max-height:min(760px,calc(100dvh - 40px)); overflow:auto; border:1px solid var(--color-border); border-radius:18px; background:var(--color-surface-elevated); }
+    [data-theme="dark"] .sms-action-dialog--danger { border-top:4px solid var(--color-danger); }
+  </style>
+</head>
+<body>
+  <div class="sms-action-dialog-backdrop">
+    <section class="sms-action-dialog sms-action-dialog--danger" role="dialog" aria-label="Action dialog">
+      <header class="sms-action-dialog__header"><div><p>Action</p><h2>Confirm action</h2></div></header>
+      <div class="sms-action-dialog__body"><p class="sms-action-dialog__message">This action requires confirmation.</p></div>
+    </section>
+  </div>
+</body>
+</html>

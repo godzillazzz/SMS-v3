@@ -385,7 +385,7 @@ function createAttendanceSelfService({ prisma = prismaDefault, clock = () => new
         employeeId: resolved.employee.id,
         workDate: { gte: start, lt: end }
       },
-      include: { shiftType: true, securitySite: { select: { id: true, code: true, name: true } }, attendanceSession: { include: { expectedSite: { select: { id: true, code: true, name: true } } } } },
+      include: { shiftType: true, securitySite: { select: { id: true, code: true, name: true } }, attendanceSession: { where: { state: { not: 'VOIDED' } }, include: { expectedSite: { select: { id: true, code: true, name: true } } } } },
       orderBy: { workDate: 'asc' }
     });
     const rows = [];

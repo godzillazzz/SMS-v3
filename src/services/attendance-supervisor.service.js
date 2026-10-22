@@ -152,6 +152,7 @@ function assignmentInclude() {
     shiftType: true,
     securitySite: true,
     attendanceSession: {
+      where: { state: { not: 'VOIDED' } },
       include: {
         expectedSite: { select: { id: true, code: true, name: true } },
         events: { where: { state: 'ACTIVE' }, orderBy: { effectiveEventAt: 'asc' } }

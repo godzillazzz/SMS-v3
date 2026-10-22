@@ -20,6 +20,8 @@ if (!configured) {
   const { createAttendanceVerificationContextService } = require('../../src/services/attendance-verification-context.service');
   const { createAttendanceEventService } = require('../../src/services/attendance-event.service');
   const { createAttendanceVoidService } = require('../../src/services/attendance-void.service');
+  const { createAttendanceSelfService } = require('../../src/services/attendance-self.service');
+  const { createAttendanceSupervisorService } = require('../../src/services/attendance-supervisor.service');
   const { tokenHash } = require('../../src/services/attendance-site-evidence.service');
   const audit = require('../../src/services/audit.service');
 
@@ -325,6 +327,8 @@ if (!configured) {
     const context = createAttendanceVerificationContextService({ prisma, faceSessionService: face, clock: () => now });
     const events = createAttendanceEventService({ prisma, audit, verificationContextService: context, clock: () => now });
     const voids = createAttendanceVoidService({ prisma, audit, clock: () => now });
+    const self = createAttendanceSelfService({ prisma, audit, clock: () => now });
+    const supervisor = createAttendanceSupervisorService({ prisma, audit, clock: () => now });
 
     const first = await trustedReceipt({ face, context, material, captureId: ids.captureIn, eventIntent: 'CHECK_IN' });
     const acceptedFirst = await events.acceptVerifiedEvent({ actor, receipt: first.verified.receipt, attendanceContext: first.prepared.attendanceContext });
@@ -351,9 +355,43 @@ if (!configured) {
     const reentry = await trustedReceipt({ face, context, material, captureId: ids.captureReentry, eventIntent: 'CHECK_IN' });
     const acceptedReentry = await events.acceptVerifiedEvent({ actor, receipt: reentry.verified.receipt, attendanceContext: reentry.prepared.attendanceContext });
     assert.notEqual(acceptedReentry.session.id, oldSessionId);
+    const selfToday = await self.today({ actor });
+    assert.equal(selfToday.assignment.sessionId, acceptedReentry.session.id);
+    assert.equal(selfToday.assignment.checkInEventId, acceptedReentry.event.id);
+    const selfHistory = await self.history({ actor, from: '2026-08-24', to: '2026-08-24' });
+    assert.equal(selfHistory.rows.length, 1);
+    assert.equal(selfHistory.rows[0].sessionId, acceptedReentry.session.id);
+    const selfSchedule = await self.schedule({ actor, month: '2026-08' });
+    assert.equal(selfSchedule.rows.length, 1);
+    assert.equal(selfSchedule.rows[0].assignmentId, ids.assignment);
+    const supervisorDaily = await supervisor.daily({ actor: { sub: ids.admin, role: 'ADMIN' }, filters: { date: '2026-08-24' } });
+    assert.equal(supervisorDaily.rows.length, 1);
+    assert.equal(supervisorDaily.rows[0].sessionId, acceptedReentry.session.id);
+    const supervisorDetail = await supervisor.detail({ actor: { sub: ids.admin, role: 'ADMIN' }, assignmentId: ids.assignment });
+    assert.equal(supervisorDetail.sessionId, acceptedReentry.session.id);
     assert.equal((await prisma.attendanceSession.findUniqueOrThrow({ where: { id: oldSessionId } })).state, 'VOIDED');
     assert.equal((await prisma.attendanceEvent.findUniqueOrThrow({ where: { id: oldEventId } })).state, 'VOIDED');
     assert.equal(await prisma.attendanceSession.count({ where: { shiftAssignmentId: ids.assignment, state: { not: 'VOIDED' } } }), 1);
+
+    const concurrentVoidRequests = [
+      { actor: { sub: ids.admin, role: 'ADMIN' }, reason: 'Concurrent first actor reason' },
+      { actor: { sub: ids.user, role: 'ADMIN' }, reason: 'Concurrent second actor reason' }
+    ];
+    const concurrentVoid = await Promise.all(concurrentVoidRequests.map(({ actor: voidActor, reason: voidReason }) =>
+      voids.voidSession({ actor: voidActor, sessionId: acceptedReentry.session.id, reason: voidReason })));
+    assert.deepEqual(concurrentVoid.map((result) => result.idempotent).sort(), [false, true]);
+    const winnerIndex = concurrentVoid.findIndex((result) => result.idempotent === false);
+    const winnerRequest = concurrentVoidRequests[winnerIndex];
+    const persistedConcurrentVoid = await prisma.attendanceSession.findUniqueOrThrow({ where: { id: acceptedReentry.session.id } });
+    assert.equal(persistedConcurrentVoid.state, 'VOIDED');
+    assert.equal(persistedConcurrentVoid.voidedByUserId, winnerRequest.actor.sub);
+    assert.equal(persistedConcurrentVoid.voidReason, winnerRequest.reason);
+    assert.equal(persistedConcurrentVoid.voidedAt.toISOString(), concurrentVoid[winnerIndex].session.voidedAt.toISOString());
+    assert.equal(concurrentVoid[winnerIndex].session.voidedByUserId, winnerRequest.actor.sub);
+    assert.equal(concurrentVoid[winnerIndex].session.voidReason, winnerRequest.reason);
+    assert.equal(await prisma.auditLog.count({
+      where: { entityType: 'AttendanceSession', entityId: acceptedReentry.session.id, metadata: { path: ['event'], equals: 'ATTENDANCE_SESSION_VOIDED' } }
+    }), 1);
     await voids.voidSession({ actor: { sub: ids.admin, role: 'ADMIN' }, sessionId: acceptedReentry.session.id, reason: 'Prepare same-capture retry test' });
 
     const preservedVoidedSession = await prisma.attendanceSession.findUniqueOrThrow({ where: { id: oldSessionId } });
@@ -366,17 +404,13 @@ if (!configured) {
     ]);
     const fulfilled = concurrent.filter((result) => result.status === 'fulfilled').map((result) => result.value);
     const rejected = concurrent.filter((result) => result.status === 'rejected');
-    assert.ok(fulfilled.length >= 1);
-    assert.ok(fulfilled.every((result) => result.event.id === fulfilled[0].event.id && result.session.id === fulfilled[0].session.id));
+    assert.equal(concurrent.length, 2);
+    assert.equal(fulfilled.length, 2, 'same capture must be idempotent for both concurrent callers');
+    assert.equal(rejected.length, 0);
+    assert.equal(new Set(fulfilled.map((result) => result.event.id)).size, 1);
+    assert.equal(new Set(fulfilled.map((result) => result.session.id)).size, 1);
     assert.ok(fulfilled.every((result) => result.event.eventType === 'CHECK_IN' && result.event.state === 'ACTIVE'));
-    if (fulfilled.length === 2) {
-      assert.deepEqual(fulfilled.map((result) => result.idempotent).sort(), [false, true]);
-      assert.equal(rejected.length, 0);
-    } else {
-      assert.equal(fulfilled.length, 1);
-      assert.equal(rejected.length, 1);
-      assert.equal(rejected[0].reason?.details?.code, 'ATTENDANCE_ALREADY_CHECKED_IN');
-    }
+    assert.deepEqual(fulfilled.map((result) => result.idempotent).sort(), [false, true]);
     assert.deepEqual(await prisma.attendanceSession.findUniqueOrThrow({ where: { id: oldSessionId } }), preservedVoidedSession);
     assert.deepEqual(await prisma.attendanceEvent.findUniqueOrThrow({ where: { id: oldEventId } }), preservedVoidedEvent);
     assert.deepEqual(await prisma.auditLog.findMany({ where: { entityId: oldSessionId }, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }] }), preservedVoidAudit);

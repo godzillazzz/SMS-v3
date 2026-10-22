@@ -9,8 +9,8 @@
   backdrop-filter: blur(4px);
 }
 
-.sms-action-dialog {
-  /* Portal dialogs mount outside .app-shell; keep light-mode values explicit. */
+[data-theme="light"] .sms-action-dialog {
+  /* Portal dialogs mount under <html>; keep light-mode values explicit. */
   --color-surface-elevated: #ffffff;
   --color-surface: #ffffff;
   --color-surface-muted: #f3f2f7;
