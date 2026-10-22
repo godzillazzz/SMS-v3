@@ -155,6 +155,18 @@
   --color-neutral: #667085;
   --color-neutral-soft: #eef0f4;
 
+  /* Internal component contracts: keep aliases stable; consume semantic roles in app-shell only. */
+  --focus-color: var(--color-primary);
+  --status-success-text: var(--color-success);
+  --status-success-border: var(--color-success);
+  --status-warning-text: var(--color-warning);
+  --status-warning-border: var(--color-warning);
+  --status-danger-text: var(--color-danger);
+  --status-danger-border: var(--color-danger);
+  --status-info-text: var(--color-info);
+  --status-info-border: var(--color-info);
+  --status-neutral-text: var(--color-neutral);
+  --status-neutral-border: var(--color-neutral);
   --focus-ring: 0 0 0 3px rgba(98, 84, 217, 0.24);
   --shadow-sm: 0 2px 8px rgba(32, 24, 63, 0.05);
   --shadow-md: 0 8px 24px rgba(32, 24, 63, 0.08);
@@ -271,6 +283,17 @@
   --color-neutral: #a9b2c5;
   --color-neutral-soft: #20293a;
 
+  --focus-color: var(--color-primary);
+  --status-success-text: var(--color-success);
+  --status-success-border: var(--color-success);
+  --status-warning-text: var(--color-warning);
+  --status-warning-border: var(--color-warning);
+  --status-danger-text: var(--color-danger);
+  --status-danger-border: var(--color-danger);
+  --status-info-text: var(--color-info);
+  --status-info-border: var(--color-info);
+  --status-neutral-text: var(--color-neutral);
+  --status-neutral-border: var(--color-neutral);
   --focus-ring: 0 0 0 3px rgba(139, 124, 246, 0.34);
   --shadow-sm: 0 3px 12px rgba(0, 0, 0, 0.24);
   --shadow-md: 0 10px 30px rgba(0, 0, 0, 0.32);
