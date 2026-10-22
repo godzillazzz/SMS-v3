@@ -150,6 +150,16 @@ test('effective policy resolution selects Shift Type then Site then Company', as
   assert.equal((await companyOnlyService.resolveForAssignment({ assignment: assigned, at: instant('2026-10-02T00:00:00.000Z') })).values.lateGraceMinutes, 1);
 });
 
+test('effective policy resolution normalizes Prisma array-valued attendanceSession and selects Site policy', async () => {
+  const assigned = assignment({ attendanceSession: [{ expectedSiteId: 'site-a', expectedSite: { id: 'site-a' } }] });
+  const site = source('SITE', 'site-a', { ...DEFAULT_ATTENDANCE_TIME_POLICY, lateGraceMinutes: 17 }, 'site-policy-array-session');
+  const client = { attendanceTimePolicy: { findFirst: async (query) => query.where.scopeType === 'SITE' ? site : null } };
+  const service = createAttendanceTimePolicyService({ prisma: client });
+  const result = await service.resolveForAssignment({ assignment: assigned, at: instant('2026-10-02T00:00:00.000Z') });
+  assert.equal(result.values.lateGraceMinutes, 17);
+  assert.equal(result.source.scopeType, 'SITE');
+});
+
 test('supervisor event hydration batches policy reads and preserves scope/effective-date precedence', async () => {
   const assigned = assignment();
   const otherShift = assignment({ siteId: 'site-a', shiftTypeId: 'shift-other' });

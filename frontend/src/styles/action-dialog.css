@@ -10,6 +10,18 @@
 }
 
 .sms-action-dialog {
+  /* Portal dialogs mount outside .app-shell; keep light-mode values explicit. */
+  --color-surface-elevated: #ffffff;
+  --color-surface: #ffffff;
+  --color-surface-muted: #f3f2f7;
+  --color-primary-soft: #e8eef6;
+  --color-text: #1f2937;
+  --color-text-secondary: #5b6675;
+  --color-border: #e3e8ef;
+  --color-border-strong: #cbd5e1;
+  --color-primary: #1e3a5f;
+  --color-danger: #b91c1c;
+  --color-warning: #92400e;
   width: min(520px, 100%);
   max-height: min(760px, calc(100dvh - 40px));
   overflow: auto;

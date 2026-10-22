@@ -19,9 +19,10 @@ function http(statusCode, code, message) {
 }
 
 function scopeParts(assignment) {
+  const session = sessionOf(assignment?.attendanceSession);
   return {
-    siteId: assignment?.attendanceSession?.expectedSiteId
-      || assignment?.attendanceSession?.expectedSite?.id
+    siteId: session?.expectedSiteId
+      || session?.expectedSite?.id
       || assignment?.securitySiteId
       || assignment?.securitySite?.id
       || null,

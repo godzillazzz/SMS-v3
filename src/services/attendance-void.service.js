@@ -28,11 +28,13 @@ function createAttendanceVoidService({ prisma = prismaDefault, audit = auditDefa
     if (!actor?.sub) throw http(401, 'AUTHENTICATION_REQUIRED', 'Authentication is required.');
   }
   async function voidInTransaction(tx, { actor, sessionId, voidReason }) {
-    const session = await tx.attendanceSession.findUnique({ where: { id: sessionId }, include: { events: { orderBy: { createdAt: 'asc' } } } });
-    if (!session) throw http(404, 'ATTENDANCE_SESSION_NOT_FOUND', 'Attendance session was not found.');
     // Serialize Void with certification using the same month-scoped advisory lock.
     if (typeof tx.$queryRaw === 'function') {
       await tx.$queryRaw`SELECT id FROM attendance_sessions WHERE id = ${sessionId}::uuid FOR UPDATE`;
+    }
+    const session = await tx.attendanceSession.findUnique({ where: { id: sessionId }, include: { events: { orderBy: { createdAt: 'asc' } } } });
+    if (!session) throw http(404, 'ATTENDANCE_SESSION_NOT_FOUND', 'Attendance session was not found.');
+    if (typeof tx.$queryRaw === 'function') {
       const certificationMonth = monthStart(session.workDate);
       await tx.$queryRaw`SELECT 1::integer FROM pg_advisory_xact_lock(hashtext(${`attendance-cert:${certificationMonth.toISOString().slice(0, 7)}`}))`;
       const certified = await tx.$queryRaw`SELECT id FROM attendance_month_certifications WHERE month = ${certificationMonth}::date AND status = 'CERTIFIED' LIMIT 1`;

@@ -215,9 +215,6 @@ function createAttendanceEventService({
   }
 
   async function sessionForEvent(client, resolved, expectation, intent, now) {
-    if (typeof client.$queryRaw === 'function') {
-      await client.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${`attendance-session:${resolved.authority.shiftAssignmentId}`})) IS NULL AS locked`;
-    }
     let session = await latestSession(client, resolved.authority.shiftAssignmentId);
     if (!session) {
       if (intent !== 'CHECK_IN') throw http(409, 'ATTENDANCE_CHECK_IN_REQUIRED', 'CHECK_IN is required before CHECK_OUT.');
@@ -259,6 +256,9 @@ function createAttendanceEventService({
     try {
       return await prisma.$transaction(async (tx) => {
         const identity = await actorIdentity(tx, actor);
+        if (typeof tx.$queryRaw === 'function') {
+          await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${`attendance-session:${attendanceContext.shiftAssignmentId}`})) IS NULL AS locked`;
+        }
         const existing = await existingCapture(tx, identity, captureId, intent, attendanceContext);
         if (existing) return existing;
 
