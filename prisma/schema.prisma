@@ -665,7 +665,7 @@ model FaceVerificationReceipt {
 model AttendanceSession {
   id                  String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   employeeId          String                 @map("employee_id") @db.Uuid
-  shiftAssignmentId   String                 @unique @map("shift_assignment_id") @db.Uuid
+  shiftAssignmentId   String                 @map("shift_assignment_id") @db.Uuid
   expectedShiftTypeId String                 @map("expected_shift_type_id") @db.Uuid
   expectedSiteId      String                 @map("expected_site_id") @db.Uuid
   workDate            DateTime               @map("work_date") @db.Date
@@ -686,6 +686,7 @@ model AttendanceSession {
   expectedSite        SecuritySite           @relation("AttendanceSessionExpectedSite", fields: [expectedSiteId], references: [id], onDelete: Restrict)
   events              AttendanceEvent[]
 
+  @@index([shiftAssignmentId, state, createdAt])
   @@index([employeeId, workDate])
   @@index([workDate, state])
   @@map("attendance_sessions")
@@ -952,7 +953,7 @@ model ShiftAssignment {
   shiftType                     ShiftType @relation(fields: [shiftTypeId], references: [id], onDelete: Restrict)
 
   securitySite      SecuritySite?      @relation(fields: [securitySiteId], references: [id], onDelete: SetNull)
-  attendanceSession AttendanceSession?
+  attendanceSession AttendanceSession[]
 
   @@unique([workDate, employeeId])
   @@index([employeeId, workDate])

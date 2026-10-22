@@ -1,5 +1,7 @@
 'use strict';
 
+const { sessionOf } = require('./attendance-session-history');
+
 const prismaDefault = require('../config/prisma');
 const HttpError = require('../utils/http-error');
 const { normalizeScheduleTime } = require('../utils/schedule-time');
@@ -303,7 +305,7 @@ function createAttendanceResultService({ prisma = prismaDefault, clock = () => n
       select: { id: true }
     });
 
-    const events = await timePolicies.hydrateEvents({ assignment, events: assignment.attendanceSession?.events || [] }, client);
+    const events = await timePolicies.hydrateEvents({ assignment, events: sessionOf(assignment.attendanceSession)?.events || [] }, client);
     return classifyAttendanceDay({
       assignment,
       events,

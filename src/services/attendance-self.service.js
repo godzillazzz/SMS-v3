@@ -1,5 +1,7 @@
 'use strict';
 
+const { sessionOf } = require('./attendance-session-history');
+
 const prismaDefault = require('../config/prisma');
 const HttpError = require('../utils/http-error');
 const { createSecuritySiteAuthorityService } = require('./security-site-authority.service');
@@ -146,11 +148,11 @@ function createAttendanceSelfService({ prisma = prismaDefault, clock = () => new
   }
 
   async function resolveExpectedSite(assignment, client = prisma) {
-    const sessionSite = assignment.attendanceSession?.expectedSite || null;
+    const sessionSite = sessionOf(assignment.attendanceSession)?.expectedSite || null;
     if (sessionSite) return sessionSite;
     if (assignment.securitySite) return assignment.securitySite;
     try {
-      return (await siteAuthority.resolve({ assignment, existingSession: assignment.attendanceSession || null }, client)).site;
+      return (await siteAuthority.resolve({ assignment, existingSession: sessionOf(assignment.attendanceSession) }, client)).site;
     } catch {
       return null;
     }
@@ -169,7 +171,7 @@ function createAttendanceSelfService({ prisma = prismaDefault, clock = () => new
   }
 
   async function normalizeAssignment(assignment, employee, asOf, client = prisma, providedCorrections = null) {
-    const rawEvents = assignment.attendanceSession?.events || [];
+    const rawEvents = sessionOf(assignment.attendanceSession)?.events || [];
     const corrections = providedCorrections || await correctionsForAssignments(client, [assignment.id]);
     const correctedEvents = applyCorrections(rawEvents, corrections);
     const effectiveEvents = await timePolicies.hydrateEvents({ assignment, events: correctedEvents }, client);
@@ -209,7 +211,7 @@ function createAttendanceSelfService({ prisma = prismaDefault, clock = () => new
     return {
       date: dateText(assignment.workDate),
       assignmentId: assignment.id,
-      sessionId: assignment.attendanceSession?.id || null,
+      sessionId: sessionOf(assignment.attendanceSession)?.id || null,
       employee: employeeSummary(employee),
       shift: shiftSummary(assignment),
       expectedSite: siteSummary(expectedSite),
@@ -278,8 +280,8 @@ function createAttendanceSelfService({ prisma = prismaDefault, clock = () => new
       const endText = normalizeScheduleTime(previous.endTime || previous.shiftType?.endTime || null) || '00:00';
       const [hour, minute] = endText.split(':').map(Number);
       const endMinutes = Number.isFinite(hour) && Number.isFinite(minute) ? hour * 60 + minute : 0;
-      const sessionEvents = previous.attendanceSession?.events || [];
-      const openCheckout = previous.attendanceSession?.state === 'OPEN'
+      const sessionEvents = sessionOf(previous.attendanceSession)?.events || [];
+      const openCheckout = sessionOf(previous.attendanceSession)?.state === 'OPEN'
         && sessionEvents.some((event) => event.eventType === 'CHECK_IN')
         && !sessionEvents.some((event) => event.eventType === 'CHECK_OUT');
       if (openCheckout || local.minutes < endMinutes) return previous;

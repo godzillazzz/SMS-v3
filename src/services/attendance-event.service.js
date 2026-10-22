@@ -15,6 +15,11 @@ function http(statusCode, code, message) {
   return new HttpError(statusCode, message, { code });
 }
 
+async function latestSession(client, shiftAssignmentId, extra = {}) {
+  if (typeof client.attendanceSession.findFirst === 'function') return client.attendanceSession.findFirst({ where: { shiftAssignmentId, state: { not: 'VOIDED' } }, orderBy: { createdAt: 'desc' }, ...extra });
+  return client.attendanceSession.findUnique({ where: { shiftAssignmentId }, ...extra });
+}
+
 function canonicalize(value) {
   if (value === null || typeof value === 'string' || typeof value === 'boolean') return value;
   if (typeof value === 'number') {
@@ -179,7 +184,7 @@ function createAttendanceEventService({
       throw http(409, 'ATTENDANCE_SCHEDULE_STALE', 'Attendance Shift Assignment changed before event acceptance.');
     }
     if (!assignment.shiftType) throw http(409, 'ATTENDANCE_SCHEDULE_STALE', 'Attendance Shift Type changed before event acceptance.');
-    const existingSession = await client.attendanceSession.findUnique({ where: { shiftAssignmentId: assignment.id } });
+    const existingSession = await latestSession(client, assignment.id);
     const authority = await siteAuthority.resolve({ assignment, existingSession }, client);
     if (authority.site.id !== resolved.authority.securitySiteId) {
       throw http(409, 'ATTENDANCE_SITE_STALE', 'Attendance Security Site changed before event acceptance.');
@@ -205,7 +210,10 @@ function createAttendanceEventService({
   }
 
   async function sessionForEvent(client, resolved, expectation, intent, now) {
-    let session = await client.attendanceSession.findUnique({ where: { shiftAssignmentId: resolved.authority.shiftAssignmentId } });
+    if (typeof client.$queryRaw === 'function') {
+      await client.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${`attendance-session:${resolved.authority.shiftAssignmentId}`}))`;
+    }
+    let session = await latestSession(client, resolved.authority.shiftAssignmentId);
     if (!session) {
       if (intent !== 'CHECK_IN') throw http(409, 'ATTENDANCE_CHECK_IN_REQUIRED', 'CHECK_IN is required before CHECK_OUT.');
       session = await client.attendanceSession.create({

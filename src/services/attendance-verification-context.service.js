@@ -25,6 +25,14 @@ function http(statusCode, code, message) {
   return new HttpError(statusCode, message, { code });
 }
 
+async function latestSession(client, shiftAssignmentId, extra = {}) {
+  const where = { shiftAssignmentId, state: { not: 'VOIDED' } };
+  if (typeof client.attendanceSession.findFirst === 'function') {
+    return client.attendanceSession.findFirst({ where, orderBy: { createdAt: 'desc' }, ...extra });
+  }
+  return client.attendanceSession.findUnique({ where: { shiftAssignmentId }, ...extra });
+}
+
 function sha256(value) {
   return crypto.createHash('sha256').update(value).digest('hex');
 }

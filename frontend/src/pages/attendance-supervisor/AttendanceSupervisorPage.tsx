@@ -62,6 +62,7 @@ type AttendanceRow = {
   date: string;
   assignmentId: string;
   sessionId?: string | null;
+  sessionState?: string | null;
   employeeId: string;
   employeeCode?: string | null;
   employeeName: string;
@@ -1457,7 +1458,8 @@ export function AttendanceSupervisorPage({ token, role, department, employeeAuth
             )}
 
             <section className="attendance-supervisor-v4__governance-actions">
-              {admin && desktopWeb && detail.sessionId && <button type="button" className="btn-danger" onClick={() => setVoidDialog({ sessionId: detail.sessionId as string, employeeName: detail.employeeName, reason: '' })}>
+              {detail.sessionState === 'VOIDED' && <span className="attendance-supervisor-v4__status is-danger">VOIDED</span>}
+              {admin && desktopWeb && detail.sessionState !== 'VOIDED' && detail.sessionId && <button type="button" className="btn-danger" onClick={() => setVoidDialog({ sessionId: detail.sessionId as string, employeeName: detail.employeeName, reason: '' })}>
                 ยกเลิก Attendance (ADMIN)
               </button>}
               <button type="button" onClick={() => openNewAdjustment('CONFIRM_WORK_PERFORMED')}>

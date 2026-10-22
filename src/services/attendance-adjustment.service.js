@@ -1,6 +1,8 @@
 
 'use strict';
 
+const { sessionOf } = require('./attendance-session-history');
+
 const crypto = require('node:crypto');
 const { Prisma } = require('@prisma/client');
 const prismaDefault = require('../config/prisma');
@@ -214,7 +216,7 @@ function assertAdmin(actor) {
 }
 
 async function authoritySnapshot(client, assignment) {
-  const rawEvents = assignment.attendanceSession?.events || [];
+  const rawEvents = sessionOf(assignment.attendanceSession)?.events || [];
   const corrections = await currentCorrectionsForAssignments(client, [assignment.id]);
   const effectiveEvents = applyCurrentCorrections(rawEvents, corrections);
   const originalCheckIn = eventByType(rawEvents, 'CHECK_IN');
@@ -224,7 +226,7 @@ async function authoritySnapshot(client, assignment) {
 
   const snapshot = {
     assignmentId: assignment.id,
-    attendanceSessionId: assignment.attendanceSession?.id || null,
+    attendanceSessionId: sessionOf(assignment.attendanceSession)?.id || null,
     workDate: assignment.workDate instanceof Date
       ? assignment.workDate.toISOString().slice(0, 10)
       : String(assignment.workDate).slice(0, 10),
@@ -479,7 +481,7 @@ function createAttendanceAdjustmentService({ prisma = prismaDefault, audit = aud
           before_snapshot, before_digest, current_proposal, current_proposal_digest, reason
         ) VALUES (
           ${assignment.id}::uuid,
-          ${assignment.attendanceSession?.id || null}::uuid,
+          ${sessionOf(assignment.attendanceSession)?.id || null}::uuid,
           ${normalized.type},
           'DRAFT',
           ${actor.sub}::uuid,
@@ -877,6 +879,14 @@ function createAttendanceAdjustmentService({ prisma = prismaDefault, audit = aud
           WHERE shift_assignment_id = ${assignment.id}::uuid
             AND event_type = ${eventType}::"AttendanceEventType"
             AND is_current = TRUE
+            AND NOT EXISTS (
+              SELECT 1 FROM attendance_sessions s
+              WHERE s.id = attendance_corrections.attendance_session_id AND s.state = 'VOIDED'
+            )
+            AND NOT EXISTS (
+              SELECT 1 FROM attendance_events e
+              WHERE e.id = attendance_corrections.original_event_id AND e.state = 'VOIDED'
+            )
         `);
 
         const inserted = await tx.$queryRaw(Prisma.sql`
@@ -896,7 +906,7 @@ function createAttendanceAdjustmentService({ prisma = prismaDefault, audit = aud
             approved_at
           ) VALUES (
             ${assignment.id}::uuid,
-            ${assignment.attendanceSession?.id || null}::uuid,
+            ${sessionOf(assignment.attendanceSession)?.id || null}::uuid,
             ${eventType}::"AttendanceEventType",
             ${original?.id || null}::uuid,
             ${original?.effectiveEventAt || null},

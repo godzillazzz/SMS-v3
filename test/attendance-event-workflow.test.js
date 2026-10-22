@@ -339,7 +339,11 @@ test('schema/migration enforce one session per shift, one event type per session
   const schema = fs.readFileSync(path.join(root, 'prisma', 'schema.prisma'), 'utf8');
   const migration = fs.readFileSync(path.join(root, 'prisma', 'migrations', '202608240004_g06_attendance_event_workflow_v1', 'migration.sql'), 'utf8');
   assert.match(schema, /model AttendanceSession \{/);
-  assert.match(schema, /shiftAssignmentId\s+String\s+@unique/);
+  assert.match(schema, /shiftAssignmentId\s+String(?!\s+@unique)/);
+  const historyMigration = fs.readFileSync(path.join(root, 'prisma', 'migrations', '202610230001_attendance_session_history', 'migration.sql'), 'utf8');
+  assert.match(historyMigration, /DROP INDEX IF EXISTS \"attendance_sessions_shift_assignment_id_key\"/);
+  assert.match(historyMigration, /CREATE UNIQUE INDEX \"attendance_sessions_one_live_per_assignment_key\"/);
+  assert.match(historyMigration, /WHERE \"state\" <> 'VOIDED'/);
   assert.match(schema, /expectationDigest\s+String/);
   assert.match(schema, /model AttendanceEvent \{/);
   assert.match(schema, /faceVerificationSessionId\s+String\s+@unique/);

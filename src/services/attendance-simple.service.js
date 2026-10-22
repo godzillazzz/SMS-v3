@@ -1,5 +1,7 @@
 'use strict';
 
+const { sessionOf } = require('./attendance-session-history');
+
 const crypto = require('node:crypto');
 const prismaDefault = require('../config/prisma');
 const auditDefault = require('./audit.service');
@@ -19,6 +21,11 @@ const { bangkokParts, isOvernightAssignment, actionableAssignment } = require('.
 const { createSupabaseAttendanceDeviceSelfieStorage, normalizeSelfie, RETENTION_DAYS } = require('./attendance-device-selfie-storage.service');
 const { createAttendanceDeviceService } = require('./attendance-device.service');
 const { createAttendanceSelfiePolicyService } = require('./attendance-selfie-policy.service');
+
+async function latestSession(client, shiftAssignmentId, extra = {}) {
+  if (typeof client.attendanceSession.findFirst === 'function') return client.attendanceSession.findFirst({ where: { shiftAssignmentId, state: { not: 'VOIDED' } }, orderBy: { createdAt: 'desc' }, ...extra });
+  return client.attendanceSession.findUnique({ where: { shiftAssignmentId }, ...extra });
+}
 
 const SIMPLE_EVENT_VERSION = 'SMS_ATTENDANCE_SIMPLE_EVENT_V1';
 const OFFLINE_BUNDLE_VERSION = 'SMS_ATTENDANCE_OFFLINE_BUNDLE_V2';
@@ -201,9 +208,9 @@ function createAttendanceSimpleService({
     const today = byDate.get(local.date);
     if (previous && isOvernightAssignment(previous)) {
       const end = timeMinutes(previous.endTime || previous.shiftType?.endTime);
-      const hasOpenCheckout = previous.attendanceSession?.state === 'OPEN'
-        && (previous.attendanceSession.events || []).some((event) => event.eventType === 'CHECK_IN')
-        && !(previous.attendanceSession.events || []).some((event) => event.eventType === 'CHECK_OUT');
+      const hasOpenCheckout = sessionOf(previous.attendanceSession)?.state === 'OPEN'
+        && (sessionOf(previous.attendanceSession)?.events || []).some((event) => event.eventType === 'CHECK_IN')
+        && !(sessionOf(previous.attendanceSession)?.events || []).some((event) => event.eventType === 'CHECK_OUT');
       if (hasOpenCheckout || (end !== null && local.minutes < end)) return previous;
     }
     if (today) return today;
@@ -224,7 +231,7 @@ function createAttendanceSimpleService({
   }
 
   async function eventIntentForAssignment(client, identity, assignment) {
-    const session = await client.attendanceSession.findUnique({ where: { shiftAssignmentId: assignment.id }, include: { events: { where: { state: 'ACTIVE' }, select: { eventType: true } } } });
+    const session = await latestSession(client, assignment.id, { include: { events: { where: { state: 'ACTIVE' }, select: { eventType: true } } } });
     if (!session) return 'CHECK_IN';
     if (session.state === 'VOIDED') throw http(409, 'ATTENDANCE_SESSION_VOIDED', 'Attendance session is voided.');
     if (session.employeeId !== identity.employeeId) throw http(409, 'ATTENDANCE_SESSION_STALE', 'Attendance session identity is stale.');
@@ -266,7 +273,7 @@ function createAttendanceSimpleService({
     if (!actionableAssignment(assignment)) throw http(409, 'ATTENDANCE_SHIFT_NOT_ACTIONABLE', 'The current shift is not eligible for Attendance.');
     const [approval, existingSession, policy, pendingDeviceRequest, selfiePolicy] = await Promise.all([
       approvedSchedule(prisma, assignment),
-      prisma.attendanceSession.findUnique({ where: { shiftAssignmentId: assignment.id } }),
+      latestSession(prisma, assignment.id),
       policies.getPolicy(prisma),
       deviceFingerprint
         ? prisma.attendanceDeviceChangeRequest.findFirst({
@@ -373,7 +380,7 @@ function createAttendanceSimpleService({
 
   async function sessionForEvent(client, identity, assignment, approval, authority, intent, now) {
     const snapshot = expectationSnapshot(assignment, approval, authority);
-    let session = await client.attendanceSession.findUnique({ where: { shiftAssignmentId: assignment.id } });
+    let session = await latestSession(client, assignment.id);
     if (!session) {
       if (intent !== 'CHECK_IN') throw http(409, 'ATTENDANCE_CHECK_IN_REQUIRED', 'CHECK_IN is required before CHECK_OUT.');
       session = await client.attendanceSession.create({
@@ -420,7 +427,7 @@ function createAttendanceSimpleService({
     const selfiePolicy = await selfiePolicies.resolve({ role: identity.role, action }, prisma);
     if (selfiePolicy.required && !input.selfie) throw http(422, 'ATTENDANCE_SELFIE_REQUIRED', 'A selfie is required for this Attendance action.');
     const approval = await approvedSchedule(prisma, assignment);
-    const existingSession = await prisma.attendanceSession.findUnique({ where: { shiftAssignmentId: assignment.id } });
+    const existingSession = await latestSession(prisma, assignment.id);
     const authority = await siteAuthority.resolve({ assignment, employee: identity.employee, existingSession }, prisma);
     const evidenceAssignment = { ...assignment, securitySiteId: authority.site.id, securitySite: authority.site };
     const offline = Boolean(input.offlineBundle);
@@ -729,7 +736,7 @@ function createAttendanceSimpleService({
       if (!assignment || assignment.employeeId !== pending.employeeId || !actionableAssignment(assignment)) throw http(409, 'ATTENDANCE_ASSIGNMENT_STALE', 'Pending Attendance shift is no longer actionable.');
       const identity = { employeeId: pending.employeeId };
       const approval = await approvedSchedule(tx, assignment);
-      const existingSession = await tx.attendanceSession.findUnique({ where: { shiftAssignmentId: assignment.id } });
+      const existingSession = await latestSession(tx, assignment.id);
       const authority = await siteAuthority.resolve({ assignment, employee: assignment.employee, existingSession }, tx);
       const resolvedTimePolicy = pending.timePolicySnapshot
         ? { values: valuesFromSnapshot(pending.timePolicySnapshot), source: {

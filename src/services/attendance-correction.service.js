@@ -77,6 +77,14 @@ async function currentCorrectionsForAssignments(client, assignmentIds) {
     FROM attendance_corrections
     WHERE shift_assignment_id IN (${Prisma.join(assignmentIds.map((id) => Prisma.sql`${id}::uuid`))})
       AND is_current = TRUE
+      AND NOT EXISTS (
+        SELECT 1 FROM attendance_sessions s
+        WHERE s.id = attendance_corrections.attendance_session_id AND s.state = 'VOIDED'
+      )
+      AND NOT EXISTS (
+        SELECT 1 FROM attendance_events e
+        WHERE e.id = attendance_corrections.original_event_id AND e.state = 'VOIDED'
+      )
       AND source_adjustment_request_id IS NOT NULL
       AND source_adjustment_revision IS NOT NULL
       AND approved_by_user_id IS NOT NULL
@@ -107,6 +115,14 @@ async function currentCorrectionsForSessions(client, sessionIds) {
     FROM attendance_corrections
     WHERE attendance_session_id IN (${Prisma.join(sessionIds.map((id) => Prisma.sql`${id}::uuid`))})
       AND is_current = TRUE
+      AND NOT EXISTS (
+        SELECT 1 FROM attendance_sessions s
+        WHERE s.id = attendance_corrections.attendance_session_id AND s.state = 'VOIDED'
+      )
+      AND NOT EXISTS (
+        SELECT 1 FROM attendance_events e
+        WHERE e.id = attendance_corrections.original_event_id AND e.state = 'VOIDED'
+      )
       AND source_adjustment_request_id IS NOT NULL
       AND source_adjustment_revision IS NOT NULL
       AND approved_by_user_id IS NOT NULL

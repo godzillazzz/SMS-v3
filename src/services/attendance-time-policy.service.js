@@ -1,5 +1,7 @@
 'use strict';
 
+const { sessionOf } = require('./attendance-session-history');
+
 const prismaDefault = require('../config/prisma');
 const auditDefault = require('./audit.service');
 const HttpError = require('../utils/http-error');

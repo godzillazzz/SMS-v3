@@ -1,5 +1,7 @@
 'use strict';
 
+const { sessionOf } = require('./attendance-session-history');
+
 const prismaDefault = require('../config/prisma');
 const HttpError = require('../utils/http-error');
 const { createSecuritySiteAuthorityService } = require('./security-site-authority.service');
@@ -219,7 +221,7 @@ function createAttendanceSupervisorService({ prisma = prismaDefault, clock = () 
     const actualSiteCache = new Map();
     const policyEntries = assignments.map((assignment) => ({
       assignment,
-      events: applyCurrentCorrections(assignment.attendanceSession?.events || [], correctionsByAssignment.get(assignment.id) || [])
+      events: applyCurrentCorrections(sessionOf(assignment.attendanceSession)?.events || [], correctionsByAssignment.get(assignment.id) || [])
     }));
     const hydratedEvents = typeof timePolicies.hydrateAssignmentsEvents === 'function'
       ? await timePolicies.hydrateAssignmentsEvents(policyEntries, client)
@@ -243,7 +245,7 @@ function createAttendanceSupervisorService({ prisma = prismaDefault, clock = () 
     const defaultAuthorityCache = new Map();
 
     for (const [assignmentIndex, assignment] of assignments.entries()) {
-      const session = assignment.attendanceSession || null;
+      const session = sessionOf(assignment.attendanceSession);
       const rawEvents = session?.events || [];
       const corrections = correctionsByAssignment.get(assignment.id) || [];
       const events = hydratedEvents[assignmentIndex] || [];
@@ -306,6 +308,7 @@ function createAttendanceSupervisorService({ prisma = prismaDefault, clock = () 
         date: assignment.workDate.toISOString().slice(0, 10),
         assignmentId: assignment.id,
         sessionId: session?.id || null,
+        sessionState: session?.state || null,
         employeeId: assignment.employeeId,
         employeeCode: assignment.employee?.employeeCode || null,
         employeeName: assignment.employeeNameSnapshot || assignment.employee?.displayName || `${assignment.employee?.firstName || ''} ${assignment.employee?.lastName || ''}`.trim(),
@@ -450,7 +453,7 @@ function createAttendanceSupervisorService({ prisma = prismaDefault, clock = () 
     ]);
     const rows = await buildRows({ assignments: [assignment], leaves, correctionsByAssignment, asOf: clock(), filters: {}, client });
     const row = rows[0];
-    const rawEvents = assignment.attendanceSession?.events || [];
+    const rawEvents = sessionOf(assignment.attendanceSession)?.events || [];
     const faceSessionIds = [...new Set(rawEvents.map((event) => event.faceVerificationSessionId).filter(Boolean))];
     const evidenceRows = faceSessionIds.length && client.attendanceEvidence
       ? await client.attendanceEvidence.findMany({

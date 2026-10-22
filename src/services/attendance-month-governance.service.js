@@ -1,5 +1,7 @@
 'use strict';
 
+const { sessionOf } = require('./attendance-session-history');
+
 const crypto = require('node:crypto');
 const { Prisma } = require('@prisma/client');
 const prismaDefault = require('../config/prisma');
@@ -170,7 +172,7 @@ function createAttendanceMonthGovernanceService({ prisma = prismaDefault, audit 
     });
     const assignmentIds = assignments.map((row) => row.id);
     const employeeIds = [...new Set(assignments.map((row) => row.employeeId))];
-    const actualSiteIds = [...new Set(assignments.flatMap((row) => siteObservations(row.attendanceSession?.events || []).map((site) => site.actualSiteId)))];
+    const actualSiteIds = [...new Set(assignments.flatMap((row) => siteObservations(sessionOf(row.attendanceSession)?.events || []).map((site) => site.actualSiteId)))];
     const [corrections, leaves, actualSites] = await Promise.all([
       currentCorrectionsForAssignments(client, assignmentIds),
       employeeIds.length ? client.leaveRequest.findMany({
@@ -191,7 +193,7 @@ function createAttendanceMonthGovernanceService({ prisma = prismaDefault, audit 
     }
     const rows = [];
     for (const assignment of assignments) {
-      const session = assignment.attendanceSession || null;
+      const session = sessionOf(assignment.attendanceSession);
       const rawEvents = session?.events || [];
       const assignmentCorrections = correctionsByAssignment.get(assignment.id) || [];
       const correctedEvents = applyCurrentCorrections(rawEvents, assignmentCorrections);
