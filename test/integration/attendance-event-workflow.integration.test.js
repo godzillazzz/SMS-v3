@@ -335,6 +335,16 @@ if (!configured) {
     assert.equal(voided.session.state, 'VOIDED');
     assert.equal(voided.events[0].state, 'VOIDED');
     assert.ok(voided.events[0].voidedAt);
+    const persistedVoidedSession = await prisma.attendanceSession.findUniqueOrThrow({ where: { id: oldSessionId } });
+    const persistedVoidedEvent = await prisma.attendanceEvent.findUniqueOrThrow({ where: { id: oldEventId } });
+    assert.equal(persistedVoidedSession.state, 'VOIDED');
+    assert.ok(persistedVoidedSession.voidedAt);
+    assert.equal(persistedVoidedSession.voidedByUserId, ids.admin);
+    assert.equal(persistedVoidedSession.voidReason, 'Replace invalid first entry');
+    assert.equal(persistedVoidedEvent.state, 'VOIDED');
+    assert.ok(persistedVoidedEvent.voidedAt);
+    assert.equal(persistedVoidedEvent.voidedByUserId, ids.admin);
+    assert.equal(persistedVoidedEvent.voidReason, 'Replace invalid first entry');
     const voidAudit = await prisma.auditLog.findMany({ where: { entityId: oldSessionId } });
     assert.ok(voidAudit.some((row) => row.metadata?.event === 'ATTENDANCE_SESSION_VOIDED'));
     assert.equal((await context.resolveEventIntent({ actor })).eventIntent, 'CHECK_IN');
@@ -353,14 +363,29 @@ if (!configured) {
       events.acceptVerifiedEvent({ actor, receipt: concurrentA.verified.receipt, attendanceContext: concurrentA.prepared.attendanceContext }),
       events.acceptVerifiedEvent({ actor, receipt: concurrentB.verified.receipt, attendanceContext: concurrentB.prepared.attendanceContext })
     ]);
-    assert.equal(concurrent.filter((result) => result.status === 'fulfilled').length, 0);
-    assert.equal(concurrent.filter((result) => result.status === 'rejected').length, 2);
+    assert.equal(concurrent.filter((result) => result.status === 'fulfilled').length, 1);
+    assert.equal(concurrent.filter((result) => result.status === 'rejected').length, 1);
+    const winner = concurrent.find((result) => result.status === 'fulfilled').value;
+    assert.equal(winner.event.eventType, 'CHECK_IN');
+    assert.equal(winner.event.state, 'ACTIVE');
     assert.equal(await prisma.attendanceSession.count({ where: { shiftAssignmentId: ids.assignment, state: { not: 'VOIDED' } } }), 1);
+    assert.equal(await prisma.attendanceEvent.count({ where: { session: { shiftAssignmentId: ids.assignment }, eventType: 'CHECK_IN', state: 'ACTIVE' } }), 1);
   });
 
   test('real DB constraints reject impossible closed-session state and malformed Attendance event digest', async () => {
-    const session = await prisma.attendanceSession.findFirstOrThrow({ where: { employeeId: ids.employee } });
-    const event = await prisma.attendanceEvent.findFirstOrThrow({ where: { sessionId: session.id } });
+    const material = keyMaterial();
+    await cleanup();
+    await seed(material);
+    const face = createFaceVerificationSessionService({ prisma, audit, clock: () => now });
+    const context = createAttendanceVerificationContextService({ prisma, faceSessionService: face, clock: () => now });
+    const events = createAttendanceEventService({ prisma, audit, verificationContextService: context, clock: () => now });
+    const checkIn = await trustedReceipt({ face, context, material, captureId: ids.captureIn, eventIntent: 'CHECK_IN' });
+    await events.acceptVerifiedEvent({ actor, receipt: checkIn.verified.receipt, attendanceContext: checkIn.prepared.attendanceContext });
+    now = new Date('2026-08-24T03:05:00.000Z');
+    const checkOut = await trustedReceipt({ face, context, material, captureId: ids.captureOut, eventIntent: 'CHECK_OUT' });
+    await events.acceptVerifiedEvent({ actor, receipt: checkOut.verified.receipt, attendanceContext: checkOut.prepared.attendanceContext });
+    const session = await prisma.attendanceSession.findFirstOrThrow({ where: { employeeId: ids.employee, state: 'CLOSED' } });
+    const event = await prisma.attendanceEvent.findFirstOrThrow({ where: { sessionId: session.id, eventType: 'CHECK_OUT' } });
     await assert.rejects(
       () => prisma.attendanceSession.update({ where: { id: session.id }, data: { state: 'OPEN', closedAt: session.closedAt } }),
       (error) => ['P2004', 'P2010'].includes(error.code) || /attendance_sessions_closed_state_check/.test(String(error.message))

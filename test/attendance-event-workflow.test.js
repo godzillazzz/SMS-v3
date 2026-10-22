@@ -370,6 +370,11 @@ test('schema/migration enforce one session per shift, one event type per session
   assert.match(historyMigration, /DROP INDEX IF EXISTS \"attendance_sessions_shift_assignment_id_key\"/);
   assert.match(historyMigration, /CREATE UNIQUE INDEX \"attendance_sessions_one_live_per_assignment_key\"/);
   assert.match(historyMigration, /WHERE \"state\" <> 'VOIDED'/);
+  const voidedClosedStateMigration = fs.readFileSync(path.join(root, 'prisma', 'migrations', '202610230002_attendance_void_closed_state', 'migration.sql'), 'utf8');
+  assert.match(voidedClosedStateMigration, /DROP CONSTRAINT \"attendance_sessions_closed_state_check\"/);
+  assert.match(voidedClosedStateMigration, /\"state\" = 'OPEN' AND \"closed_at\" IS NULL/);
+  assert.match(voidedClosedStateMigration, /\"state\" = 'CLOSED' AND \"closed_at\" IS NOT NULL/);
+  assert.match(voidedClosedStateMigration, /\"state\" = 'VOIDED'/);
   assert.match(schema, /expectationDigest\s+String/);
   assert.match(schema, /model AttendanceEvent \{/);
   assert.match(schema, /faceVerificationSessionId\s+String\s+@unique/);
