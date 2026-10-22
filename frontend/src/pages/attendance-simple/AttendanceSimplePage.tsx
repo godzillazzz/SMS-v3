@@ -754,6 +754,11 @@ export function AttendanceSimplePage({
     </section>
 
     <SectionCard className="attendance-simple__main-card" kicker="สถานะวันนี้" title="การลงเวลาเข้า–ออก" description="ตรวจสอบกะ สถานที่ อุปกรณ์ และสถานะก่อนบันทึก">
+    <div className="attendance-simple__presence" aria-label="สถานะสถานที่ปัจจุบัน">
+      <span className="attendance-simple__presence-icon" aria-hidden="true">⌖</span>
+      <div><strong>{siteContext?.actualSite || siteContext?.assignedSite ? 'อยู่ในพื้นที่ที่ลงทะเบียน' : 'รอตรวจสอบตำแหน่ง'}</strong><small>{siteContext?.actualSite ? siteDisplayName(siteContext.actualSite) : siteContext?.assignedSite ? siteDisplayName(siteContext.assignedSite) : 'ระบบจะตรวจ GPS เมื่อกดยืนยัน'}</small></div>
+      <span className="attendance-simple__presence-state">{siteContext ? 'พร้อมใช้งาน' : 'รอตรวจ'}</span>
+    </div>
     <div className="attendance-simple__journey" aria-label="สถานะการลงเวลา">
       <article>
         <span>ตอนนี้</span>
