@@ -194,7 +194,7 @@ function createAttendanceSimpleService({
     const yesterday = shiftDate(local.date, -1);
     const rows = await client.shiftAssignment.findMany({
       where: { employeeId, workDate: { in: [new Date(`${yesterday}T00:00:00.000Z`), new Date(`${local.date}T00:00:00.000Z`)] } },
-      include: { shiftType: true, securitySite: true, attendanceSession: { include: { events: { select: { eventType: true } } } } }, orderBy: { workDate: 'asc' }
+      include: { shiftType: true, securitySite: true, attendanceSession: { where: { state: { not: 'VOIDED' } }, include: { events: { where: { state: 'ACTIVE' }, select: { eventType: true } } } } }, orderBy: { workDate: 'asc' }
     });
     const byDate = new Map(rows.map((row) => [workDateText(row.workDate), row]));
     const previous = byDate.get(yesterday);
@@ -224,8 +224,9 @@ function createAttendanceSimpleService({
   }
 
   async function eventIntentForAssignment(client, identity, assignment) {
-    const session = await client.attendanceSession.findUnique({ where: { shiftAssignmentId: assignment.id }, include: { events: { select: { eventType: true } } } });
+    const session = await client.attendanceSession.findUnique({ where: { shiftAssignmentId: assignment.id }, include: { events: { where: { state: 'ACTIVE' }, select: { eventType: true } } } });
     if (!session) return 'CHECK_IN';
+    if (session.state === 'VOIDED') throw http(409, 'ATTENDANCE_SESSION_VOIDED', 'Attendance session is voided.');
     if (session.employeeId !== identity.employeeId) throw http(409, 'ATTENDANCE_SESSION_STALE', 'Attendance session identity is stale.');
     const hasIn = session.events.some((row) => row.eventType === 'CHECK_IN');
     const hasOut = session.events.some((row) => row.eventType === 'CHECK_OUT');
@@ -382,6 +383,7 @@ function createAttendanceSimpleService({
       });
     } else {
       if (session.employeeId !== identity.employeeId) throw http(409, 'ATTENDANCE_SESSION_STALE', 'Attendance session identity is stale.');
+      if (session.state === 'VOIDED') throw http(409, 'ATTENDANCE_SESSION_VOIDED', 'Attendance session is voided.');
       if (session.state !== 'OPEN' || session.closedAt) throw http(409, 'ATTENDANCE_SESSION_CLOSED', 'Attendance session is already closed.');
     }
     const same = await client.attendanceEvent.findUnique({ where: { sessionId_eventType: { sessionId: session.id, eventType: intent } } });

@@ -158,7 +158,13 @@ function createAttendanceMonthGovernanceService({ prisma = prismaDefault, audit 
         employee: { select: { id: true, employeeCode: true, displayName: true, firstName: true, lastName: true, department: true } },
         shiftType: true,
         securitySite: true,
-        attendanceSession: { include: { expectedSite: { select: { id: true, code: true, name: true } }, events: { orderBy: { effectiveEventAt: 'asc' } } } }
+        attendanceSession: {
+          where: { state: { not: 'VOIDED' } },
+          include: {
+            expectedSite: { select: { id: true, code: true, name: true } },
+            events: { where: { state: 'ACTIVE' }, orderBy: { effectiveEventAt: 'asc' } }
+          }
+        }
       },
       orderBy: [{ workDate: 'asc' }, { departmentSnapshot: 'asc' }, { employeeNameSnapshot: 'asc' }]
     });

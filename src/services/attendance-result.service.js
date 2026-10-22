@@ -286,7 +286,8 @@ function createAttendanceResultService({ prisma = prismaDefault, clock = () => n
         shiftType: true,
         securitySite: true,
         attendanceSession: {
-          include: { events: { orderBy: { effectiveEventAt: 'asc' } } }
+          where: { state: { not: 'VOIDED' } },
+          include: { events: { where: { state: 'ACTIVE' }, orderBy: { effectiveEventAt: 'asc' } } }
         }
       }
     });

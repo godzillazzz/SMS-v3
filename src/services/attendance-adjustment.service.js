@@ -176,7 +176,8 @@ async function loadAssignment(client, assignmentId) {
         }
       },
       attendanceSession: {
-        include: { events: { orderBy: { effectiveEventAt: 'asc' } } }
+        include: { events: { where: { state: 'ACTIVE' }, orderBy: { effectiveEventAt: 'asc' } } },
+        where: { state: { not: 'VOIDED' } }
       }
     }
   });

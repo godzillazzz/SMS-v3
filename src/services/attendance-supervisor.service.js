@@ -152,7 +152,7 @@ function assignmentInclude() {
     attendanceSession: {
       include: {
         expectedSite: { select: { id: true, code: true, name: true } },
-        events: { orderBy: { effectiveEventAt: 'asc' } }
+        events: { where: { state: 'ACTIVE' }, orderBy: { effectiveEventAt: 'asc' } }
       }
     }
   };

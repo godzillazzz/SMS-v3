@@ -154,6 +154,12 @@ enum FaceVerificationSessionStatus {
 enum AttendanceSessionState {
   OPEN
   CLOSED
+  VOIDED
+}
+
+enum AttendanceEventState {
+  ACTIVE
+  VOIDED
 }
 
 enum AttendanceEventType {
@@ -225,6 +231,8 @@ model User {
   referencePhotosReviewed           EmployeeReferencePhoto[]          @relation("EmployeeReferencePhotoReviewedBy")
   faceVerificationSessions          FaceVerificationSession[]         @relation("FaceVerificationSessionUser")
   faceVerificationReceipts          FaceVerificationReceipt[]         @relation("FaceVerificationReceiptUser")
+  attendanceSessionsVoided          AttendanceSession[]               @relation("AttendanceSessionVoidedBy")
+  attendanceEventsVoided            AttendanceEvent[]                 @relation("AttendanceEventVoidedBy")
 
   @@index([accountStatus, requestedAt, createdAt])
   @@map("users")
@@ -666,9 +674,13 @@ model AttendanceSession {
   state               AttendanceSessionState @default(OPEN)
   openedAt            DateTime               @default(now()) @map("opened_at")
   closedAt            DateTime?              @map("closed_at")
+  voidedAt            DateTime?              @map("voided_at")
+  voidedByUserId      String?                @map("voided_by_user_id") @db.Uuid
+  voidReason          String?                @map("void_reason") @db.VarChar(1000)
   createdAt           DateTime               @default(now()) @map("created_at")
   updatedAt           DateTime               @updatedAt @map("updated_at")
   employee            Employee               @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+  voidedBy            User?                  @relation("AttendanceSessionVoidedBy", fields: [voidedByUserId], references: [id], onDelete: Restrict)
   shiftAssignment     ShiftAssignment        @relation(fields: [shiftAssignmentId], references: [id], onDelete: Restrict)
   expectedShiftType   ShiftType              @relation("AttendanceSessionExpectedShiftType", fields: [expectedShiftTypeId], references: [id], onDelete: Restrict)
   expectedSite        SecuritySite           @relation("AttendanceSessionExpectedSite", fields: [expectedSiteId], references: [id], onDelete: Restrict)
@@ -686,6 +698,10 @@ model AttendanceEvent {
   deviceEnrollmentId        String?                   @map("device_enrollment_id") @db.Uuid
   captureId                 String                    @unique @map("capture_id") @db.Uuid
   eventType                 AttendanceEventType       @map("event_type")
+  state                     AttendanceEventState      @default(ACTIVE)
+  voidedAt                  DateTime?                 @map("voided_at")
+  voidedByUserId            String?                   @map("voided_by_user_id") @db.Uuid
+  voidReason                String?                   @map("void_reason") @db.VarChar(1000)
   provenance                AttendanceEventProvenance @default(ONLINE)
   sourceMode                String                    @default("ONLINE") @map("source_mode") @db.VarChar(16)
   receivedAt                DateTime                  @map("received_at")
@@ -702,6 +718,7 @@ model AttendanceEvent {
   reviewReasons             Json?                     @map("review_reasons")
   createdAt                 DateTime                  @default(now()) @map("created_at")
   session                   AttendanceSession         @relation(fields: [sessionId], references: [id], onDelete: Restrict)
+  voidedBy                  User?                     @relation("AttendanceEventVoidedBy", fields: [voidedByUserId], references: [id], onDelete: Restrict)
   faceVerificationSession   FaceVerificationSession?  @relation(fields: [faceVerificationSessionId], references: [id], onDelete: Restrict)
 
   @@unique([sessionId, eventType])

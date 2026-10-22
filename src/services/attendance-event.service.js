@@ -112,6 +112,9 @@ function safeSession(row) {
     expectedSiteId: row.expectedSiteId,
     workDate: row.workDate,
     state: row.state,
+    voidedAt: row.voidedAt,
+    voidedByUserId: row.voidedByUserId,
+    voidReason: row.voidReason,
     openedAt: row.openedAt,
     closedAt: row.closedAt,
     createdAt: row.createdAt,
@@ -131,6 +134,10 @@ function safeEvent(row) {
     effectiveEventAt: row.effectiveEventAt,
     timeBasis: row.timeBasis,
     contextDigest: row.contextDigest,
+    state: row.state,
+    voidedAt: row.voidedAt,
+    voidedByUserId: row.voidedByUserId,
+    voidReason: row.voidReason,
     createdAt: row.createdAt
   } : null;
 }
@@ -217,6 +224,7 @@ function createAttendanceEventService({
     } else {
       assertExistingSession(session, resolved, expectation);
     }
+    if (session.state === 'VOIDED') throw http(409, 'ATTENDANCE_SESSION_VOIDED', 'Attendance session is voided.');
     if (session.state !== 'OPEN' || session.closedAt) throw http(409, 'ATTENDANCE_SESSION_CLOSED', 'Attendance session is already closed.');
     return session;
   }

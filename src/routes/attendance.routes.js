@@ -14,6 +14,7 @@ const { createAttendanceSimpleService } = require('../services/attendance-simple
 const { createSupabaseAttendanceFaceEvidenceStorage } = require('../services/attendance-face-evidence-storage.service');
 const { authorize } = require('../middlewares/authenticate');
 const { attendanceApiEnabled } = require('../config/attendance-api-policy');
+const { createAttendanceVoidService } = require('../services/attendance-void.service');
 
 const uuid = z.string().uuid();
 const decimal = z.union([z.number().finite(), z.string().trim().regex(/^-?\d+(?:\.\d+)?$/).max(32)]);
@@ -157,8 +158,11 @@ function defaultAuthenticate(req, res, next) {
   return require('../middlewares/authenticate').authenticate(req, res, next);
 }
 
-function createAttendanceRoutes({ environment = process.env, authenticateMiddleware = defaultAuthenticate, contractService = null, faceChallengeUatService = null, selfService = null, simpleService = null, evidenceStorage = null } = {}) {
+function createAttendanceRoutes({ environment = process.env, authenticateMiddleware = defaultAuthenticate, contractService = null, faceChallengeUatService = null, selfService = null, simpleService = null, evidenceStorage = null, voidService = null } = {}) {
   const router = express.Router();
+  const attendanceVoid = voidService || createAttendanceVoidService({ environment });
+  const voidInput = z.object({ reason: z.string().trim().min(5).max(1000) }).strict();
+  const uatResetInput = z.object({ reason: z.string().trim().min(5).max(1000) }).strict();
   const privateEvidence = evidenceStorage || createSupabaseAttendanceFaceEvidenceStorage({ environment });
   const service = contractService || createAttendanceApiContractService({
     faceVerificationService: createAttendanceFaceVerificationService({ environment }),
@@ -295,6 +299,14 @@ function createAttendanceRoutes({ environment = process.env, authenticateMiddlew
 
   router.post('/events', async (req, res, next) => {
     try { const input = acceptInput.parse(req.body); res.json({ data: await service.acceptVerifiedEvent({ actor: req.user, ...input }) }); } catch (error) { next(error); }
+  });
+
+  router.post('/admin/sessions/:id/void', authorize('ADMIN'), async (req, res, next) => {
+    try { const input = voidInput.parse(req.body); res.json({ data: await attendanceVoid.voidSession({ actor: req.user, sessionId: uuid.parse(req.params.id), reason: input.reason }) }); } catch (error) { next(error); }
+  });
+
+  router.post('/uat/reset/approved-fixture/:id', authorize('ADMIN'), async (req, res, next) => {
+    try { const input = uatResetInput.parse(req.body); res.json({ data: await attendanceVoid.resetApprovedUatFixture({ actor: req.user, sessionId: uuid.parse(req.params.id), reason: input.reason }) }); } catch (error) { next(error); }
   });
 
   return router;

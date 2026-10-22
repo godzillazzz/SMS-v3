@@ -251,9 +251,10 @@ function createAttendanceSelfService({ prisma = prismaDefault, clock = () => new
       shiftType: true,
       securitySite: { select: { id: true, code: true, name: true } },
       attendanceSession: {
+        where: { state: { not: 'VOIDED' } },
         include: {
           expectedSite: { select: { id: true, code: true, name: true } },
-          events: { orderBy: { effectiveEventAt: 'asc' } }
+          events: { where: { state: 'ACTIVE' }, orderBy: { effectiveEventAt: 'asc' } }
         }
       }
     };

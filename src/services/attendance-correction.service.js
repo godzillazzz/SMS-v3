@@ -152,7 +152,7 @@ function createAttendanceCorrectionService({ prisma = prismaDefault, audit = aud
       where: { id: assignmentId },
       include: {
         employee: { select: { id: true, department: true } },
-        attendanceSession: { include: { events: { orderBy: { effectiveEventAt: 'asc' } } } }
+        attendanceSession: { where: { state: { not: 'VOIDED' } }, include: { events: { where: { state: 'ACTIVE' }, orderBy: { effectiveEventAt: 'asc' } } } }
       }
     });
     if (!assignment) throw http(404, 'ATTENDANCE_ASSIGNMENT_NOT_FOUND', 'Shift Assignment was not found.');
