@@ -270,8 +270,8 @@ if (!configured) {
     assert.equal(approvedHistory.rows[0].corrected, true);
     assert.equal(approvedHistory.rows[0].authority, 'EFFECTIVE_ATTENDANCE_CORRECTION');
 
-    const session = await prisma.attendanceSession.findUnique({ where: { shiftAssignmentId: ids.assignment } });
-    assert.equal(session, null, 'governed adjustment must not fabricate raw AttendanceSession evidence');
+    const sessions = await prisma.attendanceSession.findMany({ where: { shiftAssignmentId: ids.assignment } });
+    assert.deepEqual(sessions, [], 'governed adjustment must not fabricate raw AttendanceSession evidence');
 
     const requestAudit = await prisma.auditLog.findMany({
       where: {

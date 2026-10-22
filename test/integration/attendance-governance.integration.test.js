@@ -200,8 +200,8 @@ if (!configured) {
     assert.equal(approved.status, 'APPROVED');
     assert.equal(approved.approverUserId, ids.admin);
 
-    const session = await prisma.attendanceSession.findUnique({ where: { shiftAssignmentId: ids.assignment } });
-    assert.equal(session, null, 'approved governance overlay must not fabricate immutable raw Attendance evidence');
+    const sessions = await prisma.attendanceSession.findMany({ where: { shiftAssignmentId: ids.assignment } });
+    assert.deepEqual(sessions, [], 'approved governance overlay must not fabricate immutable raw Attendance evidence');
 
     const readyPreview = await governance.preview('2099-02');
     const readyRow = readyPreview.rows.find((item) => item.assignmentId === ids.assignment);
