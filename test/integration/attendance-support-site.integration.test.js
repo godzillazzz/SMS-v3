@@ -162,7 +162,7 @@ if (!configured) {
     assert.equal(confirmed.pendingEvent.status, 'CONFIRMED');
     assert.equal(confirmed.pendingEvent.reviewedByUserId, ids.admin);
     assert.equal(await prisma.attendanceEvent.count({ where: { sessionId: acceptedAssigned.session.id } }), 2);
-    const session = await prisma.attendanceSession.findUniqueOrThrow({ where: { shiftAssignmentId: ids.assignment } });
+    const session = await prisma.attendanceSession.findFirstOrThrow({ where: { shiftAssignmentId: ids.assignment, state: { not: 'VOIDED' } }, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }] });
     assert.equal(session.expectedSiteId, ids.assignedSite);
     const auditRows = await prisma.auditLog.findMany({ where: { actorUserId: { in: [ids.user, ids.admin] } } });
     const confirmationAudit = auditRows.find((row) => row.metadata?.event === 'CONFIRM_DELAYED_OFFLINE_ATTENDANCE');

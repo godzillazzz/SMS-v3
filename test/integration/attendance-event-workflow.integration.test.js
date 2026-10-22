@@ -19,6 +19,7 @@ if (!configured) {
   const { createFaceVerificationSessionService } = require('../../src/services/face-verification-session.service');
   const { createAttendanceVerificationContextService } = require('../../src/services/attendance-verification-context.service');
   const { createAttendanceEventService } = require('../../src/services/attendance-event.service');
+  const { createAttendanceVoidService } = require('../../src/services/attendance-void.service');
   const { tokenHash } = require('../../src/services/attendance-site-evidence.service');
   const audit = require('../../src/services/audit.service');
 
@@ -36,7 +37,10 @@ if (!configured) {
     device: crypto.randomUUID(),
     reference: crypto.randomUUID(),
     captureIn: crypto.randomUUID(),
-    captureOut: crypto.randomUUID()
+    captureOut: crypto.randomUUID(),
+    captureReentry: crypto.randomUUID(),
+    captureConcurrentA: crypto.randomUUID(),
+    captureConcurrentB: crypto.randomUUID()
   };
   const actor = { sub: ids.user, role: 'VIEWER' };
   let now = new Date('2026-08-24T03:00:00.000Z'); // 10:00 Asia/Bangkok
@@ -247,7 +251,7 @@ if (!configured) {
     assert.equal(accepted.session.state, 'OPEN');
 
     const [sessionRow, eventRows, receiptRow, faceRow] = await Promise.all([
-      prisma.attendanceSession.findUniqueOrThrow({ where: { shiftAssignmentId: ids.assignment } }),
+      prisma.attendanceSession.findFirstOrThrow({ where: { shiftAssignmentId: ids.assignment, state: { not: 'VOIDED' } }, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }] }),
       prisma.attendanceEvent.findMany({ where: { session: { employeeId: ids.employee } } }),
       prisma.faceVerificationReceipt.findUniqueOrThrow({ where: { sessionId: flow.prepared.session.id } }),
       prisma.faceVerificationSession.findUniqueOrThrow({ where: { id: flow.prepared.session.id } })
@@ -293,7 +297,7 @@ if (!configured) {
       /SIMULATED_ATTENDANCE_AUDIT_FAILURE/
     );
 
-    const sessionAfterRollback = await prisma.attendanceSession.findUniqueOrThrow({ where: { shiftAssignmentId: ids.assignment } });
+    const sessionAfterRollback = await prisma.attendanceSession.findFirstOrThrow({ where: { shiftAssignmentId: ids.assignment, state: { not: 'VOIDED' } }, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }] });
     const receiptAfterRollback = await prisma.faceVerificationReceipt.findUniqueOrThrow({ where: { sessionId: checkOut.prepared.session.id } });
     const faceAfterRollback = await prisma.faceVerificationSession.findUniqueOrThrow({ where: { id: checkOut.prepared.session.id } });
     assert.equal(sessionAfterRollback.state, 'OPEN');
@@ -312,6 +316,46 @@ if (!configured) {
     assert.equal(finalFace.status, 'CONSUMED');
     assert.equal(await prisma.attendanceEvent.count({ where: { sessionId: accepted.session.id } }), 2);
     await assert.rejects(() => context.resolveEventIntent({ actor }), (error) => error.details?.code === 'ATTENDANCE_ALREADY_CHECKED_OUT');
+  });
+
+  test('voided session history is preserved and re-entry creates one fresh live session', async () => {
+    const material = keyMaterial();
+    await cleanup();
+    await seed(material);
+    const face = createFaceVerificationSessionService({ prisma, audit, clock: () => now });
+    const context = createAttendanceVerificationContextService({ prisma, faceSessionService: face, clock: () => now });
+    const events = createAttendanceEventService({ prisma, audit, verificationContextService: context, clock: () => now });
+    const voids = createAttendanceVoidService({ prisma, audit, clock: () => now });
+
+    const first = await trustedReceipt({ face, context, material, captureId: ids.captureIn, eventIntent: 'CHECK_IN' });
+    const acceptedFirst = await events.acceptVerifiedEvent({ actor, receipt: first.verified.receipt, attendanceContext: first.prepared.attendanceContext });
+    const oldSessionId = acceptedFirst.session.id;
+    const oldEventId = acceptedFirst.event.id;
+    const voided = await voids.voidSession({ actor: { sub: ids.admin, role: 'ADMIN' }, sessionId: oldSessionId, reason: 'Replace invalid first entry' });
+    assert.equal(voided.session.state, 'VOIDED');
+    assert.equal(voided.events[0].state, 'VOIDED');
+    assert.ok(voided.events[0].voidedAt);
+    const voidAudit = await prisma.auditLog.findMany({ where: { entityId: oldSessionId } });
+    assert.ok(voidAudit.some((row) => row.metadata?.event === 'ATTENDANCE_SESSION_VOIDED'));
+    assert.equal((await context.resolveEventIntent({ actor })).eventIntent, 'CHECK_IN');
+
+    const reentry = await trustedReceipt({ face, context, material, captureId: ids.captureReentry, eventIntent: 'CHECK_IN' });
+    const acceptedReentry = await events.acceptVerifiedEvent({ actor, receipt: reentry.verified.receipt, attendanceContext: reentry.prepared.attendanceContext });
+    assert.notEqual(acceptedReentry.session.id, oldSessionId);
+    assert.equal((await prisma.attendanceSession.findUniqueOrThrow({ where: { id: oldSessionId } })).state, 'VOIDED');
+    assert.equal((await prisma.attendanceEvent.findUniqueOrThrow({ where: { id: oldEventId } })).state, 'VOIDED');
+    assert.equal(await prisma.attendanceSession.count({ where: { shiftAssignmentId: ids.assignment, state: { not: 'VOIDED' } } }), 1);
+    await voids.voidSession({ actor: { sub: ids.admin, role: 'ADMIN' }, sessionId: acceptedReentry.session.id, reason: 'Prepare concurrent create test' });
+
+    const concurrentA = await trustedReceipt({ face, context, material, captureId: ids.captureConcurrentA, eventIntent: 'CHECK_IN' });
+    const concurrentB = await trustedReceipt({ face, context, material, captureId: ids.captureConcurrentB, eventIntent: 'CHECK_IN' });
+    const concurrent = await Promise.allSettled([
+      events.acceptVerifiedEvent({ actor, receipt: concurrentA.verified.receipt, attendanceContext: concurrentA.prepared.attendanceContext }),
+      events.acceptVerifiedEvent({ actor, receipt: concurrentB.verified.receipt, attendanceContext: concurrentB.prepared.attendanceContext })
+    ]);
+    assert.equal(concurrent.filter((result) => result.status === 'fulfilled').length, 0);
+    assert.equal(concurrent.filter((result) => result.status === 'rejected').length, 2);
+    assert.equal(await prisma.attendanceSession.count({ where: { shiftAssignmentId: ids.assignment, state: { not: 'VOIDED' } } }), 1);
   });
 
   test('real DB constraints reject impossible closed-session state and malformed Attendance event digest', async () => {

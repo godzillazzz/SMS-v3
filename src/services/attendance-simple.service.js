@@ -23,8 +23,13 @@ const { createAttendanceDeviceService } = require('./attendance-device.service')
 const { createAttendanceSelfiePolicyService } = require('./attendance-selfie-policy.service');
 
 async function latestSession(client, shiftAssignmentId, extra = {}) {
-  if (typeof client.attendanceSession.findFirst === 'function') return client.attendanceSession.findFirst({ where: { shiftAssignmentId, state: { not: 'VOIDED' } }, orderBy: { createdAt: 'desc' }, ...extra });
-  return client.attendanceSession.findUnique({ where: { shiftAssignmentId }, ...extra });
+  const where = { shiftAssignmentId, state: { not: 'VOIDED' } };
+  if (typeof client.attendanceSession.findFirst === 'function') return client.attendanceSession.findFirst({ where, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], ...extra });
+  if (typeof client.attendanceSession.findMany === 'function') {
+    const rows = await client.attendanceSession.findMany({ where, ...extra });
+    return rows.sort((a, b) => (new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()) || String(b.id).localeCompare(String(a.id)))[0] || null;
+  }
+  return null;
 }
 
 const SIMPLE_EVENT_VERSION = 'SMS_ATTENDANCE_SIMPLE_EVENT_V1';

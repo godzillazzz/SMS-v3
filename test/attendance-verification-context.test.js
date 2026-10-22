@@ -93,7 +93,8 @@ function fakeDb({ now = new Date('2026-08-24T03:00:00.000Z'), rows = [assignment
       findFirst: async () => ({ id: ids.approval, status: state.approvalStatus, revision: 3, updatedAt: now })
     },
     attendanceSession: {
-      findUnique: async ({ where }) => state.sessionRow?.shiftAssignmentId === where.shiftAssignmentId ? state.sessionRow : null
+      findFirst: async ({ where }) => state.sessionRow?.shiftAssignmentId === where.shiftAssignmentId && state.sessionRow?.state !== 'VOIDED' ? state.sessionRow : null,
+      findUnique: async ({ where }) => state.sessionRow?.id === where.id ? state.sessionRow : null
     },
     attendanceEvent: {
       findMany: async ({ where }) => state.attendanceEvents
@@ -203,6 +204,13 @@ test('server resolves CHECK_IN when the authoritative current shift has no Atten
   const service = createAttendanceVerificationContextService({ prisma: db, faceSessionService: fakeFace(), siteEvidenceService: fakeSiteEvidence(), clock });
   const resolved = await service.resolveEventIntent({ actor: { sub: ids.user } });
   assert.deepEqual(resolved, { eventIntent: 'CHECK_IN', shiftAssignmentId: ids.assignmentToday, workDate: '2026-08-24' });
+});
+
+test('server ignores VOIDED history and resolves a fresh CHECK_IN', async () => {
+  const session = { id: 'cccccccc-cccc-4ccc-8ccc-ccccccccccdd', employeeId: ids.employee, shiftAssignmentId: ids.assignmentToday, state: 'VOIDED', closedAt: null };
+  const { db, clock } = fakeDb({ sessionRow: session, attendanceEvents: [{ sessionId: session.id, eventType: 'CHECK_IN' }] });
+  const resolved = await createAttendanceVerificationContextService({ prisma: db, faceSessionService: fakeFace(), siteEvidenceService: fakeSiteEvidence(), clock }).resolveEventIntent({ actor: { sub: ids.user } });
+  assert.equal(resolved.eventIntent, 'CHECK_IN');
 });
 
 test('approved auto-schedule row is actionable even when it is not manually locked', async () => {

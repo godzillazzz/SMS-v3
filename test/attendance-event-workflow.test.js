@@ -134,7 +134,8 @@ function fakeDb({ initialSession = null, initialEvents = [], assignmentRow = ass
     shiftAssignment: { findUnique: async ({ where }) => where.id === state.assignment.id ? state.assignment : null },
     scheduleApproval: { findFirst: async () => state.approval },
     attendanceSession: {
-      findUnique: async ({ where }) => where.shiftAssignmentId === state.session?.shiftAssignmentId ? state.session : null,
+      findFirst: async ({ where }) => where.shiftAssignmentId === state.session?.shiftAssignmentId && state.session?.state !== 'VOIDED' ? state.session : null,
+      findUnique: async ({ where }) => where.id === state.session?.id ? state.session : null,
       create: async ({ data }) => {
         state.session = { id: ids.attendanceSession, ...data, closedAt: null, createdAt: now, updatedAt: now };
         return state.session;

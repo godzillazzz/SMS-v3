@@ -28,9 +28,13 @@ function http(statusCode, code, message) {
 async function latestSession(client, shiftAssignmentId, extra = {}) {
   const where = { shiftAssignmentId, state: { not: 'VOIDED' } };
   if (typeof client.attendanceSession.findFirst === 'function') {
-    return client.attendanceSession.findFirst({ where, orderBy: { createdAt: 'desc' }, ...extra });
+    return client.attendanceSession.findFirst({ where, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], ...extra });
   }
-  return client.attendanceSession.findUnique({ where: { shiftAssignmentId }, ...extra });
+  if (typeof client.attendanceSession.findMany === 'function') {
+    const rows = await client.attendanceSession.findMany({ where, ...extra });
+    return rows.sort((a, b) => (new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()) || String(b.id).localeCompare(String(a.id)))[0] || null;
+  }
+  return null;
 }
 
 function sha256(value) {
@@ -245,7 +249,7 @@ function createAttendanceVerificationContextService({
     const assignment = await resolveCurrentAssignment(client, identity.employeeId, clock());
     const [, session] = await Promise.all([
       requireApprovedSchedule(client, assignment),
-      client.attendanceSession.findUnique({ where: { shiftAssignmentId: assignment.id } })
+      latestSession(client, assignment.id)
     ]);
     const eventIntent = await resolveEventIntentFromSession(client, identity, assignment, session);
     return { eventIntent, shiftAssignmentId: assignment.id, workDate: workDateText(assignment.workDate) };
@@ -317,7 +321,7 @@ function createAttendanceVerificationContextService({
     ]);
     const [approval, existingSession] = await Promise.all([
       requireApprovedSchedule(client, assignment),
-      client.attendanceSession.findUnique({ where: { shiftAssignmentId: assignment.id } })
+      latestSession(client, assignment.id)
     ]);
     const { authority: site, validated } = await validatedSiteEvidence(client, assignment, attendanceEvidence, existingSession);
     const evidence = { siteBindingDigest: validated.siteBindingDigest, qrBindingDigest: validated.qrBindingDigest, locationBindingDigest: validated.locationBindingDigest };
@@ -346,7 +350,7 @@ function createAttendanceVerificationContextService({
     const binding = await resolveBiometricAuthority(client, identity.employeeId);
     const assignment = await loadExactAssignment(client, identity.employeeId, ref?.shiftAssignmentId);
     const approval = await requireApprovedSchedule(client, assignment);
-    const existingSession = await client.attendanceSession.findUnique({ where: { shiftAssignmentId: assignment.id } });
+    const existingSession = await latestSession(client, assignment.id);
     const { authority: site, validated } = await revalidatedSiteEvidence(client, assignment, ref, existingSession);
     const evidence = { siteBindingDigest: validated.siteBindingDigest, qrBindingDigest: validated.qrBindingDigest, locationBindingDigest: validated.locationBindingDigest };
     const payload = contextPayload({ identity, binding, assignment, approval, captureId, eventIntent: action, evidence });
@@ -375,7 +379,7 @@ function createAttendanceVerificationContextService({
     ]);
     const [approval, existingSession] = await Promise.all([
       requireApprovedSchedule(prisma, assignment),
-      prisma.attendanceSession.findUnique({ where: { shiftAssignmentId: assignment.id } })
+      latestSession(prisma, assignment.id)
     ]);
     const eventIntent = await resolveEventIntentFromSession(prisma, identity, assignment, existingSession);
     const { validated } = await validatedSiteEvidence(prisma, assignment, attendanceEvidence, existingSession);
