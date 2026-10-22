@@ -22,6 +22,16 @@ describe('Attendance Supervisor UX V4', () => {
     expect(main).not.toContain("if (!pwaShell && ['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(auth.user?.role || ''))");
   });
 
+  it('keeps ADMIN Void strictly on desktop web and out of PWA/mobile surfaces', () => {
+    expect(page).toContain('desktopWeb?: boolean');
+    expect(page).toContain('admin && desktopWeb && detail.sessionId');
+    expect(client).toContain("/attendance/admin/sessions/");
+    expect(client).toContain("voidAttendanceSession");
+    expect(main).toContain('desktopWeb={!pwaShell && !narrowWebViewport}');
+    expect(page).not.toContain('pwa-bottom-nav');
+    expect(page).not.toContain('AttendanceSimplePage');
+  });
+
   it('keeps Official monthly Attendance export Admin-only while restoring a direct Supervisor entry point', () => {
     expect(page).toContain('onOpenAttendanceReport?: () => void');
     expect(page).toContain('ส่งออกรายงาน');

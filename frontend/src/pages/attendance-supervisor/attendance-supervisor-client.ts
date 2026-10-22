@@ -68,3 +68,24 @@ export function attendanceSupervisorDetail(token: string, assignmentId: string) 
 export function attendanceEvidenceView(token: string, evidenceId: string) {
   return call(`/attendance/evidence/${encodeURIComponent(evidenceId)}/view`, token);
 }
+
+export async function voidAttendanceSession(token: string, sessionId: string, reason: string) {
+  const headers = new Headers({
+    Authorization: `Bearer ${token}`,
+    'Content-Type': 'application/json'
+  });
+  const csrf = csrfToken();
+  if (csrf) headers.set('X-CSRF-Token', csrf);
+  const response = await attendanceAuthenticatedRequest(`/attendance/admin/sessions/${encodeURIComponent(sessionId)}/void`, token, {
+    method: 'POST',
+    credentials: 'include',
+    headers,
+    body: JSON.stringify({ reason })
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const requestId = normalizeRequestId(response.headers.get('x-request-id')) || normalizeRequestId(payload?.requestId);
+    throw new ApiRequestError(payload?.error || 'Attendance void failed.', response.status, requestId, payload?.details);
+  }
+  return payload;
+}

@@ -11,7 +11,8 @@ import {
   attendanceSupervisorDaily,
   attendanceSupervisorHistory,
   attendanceSupervisorDetail,
-  attendanceEvidenceView
+  attendanceEvidenceView,
+  voidAttendanceSession
 } from './attendance-supervisor-client';
 import {
   approveAttendanceAdjustment,
@@ -36,6 +37,7 @@ type Props = {
   employeeAuthorityId?: string;
   userId?: string;
   onOpenAttendanceReport?: () => void;
+  desktopWeb?: boolean;
   initialRequestId?: string;
   onInitialRequestHandled?(): void;
   onApprovalQueueChanged?: () => void;
@@ -166,6 +168,8 @@ type ReviewDialog = {
   action: 'approve' | 'return' | 'reject' | 'forward';
   comment: string;
 };
+
+type VoidDialog = { sessionId: string; employeeName: string; reason: string };
 
 type ManualConfirmationDialog = {
   employeeId: string;
@@ -440,7 +444,7 @@ function AttendanceMobileCard({
   </article>;
 }
 
-export function AttendanceSupervisorPage({ token, role, department, employeeAuthorityId, userId, onOpenAttendanceReport, initialRequestId, onInitialRequestHandled, onApprovalQueueChanged }: Props) {
+export function AttendanceSupervisorPage({ token, role, department, employeeAuthorityId, userId, onOpenAttendanceReport, desktopWeb = false, initialRequestId, onInitialRequestHandled, onApprovalQueueChanged }: Props) {
   const today = bangkokDateText();
   const manager = ['MANAGER', 'SUPERVISOR'].includes(role);
   const viewer = role === 'VIEWER';
@@ -474,6 +478,8 @@ export function AttendanceSupervisorPage({ token, role, department, employeeAuth
   const [detail, setDetail] = useState<DetailData>();
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailRequests, setDetailRequests] = useState<AttendanceAdjustmentRequest[]>([]);
+  const [voidDialog, setVoidDialog] = useState<VoidDialog>();
+  const [voidBusy, setVoidBusy] = useState(false);
 
   const [requestStatus, setRequestStatus] = useState<AttendanceAdjustmentStatus | ''>(role === 'ADMIN' ? 'PENDING_ADMIN' : role === 'MANAGER' ? 'PENDING_MANAGER' : role === 'SUPERVISOR' ? 'PENDING_SUPERVISOR' : '');
   const [requestPage, setRequestPage] = useState(1);
@@ -650,6 +656,22 @@ export function AttendanceSupervisorPage({ token, role, department, employeeAuth
       setError(formatRequestErrorMessage(reason, 'ไม่สามารถอ่านรายละเอียด Attendance ได้'));
     } finally {
       setDetailLoading(false);
+    }
+  };
+
+  const submitVoid = async () => {
+    if (!voidDialog || voidBusy || voidDialog.reason.trim().length < 5) return;
+    setVoidBusy(true);
+    try {
+      await voidAttendanceSession(token, voidDialog.sessionId, voidDialog.reason.trim());
+      setVoidDialog(undefined);
+      setDetail(undefined);
+      setRequestNotice(`ยกเลิก Attendance ของ ${voidDialog.employeeName} แล้ว · หลักฐานเดิมยังคงอยู่`);
+      refresh();
+    } catch (reason) {
+      setWorkflowError(formatRequestErrorMessage(reason, 'ยกเลิก Attendance ไม่สำเร็จ'));
+    } finally {
+      setVoidBusy(false);
     }
   };
 
@@ -1435,6 +1457,9 @@ export function AttendanceSupervisorPage({ token, role, department, employeeAuth
             )}
 
             <section className="attendance-supervisor-v4__governance-actions">
+              {admin && desktopWeb && detail.sessionId && <button type="button" className="btn-danger" onClick={() => setVoidDialog({ sessionId: detail.sessionId as string, employeeName: detail.employeeName, reason: '' })}>
+                ยกเลิก Attendance (ADMIN)
+              </button>}
               <button type="button" onClick={() => openNewAdjustment('CONFIRM_WORK_PERFORMED')}>
                 ยืนยันปฏิบัติงาน
               </button>
@@ -1447,6 +1472,16 @@ export function AttendanceSupervisorPage({ token, role, department, employeeAuth
             </section>
           </>}
         </aside>
+      </div>
+    )}
+
+    {voidDialog && (
+      <div className="attendance-supervisor-v4__modal-backdrop">
+        <section className="attendance-supervisor-v4__workflow-modal" role="dialog" aria-modal="true" aria-label="ยกเลิก Attendance" tabIndex={-1}>
+          <header><div><span>ADMIN VOID</span><h3>ยกเลิก Attendance</h3><p>{voidDialog.employeeName} · หลักฐานเดิมจะไม่ถูกลบ</p></div><button type="button" aria-label="ปิด" disabled={voidBusy} onClick={() => setVoidDialog(undefined)}><SmsIcon name="close" size={18} /></button></header>
+          <label className="field-group"><span>เหตุผล * (อย่างน้อย 5 ตัวอักษร)</span><textarea rows={4} maxLength={1000} value={voidDialog.reason} disabled={voidBusy} onChange={(event) => setVoidDialog((current) => current ? { ...current, reason: event.target.value } : current)} /></label>
+          <footer className="attendance-supervisor-v4__workflow-actions"><button type="button" onClick={() => setVoidDialog(undefined)} disabled={voidBusy}>ยกเลิก</button><button type="button" className="btn-danger" onClick={() => void submitVoid()} disabled={voidBusy || voidDialog.reason.trim().length < 5}>{voidBusy ? 'กำลังบันทึก…' : 'ยืนยันยกเลิก Attendance'}</button></footer>
+        </section>
       </div>
     )}
 

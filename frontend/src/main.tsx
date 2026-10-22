@@ -1706,6 +1706,15 @@ function Dashboard() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [desktopView, setDesktopView] = useState(() => typeof window !== 'undefined' && window.localStorage.getItem('sms-display-mode') === 'desktop');
+  const [narrowWebViewport, setNarrowWebViewport] = useState(() => typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches);
+  useEffect(() => {
+    const query = window.matchMedia('(max-width: 767px)');
+    const update = () => setNarrowWebViewport(query.matches);
+    update();
+    query.addEventListener('change', update);
+    return () => query.removeEventListener('change', update);
+  }, []);
+
   const toggleDesktopView = () => {
     setDesktopView((current) => {
       const next = !current;
@@ -3266,7 +3275,7 @@ function Dashboard() {
       />;
     }
     if (activePage === 'attendanceSupervisor' && auth.token && ['ADMIN', 'MANAGER', 'SUPERVISOR', 'VIEWER'].includes(auth.user?.role || '') && !auth.isViewingAs) {
-      return <AttendanceSupervisorPage token={auth.token} role={auth.user?.role || 'VIEWER'} department={auth.user?.department} employeeAuthorityId={auth.user?.employeeId} userId={auth.user?.id} initialRequestId={nativeApprovalRequestId} onInitialRequestHandled={clearNativeApprovalTarget} onOpenAttendanceReport={!pwaShell && auth.user?.role === 'ADMIN' ? () => setActivePage('attendanceReport') : undefined} onApprovalQueueChanged={() => { setOperationRefresh((value) => value + 1); setApprovalCenterRefresh((value) => value + 1); }} />;
+      return <AttendanceSupervisorPage token={auth.token} role={auth.user?.role || 'VIEWER'} department={auth.user?.department} employeeAuthorityId={auth.user?.employeeId} userId={auth.user?.id} desktopWeb={!pwaShell && !narrowWebViewport} initialRequestId={nativeApprovalRequestId} onInitialRequestHandled={clearNativeApprovalTarget} onOpenAttendanceReport={!pwaShell && auth.user?.role === 'ADMIN' ? () => setActivePage('attendanceReport') : undefined} onApprovalQueueChanged={() => { setOperationRefresh((value) => value + 1); setApprovalCenterRefresh((value) => value + 1); }} />;
     }
     if (activePage === 'attendanceHistory' && auth.token && pwaShell) {
       return <AttendanceHistoryPwaPage token={auth.token} online={pwaOnline} />;
