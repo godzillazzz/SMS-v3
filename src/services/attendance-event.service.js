@@ -216,7 +216,7 @@ function createAttendanceEventService({
 
   async function sessionForEvent(client, resolved, expectation, intent, now) {
     if (typeof client.$queryRaw === 'function') {
-      await client.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${`attendance-session:${resolved.authority.shiftAssignmentId}`}))`;
+      await client.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${`attendance-session:${resolved.authority.shiftAssignmentId}`})) IS NULL AS locked`;
     }
     let session = await latestSession(client, resolved.authority.shiftAssignmentId);
     if (!session) {

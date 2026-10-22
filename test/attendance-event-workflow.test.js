@@ -127,9 +127,16 @@ function fakeVerification() {
 }
 
 function fakeDb({ initialSession = null, initialEvents = [], assignmentRow = assignment(), approvalRow = approval() } = {}) {
-  const state = { session: initialSession, events: [...initialEvents], assignment: assignmentRow, approval: approvalRow };
+  const state = { session: initialSession, events: [...initialEvents], assignment: assignmentRow, approval: approvalRow, advisoryLocks: [], inTransaction: false };
   const db = {
-    $transaction: async (fn) => fn(db),
+    $transaction: async (fn) => {
+      state.inTransaction = true;
+      try { return await fn(db); } finally { state.inTransaction = false; }
+    },
+    $queryRaw: async (template, ...values) => {
+      state.advisoryLocks.push({ template, values, inTransaction: state.inTransaction });
+      return [{ locked: true }];
+    },
     user: { findUnique: async () => ({ id: ids.user, employeeId: ids.employee, isActive: true, accountStatus: 'ACTIVE', employee: { id: ids.employee, isActive: true, deletedAt: null } }) },
     shiftAssignment: { findUnique: async ({ where }) => where.id === state.assignment.id ? state.assignment : null },
     scheduleApproval: { findFirst: async () => state.approval },
@@ -233,6 +240,24 @@ test('CHECK_IN creates one OPEN AttendanceSession and one ONLINE server-time eve
   assert.equal(audit.calls.length, 1);
   assert.equal(audit.calls[0].entry.entityType, 'AttendanceEvent');
   assert.equal(JSON.stringify(audit.calls[0].entry).includes('receipt-secret'), false);
+});
+
+test('CHECK_IN advisory lock returns a scalar before session creation', async () => {
+  const { db, state } = fakeDb();
+  const verification = fakeVerification();
+  const service = createAttendanceEventService({ prisma: db, audit: auditFake(), verificationContextService: verification, clock: () => now });
+
+  await service.acceptVerifiedEvent({ actor: { sub: ids.user }, receipt: 'receipt-secret', attendanceContext: contextRef(ids.captureIn, 'CHECK_IN') });
+
+  assert.equal(state.advisoryLocks.length, 1);
+  const [lock] = state.advisoryLocks;
+  assert.equal(typeof lock.template, 'object');
+  assert.match(lock.template.join(''), /pg_advisory_xact_lock/);
+  assert.match(lock.template.join(''), /IS NULL AS locked/);
+  assert.deepEqual(lock.values, [`attendance-session:${ids.assignment}`]);
+  assert.equal(lock.inTransaction, true);
+  assert.equal(state.session.id, ids.attendanceSession);
+  assert.equal(state.events.length, 1);
 });
 
 test('controlled UAT receipt records explicit geofence-only provenance and leaves Face unclaimed', async () => {
