@@ -14,6 +14,11 @@ test('Attendance Void migration is additive, stateful and never hard-deletes evi
   const schema = fs.readFileSync(schemaPath, 'utf8');
   assert.match(sql, /ALTER TYPE "AttendanceSessionState" ADD VALUE IF NOT EXISTS 'VOIDED'/);
   assert.match(sql, /CREATE TYPE "AttendanceEventState" AS ENUM \('ACTIVE', 'VOIDED'\)/);
+  const enumCommit = sql.indexOf('COMMIT;');
+  const sessionTableUse = sql.indexOf('ALTER TABLE "attendance_sessions"');
+  assert.ok(enumCommit > sql.indexOf("'VOIDED';"), 'enum definitions must precede the commit');
+  assert.ok(enumCommit < sessionTableUse, 'enum values must be committed before table definitions use VOIDED');
+  assert.match(sql.slice(enumCommit), /^COMMIT;\nBEGIN;/m);
   assert.match(sql, /ADD COLUMN "voided_at"/);
   assert.match(sql, /ADD COLUMN "voided_by_user_id"/);
   assert.match(sql, /ADD COLUMN "void_reason"/);

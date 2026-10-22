@@ -3,6 +3,13 @@
 ALTER TYPE "AttendanceSessionState" ADD VALUE IF NOT EXISTS 'VOIDED';
 CREATE TYPE "AttendanceEventState" AS ENUM ('ACTIVE', 'VOIDED');
 
+-- PostgreSQL cannot use an enum value added in the current transaction until
+-- that transaction is committed (SQLSTATE 55P04). Prisma runs migrations in a
+-- transaction, so commit the enum changes before any table definition uses
+-- 'VOIDED', then continue the additive schema changes in a new transaction.
+COMMIT;
+BEGIN;
+
 ALTER TABLE "attendance_sessions"
   ADD COLUMN "voided_at" TIMESTAMP(3),
   ADD COLUMN "voided_by_user_id" UUID,
