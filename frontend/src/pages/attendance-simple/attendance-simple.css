@@ -15,6 +15,24 @@
 .attendance-simple__header p { margin:0; color:var(--attendance-simple-text-secondary); }
 .attendance-simple__header button { border:1px solid #27465f; border-radius:14px; background:#0c2030; color:#d8e7f5; min-width:44px; min-height:44px; }
 
+.attendance-simple__hero { position:relative; overflow:hidden; display:flex; align-items:flex-end; justify-content:space-between; gap:18px; min-height:190px; padding:24px; border-radius:24px; color:#fff; background:linear-gradient(135deg,#5147e8 0%,#684bea 55%,#4036c8 100%); box-shadow:0 16px 34px rgba(64,54,200,.22); }
+.attendance-simple__hero::after { content:''; position:absolute; width:220px; height:220px; right:-70px; top:-100px; border-radius:50%; background:rgba(255,255,255,.12); box-shadow:-90px 150px 0 rgba(255,255,255,.07); }
+.attendance-simple__hero-copy, .attendance-simple__hero-user { position:relative; z-index:1; display:grid; gap:8px; }
+.attendance-simple__eyebrow { font-size:13px; font-weight:650; opacity:.84; }
+.attendance-simple__hero-clock { font-size:clamp(40px,8vw,62px); font-weight:800; line-height:1; letter-spacing:-.04em; font-variant-numeric:tabular-nums; }
+.attendance-simple__hero-status { width:max-content; padding:6px 12px; border-radius:999px; background:#35b879; color:#fff; font-size:14px; font-weight:800; }
+.attendance-simple__hero-shift { width:max-content; padding:6px 10px; border-radius:999px; background:rgba(255,255,255,.17); font-size:13px; font-weight:700; }
+.attendance-simple__hero-user { justify-items:center; align-self:flex-start; min-width:74px; }
+.attendance-simple__hero-user > span { display:grid; place-items:center; width:48px; height:48px; border-radius:50%; background:#35b879; color:#fff; font-size:22px; font-weight:800; }
+.attendance-simple__hero-user small { max-width:130px; color:#fff; text-align:center; overflow-wrap:anywhere; }
+
+.attendance-simple__daily-summary { display:grid; gap:14px; }
+.attendance-simple__daily-metrics { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; }
+.attendance-simple__daily-metrics > div { display:grid; gap:6px; padding:14px; border:1px solid #dbe3ea; border-radius:16px; background:#fff; }
+.attendance-simple__daily-metrics span, .attendance-simple__daily-meta { color:#718096; font-size:12px; }
+.attendance-simple__daily-metrics strong { color:#202938; font-size:18px; line-height:1.3; overflow-wrap:anywhere; }
+.attendance-simple__daily-meta { display:flex; flex-wrap:wrap; justify-content:space-between; gap:8px; }
+
 .attendance-simple__journey { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
 .attendance-simple__journey article { padding:14px 15px; border:1px solid #1d4259; border-radius:16px; background:#091b29; display:grid; gap:5px; }
 .attendance-simple__journey span { color:#6faeff; font-size:11px; font-weight:800; letter-spacing:.06em; }
@@ -138,6 +156,8 @@
   color:#102033!important;
 }
 [data-theme="light"] .app-shell:not(.pwa-shell) .attendance-simple__profile { border-color:#cbd5e1; background:#fff; color:#1e3a5f; }
+[data-theme="light"] .app-shell:not(.pwa-shell) .attendance-simple__daily-metrics > div { border-color:#dbe3ea; background:#fff; }
+[data-theme="light"] .app-shell:not(.pwa-shell) .attendance-simple__daily-metrics strong { color:#202938; }
 [data-theme="light"] .app-shell:not(.pwa-shell) .attendance-simple__journey article { border-color:#d7e1ec; background:#f8fafc; }
 [data-theme="light"] .app-shell:not(.pwa-shell) .attendance-simple__journey span { color:#1d4ed8; }
 [data-theme="light"] .app-shell:not(.pwa-shell) .attendance-simple__journey strong { color:#14263d; }
@@ -191,6 +211,11 @@
 @media (max-width: 640px) {
   .attendance-simple { padding:14px 12px 98px; gap:14px; }
   .attendance-simple__journey { grid-template-columns:1fr; gap:8px; }
+  .attendance-simple__hero { min-height:210px; padding:20px; border-radius:20px; }
+  .attendance-simple__hero-user { min-width:58px; }
+  .attendance-simple__hero-user small { max-width:90px; font-size:11px; }
+  .attendance-simple__daily-metrics { grid-template-columns:1fr; gap:8px; }
+  .attendance-simple__daily-metrics > div { grid-template-columns:1fr auto; align-items:center; padding:11px 13px; }
   .attendance-simple__journey article { padding:12px; }
   .attendance-simple__assurance { grid-template-columns:repeat(3,minmax(0,1fr)); gap:7px; }
   .attendance-simple__assurance article { min-height:82px; padding:8px 5px; }

@@ -88,6 +88,23 @@ function formatReceiptTime(value?: string | null): string {
   return formatThaiDateTime(parsed, { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
 }
 
+function formatElapsedDuration(startValue?: string | null, endValue = new Date()): string {
+  if (!startValue) return '—';
+  const start = new Date(startValue);
+  const end = endValue instanceof Date ? endValue : new Date(endValue);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return '—';
+  const minutes = Math.max(0, Math.floor((end.getTime() - start.getTime()) / 60000));
+  return `${Math.floor(minutes / 60)} ชม. ${minutes % 60} นาที`;
+}
+
+function formatCurrentClock(value: Date): string {
+  return value.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' });
+}
+
+function formatCurrentDate(value: Date): string {
+  return formatThaiDateTime(value, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+}
+
 const SAFE_ATTENDANCE_ERROR_CODES = new Set([
   'ATTENDANCE_CHECK_IN_TOO_EARLY', 'ATTENDANCE_CHECK_IN_LATEST_WINDOW_EXCEEDED', 'ATTENDANCE_CHECK_OUT_TOO_EARLY',
   'ATTENDANCE_CHECK_OUT_LATEST_WINDOW_EXCEEDED', 'ATTENDANCE_OUTSIDE_SITE_GEOFENCE', 'ATTENDANCE_SITE_REQUIRED',
@@ -231,6 +248,7 @@ export function AttendanceSimplePage({
   const [message, setMessage] = useState('กำลังเตรียมระบบลงเวลา…');
   const [tone, setTone] = useState<StatusTone>('neutral');
   const [lastResult, setLastResult] = useState<SimpleEventResult | null>(null);
+  const [currentTime, setCurrentTime] = useState(() => new Date());
   const [siteContext, setSiteContext] = useState<DisplaySiteContext | null>(null);
   const [pendingSiteCapture, setPendingSiteCapture] = useState<{
     location: Awaited<ReturnType<typeof getLocation>>;
@@ -610,6 +628,10 @@ export function AttendanceSimplePage({
   };
 
   const employeeName = bootstrap?.employee.displayName || displayName || 'พนักงาน';
+  useEffect(() => {
+    const timer = window.setInterval(() => setCurrentTime(new Date()), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
   const shiftText = bootstrap
     ? `${bootstrap.assignment.shift.code || ''} ${bootstrap.assignment.shift.startTime || ''}–${bootstrap.assignment.shift.endTime || ''}`.trim()
     : '—';
@@ -638,6 +660,10 @@ export function AttendanceSimplePage({
   const receiptTime = formatReceiptTime(receiptEvent?.effectiveEventAt || receiptEvent?.receivedAt);
   const receiptSite = siteDisplayName(receiptEvidence?.actualSite || receiptEvidence?.assignedSite || siteContext?.actualSite || siteContext?.assignedSite);
   const receiptTitle = receiptEvent?.eventType === 'CHECK_OUT' ? 'ลงเวลาออกสำเร็จ' : 'ลงเวลาเข้าสำเร็จ';
+  const checkInTime = receiptEvent?.eventType === 'CHECK_IN' ? formatReceiptTime(receiptEvent.effectiveEventAt || receiptEvent.receivedAt) : '—';
+  const workedDuration = receiptEvent?.eventType === 'CHECK_IN'
+    ? formatElapsedDuration(receiptEvent.effectiveEventAt || receiptEvent.receivedAt, currentTime)
+    : '—';
   const receiptDevice = 'Telemetry บันทึกแล้ว';
   const receiptDetails = lastResult ? reviewContextDetails(lastResult) : [];
   const accountBlockCodes = ['ATTENDANCE_EMPLOYEE_LINK_REQUIRED', 'ATTENDANCE_DEVICE_EMPLOYEE_LINK_REQUIRED', 'INACTIVE_EMPLOYEE_OPERATION'];
@@ -701,6 +727,19 @@ export function AttendanceSimplePage({
       description={`${employeeName} · ${department || bootstrap?.employee.department || '—'}`}
       actions={<button type="button" className="attendance-simple__profile" onClick={onOpenSettings}><SmsIcon name="settings" size={18} /><span>โปรไฟล์</span></button>}
     />
+
+    <section className="attendance-simple__hero" aria-label="สถานะการทำงานวันนี้">
+      <div className="attendance-simple__hero-copy">
+        <span className="attendance-simple__eyebrow">วันนี้ · {formatCurrentDate(currentTime)}</span>
+        <strong className="attendance-simple__hero-clock" aria-label={`เวลาปัจจุบัน ${formatCurrentClock(currentTime)}`}>{formatCurrentClock(currentTime)}</strong>
+        <span className="attendance-simple__hero-status">{bootstrap?.eventIntent === 'CHECK_OUT' ? 'กำลังทำงาน' : 'พร้อมลงเวลา'}</span>
+        <span className="attendance-simple__hero-shift">เวลางาน {bootstrap?.assignment.shift.startTime || '—'}–{bootstrap?.assignment.shift.endTime || '—'} น.</span>
+      </div>
+      <div className="attendance-simple__hero-user" aria-label="ผู้ใช้งาน">
+        <span aria-hidden="true">{employeeName.slice(0, 1)}</span>
+        <small>{employeeName}</small>
+      </div>
+    </section>
 
     <SectionCard className="attendance-simple__main-card" kicker="สถานะวันนี้" title="การลงเวลาเข้า–ออก" description="ตรวจสอบกะ สถานที่ อุปกรณ์ และสถานะก่อนบันทึก">
     <div className="attendance-simple__journey" aria-label="สถานะการลงเวลา">
@@ -798,6 +837,18 @@ export function AttendanceSimplePage({
         </article>
     </div>
     </div>
+    </SectionCard>
+
+    <SectionCard className="attendance-simple__daily-summary" aria-label="สรุปวันนี้" kicker="สรุปวันนี้" title="ภาพรวมการทำงานวันนี้" description="แสดงเฉพาะข้อมูลที่ได้รับจากระบบ">
+      <div className="attendance-simple__daily-metrics">
+        <div><span>เข้างาน</span><strong>{checkInTime}</strong></div>
+        <div><span>ทำงานมาแล้ว</span><strong>{workedDuration}</strong></div>
+        <div><span>Site จริง</span><strong>{receiptEvent ? receiptSite : '—'}</strong></div>
+      </div>
+      <div className="attendance-simple__daily-meta">
+        <span>กะงาน {shiftText}</span>
+        <span>เลิกงานตามกะ {bootstrap?.assignment.shift.endTime ? `${bootstrap.assignment.shift.endTime} น.` : '—'}</span>
+      </div>
     </SectionCard>
 
     {receiptEvent && <SectionCard className="attendance-simple__receipt" aria-label="หลักฐานการลงเวลา" kicker="หลักฐานจากระบบ" title={receiptTitle} description={`${receiptTime} · บันทึกกับ Server แล้ว`}>
