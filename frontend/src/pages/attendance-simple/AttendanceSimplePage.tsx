@@ -401,6 +401,16 @@ export function AttendanceSimplePage({
     }
   }, [cameraOpen]);
 
+  useEffect(() => {
+    const modalOpen = cameraOpen || Boolean(selfiePreview);
+    if (!modalOpen) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [cameraOpen, selfiePreview]);
+
   useEffect(() => () => {
     cameraRequestRef.current += 1;
     stopCamera();
@@ -699,7 +709,7 @@ export function AttendanceSimplePage({
     {selfiePreview && <div role="dialog" aria-modal="true" aria-label="ตรวจสอบภาพเซลฟี่" className="attendance-simple__camera-modal">
       <div className="attendance-simple__camera-panel">
         <h2>ตรวจสอบภาพก่อนส่ง</h2>
-        <img src={`data:image/jpeg;base64,${selfiePreview.base64}`} alt="ภาพตัวอย่างพร้อมข้อมูลกำกับ" />
+        <img className="attendance-simple__camera-preview" src={`data:image/jpeg;base64,${selfiePreview.base64}`} alt="ภาพตัวอย่างพร้อมข้อมูลกำกับ" />
         <div className="attendance-simple__camera-actions">
           <button type="button" onClick={retakeSelfie} disabled={busy}>ถ่ายใหม่</button>
           <button type="button" onClick={() => void useSelfiePreview()} disabled={busy}>ใช้ภาพนี้</button>
