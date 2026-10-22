@@ -11,7 +11,7 @@
 const crypto = require('node:crypto');
 
 const SCHEMA_PIN_MISMATCH = 'SCHEMA_PIN_MISMATCH';
-const ATTENDANCE_SCHEMA_SHA256 = 'fbeb29e582276898c91778dc5d12ecda3fb0a7edd4b254a3e18ae5f42835610e';
+const ATTENDANCE_SCHEMA_SHA256 = '3f7495e379a132ab80f3eafea2824b118b002e69bb566f9cd054b3ff2a2d73dd';
 
 // The mismatch error carries the coded token only: never schema content, path or digest.
 class AttendanceSchemaPinError extends Error {
