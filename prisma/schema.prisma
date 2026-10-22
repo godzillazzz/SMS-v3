@@ -687,6 +687,7 @@ model AttendanceSession {
   events              AttendanceEvent[]
 
   @@index([employeeId, workDate])
+  @@index([shiftAssignmentId])
   @@index([workDate, state])
   @@map("attendance_sessions")
 }
