@@ -124,7 +124,7 @@ describe('G04.2 VF-03 colorful pastel + midnight dark visual contract', () => {
 
   it('keeps decorative pastel separate from semantic status truth', () => {
     const rootTheme = tokens.match(/:root\s*\{([\s\S]*?)\n\}/)?.[1] || '';
-    const lightTheme = tokens.match(/\[data-theme="light"\]\s*\{([\s\S]*?)\n\}/)?.[1] || '';
+    const lightTheme = tokens.match(/\[data-theme="light"\]\s*\.app-shell\s*\{([\s\S]*?)\n\}/)?.[1] || '';
     const declarations = new Map([...lightTheme.matchAll(/(--[\w-]+):\s*([^;]+);/g)].map(([, name, value]) => [name, value.trim()]));
     const rootDeclarations = new Map([...rootTheme.matchAll(/(--[\w-]+):\s*([^;]+);/g)].map(([, name, value]) => [name, value.trim()]));
     const resolve = (name: string, seen = new Set<string>()): string => {

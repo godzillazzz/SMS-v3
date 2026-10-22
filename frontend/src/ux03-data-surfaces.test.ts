@@ -38,7 +38,7 @@ describe('G04.2 UX-03 data surfaces contract', () => {
     expect(data).toBeGreaterThan(shell);
     expect(dataCss).toContain('authoritative enterprise data-surface system');
     expect(foundation).toContain('Data table/card ownership moved to styles/data-surfaces.css in UX-03');
-    expect(legacyDesign).toContain('UX-03 data table/toolbar/status ownership: styles/data-surfaces.css');
+    expect(legacyDesign).not.toContain('UX-03 data table/toolbar/status ownership: styles/data-surfaces.css');
     expect(foundation).not.toMatch(/\.data-table\s*\{/);
     expect(foundation).not.toMatch(/\.pagination-bar\s*\{/);
   });

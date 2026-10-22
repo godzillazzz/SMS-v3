@@ -18,7 +18,7 @@ const reports = read('./pages/reports/ReportCenterPage.tsx');
 const systemHealth = read('./pages/system-health/SystemHealthPage.tsx');
 const overlay = read('./components/useAccessibleOverlay.ts');
 
-const lightTheme = tokens.match(/\[data-theme="light"\]\s*\{([\s\S]*?)\n\}/)?.[1] || '';
+const lightTheme = tokens.match(/\[data-theme="light"\]\s*\.app-shell\s*\{([\s\S]*?)\n\}/)?.[1] || '';
 const declarations = new Map([...lightTheme.matchAll(/(--[\w-]+):\s*([^;]+);/g)].map(([, name, value]) => [name, value.trim()]));
 const resolveToken = (name: string, seen = new Set<string>()): string => {
   if (seen.has(name)) throw new Error(`cyclic token alias: ${name}`);

@@ -24,10 +24,11 @@ describe('Attendance Supervisor UX V4', () => {
 
   it('keeps ADMIN Void strictly on desktop web and out of PWA/mobile surfaces', () => {
     expect(page).toContain('desktopWeb?: boolean');
-    expect(page).toContain('admin && desktopWeb && detail.sessionId');
+    expect(page).toContain("admin && desktopWeb && detail.sessionState !== 'VOIDED' && detail.sessionId");
+    expect(page).toContain("detail.sessionState === 'VOIDED'");
     expect(client).toContain("/attendance/admin/sessions/");
     expect(client).toContain("voidAttendanceSession");
-    expect(main).toContain('desktopWeb={!pwaShell && !narrowWebViewport}');
+    expect(main).toContain("desktopWeb={!pwaShell && auth.user?.role === 'ADMIN' && desktopVoidAvailable}");
     expect(page).not.toContain('pwa-bottom-nav');
     expect(page).not.toContain('AttendanceSimplePage');
   });
