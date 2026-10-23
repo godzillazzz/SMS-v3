@@ -58,4 +58,28 @@ describe('Q12-A data scale and export correctness contracts', () => {
     expect(main).toContain('page-${currentPage}');
     expect(main).toContain('audit-events-page-${operationResponse.meta?.page || operationPage}');
   });
+
+  it('neutralizes formula-leading string cells while preserving typed numeric negatives', () => {
+    const csvValueBody = main.match(/const csvValue = \(value: unknown\) => \{([\s\S]*?)\n\};/)?.[1];
+    expect(csvValueBody).toBeTruthy();
+    // Evaluate the production function body itself so this regression exercises CSV serialization behavior, not a copied test helper.
+    const csvValue = new Function('text', `return (value) => {${csvValueBody}}`)(
+      (value: unknown) => value == null || value === '' ? '-' : String(value),
+    ) as (value: unknown) => string;
+    for (const value of ['=1+1', '+1+1', '-1+1', '@SUM(1)', `${String.fromCharCode(9)}=1+1`, `${String.fromCharCode(13)}=1+1`]) {
+      expect(csvValue(value)).toBe(`"'${value.replace(/"/g, '""')}"`);
+    }
+    expect(csvValue('normal')).toBe('"normal"');
+    expect(csvValue('say "hello"')).toBe('"say ""hello"""');
+    expect(csvValue(null)).toBe('"-"');
+    expect(csvValue(undefined)).toBe('"-"');
+    expect(csvValue('')).toBe('"-"');
+    expect(csvValue({ key: '=1+1' })).toBe('"{""key"":""=1+1""}"');
+    expect(csvValue(-1)).toBe('"-1"');
+  });
+
+  it('retains CSV BOM and CRLF record separators in the existing serializer', () => {
+    expect(main).toContain('\\uFEFF${headers.map(csvValue).join(\',\')}');
+    expect(main).toContain("].join('\\r\\n');");
+  });
 });

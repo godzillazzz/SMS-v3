@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import { formatRequestErrorMessage } from '../request-error';
+import { actionLabel, auditEventLabel } from './audit/audit-utils';
+import { formatThaiDateTime } from '../thai-date-time';
 import { systemSettingHistoryClient, type SettingHistoryData } from './system-setting-history-client';
 import { useActionDialog } from './useActionDialog';
 
@@ -79,8 +81,8 @@ export function SystemSettingHistoryPanel({ token, settings, onRestored }: Props
       {data && <div className="configuration-history-list">
         {data.history.length ? data.history.map((row) => <article key={row.id} className="configuration-history-item">
           <div>
-            <strong>{new Date(row.createdAt).toLocaleString('th-TH')}</strong>
-            <small>{row.actor?.displayName || 'System'} · {row.event || row.action}</small>
+            <strong>{formatThaiDateTime(row.createdAt)}</strong>
+            <small>{row.actor?.displayName || 'System'} · {row.event ? auditEventLabel(row.event) : actionLabel(row.action)}</small>
           </div>
           <div className="configuration-history-values">
             <span><b>Before</b><code>{row.beforeValue ?? 'ไม่ถูกบันทึกใน Audit รุ่นเดิม'}</code></span>

@@ -642,7 +642,11 @@ const formatApprovalDateTime = (value: unknown) => {
 const inputDate = (value: unknown) => value ? new Date(String(value)).toISOString().slice(0, 10) : '';
 const nested = (value: unknown): DataRow => value && typeof value === 'object' ? value as DataRow : {};
 const formPayload = (values: Record<string, string>, nullable: string[] = []) => Object.fromEntries(Object.entries(values).map(([key, value]) => [key, nullable.includes(key) && value === '' ? null : value]));
-const csvValue = (value: unknown) => `"${(value && typeof value === 'object' ? JSON.stringify(value) : text(value)).replace(/"/g, '""')}"`;
+const csvValue = (value: unknown) => {
+  const serialized = value && typeof value === 'object' ? JSON.stringify(value) : text(value);
+  const safeValue = typeof value === 'string' && /^[=+\-@\t\r]/.test(value) ? `'${serialized}` : serialized;
+  return `"${safeValue.replace(/"/g, '""')}"`;
+};
 const quotaBalanceText = (entitlement: unknown, used: unknown) => `${text(entitlement)} สิทธิ์ / ${text(used)} ใช้แล้ว`;
 const quotaMatchStatusText = (value: unknown) => {
   const status = String(value || '');
@@ -713,7 +717,7 @@ function EditDialog({ editor, busy, error, onClose }: { editor: Editor; busy: bo
   const personnelEditor = editor.experience === 'personnel';
   return <div className="dialog-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !busy) onClose(); }}>
     <section ref={dialogRef} className={`edit-dialog${personnelEditor ? ' personnel-editor' : ''}`} role="dialog" aria-modal="true" aria-labelledby="edit-dialog-title">
-      <div className="dialog-heading"><div><p className="eyebrow">{personnelEditor ? 'EMPLOYEE MASTER' : 'SMS staging'}</p><h2 id="edit-dialog-title">{editor.title}</h2></div><button type="button" aria-label="ปิด" disabled={busy} onClick={onClose}><SmsIcon name="close" size={20} /></button></div>
+      <div className="dialog-heading"><div><p className="eyebrow">{personnelEditor ? 'EMPLOYEE MASTER' : 'จัดการข้อมูล'}</p><h2 id="edit-dialog-title">{editor.title}</h2></div><button type="button" aria-label="ปิด" disabled={busy} onClick={onClose}><SmsIcon name="close" size={20} /></button></div>
       {error && <div className="alert alert-error"><RequestErrorContent error={error} /></div>}
       {editor.notice && <div className="preview-warning"><strong>ตรวจสอบข้อมูลเดิม</strong><p>{editor.notice}</p></div>}
       <form onSubmit={submit}>
