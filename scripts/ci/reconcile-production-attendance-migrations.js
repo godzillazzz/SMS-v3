@@ -13,20 +13,21 @@ function sha256(bytes) { return crypto.createHash('sha256').update(bytes).digest
 function assert(ok, category) { if (!ok) throw new Error(category); }
 function git(root, args, bytes = false) { return execFileSync('git', args, { cwd: root, encoding: bytes ? null : 'utf8', stdio: ['ignore','pipe','pipe'] }); }
 const HISTORICAL_FIXTURES = new Map([
-  ['adfaf93eb58909422afbc93779b1872d6b7ace46', '500aaa-schema.prisma'],
-  ['98eef164de3ec545eaaddf8217ef1cc257850a25', 'f2121bb5-g06.sql'],
-  ['4bd5b97e6595300ac3440e6e40699e832a0e1264', 'ef96af-g06.sql'],
-  ['eb05444e539a2b65a2810378e8a7dce52d5b72db', 'f2121bb5-g06-constraint.sql'],
+  ['500aaa53d60d6835cccec16c79ca25de00ab06c6:prisma/schema.prisma:adfaf93eb58909422afbc93779b1872d6b7ace46', '500aaa-schema.prisma'],
+  ['f2121bb5e1a2c6cf12ec4ca34ea604a8893fded1:prisma/migrations/202609280001_g06_gps_only_uat_event_provenance/migration.sql:98eef164de3ec545eaaddf8217ef1cc257850a25', 'f2121bb5-g06.sql'],
+  ['ef96af501582553c14ff7c6eab9f21f6aec7167b:prisma/migrations/202609280001_g06_gps_only_uat_event_provenance/migration.sql:4bd5b97e6595300ac3440e6e40699e832a0e1264', 'ef96af-g06.sql'],
+  ['f2121bb5e1a2c6cf12ec4ca34ea604a8893fded1:prisma/migrations/202609280002_g06_gps_only_uat_event_provenance_constraint/migration.sql:eb05444e539a2b65a2810378e8a7dce52d5b72db', 'f2121bb5-g06-constraint.sql'],
 ]);
 function historicalBlob(root, commit, relative, blob) {
   let resolved;
   try {
     resolved = git(root, ['rev-parse', `${commit}:${relative}`]).trim();
   } catch (error) {
-    if (!HISTORICAL_FIXTURES.has(blob)) throw error;
-    const fixture = path.join(__dirname, 'historical-attendance', HISTORICAL_FIXTURES.get(blob));
-    const bytes = fs.readFileSync(fixture);
-    assert(git(root, ['hash-object', fixture]).trim() === blob, 'HISTORICAL_FIXTURE_BLOB_MISMATCH');
+    const fixture = HISTORICAL_FIXTURES.get(`${commit}:${relative}:${blob}`);
+    if (!fixture) throw error;
+    const fixturePath = path.join(__dirname, 'historical-attendance', fixture);
+    const bytes = fs.readFileSync(fixturePath);
+    assert(git(root, ['hash-object', fixturePath]).trim() === blob, 'HISTORICAL_FIXTURE_BLOB_MISMATCH');
     return bytes;
   }
   assert(resolved === blob, 'GIT_BLOB_PIN_MISMATCH');
@@ -395,4 +396,4 @@ async function run(options = {}) {
   }
 }
 if (require.main === module) run().catch(() => { console.error('PRODUCTION_RECONCILIATION=FAIL_CLOSED'); process.exitCode = 1; });
-module.exports = { loadSources, auditHistory, ledgerClass, physicalClass, planFor, readFacts, buildBundle, statusMatches, safeCrlfCandidate, candidateVariants, fingerprint, failureCategory, run };
+module.exports = { loadSources, auditHistory, ledgerClass, physicalClass, planFor, readFacts, buildBundle, statusMatches, safeCrlfCandidate, candidateVariants, fingerprint, failureCategory, historicalBlob, run };

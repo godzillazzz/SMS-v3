@@ -70,7 +70,7 @@ Before production cutover, record `readlink -f /opt/sms-v3/app` and `readlink -f
 
 ## Proxy identity and security
 
-`TRUST_PROXY_LOOPBACK=false` is the safe default. The runtime trusts forwarded identity only when explicitly enabled, only for the first loopback peer, and never for a public peer. This protects per-IP login/passkey buckets and prevents forged forwarded chains. In proxied-DNS mode, nginx must normalize the client address using the verified Cloudflare CIDRs and `CF-Connecting-IP`; the firewall must enforce that nginx receives traffic only from those CIDRs.
+`TRUST_PROXY_LOOPBACK=false` is the safe default. When it is enabled, `HOST=127.0.0.1` (or another loopback literal accepted by the runtime) is mandatory; never bind Node publicly while trusting forwarded identity. The runtime trusts forwarded identity only when explicitly enabled, only for the first loopback peer, and never for a public peer. This protects per-IP login/passkey buckets and prevents forged forwarded chains. In proxied-DNS mode, nginx must normalize the client address using the verified Cloudflare CIDRs and `CF-Connecting-IP`; the firewall must enforce that nginx receives traffic only from those CIDRs.
 
 Systemd uses `NoNewPrivileges`, `PrivateTmp`, `ProtectSystem=strict`, `ProtectHome`, kernel/control-group protection, restricted address families, and explicit writable paths. Nginx headers are defined once at server level to avoid duplicate API headers; hashed assets use immutable caching and HTML/API responses are non-cacheable.
 

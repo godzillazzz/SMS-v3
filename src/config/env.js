@@ -98,6 +98,9 @@ const schema = z.object({
       if (!value[field]) context.addIssue({ code: z.ZodIssueCode.custom, path: [field], message: `${field} is required in Production for private document/reference-photo storage.` });
     }
   }
+  if (value.TRUST_PROXY_LOOPBACK === 'true' && !['localhost', '127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(String(value.HOST || '').trim().toLowerCase())) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ['HOST'], message: 'HOST must bind to loopback when TRUST_PROXY_LOOPBACK=true.' });
+  }
   if (value.RATE_LIMIT_STORE === 'postgres' && !value.RATE_LIMIT_HASH_SECRET) {
     context.addIssue({ code: z.ZodIssueCode.custom, path: ['RATE_LIMIT_HASH_SECRET'], message: 'RATE_LIMIT_HASH_SECRET is required when RATE_LIMIT_STORE=postgres.' });
   }
