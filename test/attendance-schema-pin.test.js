@@ -33,12 +33,108 @@ function reportedCount(output, label) {
   return match ? Number(match[1]) : null;
 }
 const git = (...args) => execFileSync('git', args, { cwd: ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
+const HISTORICAL_FIXTURES = new Map([
+  ['adfaf93eb58909422afbc93779b1872d6b7ace46', '500aaa-schema.prisma'],
+  ['98eef164de3ec545eaaddf8217ef1cc257850a25', 'f2121bb5-g06.sql'],
+  ['4bd5b97e6595300ac3440e6e40699e832a0e1264', 'ef96af-g06.sql'],
+  ['eb05444e539a2b65a2810378e8a7dce52d5b72db', 'f2121bb5-g06-constraint.sql'],
+]);
 const gitShow = (sha, file) => execFileSync('git', ['show', `${sha}:${file}`], { cwd: ROOT, stdio: ['ignore', 'pipe', 'pipe'] });
+function historicalFixture(blob) {
+  const file = HISTORICAL_FIXTURES.get(blob);
+  assert(file, `missing historical fixture for ${blob}`);
+  const fixture = path.join(ROOT, 'scripts/ci/historical-attendance', file);
+  assert.equal(execFileSync('git', ['hash-object', fixture], { cwd: ROOT, encoding: 'utf8' }).trim(), blob);
+  return fs.readFileSync(fixture);
+}
+function historicalShow(sha, file, blob) {
+  try { return gitShow(sha, file); } catch {
+    const approved = [
+      [RETIRED_SOURCE_SHA, SCHEMA_PATH, 'adfaf93eb58909422afbc93779b1872d6b7ace46'],
+      ['f2121bb5e1a2c6cf12ec4ca34ea604a8893fded1', 'prisma/migrations/202609280001_g06_gps_only_uat_event_provenance/migration.sql', '98eef164de3ec545eaaddf8217ef1cc257850a25'],
+      ['ef96af501582553c14ff7c6eab9f21f6aec7167b', 'prisma/migrations/202609280001_g06_gps_only_uat_event_provenance/migration.sql', '4bd5b97e6595300ac3440e6e40699e832a0e1264'],
+      ['f2121bb5e1a2c6cf12ec4ca34ea604a8893fded1', 'prisma/migrations/202609280002_g06_gps_only_uat_event_provenance_constraint/migration.sql', 'eb05444e539a2b65a2810378e8a7dce52d5b72db'],
+    ];
+    assert(approved.some(([expectedSha, expectedFile, expectedBlob]) => sha === expectedSha && file === expectedFile && blob === expectedBlob),
+      `unapproved historical fallback: ${sha}:${file}:${blob}`);
+    return historicalFixture(blob);
+  }
+}
+
+test('all four historical attendance fixture hashes are exact and unknown blobs are rejected', () => {
+  for (const [blob, file] of HISTORICAL_FIXTURES) {
+    assert.equal(execFileSync('git', ['hash-object', path.join(ROOT, 'scripts/ci/historical-attendance', file)], { cwd: ROOT, encoding: 'utf8' }).trim(), blob);
+  }
+  assert.throws(() => historicalFixture('0000000000000000000000000000000000000000'));
+});
+
+test('historicalBlob enforces the complete approved commit/path/blob binding', () => {
+  const cases = [
+    [RETIRED_SOURCE_SHA, SCHEMA_PATH, 'adfaf93eb58909422afbc93779b1872d6b7ace46'],
+    ['f2121bb5e1a2c6cf12ec4ca34ea604a8893fded1',
+      'prisma/migrations/202609280001_g06_gps_only_uat_event_provenance/migration.sql',
+      '98eef164de3ec545eaaddf8217ef1cc257850a25'],
+    ['ef96af501582553c14ff7c6eab9f21f6aec7167b',
+      'prisma/migrations/202609280001_g06_gps_only_uat_event_provenance/migration.sql',
+      '4bd5b97e6595300ac3440e6e40699e832a0e1264'],
+    ['f2121bb5e1a2c6cf12ec4ca34ea604a8893fded1',
+      'prisma/migrations/202609280002_g06_gps_only_uat_event_provenance_constraint/migration.sql',
+      'eb05444e539a2b65a2810378e8a7dce52d5b72db'],
+  ];
+  for (const [commit, file, blob] of cases) {
+    assert.deepEqual(reconciliation.historicalBlob(ROOT, commit, file, blob), historicalFixture(blob));
+  }
+
+  const knownBlob = cases[0][2];
+  assert.throws(() => reconciliation.historicalBlob(ROOT,
+    '0000000000000000000000000000000000000000', SCHEMA_PATH, knownBlob));
+  assert.throws(() => reconciliation.historicalBlob(ROOT,
+    cases[0][0], cases[0][1], cases[1][2]), /GIT_BLOB_PIN_MISMATCH/);
+});
+
+test('historicalBlob rejects tampering of each approved fallback fixture', (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sms-historical-fixture-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  execFileSync('git', ['init', '--quiet', dir]);
+  const copiedCi = path.join(dir, 'ci');
+  fs.cpSync(path.join(ROOT, 'scripts/ci'), copiedCi, { recursive: true });
+  const copiedReconciliation = require(path.join(copiedCi, 'reconcile-production-attendance-migrations.js'));
+  const cases = [
+    [RETIRED_SOURCE_SHA, SCHEMA_PATH, 'adfaf93eb58909422afbc93779b1872d6b7ace46', '500aaa-schema.prisma'],
+    ['f2121bb5e1a2c6cf12ec4ca34ea604a8893fded1',
+      'prisma/migrations/202609280001_g06_gps_only_uat_event_provenance/migration.sql',
+      '98eef164de3ec545eaaddf8217ef1cc257850a25', 'f2121bb5-g06.sql'],
+    ['ef96af501582553c14ff7c6eab9f21f6aec7167b',
+      'prisma/migrations/202609280001_g06_gps_only_uat_event_provenance/migration.sql',
+      '4bd5b97e6595300ac3440e6e40699e832a0e1264', 'ef96af-g06.sql'],
+    ['f2121bb5e1a2c6cf12ec4ca34ea604a8893fded1',
+      'prisma/migrations/202609280002_g06_gps_only_uat_event_provenance_constraint/migration.sql',
+      'eb05444e539a2b65a2810378e8a7dce52d5b72db', 'f2121bb5-g06-constraint.sql'],
+  ];
+  for (const [commit, file, blob, fixture] of cases) {
+    fs.appendFileSync(path.join(copiedCi, 'historical-attendance', fixture), '\n-- tampered fixture\n');
+    assert.throws(() => copiedReconciliation.historicalBlob(dir, commit, file, blob), /HISTORICAL_FIXTURE_BLOB_MISMATCH/);
+  }
+});
 const readRepoFile = (relative) => fs.readFileSync(path.join(ROOT, relative), 'utf8');
 const HEAD_SHA = git('rev-parse', 'HEAD');
 const HEAD_TREE = git('rev-parse', 'HEAD^{tree}');
-const retiredSchema = gitShow(RETIRED_SOURCE_SHA, SCHEMA_PATH);
+const retiredSchema = historicalShow(RETIRED_SOURCE_SHA, SCHEMA_PATH, 'adfaf93eb58909422afbc93779b1872d6b7ace46');
 const retiredDigest = digest(retiredSchema);
+
+test('historical commit and fixture relationships remain exact and fail closed when objects are absent', () => {
+  const cases = [
+    [RETIRED_SOURCE_SHA, SCHEMA_PATH, 'adfaf93eb58909422afbc93779b1872d6b7ace46'],
+    ['f2121bb5e1a2c6cf12ec4ca34ea604a8893fded1',
+      'prisma/migrations/202609280001_g06_gps_only_uat_event_provenance/migration.sql',
+      '98eef164de3ec545eaaddf8217ef1cc257850a25'],
+  ];
+  for (const [sha, file, blob] of cases) {
+    const objectExists = spawnSync('git', ['cat-file', '-e', `${sha}:${file}`], { cwd: ROOT }).status === 0;
+    if (objectExists) assert.equal(git('rev-parse', `${sha}:${file}`), blob);
+    assert.equal(digest(historicalShow(sha, file, blob)), digest(historicalFixture(blob)));
+  }
+});
 
 // The workflow copies from the dispatched control-plane SHA. In a clean exact-SHA checkout the
 // working tree is that content, so the simulation copies the reviewed files under test.

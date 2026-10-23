@@ -1,0 +1,1391 @@
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "rhel-openssl-3.0.x"]
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum UserRole {
+  ADMIN
+  MANAGER
+  SUPERVISOR
+  VIEWER
+}
+
+enum AccountStatus {
+  ACTIVE
+  PENDING
+  SUSPENDED
+  REJECTED
+}
+
+enum RegistrationRequestStatus {
+  PENDING
+  MATCHED
+  APPROVED
+  REJECTED
+}
+
+enum EmployeeLifecycleEventType {
+  DEPARTMENT_TRANSFER
+  NAME_CHANGE
+  POSITION_CHANGE
+  EMPLOYMENT_TERMINATION
+  REHIRE
+  MASTER_EDIT
+}
+
+enum EmployeeChangeRequestStatus {
+  DRAFT
+  PENDING_APPROVAL
+  RETURNED_FOR_CORRECTION
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+enum EmployeeChangeEffectiveMode {
+  IMMEDIATE
+  FUTURE_EFFECTIVE
+}
+
+enum EmployeeChangeEventAction {
+  DRAFT_SAVED
+  SUBMIT
+  RETURN_FOR_CORRECTION
+  RESUBMIT
+  APPROVE
+  REJECT
+  CANCEL
+  STALE_CONFLICT
+  APPLY_EFFECTIVE
+}
+
+enum EmployeeLifecycleEventStatus {
+  PENDING
+  APPLIED
+}
+
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+  LOGIN
+  LOGIN_FAILED
+  REFRESH
+  LOGOUT
+  LOGOUT_ALL
+  TOKEN_REUSE
+  PASSKEY_REGISTERED
+  PASSKEY_LOGIN_SUCCESS
+  PASSKEY_LOGIN_FAILED
+  PASSKEY_REVOKED
+}
+
+enum AuthOtpPurpose {
+  REGISTRATION
+  PASSWORD_RESET
+}
+
+enum WebAuthnChallengePurpose {
+  REGISTRATION
+  AUTHENTICATION
+}
+
+enum AttendanceDeviceEnrollmentStatus {
+  PENDING_APPROVAL
+  ACTIVE
+  REVOKED
+  REJECTED
+  CANCELLED
+}
+
+enum AttendanceDeviceRequestType {
+  INITIAL
+  REPLACEMENT
+}
+
+enum AttendanceDeviceChangeRequestStatus {
+  PENDING_APPROVAL
+  RETURNED_FOR_CORRECTION
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+enum AttendanceDeviceChallengePurpose {
+  DEVICE_ENROLLMENT
+  ATTENDANCE_EVENT
+  PATROL_EVENT
+}
+
+enum EmployeeReferencePhotoStatus {
+  PENDING_APPROVAL
+  ACTIVE
+  REJECTED
+  CANCELLED
+  SUPERSEDED
+}
+
+enum FaceVerificationPurpose {
+  ATTENDANCE_EVENT
+  PATROL_EVENT
+}
+
+enum FaceVerificationMode {
+  FACE_MATCH_ONLY
+  FACE_MATCH_WITH_LIVENESS
+}
+
+enum FaceVerificationSessionStatus {
+  CREATED
+  DEVICE_PROOF_VERIFIED
+  PROVIDER_PENDING
+  VERIFIED
+  FAILED
+  EXPIRED
+  CONSUMED
+}
+
+enum AttendanceSessionState {
+  OPEN
+  CLOSED
+}
+
+enum AttendanceEventType {
+  CHECK_IN
+  CHECK_OUT
+}
+
+enum AttendanceEventProvenance {
+  ONLINE
+}
+
+enum AttendanceTimeBasis {
+  SERVER_RECEIVED
+}
+
+enum AttendancePendingEventStatus {
+  PENDING_CONFIRMATION
+  CONFIRMED
+  REJECTED
+}
+
+model User {
+  id                                String                            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email                             String                            @unique @db.VarChar(255)
+  passwordHash                      String                            @map("password_hash") @db.VarChar(255)
+  displayName                       String                            @map("display_name") @db.VarChar(150)
+  role                              UserRole                          @default(VIEWER)
+  isActive                          Boolean                           @default(true) @map("is_active")
+  tokenVersion                      Int                               @default(0) @map("token_version")
+  lastLoginAt                       DateTime?                         @map("last_login_at")
+  failedLoginCount                  Int                               @default(0) @map("failed_login_count")
+  legacyUserId                      String?                           @unique @map("legacy_user_id") @db.VarChar(100)
+  employeeId                        String?                           @unique @map("employee_id") @db.Uuid
+  legacyRole                        String?                           @map("legacy_role") @db.VarChar(50)
+  accountStatus                     AccountStatus                     @default(ACTIVE) @map("account_status")
+  passwordResetRequired             Boolean                           @default(false) @map("password_reset_required")
+  employmentSuspendedAt             DateTime?                         @map("employment_suspended_at")
+  department                        String?                           @db.VarChar(100)
+  requestedAt                       DateTime?                         @map("requested_at")
+  approvedByLegacyRef               String?                           @map("approved_by_legacy_ref") @db.VarChar(255)
+  approvedAt                        DateTime?                         @map("approved_at")
+  rejectionReason                   String?                           @map("rejection_reason") @db.VarChar(2000)
+  legacyUpdatedAt                   DateTime?                         @map("legacy_updated_at")
+  createdAt                         DateTime                          @default(now()) @map("created_at")
+  updatedAt                         DateTime                          @updatedAt @map("updated_at")
+  auditLogs                         AuditLog[]                        @relation("ActorAuditLogs")
+  sessions                          RefreshSession[]
+  otpChallenges                     AuthOtpChallenge[]
+  webAuthnCredentials               WebAuthnCredential[]
+  webAuthnChallenges                WebAuthnChallenge[]
+  uploadedLicenseDocuments          EmployeeLicenseDocument[]         @relation("UploadedLicenseDocuments")
+  reviewedLicenseDocuments          EmployeeLicenseDocument[]         @relation("ReviewedLicenseDocuments")
+  returnedLicenseDocuments          EmployeeLicenseDocument[]         @relation("ReturnedLicenseDocuments")
+  submittedLicenseDocumentRevisions EmployeeLicenseDocumentRevision[] @relation("SubmittedLicenseDocumentRevisions")
+  employee                          Employee?                         @relation(fields: [employeeId], references: [id], onDelete: SetNull)
+  createdLeaveRequests              LeaveRequest[]                    @relation("LeaveRequestCreatedBy")
+  lifecycleEventsChanged            EmployeeLifecycleEvent[]          @relation("LifecycleChangedBy")
+  reviewedRegistrationRequests      RegistrationRequest[]             @relation("RegistrationRequestReviewedBy")
+  employeeChangeRequestsOwned       EmployeeChangeRequest[]           @relation("EmployeeChangeRequestOwner")
+  employeeChangeRevisionsSubmitted  EmployeeChangeRequestRevision[]   @relation("EmployeeChangeRevisionSubmitter")
+  employeeChangeEventsActed         EmployeeChangeRequestEvent[]      @relation("EmployeeChangeEventActor")
+  attendanceDevicesCreated          AttendanceDeviceEnrollment[]      @relation("AttendanceDeviceCreatedBy")
+  attendanceDevicesApproved         AttendanceDeviceEnrollment[]      @relation("AttendanceDeviceApprovedBy")
+  attendanceDeviceRequestsCreated   AttendanceDeviceChangeRequest[]   @relation("AttendanceDeviceRequestedBy")
+  attendanceDeviceRequestsReviewed  AttendanceDeviceChangeRequest[]   @relation("AttendanceDeviceReviewedBy")
+  attendanceTimePoliciesCreated     AttendanceTimePolicy[]            @relation("AttendanceTimePolicyCreatedBy")
+  referencePhotosUploaded           EmployeeReferencePhoto[]          @relation("EmployeeReferencePhotoUploadedBy")
+  referencePhotosReviewed           EmployeeReferencePhoto[]          @relation("EmployeeReferencePhotoReviewedBy")
+  faceVerificationSessions          FaceVerificationSession[]         @relation("FaceVerificationSessionUser")
+  faceVerificationReceipts          FaceVerificationReceipt[]         @relation("FaceVerificationReceiptUser")
+
+  @@index([accountStatus, requestedAt, createdAt])
+  @@map("users")
+}
+
+model RegistrationRequest {
+  id                String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  submittedName     String                    @map("submitted_name") @db.VarChar(200)
+  email             String                    @unique @db.VarChar(255)
+  passwordHash      String?                   @map("password_hash") @db.VarChar(255)
+  departmentHint    String?                   @map("department_hint") @db.VarChar(100)
+  status            RegistrationRequestStatus @default(PENDING)
+  emailVerifiedAt   DateTime?                 @map("email_verified_at")
+  matchedEmployeeId String?                   @map("matched_employee_id") @db.Uuid
+  reviewedByUserId  String?                   @map("reviewed_by_user_id") @db.Uuid
+  reviewedAt        DateTime?                 @map("reviewed_at")
+  approvedAt        DateTime?                 @map("approved_at")
+  rejectedAt        DateTime?                 @map("rejected_at")
+  rejectionReason   String?                   @map("rejection_reason") @db.VarChar(1000)
+  createdAt         DateTime                  @default(now()) @map("created_at")
+  updatedAt         DateTime                  @updatedAt @map("updated_at")
+  matchedEmployee   Employee?                 @relation(fields: [matchedEmployeeId], references: [id], onDelete: SetNull)
+  reviewedBy        User?                     @relation("RegistrationRequestReviewedBy", fields: [reviewedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([status, createdAt])
+  @@index([emailVerifiedAt, status])
+  @@index([matchedEmployeeId])
+  @@map("registration_requests")
+}
+
+model AuthOtpChallenge {
+  id            String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId        String?        @map("user_id") @db.Uuid
+  emailHash     String         @map("email_hash") @db.Char(64)
+  purpose       AuthOtpPurpose
+  codeHash      String         @map("code_hash") @db.Char(64)
+  expiresAt     DateTime       @map("expires_at")
+  attempts      Int            @default(0)
+  maxAttempts   Int            @default(5) @map("max_attempts")
+  consumedAt    DateTime?      @map("consumed_at")
+  deliveryState String         @default("PENDING") @map("delivery_state") @db.VarChar(30)
+  createdAt     DateTime       @default(now()) @map("created_at")
+  user          User?          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([emailHash, purpose, createdAt])
+  @@index([expiresAt])
+  @@map("auth_otp_challenges")
+}
+
+model WebAuthnCredential {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId       String    @map("user_id") @db.Uuid
+  credentialId String    @unique @map("credential_id") @db.VarChar(512)
+  publicKey    Bytes     @map("public_key")
+  counter      BigInt    @default(0)
+  transports   Json?
+  deviceType   String?   @map("device_type") @db.VarChar(32)
+  backedUp     Boolean   @default(false) @map("backed_up")
+  displayName  String    @default("Passkey") @map("display_name") @db.VarChar(120)
+  createdAt    DateTime  @default(now()) @map("created_at")
+  lastUsedAt   DateTime? @map("last_used_at")
+  revokedAt    DateTime? @map("revoked_at")
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, revokedAt])
+  @@map("webauthn_credentials")
+}
+
+model WebAuthnChallenge {
+  id            String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  purpose       WebAuthnChallengePurpose
+  userId        String?                  @map("user_id") @db.Uuid
+  challengeHash String                   @unique @map("challenge_hash") @db.Char(64)
+  expiresAt     DateTime                 @map("expires_at")
+  consumedAt    DateTime?                @map("consumed_at")
+  createdAt     DateTime                 @default(now()) @map("created_at")
+  user          User?                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([purpose, expiresAt, consumedAt])
+  @@index([userId, purpose, expiresAt])
+  @@map("webauthn_challenges")
+}
+
+model AttendanceDeviceEnrollment {
+  id                       String                           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  employeeId               String                           @map("employee_id") @db.Uuid
+  publicKey                Bytes                            @map("public_key")
+  keyAlgorithm             String                           @map("key_algorithm") @db.VarChar(50)
+  credentialFingerprint    String                           @unique @map("credential_fingerprint") @db.Char(64)
+  displayName              String                           @map("display_name") @db.VarChar(120)
+  platformHint             String?                          @map("platform_hint") @db.VarChar(100)
+  userAgentSnapshot        String?                          @map("user_agent_snapshot") @db.VarChar(500)
+  status                   AttendanceDeviceEnrollmentStatus @default(PENDING_APPROVAL)
+  observationOnly          Boolean                          @default(false) @map("observation_only")
+  proofVerifiedAt          DateTime?                        @map("proof_verified_at")
+  enrolledAt               DateTime                         @default(now()) @map("enrolled_at")
+  activatedAt              DateTime?                        @map("activated_at")
+  revokedAt                DateTime?                        @map("revoked_at")
+  revokedReason            String?                          @map("revoked_reason") @db.VarChar(1000)
+  createdByUserId          String                           @map("created_by_user_id") @db.Uuid
+  approvedByUserId         String?                          @map("approved_by_user_id") @db.Uuid
+  createdAt                DateTime                         @default(now()) @map("created_at")
+  updatedAt                DateTime                         @updatedAt @map("updated_at")
+  employee                 Employee                         @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+  createdBy                User                             @relation("AttendanceDeviceCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  approvedBy               User?                            @relation("AttendanceDeviceApprovedBy", fields: [approvedByUserId], references: [id], onDelete: SetNull)
+  challenges               AttendanceDeviceChallenge[]
+  candidateForRequest      AttendanceDeviceChangeRequest?   @relation("CandidateAttendanceDevice")
+  currentForRequests       AttendanceDeviceChangeRequest[]  @relation("CurrentAttendanceDevice")
+  faceVerificationSessions FaceVerificationSession[]
+  faceVerificationReceipts FaceVerificationReceipt[]
+
+  @@index([employeeId, status])
+  @@index([createdByUserId, createdAt])
+  @@index([approvedByUserId])
+  @@map("attendance_device_enrollments")
+}
+
+model AttendanceDeviceChallenge {
+  id                      String                           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  employeeId              String                           @map("employee_id") @db.Uuid
+  deviceEnrollmentId      String?                          @map("device_enrollment_id") @db.Uuid
+  purpose                 AttendanceDeviceChallengePurpose
+  challengeHash           String                           @unique @map("challenge_hash") @db.Char(64)
+  expiresAt               DateTime                         @map("expires_at")
+  consumedAt              DateTime?                        @map("consumed_at")
+  createdAt               DateTime                         @default(now()) @map("created_at")
+  employee                Employee                         @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+  deviceEnrollment        AttendanceDeviceEnrollment?      @relation(fields: [deviceEnrollmentId], references: [id], onDelete: Cascade)
+  faceVerificationSession FaceVerificationSession?
+
+  @@index([employeeId, purpose, expiresAt, consumedAt])
+  @@index([deviceEnrollmentId, purpose, expiresAt])
+  @@map("attendance_device_challenges")
+}
+
+model AttendanceDeviceChangeRequest {
+  id                          String                              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  employeeId                  String                              @map("employee_id") @db.Uuid
+  requestType                 AttendanceDeviceRequestType         @map("request_type")
+  status                      AttendanceDeviceChangeRequestStatus @default(PENDING_APPROVAL)
+  requestedByUserId           String                              @map("requested_by_user_id") @db.Uuid
+  candidateDeviceEnrollmentId String                              @unique @map("candidate_device_enrollment_id") @db.Uuid
+  currentDeviceEnrollmentId   String?                             @map("current_device_enrollment_id") @db.Uuid
+  reason                      String?                             @db.VarChar(1000)
+  reviewerComment             String?                             @map("reviewer_comment") @db.VarChar(1000)
+  reviewedByUserId            String?                             @map("reviewed_by_user_id") @db.Uuid
+  reviewedAt                  DateTime?                           @map("reviewed_at")
+  returnedAt                  DateTime?                           @map("returned_at")
+  cancelledAt                 DateTime?                           @map("cancelled_at")
+  createdAt                   DateTime                            @default(now()) @map("created_at")
+  updatedAt                   DateTime                            @updatedAt @map("updated_at")
+  employee                    Employee                            @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+  requestedBy                 User                                @relation("AttendanceDeviceRequestedBy", fields: [requestedByUserId], references: [id], onDelete: Restrict)
+  reviewedBy                  User?                               @relation("AttendanceDeviceReviewedBy", fields: [reviewedByUserId], references: [id], onDelete: SetNull)
+  candidateDevice             AttendanceDeviceEnrollment          @relation("CandidateAttendanceDevice", fields: [candidateDeviceEnrollmentId], references: [id], onDelete: Restrict)
+  currentDevice               AttendanceDeviceEnrollment?         @relation("CurrentAttendanceDevice", fields: [currentDeviceEnrollmentId], references: [id], onDelete: Restrict)
+
+  @@index([employeeId, status, createdAt])
+  @@index([status, createdAt])
+  @@index([requestedByUserId, status])
+  @@index([reviewedByUserId, reviewedAt])
+  @@map("attendance_device_change_requests")
+}
+
+model RefreshSession {
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId           String    @map("user_id") @db.Uuid
+  refreshTokenHash String    @unique @map("refresh_token_hash") @db.VarChar(64)
+  tokenVersion     Int       @map("token_version")
+  userAgent        String?   @map("user_agent") @db.VarChar(500)
+  ipAddress        String?   @map("ip_address") @db.VarChar(64)
+  createdAt        DateTime  @default(now()) @map("created_at")
+  expiresAt        DateTime  @map("expires_at")
+  revokedAt        DateTime? @map("revoked_at")
+  lastUsedAt       DateTime? @map("last_used_at")
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, revokedAt])
+  @@index([expiresAt])
+  @@map("refresh_sessions")
+}
+
+model DepartmentMaster {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code           String   @unique @db.VarChar(50)
+  name           String   @db.VarChar(100)
+  normalizedName String   @unique @map("normalized_name") @db.VarChar(100)
+  isActive       Boolean  @default(true) @map("is_active")
+  sortOrder      Int      @default(0) @map("sort_order")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  @@index([isActive, sortOrder, name])
+  @@map("department_master")
+}
+
+model PositionMaster {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code           String   @unique @db.VarChar(50)
+  name           String   @db.VarChar(100)
+  normalizedName String   @unique @map("normalized_name") @db.VarChar(100)
+  isActive       Boolean  @default(true) @map("is_active")
+  sortOrder      Int      @default(0) @map("sort_order")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  @@index([isActive, sortOrder, name])
+  @@map("position_master")
+}
+
+model Employee {
+  id                          String                          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  employeeCode                String                          @unique @map("employee_code") @db.VarChar(50)
+  firstName                   String                          @map("first_name") @db.VarChar(100)
+  lastName                    String                          @map("last_name") @db.VarChar(100)
+  email                       String?                         @unique @db.VarChar(255)
+  phone                       String?                         @db.VarChar(50)
+  department                  String?                         @db.VarChar(100)
+  jobTitle                    String?                         @map("job_title") @db.VarChar(100)
+  hiredAt                     DateTime?                       @map("hired_at") @db.Date
+  isActive                    Boolean                         @default(true) @map("is_active")
+  deletedAt                   DateTime?                       @map("deleted_at")
+  deletedByUserId             String?                         @map("deleted_by_user_id") @db.Uuid
+  legacyEmployeeId            String?                         @unique @map("legacy_employee_id") @db.VarChar(100)
+  displayName                 String?                         @map("display_name") @db.VarChar(255)
+  skill                       String?                         @db.VarChar(255)
+  scheduleOrder               Int?                            @map("schedule_order")
+  createdAt                   DateTime                        @default(now()) @map("created_at")
+  updatedAt                   DateTime                        @updatedAt @map("updated_at")
+  user                        User?
+  licenses                    EmployeeLicense[]
+  licenseDocuments            EmployeeLicenseDocument[]
+  shiftAssignments            ShiftAssignment[]
+  leaveRequests               LeaveRequest[]
+  leaveQuotas                 LeaveQuota[]
+  lifecycleEvents             EmployeeLifecycleEvent[]
+  matchedRegistrationRequests RegistrationRequest[]
+  changeRequests              EmployeeChangeRequest[]
+  changeRequestEvents         EmployeeChangeRequestEvent[]
+  attendanceDevices           AttendanceDeviceEnrollment[]
+  attendanceDeviceChallenges  AttendanceDeviceChallenge[]
+  attendanceDeviceRequests    AttendanceDeviceChangeRequest[]
+  referencePhotos             EmployeeReferencePhoto[]
+  faceVerificationSessions    FaceVerificationSession[]
+  faceVerificationReceipts    FaceVerificationReceipt[]
+  attendanceSessions          AttendanceSession[]
+  attendanceEvidence          AttendanceEvidence[]
+
+  scheduleRosterSnapshots ScheduleRosterSnapshot[]
+
+  @@index([isActive, deletedAt])
+  @@index([department])
+  @@index([department, scheduleOrder])
+  @@map("employees")
+}
+
+model EmployeeReferencePhoto {
+  id                         String                       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  employeeId                 String                       @map("employee_id") @db.Uuid
+  status                     EmployeeReferencePhotoStatus @default(PENDING_APPROVAL)
+  storageProvider            String                       @map("storage_provider") @db.VarChar(50)
+  storageBucket              String                       @map("storage_bucket") @db.VarChar(255)
+  storageObjectKey           String                       @unique @map("storage_object_key") @db.VarChar(500)
+  originalFileName           String                       @map("original_file_name") @db.VarChar(255)
+  safeDisplayFileName        String                       @map("safe_display_file_name") @db.VarChar(255)
+  mimeType                   String                       @map("mime_type") @db.VarChar(100)
+  fileSize                   Int                          @map("file_size")
+  checksum                   String                       @db.Char(64)
+  imageWidth                 Int                          @map("image_width")
+  imageHeight                Int                          @map("image_height")
+  uploadedByUserId           String                       @map("uploaded_by_user_id") @db.Uuid
+  uploadedByRoleSnapshot     String                       @map("uploaded_by_role_snapshot") @db.VarChar(50)
+  uploadedAt                 DateTime                     @default(now()) @map("uploaded_at")
+  reviewedByUserId           String?                      @map("reviewed_by_user_id") @db.Uuid
+  reviewedAt                 DateTime?                    @map("reviewed_at")
+  rejectionReason            String?                      @map("rejection_reason") @db.VarChar(1000)
+  activatedAt                DateTime?                    @map("activated_at")
+  supersededAt               DateTime?                    @map("superseded_at")
+  storageDeletionRequestedAt DateTime?                    @map("storage_deletion_requested_at")
+  storageDeletedAt           DateTime?                    @map("storage_deleted_at")
+  storageDeleteAttempts      Int                          @default(0) @map("storage_delete_attempts")
+  storageDeleteLastErrorAt   DateTime?                    @map("storage_delete_last_error_at")
+  storageDeleteLastErrorCode String?                      @map("storage_delete_last_error_code") @db.VarChar(80)
+  cancelledAt                DateTime?                    @map("cancelled_at")
+  createdAt                  DateTime                     @default(now()) @map("created_at")
+  updatedAt                  DateTime                     @updatedAt @map("updated_at")
+  employee                   Employee                     @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+  uploadedBy                 User                         @relation("EmployeeReferencePhotoUploadedBy", fields: [uploadedByUserId], references: [id], onDelete: Restrict)
+  reviewedBy                 User?                        @relation("EmployeeReferencePhotoReviewedBy", fields: [reviewedByUserId], references: [id], onDelete: Restrict)
+  faceVerificationSessions   FaceVerificationSession[]
+  faceVerificationReceipts   FaceVerificationReceipt[]
+  attendanceEvidence         AttendanceEvidence[]
+
+  @@index([employeeId, status, createdAt])
+  @@index([status, uploadedAt])
+  @@index([status, storageDeletionRequestedAt, storageDeletedAt])
+  @@index([uploadedByUserId, createdAt])
+  @@map("employee_reference_photos")
+}
+
+model FaceVerificationSession {
+  id                          String                        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  employeeId                  String                        @map("employee_id") @db.Uuid
+  userId                      String                        @map("user_id") @db.Uuid
+  deviceEnrollmentId          String                        @map("device_enrollment_id") @db.Uuid
+  deviceCredentialFingerprint String                        @map("device_credential_fingerprint") @db.Char(64)
+  referencePhotoId            String                        @map("reference_photo_id") @db.Uuid
+  referencePhotoChecksum      String                        @map("reference_photo_checksum") @db.Char(64)
+  deviceChallengeId           String                        @unique @map("device_challenge_id") @db.Uuid
+  purpose                     FaceVerificationPurpose
+  verificationMode            FaceVerificationMode          @default(FACE_MATCH_WITH_LIVENESS) @map("verification_mode")
+  status                      FaceVerificationSessionStatus @default(CREATED)
+  contextDigest               String                        @map("context_digest") @db.Char(64)
+  provider                    String?                       @db.VarChar(80)
+  providerSessionRefHash      String?                       @map("provider_session_ref_hash") @db.Char(64)
+  providerPolicyProfileId     String?                       @map("provider_policy_profile_id") @db.VarChar(120)
+  providerEngineVersion       String?                       @map("provider_engine_version") @db.VarChar(120)
+  providerResultCode          String?                       @map("provider_result_code") @db.VarChar(80)
+  padPassed                   Boolean?                      @map("pad_passed")
+  faceMatchPassed             Boolean?                      @map("face_match_passed")
+  injectionRiskDetected       Boolean?                      @map("injection_risk_detected")
+  deviceProofVerifiedAt       DateTime?                     @map("device_proof_verified_at")
+  verifiedAt                  DateTime?                     @map("verified_at")
+  failedAt                    DateTime?                     @map("failed_at")
+  failureCode                 String?                       @map("failure_code") @db.VarChar(80)
+  expiresAt                   DateTime                      @map("expires_at")
+  createdAt                   DateTime                      @default(now()) @map("created_at")
+  updatedAt                   DateTime                      @updatedAt @map("updated_at")
+  employee                    Employee                      @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+  user                        User                          @relation("FaceVerificationSessionUser", fields: [userId], references: [id], onDelete: Restrict)
+  deviceEnrollment            AttendanceDeviceEnrollment    @relation(fields: [deviceEnrollmentId], references: [id], onDelete: Restrict)
+  referencePhoto              EmployeeReferencePhoto        @relation(fields: [referencePhotoId], references: [id], onDelete: Restrict)
+  deviceChallenge             AttendanceDeviceChallenge     @relation(fields: [deviceChallengeId], references: [id], onDelete: Restrict)
+  receipt                     FaceVerificationReceipt?
+  attendanceEvent             AttendanceEvent?
+  attendanceEvidence          AttendanceEvidence?
+
+  @@index([employeeId, purpose, status, expiresAt])
+  @@index([deviceEnrollmentId, purpose, status, expiresAt])
+  @@index([referencePhotoId, status, createdAt])
+  @@index([userId, createdAt])
+  @@map("face_verification_sessions")
+}
+
+model AttendanceEvidence {
+  id                        String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  faceVerificationSessionId String                  @unique @map("face_verification_session_id") @db.Uuid
+  employeeId                String                  @map("employee_id") @db.Uuid
+  referencePhotoId          String                  @map("reference_photo_id") @db.Uuid
+  storageProvider           String                  @map("storage_provider") @db.VarChar(50)
+  storageBucket             String                  @map("storage_bucket") @db.VarChar(255)
+  storageObjectKey          String                  @unique @map("storage_object_key") @db.VarChar(500)
+  mimeType                  String                  @map("mime_type") @db.VarChar(100)
+  sizeBytes                 Int                     @map("size_bytes")
+  checksum                  String                  @db.Char(64)
+  capturedAt                DateTime                @map("captured_at")
+  retentionUntil            DateTime                @map("retention_until")
+  purgeRequestedAt          DateTime?               @map("purge_requested_at")
+  purgedAt                  DateTime?               @map("purged_at")
+  purgeAttempts             Int                     @default(0) @map("purge_attempts")
+  purgeLastErrorAt          DateTime?               @map("purge_last_error_at")
+  purgeLastErrorCode        String?                 @map("purge_last_error_code") @db.VarChar(80)
+  createdAt                 DateTime                @default(now()) @map("created_at")
+  updatedAt                 DateTime                @updatedAt @map("updated_at")
+  faceVerificationSession   FaceVerificationSession @relation(fields: [faceVerificationSessionId], references: [id], onDelete: Restrict)
+  employee                  Employee                @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+  referencePhoto            EmployeeReferencePhoto  @relation(fields: [referencePhotoId], references: [id], onDelete: Restrict)
+
+  @@index([employeeId, capturedAt])
+  @@index([retentionUntil, purgedAt])
+  @@index([referencePhotoId, capturedAt])
+  @@map("attendance_evidence")
+}
+
+model FaceVerificationReceipt {
+  id                          String                     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sessionId                   String                     @unique @map("session_id") @db.Uuid
+  employeeId                  String                     @map("employee_id") @db.Uuid
+  userId                      String                     @map("user_id") @db.Uuid
+  deviceEnrollmentId          String                     @map("device_enrollment_id") @db.Uuid
+  deviceCredentialFingerprint String                     @map("device_credential_fingerprint") @db.Char(64)
+  referencePhotoId            String                     @map("reference_photo_id") @db.Uuid
+  referencePhotoChecksum      String                     @map("reference_photo_checksum") @db.Char(64)
+  purpose                     FaceVerificationPurpose
+  verificationMode            FaceVerificationMode       @default(FACE_MATCH_WITH_LIVENESS) @map("verification_mode")
+  receiptHash                 String                     @unique @map("receipt_hash") @db.Char(64)
+  contextDigest               String                     @map("context_digest") @db.Char(64)
+  issuedAt                    DateTime                   @default(now()) @map("issued_at")
+  expiresAt                   DateTime                   @map("expires_at")
+  consumedAt                  DateTime?                  @map("consumed_at")
+  createdAt                   DateTime                   @default(now()) @map("created_at")
+  session                     FaceVerificationSession    @relation(fields: [sessionId], references: [id], onDelete: Restrict)
+  employee                    Employee                   @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+  user                        User                       @relation("FaceVerificationReceiptUser", fields: [userId], references: [id], onDelete: Restrict)
+  deviceEnrollment            AttendanceDeviceEnrollment @relation(fields: [deviceEnrollmentId], references: [id], onDelete: Restrict)
+  referencePhoto              EmployeeReferencePhoto     @relation(fields: [referencePhotoId], references: [id], onDelete: Restrict)
+
+  @@index([employeeId, purpose, expiresAt, consumedAt])
+  @@index([deviceEnrollmentId, purpose, expiresAt, consumedAt])
+  @@index([referencePhotoId, issuedAt])
+  @@map("face_verification_receipts")
+}
+
+model AttendanceSession {
+  id                  String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  employeeId          String                 @map("employee_id") @db.Uuid
+  shiftAssignmentId   String                 @unique @map("shift_assignment_id") @db.Uuid
+  expectedShiftTypeId String                 @map("expected_shift_type_id") @db.Uuid
+  expectedSiteId      String                 @map("expected_site_id") @db.Uuid
+  workDate            DateTime               @map("work_date") @db.Date
+  expectationSnapshot Json                   @map("expectation_snapshot")
+  expectationDigest   String                 @map("expectation_digest") @db.Char(64)
+  state               AttendanceSessionState @default(OPEN)
+  openedAt            DateTime               @default(now()) @map("opened_at")
+  closedAt            DateTime?              @map("closed_at")
+  createdAt           DateTime               @default(now()) @map("created_at")
+  updatedAt           DateTime               @updatedAt @map("updated_at")
+  employee            Employee               @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+  shiftAssignment     ShiftAssignment        @relation(fields: [shiftAssignmentId], references: [id], onDelete: Restrict)
+  expectedShiftType   ShiftType              @relation("AttendanceSessionExpectedShiftType", fields: [expectedShiftTypeId], references: [id], onDelete: Restrict)
+  expectedSite        SecuritySite           @relation("AttendanceSessionExpectedSite", fields: [expectedSiteId], references: [id], onDelete: Restrict)
+  events              AttendanceEvent[]
+
+  @@index([employeeId, workDate])
+  @@index([workDate, state])
+  @@map("attendance_sessions")
+}
+
+model AttendanceEvent {
+  id                        String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sessionId                 String                    @map("session_id") @db.Uuid
+  faceVerificationSessionId String?                   @unique @map("face_verification_session_id") @db.Uuid
+  deviceEnrollmentId        String?                   @map("device_enrollment_id") @db.Uuid
+  captureId                 String                    @unique @map("capture_id") @db.Uuid
+  eventType                 AttendanceEventType       @map("event_type")
+  provenance                AttendanceEventProvenance @default(ONLINE)
+  sourceMode                String                    @default("ONLINE") @map("source_mode") @db.VarChar(16)
+  receivedAt                DateTime                  @map("received_at")
+  effectiveEventAt          DateTime                  @map("effective_event_at")
+  deviceCapturedAt          DateTime?                 @map("device_captured_at")
+  timeBasis                 AttendanceTimeBasis       @default(SERVER_RECEIVED) @map("time_basis")
+  punctuality               String?                   @db.VarChar(16)
+  checkoutCondition         String?                   @map("checkout_condition") @db.VarChar(24)
+  timePolicySnapshot        Json?                     @map("time_policy_snapshot")
+  contextDigest             String                    @map("context_digest") @db.Char(64)
+  locationEvidence          Json                      @map("location_evidence")
+  verificationSnapshot      Json                      @map("verification_snapshot")
+  reviewRequired            Boolean                   @default(false) @map("review_required")
+  reviewReasons             Json?                     @map("review_reasons")
+  createdAt                 DateTime                  @default(now()) @map("created_at")
+  session                   AttendanceSession         @relation(fields: [sessionId], references: [id], onDelete: Restrict)
+  faceVerificationSession   FaceVerificationSession?  @relation(fields: [faceVerificationSessionId], references: [id], onDelete: Restrict)
+
+  @@unique([sessionId, eventType])
+  @@index([sessionId, effectiveEventAt])
+  @@index([receivedAt])
+  @@index([deviceEnrollmentId, receivedAt])
+  @@index([reviewRequired, receivedAt])
+  @@map("attendance_events")
+}
+
+model AttendancePendingEvent {
+  id                 String                       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  employeeId         String                       @map("employee_id") @db.Uuid
+  shiftAssignmentId  String                       @map("shift_assignment_id") @db.Uuid
+  captureId          String                       @unique @map("capture_id") @db.Uuid
+  eventType          AttendanceEventType          @map("event_type")
+  sourceMode         String                       @default("OFFLINE") @map("source_mode") @db.VarChar(16)
+  capturedAt         DateTime                     @map("captured_at")
+  receivedAt         DateTime                     @map("received_at")
+  locationEvidence   Json                         @map("location_evidence")
+  deviceSnapshot     Json                         @map("device_snapshot")
+  timePolicySnapshot Json?                        @map("time_policy_snapshot")
+  riskFlags          Json                         @map("risk_flags")
+  payloadDigest      String                       @map("payload_digest") @db.Char(64)
+  status             AttendancePendingEventStatus @default(PENDING_CONFIRMATION)
+  reviewedByUserId   String?                      @map("reviewed_by_user_id") @db.Uuid
+  reviewedAt         DateTime?                    @map("reviewed_at")
+  reviewComment      String?                      @map("review_comment") @db.VarChar(1000)
+  attendanceEventId  String?                      @unique @map("attendance_event_id") @db.Uuid
+  createdAt          DateTime                     @default(now()) @map("created_at")
+  updatedAt          DateTime                     @updatedAt @map("updated_at")
+
+  @@index([employeeId, capturedAt])
+  @@index([status, receivedAt])
+  @@index([shiftAssignmentId, eventType])
+  @@map("attendance_pending_events")
+}
+
+model EmployeeLifecycleEvent {
+  id                          String                       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  employeeId                  String                       @map("employee_id") @db.Uuid
+  sequence                    Int
+  type                        EmployeeLifecycleEventType
+  status                      EmployeeLifecycleEventStatus @default(PENDING)
+  effectiveDate               DateTime                     @map("effective_date") @db.Date
+  oldValue                    Json                         @map("old_value")
+  newValue                    Json                         @map("new_value")
+  reason                      String                       @db.VarChar(1000)
+  changedByUserId             String                       @map("changed_by_user_id") @db.Uuid
+  idempotencyKey              String                       @unique @map("idempotency_key") @db.Uuid
+  expectedEmployeeUpdatedAt   DateTime                     @map("expected_employee_updated_at")
+  sourceChangeRequestId       String?                      @map("source_change_request_id") @db.Uuid
+  sourceChangeRequestRevision Int?                         @map("source_change_request_revision")
+  appliedAt                   DateTime?                    @map("applied_at")
+  createdAt                   DateTime                     @default(now()) @map("created_at")
+  updatedAt                   DateTime                     @updatedAt @map("updated_at")
+  employee                    Employee                     @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+  changedBy                   User                         @relation("LifecycleChangedBy", fields: [changedByUserId], references: [id], onDelete: Restrict)
+  sourceChangeRequest         EmployeeChangeRequest?       @relation(fields: [sourceChangeRequestId], references: [id], onDelete: Restrict)
+
+  @@unique([employeeId, sequence])
+  @@index([employeeId, effectiveDate, sequence])
+  @@index([status, effectiveDate])
+  @@index([changedByUserId, createdAt])
+  @@index([sourceChangeRequestId, sourceChangeRequestRevision])
+  @@map("employee_lifecycle_events")
+}
+
+model EmployeeChangeRequest {
+  id                       String                          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  employeeId               String                          @map("employee_id") @db.Uuid
+  status                   EmployeeChangeRequestStatus     @default(DRAFT)
+  requestOwnerUserId       String                          @map("request_owner_user_id") @db.Uuid
+  requestOwnerRoleSnapshot String                          @map("request_owner_role_snapshot") @db.VarChar(50)
+  activeEmployeeId         String?                         @unique @map("active_employee_id") @db.Uuid
+  currentRevision          Int                             @default(0) @map("current_revision")
+  approvedRevision         Int?                            @map("approved_revision")
+  draftProposal            Json?                           @map("draft_proposal")
+  draftEffectiveMode       EmployeeChangeEffectiveMode     @default(IMMEDIATE) @map("draft_effective_mode")
+  draftEffectiveDate       DateTime?                       @map("draft_effective_date") @db.Date
+  draftReason              String?                         @map("draft_reason") @db.VarChar(1000)
+  lastReviewerComment      String?                         @map("last_reviewer_comment") @db.VarChar(1000)
+  approvedAt               DateTime?                       @map("approved_at")
+  appliedAt                DateTime?                       @map("applied_at")
+  rejectedAt               DateTime?                       @map("rejected_at")
+  cancelledAt              DateTime?                       @map("cancelled_at")
+  createdAt                DateTime                        @default(now()) @map("created_at")
+  updatedAt                DateTime                        @updatedAt @map("updated_at")
+  employee                 Employee                        @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+  requestOwner             User                            @relation("EmployeeChangeRequestOwner", fields: [requestOwnerUserId], references: [id], onDelete: Restrict)
+  revisions                EmployeeChangeRequestRevision[]
+  events                   EmployeeChangeRequestEvent[]
+  lifecycleEvents          EmployeeLifecycleEvent[]
+
+  @@index([employeeId, createdAt])
+  @@index([status, createdAt])
+  @@index([requestOwnerUserId, status, createdAt])
+  @@map("employee_change_requests")
+}
+
+model EmployeeChangeRequestRevision {
+  id                      String                      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  requestId               String                      @map("request_id") @db.Uuid
+  revision                Int
+  baseEmployeeUpdatedAt   DateTime                    @map("base_employee_updated_at")
+  baseLifecycleSequence   Int                         @map("base_lifecycle_sequence")
+  beforeSnapshot          Json                        @map("before_snapshot")
+  afterSnapshot           Json                        @map("after_snapshot")
+  changedFields           Json                        @map("changed_fields")
+  effectiveMode           EmployeeChangeEffectiveMode @map("effective_mode")
+  effectiveDate           DateTime?                   @map("effective_date") @db.Date
+  reason                  String?                     @db.VarChar(1000)
+  submittedByUserId       String                      @map("submitted_by_user_id") @db.Uuid
+  submittedByRoleSnapshot String                      @map("submitted_by_role_snapshot") @db.VarChar(50)
+  submittedAt             DateTime                    @default(now()) @map("submitted_at")
+  proposalHash            String                      @map("proposal_hash") @db.Char(64)
+  createdAt               DateTime                    @default(now()) @map("created_at")
+  request                 EmployeeChangeRequest       @relation(fields: [requestId], references: [id], onDelete: Restrict)
+  submittedBy             User                        @relation("EmployeeChangeRevisionSubmitter", fields: [submittedByUserId], references: [id], onDelete: Restrict)
+
+  @@unique([requestId, revision])
+  @@index([submittedByUserId, submittedAt])
+  @@map("employee_change_request_revisions")
+}
+
+model EmployeeChangeRequestEvent {
+  id                String                       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  requestId         String                       @map("request_id") @db.Uuid
+  employeeId        String                       @map("employee_id") @db.Uuid
+  revision          Int?
+  action            EmployeeChangeEventAction
+  fromStatus        EmployeeChangeRequestStatus? @map("from_status")
+  toStatus          EmployeeChangeRequestStatus? @map("to_status")
+  actorUserId       String?                      @map("actor_user_id") @db.Uuid
+  actorRoleSnapshot String?                      @map("actor_role_snapshot") @db.VarChar(50)
+  reason            String?                      @db.VarChar(1000)
+  metadata          Json?
+  idempotencyKey    String                       @unique @map("idempotency_key") @db.Uuid
+  createdAt         DateTime                     @default(now()) @map("created_at")
+  request           EmployeeChangeRequest        @relation(fields: [requestId], references: [id], onDelete: Restrict)
+  employee          Employee                     @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+  actor             User?                        @relation("EmployeeChangeEventActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([requestId, createdAt])
+  @@index([employeeId, createdAt])
+  @@index([action, createdAt])
+  @@map("employee_change_request_events")
+}
+
+model SecuritySite {
+  id                     String                     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code                   String                     @unique @db.VarChar(50)
+  name                   String                     @db.VarChar(150)
+  latitude               Decimal                    @db.Decimal(10, 7)
+  longitude              Decimal                    @db.Decimal(10, 7)
+  geofenceRadiusMeters   Int                        @map("geofence_radius_meters")
+  isActive               Boolean                    @default(true) @map("is_active")
+  createdAt              DateTime                   @default(now()) @map("created_at")
+  updatedAt              DateTime                   @updatedAt @map("updated_at")
+  shiftAssignments       ShiftAssignment[]
+  qrCredentials          SecuritySiteQrCredential[]
+  attendanceSessions     AttendanceSession[]        @relation("AttendanceSessionExpectedSite")
+  attendanceTimePolicies AttendanceTimePolicy[]     @relation("AttendanceTimePolicySite")
+
+  @@index([isActive, code])
+  @@map("security_sites")
+}
+
+model SecuritySiteQrCredential {
+  id             String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  securitySiteId String       @map("security_site_id") @db.Uuid
+  tokenHash      String       @unique @map("token_hash") @db.Char(64)
+  version        Int
+  validFrom      DateTime     @default(now()) @map("valid_from")
+  validUntil     DateTime?    @map("valid_until")
+  revokedAt      DateTime?    @map("revoked_at")
+  createdAt      DateTime     @default(now()) @map("created_at")
+  securitySite   SecuritySite @relation(fields: [securitySiteId], references: [id], onDelete: Restrict)
+
+  @@unique([securitySiteId, version])
+  @@index([securitySiteId, revokedAt, validFrom, validUntil])
+  @@map("security_site_qr_credentials")
+}
+
+model ShiftType {
+  id                     String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code                   String                 @unique @db.VarChar(50)
+  name                   String                 @db.VarChar(150)
+  startTime              String?                @map("start_time") @db.VarChar(20)
+  endTime                String?                @map("end_time") @db.VarChar(20)
+  hours                  Decimal                @db.Decimal(6, 2)
+  color                  String?                @db.VarChar(50)
+  isActive               Boolean                @default(true) @map("is_active")
+  createdAt              DateTime               @default(now()) @map("created_at")
+  updatedAt              DateTime               @updatedAt @map("updated_at")
+  shiftAssignments       ShiftAssignment[]
+  attendanceSessions     AttendanceSession[]    @relation("AttendanceSessionExpectedShiftType")
+  attendanceTimePolicies AttendanceTimePolicy[] @relation("AttendanceTimePolicyShiftType")
+
+  @@map("shift_types")
+}
+
+model ShiftAssignment {
+  id                            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  employeeId                    String    @map("employee_id") @db.Uuid
+  shiftTypeId                   String    @map("shift_type_id") @db.Uuid
+  securitySiteId                String?   @map("security_site_id") @db.Uuid
+  workDate                      DateTime  @map("work_date") @db.Date
+  employeeNameSnapshot          String    @map("employee_name_snapshot") @db.VarChar(255)
+  departmentSnapshot            String?   @map("department_snapshot") @db.VarChar(100)
+  startTime                     String?   @map("start_time") @db.VarChar(20)
+  endTime                       String?   @map("end_time") @db.VarChar(20)
+  hours                         Decimal   @db.Decimal(6, 2)
+  remark                        String?   @db.VarChar(2000)
+  source                        String?   @db.VarChar(100)
+  locked                        Boolean   @default(false)
+  updatedByLegacyRef            String?   @map("updated_by_legacy_ref") @db.VarChar(255)
+  legacyUpdatedAt               DateTime? @map("legacy_updated_at")
+  licenseStatus                 String?   @map("license_status") @db.VarChar(100)
+  licenseExpiryDate             DateTime? @map("license_expiry_date") @db.Date
+  licenseOverride               Boolean   @default(false) @map("license_override")
+  licenseBlockedFromShiftTypeId String?   @map("license_blocked_from_shift_type_id") @db.Uuid
+  licenseBlockedFromRemark      String?   @map("license_blocked_from_remark") @db.VarChar(2000)
+  licenseBlockedAt              DateTime? @map("license_blocked_at")
+  overrideReason                String?   @map("override_reason") @db.VarChar(2000)
+  overrideByLegacyRef           String?   @map("override_by_legacy_ref") @db.VarChar(255)
+  overrideAt                    DateTime? @map("override_at")
+  createdAt                     DateTime  @default(now()) @map("created_at")
+  updatedAt                     DateTime  @updatedAt @map("updated_at")
+  employee                      Employee  @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+  shiftType                     ShiftType @relation(fields: [shiftTypeId], references: [id], onDelete: Restrict)
+
+  securitySite      SecuritySite?      @relation(fields: [securitySiteId], references: [id], onDelete: SetNull)
+  attendanceSession AttendanceSession?
+
+  @@unique([workDate, employeeId])
+  @@index([employeeId, workDate])
+  @@index([shiftTypeId, workDate])
+  @@index([securitySiteId, workDate])
+  @@map("shift_assignments")
+}
+
+model EmployeeLicense {
+  id                      String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  legacyLicenseId         String                    @unique @map("legacy_license_id") @db.VarChar(100)
+  employeeId              String                    @map("employee_id") @db.Uuid
+  licenseType             String                    @map("license_type") @db.VarChar(150)
+  licenseNumber           String?                   @map("license_number") @db.VarChar(255)
+  issueDate               DateTime?                 @map("issue_date") @db.Date
+  expiryDate              DateTime?                 @map("expiry_date") @db.Date
+  status                  String?                   @db.VarChar(100)
+  documentUrl             String?                   @map("document_url") @db.VarChar(2000)
+  documentMigrationStatus String                    @default("NONE") @map("document_migration_status") @db.VarChar(40)
+  remark                  String?                   @db.VarChar(2000)
+  updatedByLegacyRef      String?                   @map("updated_by_legacy_ref") @db.VarChar(255)
+  legacyUpdatedAt         DateTime?                 @map("legacy_updated_at")
+  createdAt               DateTime                  @default(now()) @map("created_at")
+  updatedAt               DateTime                  @updatedAt @map("updated_at")
+  employee                Employee                  @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+  documents               EmployeeLicenseDocument[]
+
+  @@index([employeeId])
+  @@index([expiryDate])
+  @@map("employee_licenses")
+}
+
+enum LicenseDocumentStatus {
+  PENDING
+  RETURNED_FOR_CORRECTION
+  APPROVED
+  REJECTED
+  CANCELLED
+  SUPERSEDED
+  EXPIRED
+}
+
+model EmployeeLicenseDocument {
+  id                           String                            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  employeeId                   String                            @map("employee_id") @db.Uuid
+  licenseId                    String                            @map("license_id") @db.Uuid
+  storageProvider              String                            @map("storage_provider") @db.VarChar(50)
+  storageBucket                String                            @map("storage_bucket") @db.VarChar(255)
+  storageObjectKey             String                            @unique @map("storage_object_key") @db.VarChar(500)
+  originalFileName             String                            @map("original_file_name") @db.VarChar(255)
+  safeDisplayFileName          String                            @map("safe_display_file_name") @db.VarChar(255)
+  mimeType                     String                            @map("mime_type") @db.VarChar(100)
+  fileSize                     Int                               @map("file_size")
+  checksum                     String?                           @db.Char(64)
+  proposedStartDate            DateTime                          @map("proposed_start_date") @db.Date
+  proposedExpiryDate           DateTime                          @map("proposed_expiry_date") @db.Date
+  proposedLicenseNumber        String?                           @map("proposed_license_number") @db.VarChar(100)
+  status                       LicenseDocumentStatus             @default(PENDING)
+  isCurrent                    Boolean                           @default(false) @map("is_current")
+  uploadedById                 String                            @map("uploaded_by_id") @db.Uuid
+  uploadedAt                   DateTime                          @default(now()) @map("uploaded_at")
+  reviewedById                 String?                           @map("reviewed_by_id") @db.Uuid
+  reviewedAt                   DateTime?                         @map("reviewed_at")
+  rejectionReason              String?                           @map("rejection_reason") @db.VarChar(2000)
+  correctionReason             String?                           @map("correction_reason") @db.VarChar(1000)
+  returnedById                 String?                           @map("returned_by_id") @db.Uuid
+  returnedAt                   DateTime?                         @map("returned_at")
+  resubmittedAt                DateTime?                         @map("resubmitted_at")
+  version                      Int
+  note                         String?                           @db.VarChar(2000)
+  storageDeleteAfter           DateTime?                         @map("storage_delete_after")
+  storageDeletedAt             DateTime?                         @map("storage_deleted_at")
+  storageDeleteObjectKey       String?                           @map("storage_delete_object_key") @db.VarChar(500)
+  storageDeleteAttempts        Int                               @default(0) @map("storage_delete_attempts")
+  storageDeleteLastErrorAt     DateTime?                         @map("storage_delete_last_error_at")
+  storageDeleteLastErrorCode   String?                           @map("storage_delete_last_error_code") @db.VarChar(80)
+  immediateDeletionRequestedAt DateTime?                         @map("immediate_deletion_requested_at")
+  expirationProcessedAt        DateTime?                         @map("expiration_processed_at")
+  createdAt                    DateTime                          @default(now()) @map("created_at")
+  updatedAt                    DateTime                          @updatedAt @map("updated_at")
+  employee                     Employee                          @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+  license                      EmployeeLicense                   @relation(fields: [licenseId], references: [id], onDelete: Restrict)
+  uploadedBy                   User                              @relation("UploadedLicenseDocuments", fields: [uploadedById], references: [id], onDelete: Restrict)
+  reviewedBy                   User?                             @relation("ReviewedLicenseDocuments", fields: [reviewedById], references: [id], onDelete: Restrict)
+  returnedBy                   User?                             @relation("ReturnedLicenseDocuments", fields: [returnedById], references: [id], onDelete: Restrict)
+  revisions                    EmployeeLicenseDocumentRevision[]
+
+  @@unique([licenseId, version])
+  @@index([employeeId, status])
+  @@index([status, uploadedAt])
+  @@index([licenseId, isCurrent])
+  @@index([proposedExpiryDate])
+  @@index([status, isCurrent, expirationProcessedAt])
+  @@index([storageDeleteObjectKey])
+  @@map("employee_license_documents")
+}
+
+model EmployeeLicenseDocumentRevision {
+  id                    String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  documentId            String                  @map("document_id") @db.Uuid
+  revision              Int
+  storageProvider       String                  @map("storage_provider") @db.VarChar(50)
+  storageBucket         String                  @map("storage_bucket") @db.VarChar(255)
+  storageObjectKey      String                  @map("storage_object_key") @db.VarChar(500)
+  originalFileName      String                  @map("original_file_name") @db.VarChar(255)
+  safeDisplayFileName   String                  @map("safe_display_file_name") @db.VarChar(255)
+  mimeType              String                  @map("mime_type") @db.VarChar(100)
+  fileSize              Int                     @map("file_size")
+  checksum              String?                 @db.Char(64)
+  proposedStartDate     DateTime                @map("proposed_start_date") @db.Date
+  proposedExpiryDate    DateTime                @map("proposed_expiry_date") @db.Date
+  proposedLicenseNumber String?                 @map("proposed_license_number") @db.VarChar(100)
+  note                  String?                 @db.VarChar(2000)
+  submittedById         String                  @map("submitted_by_id") @db.Uuid
+  submittedAt           DateTime                @default(now()) @map("submitted_at")
+  correctionReason      String?                 @map("correction_reason") @db.VarChar(1000)
+  document              EmployeeLicenseDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  submittedBy           User                    @relation("SubmittedLicenseDocumentRevisions", fields: [submittedById], references: [id], onDelete: Restrict)
+
+  @@unique([documentId, revision])
+  @@index([documentId, submittedAt])
+  @@index([submittedById])
+  @@map("employee_license_document_revisions")
+}
+
+model LeaveRequest {
+  id                        String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sourceFingerprint         String           @unique @map("source_fingerprint") @db.VarChar(64)
+  employeeId                String           @map("employee_id") @db.Uuid
+  requestedAt               DateTime         @map("requested_at")
+  employeeNameSnapshot      String           @map("employee_name_snapshot") @db.VarChar(255)
+  departmentSnapshot        String?          @map("department_snapshot") @db.VarChar(100)
+  leaveType                 String           @map("leave_type") @db.VarChar(100)
+  leaveTypeId               String?          @map("leave_type_id") @db.Uuid
+  leaveTypeNameSnapshot     String?          @map("leave_type_name_snapshot") @db.VarChar(150)
+  leaveQuotaBucketSnapshot  String?          @map("leave_quota_bucket_snapshot") @db.VarChar(20)
+  startDate                 DateTime         @map("start_date") @db.Date
+  endDate                   DateTime         @map("end_date") @db.Date
+  dayCount                  Decimal          @map("day_count") @db.Decimal(6, 2)
+  reason                    String?          @db.VarChar(2000)
+  attachmentUrl             String?          @map("attachment_url") @db.VarChar(2000)
+  attachmentMigrationStatus String           @default("NONE") @map("attachment_migration_status") @db.VarChar(40)
+  status                    String           @db.VarChar(100)
+  approvedByLegacyRef       String?          @map("approved_by_legacy_ref") @db.VarChar(255)
+  approvedAt                DateTime?        @map("approved_at")
+  createdAt                 DateTime         @default(now()) @map("created_at")
+  updatedAt                 DateTime         @updatedAt @map("updated_at")
+  createdByUserId           String?          @map("created_by_user_id") @db.Uuid
+  employee                  Employee         @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+  createdByUser             User?            @relation("LeaveRequestCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  leaveTypeMaster           LeaveTypeMaster? @relation(fields: [leaveTypeId], references: [id], onDelete: SetNull)
+  attachment                LeaveAttachment?
+
+  @@index([employeeId, startDate])
+  @@index([status])
+  @@index([status, requestedAt])
+  @@index([createdByUserId])
+  @@index([leaveTypeId])
+  @@map("leave_requests")
+}
+
+model LeaveTypeMaster {
+  id            String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code          String         @unique @db.VarChar(40)
+  name          String         @db.VarChar(150)
+  quotaBucket   String         @map("quota_bucket") @db.VarChar(20)
+  isActive      Boolean        @default(true) @map("is_active")
+  isSystem      Boolean        @default(false) @map("is_system")
+  sortOrder     Int            @default(100) @map("sort_order")
+  createdAt     DateTime       @default(now()) @map("created_at")
+  updatedAt     DateTime       @updatedAt @map("updated_at")
+  leaveRequests LeaveRequest[]
+
+  @@index([isActive, sortOrder])
+  @@map("leave_type_master")
+}
+
+model LeaveAttachment {
+  id                  String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  leaveRequestId      String       @unique @map("leave_request_id") @db.Uuid
+  fileName            String       @map("file_name") @db.VarChar(255)
+  mimeType            String       @map("mime_type") @db.VarChar(100)
+  sizeBytes           Int          @map("size_bytes")
+  sha256              String       @db.Char(64)
+  content             Bytes
+  uploadedByLegacyRef String?      @map("uploaded_by_legacy_ref") @db.VarChar(255)
+  createdAt           DateTime     @default(now()) @map("created_at")
+  updatedAt           DateTime     @updatedAt @map("updated_at")
+  leaveRequest        LeaveRequest @relation(fields: [leaveRequestId], references: [id], onDelete: Cascade)
+
+  @@index([createdAt])
+  @@map("leave_attachments")
+}
+
+model LeaveQuota {
+  id                   String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sourceFingerprint    String    @unique @map("source_fingerprint") @db.VarChar(64)
+  employeeId           String?   @map("employee_id") @db.Uuid
+  quotaYear            Int?      @map("quota_year")
+  employeeNameSnapshot String    @map("employee_name_snapshot") @db.VarChar(255)
+  sickLeave            Decimal   @map("sick_leave") @db.Decimal(7, 2)
+  personalLeave        Decimal   @map("personal_leave") @db.Decimal(7, 2)
+  vacationLeave        Decimal   @map("vacation_leave") @db.Decimal(7, 2)
+  matchStatus          String    @map("match_status") @db.VarChar(30)
+  createdAt            DateTime  @default(now()) @map("created_at")
+  updatedAt            DateTime  @updatedAt @map("updated_at")
+  employee             Employee? @relation(fields: [employeeId], references: [id], onDelete: SetNull)
+
+  @@unique([employeeId, quotaYear])
+  @@index([employeeId])
+  @@index([quotaYear])
+  @@index([matchStatus])
+  @@map("leave_quotas")
+}
+
+model ScheduleRosterSnapshot {
+  id                   String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  month                DateTime @db.Date
+  employeeId           String   @map("employee_id") @db.Uuid
+  employeeCodeSnapshot String   @map("employee_code_snapshot") @db.VarChar(50)
+  employeeNameSnapshot String   @map("employee_name_snapshot") @db.VarChar(255)
+  departmentSnapshot   String?  @map("department_snapshot") @db.VarChar(100)
+  jobTitleSnapshot     String?  @map("job_title_snapshot") @db.VarChar(100)
+  rosterOrder          Int      @map("roster_order")
+  source               String   @default("SCHEDULE_CREATE") @db.VarChar(50)
+  createdAt            DateTime @default(now()) @map("created_at")
+  updatedAt            DateTime @updatedAt @map("updated_at")
+  employee             Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@unique([month, employeeId])
+  @@index([month, departmentSnapshot, rosterOrder])
+  @@index([employeeId, month])
+  @@map("schedule_roster_snapshots")
+}
+
+model ScheduleApproval {
+  id                  String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  month               DateTime  @db.Date
+  status              String    @db.VarChar(100)
+  revision            Int
+  changedByLegacyRef  String?   @map("changed_by_legacy_ref") @db.VarChar(255)
+  changedAt           DateTime? @map("changed_at")
+  changeType          String?   @map("change_type") @db.VarChar(100)
+  approvedByLegacyRef String?   @map("approved_by_legacy_ref") @db.VarChar(255)
+  approvedAt          DateTime? @map("approved_at")
+  approvalNote        String?   @map("approval_note") @db.VarChar(2000)
+  scheduleHash        String?   @map("schedule_hash") @db.VarChar(255)
+  createdAt           DateTime  @default(now()) @map("created_at")
+  updatedAt           DateTime  @updatedAt @map("updated_at")
+
+  @@unique([month, revision])
+  @@index([month, status])
+  @@map("schedule_approvals")
+}
+
+model ScheduleApprovalEvent {
+  id                   String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sourceFingerprint    String   @unique @map("source_fingerprint") @db.VarChar(64)
+  occurredAt           DateTime @map("occurred_at")
+  action               String   @db.VarChar(100)
+  month                DateTime @db.Date
+  revision             Int
+  status               String?  @db.VarChar(100)
+  changeType           String?  @map("change_type") @db.VarChar(100)
+  performedByLegacyRef String?  @map("performed_by_legacy_ref") @db.VarChar(255)
+  note                 String?  @db.VarChar(2000)
+  createdAt            DateTime @default(now()) @map("created_at")
+
+  @@index([month, occurredAt])
+  @@map("schedule_approval_events")
+}
+
+model SchedulingRule {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  ruleId    String   @unique @map("rule_id") @db.VarChar(100)
+  name      String   @db.VarChar(255)
+  value     String   @db.VarChar(1000)
+  unit      String?  @db.VarChar(100)
+  enabled   Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("scheduling_rules")
+}
+
+model AutoSchedulePattern {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code        String   @unique @db.VarChar(40)
+  name        String   @db.VarChar(150)
+  mode        String   @db.VarChar(20)
+  steps       Json     @db.JsonB
+  isActive    Boolean  @default(true) @map("is_active")
+  isSystem    Boolean  @default(false) @map("is_system")
+  targetGroup String   @default("MANUAL") @map("target_group") @db.VarChar(20)
+  sortOrder   Int      @default(100) @map("sort_order")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@index([isActive, sortOrder])
+  @@index([targetGroup, isActive])
+  @@map("auto_schedule_patterns")
+}
+
+model SystemSetting {
+  key         String   @id @db.VarChar(150)
+  value       String   @db.VarChar(2000)
+  description String?  @db.VarChar(2000)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("system_settings")
+}
+
+model AttendanceTimePolicy {
+  id              String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  scopeType       String        @map("scope_type") @db.VarChar(20)
+  siteId          String?       @map("site_id") @db.Uuid
+  shiftTypeId     String?       @map("shift_type_id") @db.Uuid
+  policy          Json          @db.JsonB
+  effectiveFrom   DateTime      @map("effective_from") @db.Timestamptz(6)
+  createdByUserId String        @map("created_by_user_id") @db.Uuid
+  createdAt       DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  site            SecuritySite? @relation("AttendanceTimePolicySite", fields: [siteId], references: [id], onDelete: Restrict)
+  shiftType       ShiftType?    @relation("AttendanceTimePolicyShiftType", fields: [shiftTypeId], references: [id], onDelete: Restrict)
+  createdBy       User          @relation("AttendanceTimePolicyCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
+
+  @@index([scopeType, siteId, effectiveFrom])
+  @@index([scopeType, shiftTypeId, effectiveFrom])
+  @@index([createdByUserId, createdAt])
+  @@map("attendance_time_policies")
+}
+
+model RetentionPolicyChange {
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  status            String    @db.VarChar(20)
+  beforePolicy      Json      @map("before_policy")
+  proposedPolicy    Json      @map("proposed_policy")
+  previewSnapshot   Json      @map("preview_snapshot")
+  previewDigest     String    @map("preview_digest") @db.Char(64)
+  reason            String    @db.VarChar(1000)
+  requestedByUserId String    @map("requested_by_user_id") @db.Uuid
+  requestedAt       DateTime  @default(now()) @map("requested_at")
+  effectiveAt       DateTime  @map("effective_at")
+  appliedAt         DateTime? @map("applied_at")
+  cancelledAt       DateTime? @map("cancelled_at")
+  cancelReason      String?   @map("cancel_reason") @db.VarChar(1000)
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  @@index([status, effectiveAt])
+  @@index([requestedByUserId, requestedAt])
+  @@map("retention_policy_changes")
+}
+
+model RetentionCleanupRun {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  trigger        String    @db.VarChar(10)
+  status         String    @db.VarChar(20)
+  policySnapshot Json      @map("policy_snapshot")
+  resultSnapshot Json?     @map("result_snapshot")
+  actorUserId    String?   @map("actor_user_id") @db.Uuid
+  startedAt      DateTime  @default(now()) @map("started_at")
+  completedAt    DateTime? @map("completed_at")
+  errorCode      String?   @map("error_code") @db.VarChar(80)
+
+  @@index([startedAt, status])
+  @@index([actorUserId, startedAt])
+  @@map("retention_cleanup_runs")
+}
+
+model LegacyUserAuditEvent {
+  id                   String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sourceFingerprint    String   @unique @map("source_fingerprint") @db.VarChar(64)
+  occurredAt           DateTime @map("occurred_at")
+  action               String   @db.VarChar(100)
+  legacyUserId         String?  @map("legacy_user_id") @db.VarChar(100)
+  emailSnapshot        String?  @map("email_snapshot") @db.VarChar(255)
+  roleSnapshot         String?  @map("role_snapshot") @db.VarChar(50)
+  departmentSnapshot   String?  @map("department_snapshot") @db.VarChar(100)
+  reason               String?  @db.VarChar(2000)
+  performedByLegacyRef String?  @map("performed_by_legacy_ref") @db.VarChar(255)
+  legacyEmployeeId     String?  @map("legacy_employee_id") @db.VarChar(100)
+  createdAt            DateTime @default(now()) @map("created_at")
+
+  @@index([legacyUserId, occurredAt])
+  @@index([action, occurredAt])
+  @@map("legacy_user_audit_events")
+}
+
+model LegacyLicenseAuditEvent {
+  id                  String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sourceFingerprint   String    @unique @map("source_fingerprint") @db.VarChar(64)
+  occurredAt          DateTime  @map("occurred_at")
+  action              String    @db.VarChar(100)
+  legacyEmployeeId    String?   @map("legacy_employee_id") @db.VarChar(100)
+  legacyLicenseId     String?   @map("legacy_license_id") @db.VarChar(100)
+  workDate            DateTime? @map("work_date") @db.Date
+  shiftCode           String?   @map("shift_code") @db.VarChar(50)
+  licenseStatus       String?   @map("license_status") @db.VarChar(100)
+  expiryDate          DateTime? @map("expiry_date") @db.Date
+  reason              String?   @db.VarChar(2000)
+  approvedByLegacyRef String?   @map("approved_by_legacy_ref") @db.VarChar(255)
+  createdAt           DateTime  @default(now()) @map("created_at")
+
+  @@index([legacyEmployeeId, occurredAt])
+  @@index([action, occurredAt])
+  @@map("legacy_license_audit_events")
+}
+
+// Ready for use by auditService; fields stay database-agnostic for migration.
+model AuditLog {
+  id          String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  actorUserId String?     @map("actor_user_id") @db.Uuid
+  action      AuditAction
+  entityType  String      @map("entity_type") @db.VarChar(100)
+  entityId    String      @map("entity_id") @db.VarChar(100)
+  metadata    Json?
+  createdAt   DateTime    @default(now()) @map("created_at")
+  actor       User?       @relation("ActorAuditLogs", fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([entityType, entityId])
+  @@index([actorUserId])
+  @@index([createdAt])
+  @@index([action])
+  @@index([actorUserId, createdAt])
+  @@map("audit_logs")
+}
+
+model RateLimitBucket {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  scope       String   @db.VarChar(50)
+  keyHash     String   @map("key_hash") @db.VarChar(64)
+  windowStart DateTime @map("window_start")
+  count       Int      @default(1)
+  expiresAt   DateTime @map("expires_at")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@unique([scope, keyHash, windowStart])
+  @@index([expiresAt])
+  @@map("rate_limit_buckets")
+}
+
+model AlertDeduplicationState {
+  id                    String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  eventCategory         String    @map("event_category") @db.VarChar(64)
+  dedupKeyHash          String    @map("dedup_key_hash") @db.VarChar(64)
+  severity              String    @db.VarChar(16)
+  windowStart           DateTime  @map("window_start")
+  occurrenceCount       Int       @default(1) @map("occurrence_count")
+  lastOccurrenceAt      DateTime  @map("last_occurrence_at")
+  deliveryStatus        String    @default("pending") @map("delivery_status") @db.VarChar(16)
+  lastDeliveryAttemptAt DateTime? @map("last_delivery_attempt_at")
+  cooldownUntil         DateTime  @map("cooldown_until")
+  expiresAt             DateTime  @map("expires_at")
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
+
+  @@unique([eventCategory, dedupKeyHash, windowStart], map: "alert_deduplication_states_event_hash_window_key")
+  @@index([expiresAt], map: "alert_deduplication_states_expires_at_idx")
+  @@map("alert_deduplication_states")
+}
+
+model EmailDeliveryReservation {
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  eventKey          String    @unique @map("event_key") @db.VarChar(255)
+  status            String    @default("RESERVED") @db.VarChar(16)
+  attemptCount      Int       @default(1) @map("attempt_count")
+  reservedAt        DateTime  @default(now()) @map("reserved_at")
+  sentAt            DateTime? @map("sent_at")
+  failedAt          DateTime? @map("failed_at")
+  retryAfter        DateTime? @map("retry_after")
+  lastErrorCategory String?   @map("last_error_category") @db.VarChar(64)
+  lastErrorSafe     String?   @map("last_error_safe") @db.VarChar(255)
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  @@index([status, retryAfter])
+  @@map("email_delivery_reservations")
+}

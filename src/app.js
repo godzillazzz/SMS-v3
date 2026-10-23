@@ -1,5 +1,6 @@
 const express = require('express');
 const cors = require('cors');
+const { trustProxyAddress } = require('./security/trusted-proxy');
 const helmet = require('helmet');
 const env = require('./config/env');
 const routes = require('./routes');
@@ -17,6 +18,10 @@ const {
 } = require('./services/runtime-database-target-guard.service');
 
 const app = express();
+
+// Trust forwarded client identity only when explicitly enabled and the immediate
+// peer is loopback (the documented nginx/Cloudflare-origin topology).
+app.set('trust proxy', (address, index) => trustProxyAddress(address, index, env.trustProxyLoopback));
 
 function attendanceSelfieStorageReadiness(environment = process.env) {
   const url = String(environment.SUPABASE_URL || '').trim();

@@ -1,0 +1,1 @@
+ALTER TYPE "AttendanceEventProvenance" ADD VALUE IF NOT EXISTS 'GPS_ONLY_UAT';

@@ -19,6 +19,8 @@ const schema = z.object({
   JWT_ISSUER: z.string().min(1).default('smsv3-api'),
   JWT_AUDIENCE: z.string().min(1).default('smsv3-clients'),
   PORT: z.coerce.number().int().min(1).max(65535).default(3000),
+  HOST: z.preprocess(emptyToUndefined, z.string().trim().min(1).optional()),
+  TRUST_PROXY_LOOPBACK: z.enum(['true', 'false']).default('false'),
   CORS_ORIGIN: z.string().min(1).refine((value) => !value.split(',').map((origin) => origin.trim()).includes('*'), 'CORS_ORIGIN cannot contain a wildcard when credentials are enabled.').default('http://localhost:5173'),
   LOGIN_RATE_LIMIT_WINDOW_MS: z.coerce.number().int().min(1000).default(15 * 60 * 1000),
   LOGIN_RATE_LIMIT_MAX: z.coerce.number().int().min(1).max(1000).default(10),
@@ -97,6 +99,9 @@ const schema = z.object({
       if (!value[field]) context.addIssue({ code: z.ZodIssueCode.custom, path: [field], message: `${field} is required in Production for private document/reference-photo storage.` });
     }
   }
+  if (value.TRUST_PROXY_LOOPBACK === 'true' && !['localhost', '127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(String(value.HOST || '').trim().toLowerCase())) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ['HOST'], message: 'HOST must bind to loopback when TRUST_PROXY_LOOPBACK=true.' });
+  }
   if (value.RATE_LIMIT_STORE === 'postgres' && !value.RATE_LIMIT_HASH_SECRET) {
     context.addIssue({ code: z.ZodIssueCode.custom, path: ['RATE_LIMIT_HASH_SECRET'], message: 'RATE_LIMIT_HASH_SECRET is required when RATE_LIMIT_STORE=postgres.' });
   }
@@ -170,7 +175,7 @@ if (allowLocalTestDefaults) {
 }
 
 module.exports = {
-  port: parsed.PORT, nodeEnv: parsed.NODE_ENV, jwtSecret: parsed.JWT_SECRET,
+  port: parsed.PORT, host: parsed.HOST, trustProxyLoopback: parsed.TRUST_PROXY_LOOPBACK === 'true', nodeEnv: parsed.NODE_ENV, jwtSecret: parsed.JWT_SECRET,
   jwtExpiresIn: parsed.JWT_EXPIRES_IN, jwtAlgorithm: parsed.JWT_ALGORITHM,
   jwtIssuer: parsed.JWT_ISSUER, jwtAudience: parsed.JWT_AUDIENCE,
   corsOrigins: parsed.CORS_ORIGIN.split(',').map((origin) => origin.trim()).filter(Boolean),
