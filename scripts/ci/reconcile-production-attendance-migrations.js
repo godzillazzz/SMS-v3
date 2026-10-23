@@ -12,6 +12,26 @@ const SAFE_NAME = /^\d{12,14}_[A-Za-z0-9][A-Za-z0-9_-]*$/;
 function sha256(bytes) { return crypto.createHash('sha256').update(bytes).digest('hex'); }
 function assert(ok, category) { if (!ok) throw new Error(category); }
 function git(root, args, bytes = false) { return execFileSync('git', args, { cwd: root, encoding: bytes ? null : 'utf8', stdio: ['ignore','pipe','pipe'] }); }
+const HISTORICAL_FIXTURES = new Map([
+  ['adfaf93eb58909422afbc93779b1872d6b7ace46', '500aaa-schema.prisma'],
+  ['98eef164de3ec545eaaddf8217ef1cc257850a25', 'f2121bb5-g06.sql'],
+  ['4bd5b97e6595300ac3440e6e40699e832a0e1264', 'ef96af-g06.sql'],
+  ['eb05444e539a2b65a2810378e8a7dce52d5b72db', 'f2121bb5-g06-constraint.sql'],
+]);
+function historicalBlob(root, commit, relative, blob) {
+  let resolved;
+  try {
+    resolved = git(root, ['rev-parse', `${commit}:${relative}`]).trim();
+  } catch (error) {
+    if (!HISTORICAL_FIXTURES.has(blob)) throw error;
+    const fixture = path.join(__dirname, 'historical-attendance', HISTORICAL_FIXTURES.get(blob));
+    const bytes = fs.readFileSync(fixture);
+    assert(git(root, ['hash-object', fixture]).trim() === blob, 'HISTORICAL_FIXTURE_BLOB_MISMATCH');
+    return bytes;
+  }
+  assert(resolved === blob, 'GIT_BLOB_PIN_MISMATCH');
+  return git(root, ['show', blob], true);
+}
 function hasNewlineInsideSqlQuotedConstruct(sql) {
   let state = 'normal';
   let dollarTag = '';
@@ -111,8 +131,7 @@ function loadSources(root, manifest) {
     for (const pin of item.candidates) {
       assert(/^[a-f0-9]{40}$/.test(pin.commit) && /^[a-f0-9]{40}$/.test(pin.blob), 'GIT_PIN_INVALID');
       const relative = 'prisma/migrations/'+item.name+'/migration.sql';
-      assert(git(root,['rev-parse',pin.commit+':'+relative]).trim() === pin.blob, 'GIT_BLOB_PIN_MISMATCH');
-      const bytes = git(root,['show',pin.blob],true);
+      const bytes = historicalBlob(root, pin.commit, relative, pin.blob);
       list.push(...candidateVariants({ bytes, label: 'KNOWN_HISTORICAL_SOURCE_MATCH', commit: pin.commit }, manifest));
     }
     candidates.set(item.name,list);

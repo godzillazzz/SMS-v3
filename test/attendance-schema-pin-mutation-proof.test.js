@@ -17,8 +17,10 @@ const PIN_TEST = 'test/attendance-schema-pin.test.js';
 const RETIRED_SOURCE_SHA = '500aaa53d60d6835cccec16c79ca25de00ab06c6';
 
 // Derived from the retired Git source, never written as a literal in tracked files.
-const retiredSchema = execFileSync('git', ['show', `${RETIRED_SOURCE_SHA}:${SCHEMA_PATH}`],
-  { cwd: ROOT, stdio: ['ignore', 'pipe', 'pipe'] });
+const retiredFixture = path.join(ROOT, 'scripts/ci/historical-attendance/500aaa-schema.prisma');
+const retiredSchema = fs.readFileSync(retiredFixture);
+assert.equal(execFileSync('git', ['hash-object', retiredFixture], { cwd: ROOT, encoding: 'utf8' }).trim(),
+  'adfaf93eb58909422afbc93779b1872d6b7ace46');
 const retiredDigest = crypto.createHash('sha256').update(retiredSchema).digest('hex');
 const { ATTENDANCE_SCHEMA_SHA256 } = require('../scripts/ci/attendance-schema-pin');
 

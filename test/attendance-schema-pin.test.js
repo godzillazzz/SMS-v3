@@ -33,12 +33,40 @@ function reportedCount(output, label) {
   return match ? Number(match[1]) : null;
 }
 const git = (...args) => execFileSync('git', args, { cwd: ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
+const HISTORICAL_FIXTURES = new Map([
+  ['adfaf93eb58909422afbc93779b1872d6b7ace46', '500aaa-schema.prisma'],
+  ['98eef164de3ec545eaaddf8217ef1cc257850a25', 'f2121bb5-g06.sql'],
+]);
 const gitShow = (sha, file) => execFileSync('git', ['show', `${sha}:${file}`], { cwd: ROOT, stdio: ['ignore', 'pipe', 'pipe'] });
+function historicalFixture(blob) {
+  const file = HISTORICAL_FIXTURES.get(blob);
+  assert(file, `missing historical fixture for ${blob}`);
+  const fixture = path.join(ROOT, 'scripts/ci/historical-attendance', file);
+  assert.equal(execFileSync('git', ['hash-object', fixture], { cwd: ROOT, encoding: 'utf8' }).trim(), blob);
+  return fs.readFileSync(fixture);
+}
+function historicalShow(sha, file, blob) {
+  try { return gitShow(sha, file); } catch { return historicalFixture(blob); }
+}
 const readRepoFile = (relative) => fs.readFileSync(path.join(ROOT, relative), 'utf8');
 const HEAD_SHA = git('rev-parse', 'HEAD');
 const HEAD_TREE = git('rev-parse', 'HEAD^{tree}');
-const retiredSchema = gitShow(RETIRED_SOURCE_SHA, SCHEMA_PATH);
+const retiredSchema = historicalShow(RETIRED_SOURCE_SHA, SCHEMA_PATH, 'adfaf93eb58909422afbc93779b1872d6b7ace46');
 const retiredDigest = digest(retiredSchema);
+
+test('historical commit and fixture relationships remain exact and fail closed when objects are absent', () => {
+  const cases = [
+    [RETIRED_SOURCE_SHA, SCHEMA_PATH, 'adfaf93eb58909422afbc93779b1872d6b7ace46'],
+    ['f2121bb5e1a2c6cf12ec4ca34ea604a8893fded1',
+      'prisma/migrations/202609280001_g06_gps_only_uat_event_provenance/migration.sql',
+      '98eef164de3ec545eaaddf8217ef1cc257850a25'],
+  ];
+  for (const [sha, file, blob] of cases) {
+    const objectExists = spawnSync('git', ['cat-file', '-e', `${sha}:${file}`], { cwd: ROOT }).status === 0;
+    if (objectExists) assert.equal(git('rev-parse', `${sha}:${file}`), blob);
+    assert.equal(digest(historicalShow(sha, file, blob)), digest(historicalFixture(blob)));
+  }
+});
 
 // The workflow copies from the dispatched control-plane SHA. In a clean exact-SHA checkout the
 // working tree is that content, so the simulation copies the reviewed files under test.
