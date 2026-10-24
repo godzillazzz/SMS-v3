@@ -21,10 +21,12 @@ The resulting `sms-v3-<SHA>` directory contains `backend/`, `frontend/dist/`, an
 ```sh
 npm run self-hosted:release -- verify \
   --release /opt/sms-v3/releases/sms-v3-<SHA> \
+  --repo /srv/sms-v3-checkout \
+  --trusted-manifest-sha256 <EXTERNALLY_PINNED_SHA256> \
   --rollback-target /opt/sms-v3/releases/<KNOWN_GOOD_RELEASE>
 ```
 
-Verification rejects a missing frontend or manifest, invalid/mismatched Git or tree identity, manifest/inventory/asset tampering, and releases or rollback targets that do not preserve database-authoritative mixed-provider reads.
+Verification fails closed unless an externally pinned manifest digest and an independent trusted Git checkout are supplied. It rejects symlinks/non-regular files, path traversal, TOCTOU changes, missing mandatory backend/static checks, invalid/mismatched Git/tree identity, manifest/inventory/asset tampering, and releases or rollback targets that do not preserve database-authoritative mixed-provider reads. A manifest's self-derived digest is never trusted as its own authenticity proof.
 
 ## Cutover gates
 
@@ -39,10 +41,10 @@ A real cutover requires all of these exact gates, in order:
 1. **Artifact creation:** exact SHA build succeeds and the manifest is retained with its digest.
 2. **Preflight:** verifier passes for the candidate and rollback target; host filesystem, service account, environment file, and static asset/readiness checks are reviewed. Existing production webroot provenance remains **NOT VERIFIED** until an authorized versioned cutover.
 3. **OWNER deploy authorization:** operator supplies `--apply --operator-gate I_UNDERSTAND_ATOMIC_SELF_HOSTED_CUTOVER` only after explicit Owner authorization. No database rollback or migration is implied.
-4. **Post-cutover verification:** verify `/health`, `/api/v1/ready`, frontend static asset hashes, and that backend/frontend pointers resolve to the same release. Any failed health/readiness/static verification triggers restore to the prior paired pointers.
+4. **Post-cutover verification:** the verifier performs fixed structured backend/static/pointer checks; no arbitrary shell health command is accepted or executed. Backend and frontend are exposed through one shared release pointer, so interruption cannot leave mixed pointers. Any failed check restores the prior shared pointer.
 5. **Rollback authorization/trigger:** Owner authorizes rollback to a verified compatible release; run verifier against that target before cutover. Automatic restore is only the safety response to failed post-cutover checks, not a database rollback.
 
-The implementation stages symlinks on the same filesystem and renames the paired pointers. It preserves the old release directory and environment files. Production paths are intentionally not exercised by the rehearsal.
+The implementation atomically renames one staged shared pointer and preserves the old release directory and environment files. Production paths are intentionally not exercised by the rehearsal.
 
 ## Rehearsal and evidence
 

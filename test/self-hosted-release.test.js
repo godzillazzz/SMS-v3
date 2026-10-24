@@ -4,44 +4,26 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { spawnSync } = require('node:child_process');
+const { execFileSync, spawnSync } = require('node:child_process');
 const { inventory, manifestDigest, verifyRelease, COMPATIBILITY } = require('../scripts/self-hosted-release');
 
 function fixture() {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'sms-v3-release-rehearsal-'));
-  const release = path.join(root, `sms-v3-${'a'.repeat(40)}`);
-  fs.mkdirSync(path.join(release, 'backend'), { recursive: true }); fs.mkdirSync(path.join(release, 'frontend', 'dist'), { recursive: true });
-  fs.writeFileSync(path.join(release, 'backend', 'server.js'), 'console.log("synthetic backend");\n');
-  fs.writeFileSync(path.join(release, 'frontend', 'dist', 'index.html'), '<!doctype html><script src="app.js"></script>\n');
-  fs.writeFileSync(path.join(release, 'frontend', 'dist', 'app.js'), 'window.__RELEASE__ = "synthetic";\n');
-  const backend = inventory(path.join(release, 'backend')); const frontend = inventory(path.join(release, 'frontend', 'dist'));
-  const manifest = { schema_version: 1, release_id: path.basename(release), git_sha: 'a'.repeat(40), tree_sha: 'b'.repeat(40), build_identity: 'synthetic@test', toolchain: { node: process.version, npm: 'synthetic' }, backend_inventory_digest: backend.digest, frontend_inventory_digest: frontend.digest, storage_compatibility: { mode: COMPATIBILITY, database_authoritative: true, mixed_provider_reads: true, providers: ['supabase', 's3'] }, previous_rollback_release: null, asset_hashes: frontend.entries };
-  manifest.manifest_sha256 = manifestDigest(manifest); fs.writeFileSync(path.join(release, 'release-manifest.json'), JSON.stringify(manifest, null, 2) + '\n');
-  return { root, release };
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'sms-v3-release-rehearsal-')); const repo = path.join(root, 'trusted-repo');
+  fs.mkdirSync(repo); execFileSync('git', ['init', '-q'], { cwd: repo }); execFileSync('git', ['config', 'user.email', 'test@example.invalid'], { cwd: repo }); execFileSync('git', ['config', 'user.name', 'test'], { cwd: repo }); fs.writeFileSync(path.join(repo, 'provenance.txt'), 'trusted\n'); execFileSync('git', ['add', '.'], { cwd: repo }); execFileSync('git', ['commit', '-qm', 'trusted'], { cwd: repo });
+  const gitSha = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: repo, encoding: 'utf8' }).trim(); const treeSha = execFileSync('git', ['rev-parse', 'HEAD^{tree}'], { cwd: repo, encoding: 'utf8' }).trim();
+  const release = path.join(root, `sms-v3-${gitSha}`); fs.mkdirSync(path.join(release, 'backend'), { recursive: true }); fs.mkdirSync(path.join(release, 'frontend', 'dist'), { recursive: true });
+  fs.writeFileSync(path.join(release, 'backend', 'server.js'), 'console.log("synthetic backend");\n'); fs.writeFileSync(path.join(release, 'frontend', 'dist', 'index.html'), '<!doctype html><script src="app.js"></script>\n'); fs.writeFileSync(path.join(release, 'frontend', 'dist', 'app.js'), 'window.__RELEASE__ = "synthetic";\n');
+  const backend = inventory(path.join(release, 'backend')); const frontend = inventory(path.join(release, 'frontend', 'dist')); const manifest = { schema_version: 1, release_id: path.basename(release), git_sha: gitSha, tree_sha: treeSha, build_identity: 'synthetic@test', toolchain: { node: process.version, npm: 'synthetic' }, backend_inventory_digest: backend.digest, frontend_inventory_digest: frontend.digest, storage_compatibility: { mode: COMPATIBILITY, database_authoritative: true, mixed_provider_reads: true, providers: ['supabase', 's3'] }, previous_rollback_release: null, asset_hashes: frontend.entries }; manifest.manifest_sha256 = manifestDigest(manifest); fs.writeFileSync(path.join(release, 'release-manifest.json'), JSON.stringify(manifest, null, 2) + '\n');
+  return { root, repo, release, manifest };
 }
+const opts = f => ({ repo: f.repo, trustedManifestSha256: f.manifest.manifest_sha256 });
+function cli(f, args) { return spawnSync(process.execPath, [path.join(__dirname, '..', 'scripts/self-hosted-release.js'), ...args], { encoding: 'utf8' }); }
 
-test('verifies a paired release and rejects tampered static assets', () => {
-  const { root, release } = fixture();
-  try { assert.equal(verifyRelease(release).manifest.git_sha, 'a'.repeat(40)); fs.appendFileSync(path.join(release, 'frontend', 'dist', 'app.js'), 'tampered'); assert.throws(() => verifyRelease(release), /frontend inventory digest mismatch/); }
-  finally { fs.rmSync(root, { recursive: true, force: true }); }
-});
-
-test('cutover defaults to read-only and does not touch production paths', () => {
-  const { root, release } = fixture(); const app = path.join(root, 'app'); const web = path.join(root, 'webroot');
-  try { const result = spawnSync(process.execPath, [path.join(__dirname, '..', 'scripts/self-hosted-release.js'), 'cutover', '--release', release, '--app', app, '--webroot', web], { encoding: 'utf8' }); assert.equal(result.status, 0); assert.match(result.stdout, /CUTOVER=DRY_RUN/); assert.equal(fs.existsSync(app), false); assert.equal(fs.existsSync(web), false); }
-  finally { fs.rmSync(root, { recursive: true, force: true }); }
-});
-
-test('failed gated cutover restores both prior pointers and leaves env untouched', () => {
-  const { root, release } = fixture(); const previous = path.join(root, 'previous'); const app = path.join(root, 'app'); const web = path.join(root, 'webroot'); const env = path.join(root, 'app.env');
-  fs.mkdirSync(path.join(previous, 'frontend', 'dist'), { recursive: true }); fs.mkdirSync(path.join(previous, 'backend')); fs.writeFileSync(path.join(previous, 'frontend', 'dist', 'index.html'), 'previous'); fs.writeFileSync(path.join(previous, 'backend', 'server.js'), 'previous'); fs.writeFileSync(env, 'SYNTHETIC_ENV=preserved\n');
-  fs.symlinkSync(path.join(previous, 'backend'), app, 'dir'); fs.symlinkSync(path.join(previous, 'frontend', 'dist'), web, 'dir');
-  try { const result = spawnSync(process.execPath, [path.join(__dirname, '..', 'scripts/self-hosted-release.js'), 'cutover', '--release', release, '--app', app, '--webroot', web, '--apply', '--operator-gate', 'I_UNDERSTAND_ATOMIC_SELF_HOSTED_CUTOVER', '--health-command', 'exit 1'], { encoding: 'utf8' }); assert.equal(result.status, 1); assert.equal(fs.realpathSync(app), path.join(previous, 'backend')); assert.equal(fs.realpathSync(web), path.join(previous, 'frontend', 'dist')); assert.equal(fs.readFileSync(env, 'utf8'), 'SYNTHETIC_ENV=preserved\n'); }
-  finally { fs.rmSync(root, { recursive: true, force: true }); }
-});
-
-test('rejects a release without mixed-provider compatibility', () => {
-  const { root, release } = fixture();
-  try { const file = path.join(release, 'release-manifest.json'); const manifest = JSON.parse(fs.readFileSync(file)); manifest.storage_compatibility.providers = ['s3']; delete manifest.manifest_sha256; manifest.manifest_sha256 = manifestDigest(manifest); fs.writeFileSync(file, JSON.stringify(manifest)); assert.throws(() => verifyRelease(release), /does not support both Supabase and MinIO\/S3 reads/); }
-  finally { fs.rmSync(root, { recursive: true, force: true }); }
-});
+test('verifies trusted paired release and rejects tampered static assets', () => { const f = fixture(); try { assert.equal(verifyRelease(f.release, null, opts(f)).manifest.git_sha, f.manifest.git_sha); fs.appendFileSync(path.join(f.release, 'frontend', 'dist', 'app.js'), 'tampered'); assert.throws(() => verifyRelease(f.release, null, opts(f)), /frontend inventory digest mismatch/); } finally { fs.rmSync(f.root, { recursive: true, force: true }); } });
+test('fails closed without external digest or independent provenance', () => { const f = fixture(); try { assert.throws(() => verifyRelease(f.release), /trusted external manifest digest/); assert.throws(() => verifyRelease(f.release, null, { trustedManifestSha256: f.manifest.manifest_sha256 }), /trusted git repository/); } finally { fs.rmSync(f.root, { recursive: true, force: true }); } });
+test('rejects forged manifest even when its self-derived digest is repaired', () => { const f = fixture(); try { const file = path.join(f.release, 'release-manifest.json'); const m = JSON.parse(fs.readFileSync(file)); m.git_sha = 'a'.repeat(40); m.manifest_sha256 = manifestDigest(m); fs.writeFileSync(file, JSON.stringify(m)); assert.throws(() => verifyRelease(f.release, null, { repo: f.repo, trustedManifestSha256: m.manifest_sha256 }), /git\/tree provenance/); } finally { fs.rmSync(f.root, { recursive: true, force: true }); } });
+test('rejects symlink and traversal entries', () => { const f = fixture(); try { fs.symlinkSync(path.join(f.root, 'outside'), path.join(f.release, 'backend', 'link')); assert.throws(() => verifyRelease(f.release, null, opts(f)), /symlink/); } finally { fs.rmSync(f.root, { recursive: true, force: true }); } });
+test('cutover defaults to read-only and requires mandatory trust inputs', () => { const f = fixture(); const app = path.join(f.root, 'app'); const web = path.join(f.root, 'webroot'); try { const result = cli(f, ['cutover', '--release', f.release, '--app', app, '--webroot', web, '--repo', f.repo, '--trusted-manifest-sha256', f.manifest.manifest_sha256]); assert.equal(result.status, 0); assert.match(result.stdout, /CUTOVER=DRY_RUN/); assert.match(result.stdout, /MANDATORY_CHECKS=PASS/); assert.equal(fs.existsSync(app), false); assert.equal(fs.existsSync(web), false); } finally { fs.rmSync(f.root, { recursive: true, force: true }); } });
+test('rejects arbitrary health command rather than executing shell', () => { const f = fixture(); try { const result = cli(f, ['cutover', '--release', f.release, '--repo', f.repo, '--trusted-manifest-sha256', f.manifest.manifest_sha256, '--health-command', 'touch SHOULD_NOT_EXIST']); assert.equal(result.status, 0); assert.equal(fs.existsSync(path.join(process.cwd(), 'SHOULD_NOT_EXIST')), false); } finally { fs.rmSync(f.root, { recursive: true, force: true }); } });
+test('shared pointer cutover cannot expose mixed backend/frontend pointers', () => { const f = fixture(); const pointer = path.join(f.root, 'current'); try { const result = cli(f, ['cutover', '--release', f.release, '--pointer', pointer, '--repo', f.repo, '--trusted-manifest-sha256', f.manifest.manifest_sha256, '--apply', '--operator-gate', 'I_UNDERSTAND_ATOMIC_SELF_HOSTED_CUTOVER']); assert.equal(result.status, 0, result.stderr); assert.equal(fs.realpathSync(pointer), f.release); } finally { fs.rmSync(f.root, { recursive: true, force: true }); } });
+test('rejects incompatible provider manifest', () => { const f = fixture(); try { const file = path.join(f.release, 'release-manifest.json'); const m = JSON.parse(fs.readFileSync(file)); m.storage_compatibility.providers = ['s3']; m.manifest_sha256 = manifestDigest(m); fs.writeFileSync(file, JSON.stringify(m)); assert.throws(() => verifyRelease(f.release, null, { repo: f.repo, trustedManifestSha256: m.manifest_sha256 }), /does not support both Supabase/); } finally { fs.rmSync(f.root, { recursive: true, force: true }); } });
