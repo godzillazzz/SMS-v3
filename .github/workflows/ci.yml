@@ -100,17 +100,17 @@ jobs:
       - name: Configure private bucket and restricted credentials
         run: |
           set -euo pipefail
-          # The pinned server image is also the pinned mc client image; verify the
-          # bundled client before using it so this cannot silently drift to another image.
-          docker compose -f "$MINIO_COMPOSE_FILE" exec -T minio mc --version
-          docker compose -f "$MINIO_COMPOSE_FILE" exec -T minio mc alias set local http://127.0.0.1:9000 "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD"
-          docker compose -f "$MINIO_COMPOSE_FILE" exec -T minio mc mb --ignore-existing "local/$MINIO_BUCKET"
-          printf '%s\n' '{"Version":"2012-10-17","Statement":[{"Action":["s3:GetBucketLocation","s3:ListBucket","s3:PutObject","s3:GetObject","s3:DeleteObject"],"Effect":"Allow","Resource":["arn:aws:s3:::'"$MINIO_BUCKET"'","arn:aws:s3:::'"$MINIO_BUCKET"'/*"]}]}' | docker compose -f "$MINIO_COMPOSE_FILE" exec -T minio sh -c 'cat > /tmp/sms-v3-ci-policy.json'
-          docker compose -f "$MINIO_COMPOSE_FILE" exec -T minio mc admin policy create local sms-v3-ci-policy /tmp/sms-v3-ci-policy.json || true
-          docker compose -f "$MINIO_COMPOSE_FILE" exec -T minio mc admin user add local "$MINIO_CI_ACCESS_KEY" "$MINIO_CI_SECRET_KEY" || true
-          docker compose -f "$MINIO_COMPOSE_FILE" exec -T minio mc admin policy attach local sms-v3-ci-policy --user "$MINIO_CI_ACCESS_KEY"
-          docker compose -f "$MINIO_COMPOSE_FILE" exec -T minio mc anonymous set none "local/$MINIO_BUCKET"
-          docker compose -f "$MINIO_COMPOSE_FILE" exec -T minio mc anonymous get "local/$MINIO_BUCKET"
+          curl --fail --location --retry 3 --output /tmp/mc https://dl.min.io/client/mc/release/linux-amd64/archive/mc.RELEASE.2025-08-13T08-35-41Z
+          chmod +x /tmp/mc
+          /tmp/mc alias set local http://127.0.0.1:9000 "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD"
+          /tmp/mc mb --ignore-existing "local/$MINIO_BUCKET"
+          printf '%s\n' '{"Version":"2012-10-17","Statement":[{"Action":["s3:GetBucketLocation","s3:ListBucket","s3:PutObject","s3:GetObject","s3:DeleteObject"],"Effect":"Allow","Resource":["arn:aws:s3:::'"$MINIO_BUCKET"'","arn:aws:s3:::'"$MINIO_BUCKET"'/*"]}]}' > /tmp/sms-v3-ci-policy.json
+          /tmp/mc admin policy create local sms-v3-ci-policy /tmp/sms-v3-ci-policy.json || true
+          /tmp/mc admin user add local "$MINIO_CI_ACCESS_KEY" "$MINIO_CI_SECRET_KEY" || true
+          /tmp/mc admin policy attach local sms-v3-ci-policy --user "$MINIO_CI_ACCESS_KEY"
+          /tmp/mc anonymous set none "local/$MINIO_BUCKET"
+          /tmp/mc anonymous get "local/$MINIO_BUCKET"
+          rm -f /tmp/mc /tmp/sms-v3-ci-policy.json
       - run: npm ci
       - name: Run real MinIO storage integration
         env:
