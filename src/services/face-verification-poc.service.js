@@ -5,7 +5,7 @@ const prismaDefault = require('../config/prisma');
 const HttpError = require('../utils/http-error');
 const { createFaceVerificationSessionService } = require('./face-verification-session.service');
 const { createSupabaseEmployeeReferencePhotoStorage } = require('./employee-reference-photo-storage.service');
-const { createStorageReadResolver, verify } = require('./storage-read-resolver');
+const { createStorageReadResolver, verify, assertLegacyMetadata } = require('./storage-read-resolver');
 const { PROVIDER_NAME, createAwsRekognitionFaceVerificationProvider } = require('./aws-rekognition-face-verification.provider');
 
 function http(statusCode, code, message) { return new HttpError(statusCode, message, { code }); }
@@ -74,7 +74,7 @@ function createFaceVerificationPocService({
       const legacyRecord = !reference.storageProvider && !reference.storageBucket && reference.storageObjectKey;
       if (!hasProviderMetadata) throw http(409, 'VERIFICATION_STALE', 'Reference Photo storage metadata is unavailable.');
       referenceBytes = legacyRecord
-        ? verify(await storage.getBytes(reference.storageObjectKey), reference).bytes
+        ? (assertLegacyMetadata(reference), verify(await storage.getBytes(reference.storageObjectKey), reference).bytes)
         : (await readResolver.read(reference)).bytes;
       if (sha256(referenceBytes) !== session.referencePhotoChecksum) {
         await sessionService.failSession(sessionId, 'VERIFICATION_STALE').catch(() => {});

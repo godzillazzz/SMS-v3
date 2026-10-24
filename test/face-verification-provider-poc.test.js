@@ -18,6 +18,8 @@ const {
   createAwsRekognitionFaceVerificationProvider
 } = require('../src/services/aws-rekognition-face-verification.provider');
 const { pocApiEnabled } = require('../src/routes/face-verification.routes');
+const { createFaceVerificationPocService } = require('../src/services/face-verification-poc.service');
+const crypto = require('node:crypto');
 
 const root = path.resolve(__dirname, '..');
 const read = (file) => fs.readFileSync(path.join(root, file), 'utf8');
@@ -104,6 +106,24 @@ test('PoC route is test/Preview-only and production cannot enable it with the fe
   const route = read('src/routes/face-verification.routes.js');
   assert.match(route, /router.use\(requirePreviewPoc, authenticate\)/);
   assert.doesNotMatch(route, /AWS_ACCESS_KEY|AWS_SECRET_ACCESS|AWS_SESSION_TOKEN/);
+});
+
+test('PoC legacy records require complete MIME and size metadata before read', async () => {
+  const bytes = Buffer.from([0xff, 0xd8, 0xff, 1]);
+  const checksum = crypto.createHash('sha256').update(bytes).digest('hex');
+  const make = (metadata) => createFaceVerificationPocService({
+    prisma: {
+      faceVerificationSession: { async findUnique() { return { id: 's', userId: 'u', referencePhotoId: 'r', referencePhotoChecksum: checksum, status: 'PROVIDER_PENDING', provider: PROVIDER_NAME }; } },
+      employeeReferencePhoto: { async findUnique() { return { id: 'r', status: 'ACTIVE', checksum, storageObjectKey: 'legacy.jpg', storageDeletedAt: null, storageDeletionRequestedAt: null, ...metadata }; } }
+    },
+    storage: { async getBytes() { return bytes; } },
+    provider: { async evaluate() { return { complete: false, providerStatus: 'IN_PROGRESS' }; } },
+    sessionService: { async failSession() {} }
+  });
+  await assert.rejects(() => make({}).completeProviderSession({ actor: { sub: 'u' }, sessionId: 's', providerSessionId: 'p' }), (error) => error.details?.code === 'STORAGE_METADATA_INCOMPLETE');
+  await assert.rejects(() => make({ mimeType: 'text/plain', fileSize: bytes.length }).completeProviderSession({ actor: { sub: 'u' }, sessionId: 's', providerSessionId: 'p' }), (error) => error.details?.code === 'STORAGE_METADATA_INCOMPLETE');
+  const accepted = await make({ mimeType: 'image/jpeg', fileSize: bytes.length }).completeProviderSession({ actor: { sub: 'u' }, sessionId: 's', providerSessionId: 'p' });
+  assert.equal(accepted.pending, true);
 });
 
 test('PoC orchestration reads private Reference Photo bytes and never persists provider images or scores', () => {

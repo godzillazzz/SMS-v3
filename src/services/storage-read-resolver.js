@@ -51,6 +51,14 @@ function verify(bytes, row) {
   if (declaredMime && actualMime !== declaredMime) fail('STORAGE_MIME_MISMATCH', 'Stored object MIME type does not match its bytes.', 502);
   return { bytes, checksum, sizeBytes: bytes.length, mimeType: declaredMime || actualMime || 'application/octet-stream' };
 }
+function assertLegacyMetadata(row) {
+  const mimeType = String(row?.mimeType || '').trim();
+  const fileSize = Number(row?.fileSize);
+  if (!MIME.has(mimeType) || !Number.isSafeInteger(fileSize) || fileSize <= 0) {
+    fail('STORAGE_METADATA_INCOMPLETE', 'Legacy stored object MIME type and file size metadata are required.', 409);
+  }
+  return row;
+}
 function createSupabaseReader({ environment, fetchImpl = globalThis.fetch } = {}) {
   return { async getBytes(key, bucket) {
     const base = String(environment.SUPABASE_URL || '').replace(/\/$/, ''); const secret = String(environment.SUPABASE_SERVICE_ROLE_KEY || '');
@@ -70,4 +78,4 @@ function createStorageReadResolver({ environment = process.env, adapters = {}, s
   async function read(row) { const location = locationOf(row, environment); const adapter = adapterFor(location); const bytes = location.provider === 's3' ? await adapter.getBytes(location.bucket, location.key) : await adapter.getBytes(location.key, location.bucket); return verify(bytes, row); }
   return Object.freeze({ locationOf: (row) => locationOf(row, environment), read });
 }
-module.exports = { createStorageReadResolver, locationOf, verify, detectedMimeType };
+module.exports = { createStorageReadResolver, locationOf, verify, assertLegacyMetadata, detectedMimeType };
