@@ -33,8 +33,9 @@ test('evidence authorization is checked before signed URL', async () => {
   const { calls, wrappers } = harness();
   await assert.rejects(wrappers.evidence.view({ id: 'e1' }), /authorization/);
   assert.equal(calls.length, 0);
-  await wrappers.evidence.view({ id: 'evidence-1', actor: { sub: 'user', role: 'ADMIN' } });
-  assert.equal(calls.at(-1)[0], 'sign');
+  const result = await wrappers.evidence.view({ id: 'evidence-1', actor: { sub: 'user', role: 'ADMIN' } });
+  assert.equal(result.url, '/api/storage-proxy/evidence/evidence-1');
+  assert.equal(calls.length, 0);
 });
 
 test('missing bucket configuration fails closed before backend creation', () => {
