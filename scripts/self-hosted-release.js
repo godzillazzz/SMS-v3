@@ -18,33 +18,58 @@ const json = value => JSON.stringify(value, null, 2) + '\n';
 function fail(message) { throw new Error(`self-hosted release: ${message}`); }
 function run(command, args, cwd, options = {}) { const output = execFileSync(command, args, { cwd, stdio: options.stdio || 'inherit', encoding: options.encoding || 'utf8' }); return typeof output === 'string' ? output.trim() : ''; }
 function contained(root, candidate) { const r = path.resolve(root); const c = path.resolve(candidate); return c === r || c.startsWith(`${r}${path.sep}`); }
-function regularFile(file) {
-  let stat; try { stat = fs.lstatSync(file); } catch { return false; }
-  if (!stat.isFile()) fail(`non-regular file or symlink is not allowed: ${file}`);
-  const fd = fs.openSync(file, fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW || 0));
-  const stable = fs.fstatSync(fd);
-  if (!stable.isFile() || stable.ino !== stat.ino || stable.dev !== stat.dev) { fs.closeSync(fd); fail(`file changed during verification: ${file}`); }
-  return { fd, stat: stable };
+const procFd = fd => `/proc/self/fd/${fd}`;
+const closeFd = fd => { try { fs.closeSync(fd); } catch (error) { if (error.code !== 'EBADF') throw error; } };
+const noFollow = fs.constants.O_NOFOLLOW || 0;
+const directoryFlags = fs.constants.O_RDONLY | (fs.constants.O_DIRECTORY || 0);
+function openDirectory(directory) {
+  try { return fs.openSync(directory, directoryFlags); } catch { fail(`missing or unsafe directory: ${directory}`); }
+}
+function openChildDirectory(parentFd, name) {
+  try { return fs.openSync(path.join(procFd(parentFd), name), directoryFlags); } catch { fail(`missing or unsafe directory: ${name}`); }
+}
+function openRelative(root, relative, flags = fs.constants.O_RDONLY, anchoredRootFd = null) {
+  const parts = rel(path.relative(path.resolve(root), path.resolve(root, relative))).split('/').filter(Boolean);
+  if (!parts.length || parts.some(part => part === '..')) fail(`path escapes release: ${relative}`);
+  let directoryFd = anchoredRootFd || openDirectory(root);
+  try {
+    for (const part of parts.slice(0, -1)) {
+      const next = openChildDirectory(directoryFd, part); if (!anchoredRootFd || directoryFd !== anchoredRootFd) closeFd(directoryFd); directoryFd = next;
+    }
+    return { fd: fs.openSync(path.join(procFd(directoryFd), parts.at(-1)), flags), parentFd: directoryFd, anchored: Boolean(anchoredRootFd) };
+  } catch (error) { if (!anchoredRootFd || directoryFd !== anchoredRootFd) closeFd(directoryFd); throw error; }
+}
+function regularFile(file, root = path.dirname(file), anchoredRootFd = null) {
+  let opened; try { opened = openRelative(root, path.relative(root, file), fs.constants.O_RDONLY, anchoredRootFd); } catch (error) { if (error.code === 'ENOENT' || error.code === 'ELOOP' || error.code === 'ENOTDIR') return false; throw error; }
+  try {
+    const stable = fs.fstatSync(opened.fd);
+    if (!stable.isFile()) fail(`non-regular file or symlink is not allowed: ${file}`);
+    return { fd: opened.fd, parentFd: opened.parentFd, stat: stable };
+  } catch (error) { closeFd(opened.fd); closeFd(opened.parentFd); throw error; }
 }
 function files(root, ignored = () => false) {
   const result = []; const base = path.resolve(root);
-  function walk(dir) {
-    for (const entry of fs.readdirSync(dir, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
-      const full = path.join(dir, entry.name); const relative = rel(path.relative(base, full));
+  function walk(directoryFd, prefix) {
+    for (const entry of fs.readdirSync(procFd(directoryFd), { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
+      const relative = prefix ? `${prefix}/${entry.name}` : entry.name;
       if (ignored(relative, entry)) continue;
       if (entry.isSymbolicLink()) fail(`symlink is not allowed: ${relative}`);
-      if (entry.isDirectory()) walk(full); else if (entry.isFile()) result.push(relative); else fail(`non-regular entry is not allowed: ${relative}`);
+      if (entry.isDirectory()) { const childFd = openChildDirectory(directoryFd, entry.name); try { walk(childFd, relative); } finally { fs.closeSync(childFd); } }
+      else if (entry.isFile()) result.push(relative); else fail(`non-regular entry is not allowed: ${relative}`);
     }
   }
-  if (!fs.existsSync(base)) fail(`missing directory: ${base}`); walk(base); return result;
+  const rootFd = openDirectory(base); try { walk(rootFd, ''); } finally { closeFd(rootFd); } return result;
 }
-function safeRead(file, root) {
+function safeRead(file, root, anchoredRootFd = null) {
   if (!contained(root, file)) fail(`path escapes release: ${file}`);
-  const opened = regularFile(file);
+  const opened = regularFile(file, root, anchoredRootFd);
   if (!opened) fail(`missing regular file: ${file}`);
-  try { return fs.readFileSync(opened.fd); } finally { fs.closeSync(opened.fd); }
+  try { return fs.readFileSync(opened.fd); } finally { closeFd(opened.fd); if (!opened.anchored || opened.parentFd !== anchoredRootFd) closeFd(opened.parentFd); }
 }
-function inventory(root, ignored) { const entries = files(root, ignored).map(file => ({ path: file, sha256: sha256(safeRead(path.join(root, file), root)) })); return { entries, digest: sha256(json(entries)) }; }
+function inventory(root, ignored) {
+  const entries = files(root, ignored).map(file => ({ path: file, sha256: sha256(safeRead(path.join(root, file), root)) }));
+  return { entries, digest: sha256(json(entries)) };
+}
 function parseArgs(argv) { const out = { _: [] }; for (let i = 0; i < argv.length; i++) { const item = argv[i]; if (!item.startsWith('--')) { out._.push(item); continue; } const [key, inline] = item.slice(2).split('=', 2); out[key] = inline === undefined ? (key === 'apply' ? true : argv[++i]) : inline; } return out; }
 function required(args, key) { if (!args[key]) fail(`--${key} is required`); return args[key]; }
 function gitSha(repo, sha) { if (!SHA.test(sha)) fail('git SHA must be exactly 40 lowercase hexadecimal characters'); const actual = run('git', ['rev-parse', `${sha}^{commit}`], repo, { stdio: 'pipe' }); if (actual !== sha) fail(`requested SHA is not the exact commit object: ${actual}`); return { sha: actual, tree: run('git', ['rev-parse', `${sha}^{tree}`], repo, { stdio: 'pipe' }) }; }

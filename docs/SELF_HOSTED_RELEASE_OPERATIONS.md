@@ -22,8 +22,9 @@ The resulting `sms-v3-<SHA>` directory contains `backend/`, `frontend/dist/`, an
 npm run self-hosted:release -- verify \
   --release /opt/sms-v3/releases/sms-v3-<SHA> \
   --repo /srv/sms-v3-checkout \
-  --trusted-manifest-sha256 <EXTERNALLY_PINNED_SHA256> \
-  --rollback-target /opt/sms-v3/releases/<KNOWN_GOOD_RELEASE>
+  --trusted-manifest-sha256 <CANDIDATE_EXTERNALLY_PINNED_SHA256> \
+  --rollback-target /opt/sms-v3/releases/<KNOWN_GOOD_RELEASE> \
+  --trusted-rollback-manifest-sha256 <ROLLBACK_EXTERNALLY_PINNED_SHA256>
 ```
 
 Verification fails closed unless an externally pinned manifest digest and an independent trusted Git checkout are supplied. It rejects symlinks/non-regular files, path traversal, TOCTOU changes, missing mandatory backend/static checks, invalid/mismatched Git/tree identity, manifest/inventory/asset tampering, and releases or rollback targets that do not preserve database-authoritative mixed-provider reads. A manifest's self-derived digest is never trusted as its own authenticity proof.
