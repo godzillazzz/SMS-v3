@@ -138,7 +138,12 @@ function createInProcessFaceVerificationService({
     const providerSessionRef = randomUUID();
     const challengeFrameBytes = challengeFrameFiles.map((file) => file.buffer);
     try {
-      referenceBytes = (await readResolver.read(reference)).bytes;
+      // Older in-process callers provide the dedicated reference adapter and
+      // predate persisted provider metadata. Keep that seam while routing all
+      // metadata-backed records through the mixed-provider resolver.
+      referenceBytes = (reference.storageProvider && reference.storageBucket)
+        ? (await readResolver.read(reference)).bytes
+        : await referenceStorage.getBytes(reference.storageObjectKey);
       if (!Buffer.isBuffer(referenceBytes) || sha256(referenceBytes) !== snapshot.referencePhotoChecksum) {
         await sessionService.failSession(sessionId, 'VERIFICATION_STALE').catch(() => {});
         throw http(409, 'VERIFICATION_STALE', 'Reference Photo authority changed during verification.');
