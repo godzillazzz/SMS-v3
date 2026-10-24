@@ -95,12 +95,22 @@ function secureParent(parent) {
 }
 
 function atomicWrite(file, value) {
+  atomicReplace(file, Buffer.from(`${JSON.stringify(value, null, 2)}\n`), 'atomic-write');
+}
+
+function safeDestination(file, label) {
   const parent = path.dirname(file); secureParent(parent);
   let destination;
-  try { destination = fs.lstatSync(file); } catch (error) { if (error.code !== 'ENOENT') throw error; }
-  if (destination?.isSymbolicLink() || destination?.isDirectory()) fail(`atomic-write destination is unsafe: ${file}`);
+  try { destination = fs.lstatSync(file); } catch (error) { if (error.code === 'ENOENT') return undefined; throw error; }
+  if (destination.isSymbolicLink() || destination.isDirectory()) fail(`${label} destination is unsafe: ${file}`);
+  if (!destination.isFile()) fail(`${label} destination has unsupported type: ${file}`);
+  return destination;
+}
+
+function atomicReplace(file, bytes, label) {
+  safeDestination(file, label);
+  const parent = path.dirname(file);
   const temp = path.join(parent, `.${path.basename(file)}.${process.pid}.${crypto.randomBytes(12).toString('hex')}.tmp`);
-  const bytes = Buffer.from(`${JSON.stringify(value, null, 2)}\n`);
   let fd;
   try {
     fd = fs.openSync(temp, fs.constants.O_WRONLY | fs.constants.O_CREAT | fs.constants.O_EXCL | fs.constants.O_NOFOLLOW, 0o600);
@@ -157,6 +167,7 @@ function rehearseAtomicRollback({ root, releaseSha, previousSha, environment, fa
   const saved = { active: snapshot(active), env: snapshot(envFile) };
   const requestedFailure = failureStage || (failAfterSwitch ? 'switch' : undefined);
   const candidate = environment === undefined ? undefined : Buffer.from(`${JSON.stringify(environment)}\n`);
+  if (candidate !== undefined) safeDestination(envFile, 'environment');
   let stage;
   try {
     fs.mkdirSync(releases, { recursive: true });
@@ -180,7 +191,7 @@ function rehearseAtomicRollback({ root, releaseSha, previousSha, environment, fa
       if ((candidateStat.mode & 0o777) !== 0o600 || !fs.readFileSync(scratch).equals(candidate)) fail('candidate environment materialization failed');
     }
     atomicSwitch(active, path.join('releases', previousSha));
-    if (candidate !== undefined) fs.writeFileSync(envFile, candidate, { mode: 0o600 });
+    if (candidate !== undefined) atomicReplace(envFile, candidate, 'environment');
     if (injected('switch', requestedFailure)) fail('injected switch failure');
     atomicSwitch(active, path.relative(path.dirname(active), stage));
     if (injected('verification', requestedFailure)) fail('injected verification failure');

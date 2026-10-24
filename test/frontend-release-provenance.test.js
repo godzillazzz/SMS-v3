@@ -115,6 +115,30 @@ test('materializes exact candidate environment and restores original bytes and m
   assert.equal(fs.readlinkSync(path.join(root, 'active')), path.join('releases', previous));
 });
 
+test('rejects environment symlink and directory targets before any write', () => {
+  for (const kind of ['symlink', 'directory']) {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'sms-v3-rehearsal-'));
+    const previous = 'b'.repeat(40); fs.mkdirSync(path.join(root, 'releases', previous), { recursive: true });
+    fs.symlinkSync(path.join('releases', previous), path.join(root, 'active'));
+    const external = path.join(root, 'external.json'); const original = Buffer.from('{"PWNED":false}\n');
+    fs.writeFileSync(external, original, { mode: 0o640 });
+    const envFile = path.join(root, 'environment.json');
+    if (kind === 'symlink') fs.symlinkSync(path.basename(external), envFile);
+    else fs.mkdirSync(envFile);
+    assert.throws(() => rehearseAtomicRollback({ root, releaseSha: 'a'.repeat(40), previousSha: previous, environment: { PWNED: true }, targetMetadata: storage }), /environment destination is unsafe/);
+    if (kind === 'symlink') { assert.equal(fs.readlinkSync(envFile), path.basename(external)); assert.deepEqual(fs.readFileSync(external), original); }
+    else assert.equal(fs.statSync(envFile).isDirectory(), true);
+  }
+});
+
+test('materializes absent environment atomically and restores absence after verification failure', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'sms-v3-rehearsal-')); const previous = 'b'.repeat(40);
+  fs.mkdirSync(path.join(root, 'releases', previous), { recursive: true }); fs.symlinkSync(path.join('releases', previous), path.join(root, 'active'));
+  const envFile = path.join(root, 'environment.json');
+  const result = rehearseAtomicRollback({ root, releaseSha: 'a'.repeat(40), previousSha: previous, environment: { NODE_ENV: 'candidate' }, targetMetadata: storage, failureStage: 'verification' });
+  assert.equal(result.restored, true); assert.equal(fs.existsSync(envFile), false);
+});
+
 test('reports explicit rollback-recovery failure when restoration is injected to fail', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'sms-v3-rehearsal-'));
   const previous = 'b'.repeat(40); fs.mkdirSync(path.join(root, 'releases', previous), { recursive: true });
