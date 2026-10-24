@@ -59,6 +59,7 @@ test('real MinIO private storage survives restart and recovers after outage', { 
   const first = await client.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
   assert.deepEqual(await readBody(first.Body), payload);
   assert.equal(first.Metadata?.sha256, sha256);
+  console.log(JSON.stringify({ evidence: 'initial-checksum', bucket, key, sha256 }));
 
   const unauthorized = new S3Client({
     endpoint, region: 'us-east-1', forcePathStyle: true,
@@ -68,18 +69,22 @@ test('real MinIO private storage survives restart and recovers after outage', { 
     unauthorized.send(new GetObjectCommand({ Bucket: bucket, Key: key })),
     (error) => ['AccessDenied', 'InvalidAccessKeyId', 'SignatureDoesNotMatch'].includes(error.name)
   );
+  console.log(JSON.stringify({ evidence: 'access-denied', bucket, key }));
 
   compose('restart', 'minio');
   await waitForHealth();
   const afterRestart = await client.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
   assert.equal(crypto.createHash('sha256').update(await readBody(afterRestart.Body)).digest('hex'), sha256);
+  console.log(JSON.stringify({ evidence: 'restart-persistence', bucket, key, sha256 }));
 
   compose('stop', 'minio');
   await assert.rejects(client.send(new GetObjectCommand({ Bucket: bucket, Key: key })));
+  console.log(JSON.stringify({ evidence: 'outage-detected', bucket, key }));
   compose('start', 'minio');
   await waitForHealth();
   const afterRecovery = await client.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
   assert.deepEqual(await readBody(afterRecovery.Body), payload);
+  console.log(JSON.stringify({ evidence: 'error-recovery', bucket, key, sha256 }));
 
   await client.send(new DeleteObjectCommand({ Bucket: bucket, Key: key }));
   await assert.rejects(client.send(new GetObjectCommand({ Bucket: bucket, Key: key })));
