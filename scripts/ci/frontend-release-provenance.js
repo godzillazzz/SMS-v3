@@ -89,15 +89,37 @@ function verifyFrontendRelease({ manifest, servedRoot, backendGitSha, backendTre
   return { git_sha: manifest.git_sha, tree_sha: manifest.tree_sha, manifest_digest: manifest.manifest_digest, asset_count: actual.length };
 }
 
+function secureParent(parent) {
+  const stat = fs.lstatSync(parent);
+  if (!stat.isDirectory() || stat.isSymbolicLink()) fail(`atomic-write parent must be a real directory: ${parent}`);
+}
+
 function atomicWrite(file, value) {
-  const parent = path.dirname(file); fs.mkdirSync(parent, { recursive: true });
-  const tempDir = fs.mkdtempSync(path.join(parent, '.provenance-tmp-'));
-  const temp = path.join(tempDir, path.basename(file));
+  const parent = path.dirname(file); secureParent(parent);
+  let destination;
+  try { destination = fs.lstatSync(file); } catch (error) { if (error.code !== 'ENOENT') throw error; }
+  if (destination?.isSymbolicLink() || destination?.isDirectory()) fail(`atomic-write destination is unsafe: ${file}`);
+  const temp = path.join(parent, `.${path.basename(file)}.${process.pid}.${crypto.randomBytes(12).toString('hex')}.tmp`);
+  const bytes = Buffer.from(`${JSON.stringify(value, null, 2)}\n`);
+  let fd;
   try {
-    const fd = fs.openSync(temp, fs.constants.O_WRONLY | fs.constants.O_CREAT | fs.constants.O_EXCL, 0o600);
-    try { fs.writeFileSync(fd, `${JSON.stringify(value, null, 2)}\n`); fs.fsyncSync(fd); } finally { fs.closeSync(fd); }
+    fd = fs.openSync(temp, fs.constants.O_WRONLY | fs.constants.O_CREAT | fs.constants.O_EXCL | fs.constants.O_NOFOLLOW, 0o600);
+    fs.writeFileSync(fd, bytes); fs.fsyncSync(fd); fs.closeSync(fd); fd = undefined;
     fs.renameSync(temp, file);
-  } finally { fs.rmSync(tempDir, { recursive: true, force: true }); }
+  } finally {
+    if (fd !== undefined) fs.closeSync(fd);
+    try { fs.unlinkSync(temp); } catch (error) { if (error.code !== 'ENOENT') throw error; }
+  }
+}
+
+function atomicSwitch(link, target) {
+  const parent = path.dirname(link); secureParent(parent);
+  let destination;
+  try { destination = fs.lstatSync(link); } catch (error) { if (error.code !== 'ENOENT') throw error; }
+  if (destination && !destination.isSymbolicLink()) fail(`active pointer must be a symlink: ${link}`);
+  const temp = path.join(parent, `.${path.basename(link)}.${process.pid}.${crypto.randomBytes(12).toString('hex')}.tmp`);
+  try { fs.symlinkSync(target, temp); fs.renameSync(temp, link); }
+  finally { try { fs.unlinkSync(temp); } catch (error) { if (error.code !== 'ENOENT') throw error; } }
 }
 
 function storageCompatible(target) {
@@ -140,16 +162,13 @@ function rehearseAtomicRollback({ root, releaseSha, previousSha, environment, fa
   let switched = false; let created = [];
   try {
     fs.mkdirSync(releases, { recursive: true });
-    for (const sha of [previousSha, releaseSha]) {
-      if (injected('creation', requestedFailure)) fail('injected creation failure');
-      const dir = path.join(releases, sha); fs.mkdirSync(path.join(dir, 'frontend'), { recursive: true }); fs.mkdirSync(path.join(dir, 'backend'), { recursive: true });
-      const frontend = path.join(dir, 'frontend', 'index.html'); const backend = path.join(dir, 'backend', 'release.json');
-      if (!fs.existsSync(frontend)) { fs.writeFileSync(frontend, sha); created.push(frontend); }
-      if (!fs.existsSync(backend)) { fs.writeFileSync(backend, JSON.stringify({ git_sha: sha, tree_sha: sha })); created.push(backend); }
-    }
-    fs.rmSync(active, { force: true, recursive: true }); fs.symlinkSync(path.join('releases', previousSha), active);
+    if (injected('creation', requestedFailure)) fail('injected creation failure');
+    const dir = path.join(releases, releaseSha); fs.mkdirSync(path.join(dir, 'frontend'), { recursive: true }); fs.mkdirSync(path.join(dir, 'backend'), { recursive: true });
+    const frontend = path.join(dir, 'frontend', 'index.html'); const backend = path.join(dir, 'backend', 'release.json');
+    fs.writeFileSync(frontend, releaseSha); fs.writeFileSync(backend, JSON.stringify({ git_sha: releaseSha, tree_sha: releaseSha }));
+    atomicSwitch(active, path.join('releases', previousSha));
     if (injected('switch', requestedFailure)) fail('injected switch failure');
-    fs.rmSync(active, { force: true, recursive: true }); fs.symlinkSync(path.join('releases', releaseSha), active); switched = true;
+    atomicSwitch(active, path.join('releases', releaseSha)); switched = true;
     if (injected('verification', requestedFailure)) fail('injected verification failure');
     const activeTarget = fs.realpathSync(active); if (activeTarget !== path.join(releases, releaseSha)) fail('active pointer verification failed');
     return { restored: false, activeSha: releaseSha, activePath: active, backendPath: path.join(activeTarget, 'backend'), frontendPath: path.join(activeTarget, 'frontend'), environment: environment || {} };
