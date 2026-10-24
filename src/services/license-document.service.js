@@ -286,7 +286,7 @@ function createLicenseDocumentService({ prisma, storage, audit, reconcileSchedul
       return found;
     });
     const provider = String(document.storageProvider || '').toLowerCase();
-    const url = provider === 'fake'
+    const url = provider === 'fake' && process.env.NODE_ENV === 'test'
       ? await storage.createSignedUrl(document.storageObjectKey, 600)
       : `/api/storage-proxy/license/${encodeURIComponent(document.id)}`;
     return { url, mimeType: document.mimeType, fileName: document.safeDisplayFileName };

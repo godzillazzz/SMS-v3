@@ -24,6 +24,12 @@ function assertSupabaseBucket(bucket, environment = process.env) {
 }
 const PROVIDERS = new Set(['supabase', 's3']);
 const MIME = new Set(['image/jpeg', 'image/png', 'application/pdf']);
+function detectedMimeType(bytes) {
+  if (bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) return 'image/jpeg';
+  if (bytes.length >= 8 && bytes.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) return 'image/png';
+  if (bytes.length >= 5 && bytes.subarray(0, 5).equals(Buffer.from('%PDF-'))) return 'application/pdf';
+  return null;
+}
 function fail(code, message, status = 503) { throw new HttpError(status, message, { code }); }
 function locationOf(row, environment = process.env) {
   const provider = String(row?.storageProvider || '').trim().toLowerCase();
@@ -39,8 +45,11 @@ function verify(bytes, row) {
   if ((row.sizeBytes != null && Number(row.sizeBytes) !== bytes.length) || (row.fileSize != null && Number(row.fileSize) !== bytes.length)) fail('STORAGE_SIZE_MISMATCH', 'Stored object size does not match metadata.', 502);
   const checksum = crypto.createHash('sha256').update(bytes).digest('hex');
   if (row.checksum && String(row.checksum).toLowerCase() !== checksum) fail('STORAGE_CHECKSUM_MISMATCH', 'Stored object checksum does not match metadata.', 502);
-  if (row.mimeType && !MIME.has(String(row.mimeType))) fail('STORAGE_MIME_INVALID', 'Stored object MIME type is invalid.', 502);
-  return { bytes, checksum, sizeBytes: bytes.length, mimeType: row.mimeType || 'application/octet-stream' };
+  const declaredMime = row.mimeType ? String(row.mimeType) : null;
+  if (declaredMime && !MIME.has(declaredMime)) fail('STORAGE_MIME_INVALID', 'Stored object MIME type is invalid.', 502);
+  const actualMime = detectedMimeType(bytes);
+  if (declaredMime && actualMime !== declaredMime) fail('STORAGE_MIME_MISMATCH', 'Stored object MIME type does not match its bytes.', 502);
+  return { bytes, checksum, sizeBytes: bytes.length, mimeType: declaredMime || actualMime || 'application/octet-stream' };
 }
 function createSupabaseReader({ environment, fetchImpl = globalThis.fetch } = {}) {
   return { async getBytes(key, bucket) {
@@ -61,4 +70,4 @@ function createStorageReadResolver({ environment = process.env, adapters = {}, s
   async function read(row) { const location = locationOf(row, environment); const adapter = adapterFor(location); const bytes = location.provider === 's3' ? await adapter.getBytes(location.bucket, location.key) : await adapter.getBytes(location.key, location.bucket); return verify(bytes, row); }
   return Object.freeze({ locationOf: (row) => locationOf(row, environment), read });
 }
-module.exports = { createStorageReadResolver, locationOf, verify };
+module.exports = { createStorageReadResolver, locationOf, verify, detectedMimeType };
