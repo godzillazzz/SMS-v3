@@ -17,6 +17,7 @@ const { router: attendanceGovernanceRoutes } = require('./attendance-governance.
 const employeeReferencePhotoRoutes = require('./employee-reference-photo.routes');
 const approvalCenterRoutes = require('./approval-center.routes');
 const { router: faceVerificationRoutes } = require('./face-verification.routes');
+const { createStorageProxyRouter } = require('./storage-proxy.routes');
 const { router: selfHostedFaceVerificationRoutes } = require('./face-verification-self-hosted.routes');
 const securitySitesRoutes = require('./security-sites.routes');
 const personnelMastersRoutes = require('./personnel-masters.routes');
@@ -39,6 +40,7 @@ router.use('/attendance', attendanceRoutes);
 router.use('/employee-reference-photos', employeeReferencePhotoRoutes);
 router.use('/approval-center', approvalCenterRoutes);
 router.use('/face-verification', faceVerificationRoutes);
+router.use('/storage-proxy', createStorageProxyRouter());
 router.use('/face-verification-self-hosted', selfHostedFaceVerificationRoutes);
 router.use('/admin/security-sites', securitySitesRoutes);
 router.use('/personnel-masters', personnelMastersRoutes);

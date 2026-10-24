@@ -213,7 +213,7 @@ function createSupabaseAttendanceFaceEvidenceStorage({
       entityId: row.id,
       metadata: { event: 'PRIVATE_EVIDENCE_VIEW', employeeId: row.employeeId, faceVerificationSessionId: row.faceVerificationSessionId }
     });
-    return { id: row.id, url: await signedUrl(row.storageObjectKey, 60), mimeType: row.mimeType, capturedAt: row.capturedAt, retentionUntil: row.retentionUntil };
+    return { id: row.id, url: `/api/storage-proxy/evidence/${encodeURIComponent(row.id)}`, mimeType: row.mimeType, capturedAt: row.capturedAt, retentionUntil: row.retentionUntil };
   }
 
   async function purgeExpired({ limit = 100, actorUserId = null } = {}) {

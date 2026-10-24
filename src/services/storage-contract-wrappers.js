@@ -83,7 +83,7 @@ function createS3ContractWrappers({ environment = process.env, backend = createS
       }
       const now = clock(); if (row.purgedAt || row.purgeRequestedAt || !row.retentionUntil || new Date(row.retentionUntil) <= now) http(410, 'ATTENDANCE_EVIDENCE_NOT_VIEWABLE', 'Attendance evidence has expired or is no longer viewable.');
       await audit?.log?.({ actorUserId: actor.sub, action: 'UPDATE', entityType: 'AttendanceEvidence', entityId: row.id, metadata: { event: 'PRIVATE_EVIDENCE_VIEW', employeeId: row.employeeId } }).catch(() => undefined);
-      return { id: row.id, url: await sign('evidence', row.storageObjectKey, 60), storageProvider: 's3', mimeType: row.mimeType, capturedAt: row.capturedAt, retentionUntil: row.retentionUntil };
+      return { id: row.id, url: `/api/storage-proxy/evidence/${encodeURIComponent(row.id)}`, storageProvider: row.storageProvider, mimeType: row.mimeType, capturedAt: row.capturedAt, retentionUntil: row.retentionUntil };
     },
     async purgeExpired({ limit = 100, actorUserId = null } = {}) {
       if (!prisma?.attendanceEvidence?.findMany) return { inspected: 0, purged: 0, failed: 0 };
