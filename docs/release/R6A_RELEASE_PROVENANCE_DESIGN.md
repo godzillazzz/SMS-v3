@@ -23,14 +23,14 @@ Required fields:
 - `tooling.package_manager`: package manager and version.
 - `tooling.verifier`: verifier identity/version.
 
-Each inventory is a sorted JSON array of `{path, bytes, sha256}` entries. Paths are relative, use `/` separators, and file bytes are hashed directly. The inventory JSON is then serialized deterministically and SHA-256 hashed. This is an inventory contract, not a claim that current Production has been proven against it.
+Each inventory is a non-empty, bytewise-sorted JSON array of `{path, bytes, sha256}` entries. Paths are relative, use `/` separators, and file bytes are hashed directly; timestamps, modes, ownership and other filesystem metadata are deliberately excluded. Roots must be existing real directories, must be distinct and non-nested, and may not contain symlinks or unsupported file types. The inventory JSON is then serialized deterministically and SHA-256 hashed. This is an inventory contract, not a claim that current Production has been proven against it.
 
 ## Verification rules
 
 1. Validate every required field and exact format; missing or malformed records fail closed.
 2. Compare full Git SHA, tree SHA, build ID, source branch, and CI run ID with the release identity supplied by the caller.
 3. Recompute backend and frontend inventory digests from the candidate artifacts.
-4. Reject any modified frontend asset, modified backend artifact, mixed backend/frontend sources, mismatched SHA, missing manifest, or missing artifact root.
+4. Reject any modified frontend asset, modified backend artifact, mixed backend/frontend sources, mismatched SHA, missing manifest, missing/empty or symlink artifact roots, nested roots, symlink entries, unsupported file types, non-canonical timestamps, and ambiguous manifest structures.
 5. Do not use a deployment URL, branch name, project name, or successful readiness response as a substitute for the manifest.
 
 ## Explicit non-goals and next integration gate
