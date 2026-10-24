@@ -285,7 +285,7 @@ function createLicenseDocumentService({ prisma, storage, audit, reconcileSchedul
       await audit.log({ actorUserId: requestUser.sub, action: 'UPDATE', entityType: 'EmployeeLicenseDocument', entityId: id, metadata: { event: 'VIEW' } }, tx);
       return found;
     });
-    return { url: await storage.createSignedUrl(document.storageObjectKey, 600), mimeType: document.mimeType, fileName: document.safeDisplayFileName };
+    return { url: `/api/storage-proxy/license/${encodeURIComponent(document.id)}`, mimeType: document.mimeType, fileName: document.safeDisplayFileName };
   }
 
   async function approve({ id, requestUser }) {

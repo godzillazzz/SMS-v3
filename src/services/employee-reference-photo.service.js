@@ -6,6 +6,7 @@ const auditDefault = require('./audit.service');
 const HttpError = require('../utils/http-error');
 const { validateReferencePhoto, safeName } = require('./employee-reference-photo-storage.service');
 const { optimizeAttachment } = require('./attachment-optimizer.service');
+const { createStorageReadResolver } = require('./storage-read-resolver');
 
 function http(statusCode, code, message) { return new HttpError(statusCode, message, { code }); }
 function assertReviewer(actor) { if (!['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(actor?.role)) throw http(403, 'REFERENCE_PHOTO_FORBIDDEN', 'Reference photo access requires Admin or Manager.'); }
@@ -19,7 +20,7 @@ function safePhoto(row) {
 function storageErrorCode(error) { return String(error?.details?.code || error?.code || 'REFERENCE_PHOTO_STORAGE_DELETE_FAILED').slice(0, 80); }
 function mapConflict(error) { if (error?.code === 'P2002' || error?.code === 'P2034') return http(409, 'REFERENCE_PHOTO_STATE_CONFLICT', 'Reference photo state changed. Please refresh and try again.'); return error; }
 
-function createEmployeeReferencePhotoService({ prisma = prismaDefault, storage, audit = auditDefault, clock = () => new Date(), randomUUID = crypto.randomUUID, referencePhotoQualityValidator = null } = {}) {
+function createEmployeeReferencePhotoService({ prisma = prismaDefault, storage, readResolver = createStorageReadResolver(), audit = auditDefault, clock = () => new Date(), randomUUID = crypto.randomUUID, referencePhotoQualityValidator = null } = {}) {
   if (!storage) throw new Error('Employee reference photo storage adapter is required.');
 
   async function assertOperationalEmployee(client, employeeId) {
@@ -165,7 +166,7 @@ function createEmployeeReferencePhotoService({ prisma = prismaDefault, storage, 
     if (row.status !== 'ACTIVE' && !allowedPending) throw http(410, 'REFERENCE_PHOTO_NOT_VIEWABLE', 'This Reference Photo is no longer viewable.');
     if (row.storageDeletedAt || row.storageDeletionRequestedAt) throw http(410, 'REFERENCE_PHOTO_NOT_VIEWABLE', 'This Reference Photo is no longer viewable.');
     await audit.log({ actorUserId: actor.sub, action: 'UPDATE', entityType: 'EmployeeReferencePhoto', entityId: id, metadata: { event: 'VIEW', employeeId: row.employeeId, status: row.status } });
-    return { url: await storage.createSignedUrl(row.storageObjectKey, 60), mimeType: row.mimeType, fileName: row.safeDisplayFileName };
+    return { url: `/api/storage-proxy/reference/${encodeURIComponent(row.id)}`, mimeType: row.mimeType, fileName: row.safeDisplayFileName };
   }
 
   async function retryPendingDeletions({ limit = 25 } = {}) {
