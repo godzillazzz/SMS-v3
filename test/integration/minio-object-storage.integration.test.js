@@ -55,7 +55,10 @@ test('real MinIO private storage survives restart and recovers after outage', { 
     S3_ACCESS_KEY_ID: credentials.accessKeyId, S3_SECRET_ACCESS_KEY: credentials.secretAccessKey,
     S3_ALLOWED_BUCKETS: bucket
   } });
-  assert.deepEqual(await storage.put(bucket, key, { buffer: payload, mimetype: 'application/octet-stream' }), { provider: 's3', bucket, objectKey: key, sha256 });
+  assert.deepEqual(await storage.put(bucket, key, { buffer: payload, mimetype: 'application/octet-stream' }), {
+    provider: 's3', bucket, objectKey: key, sha256,
+    mimeType: 'application/octet-stream', sizeBytes: 36
+  });
 
   const first = await client.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
   assert.deepEqual(await readBody(first.Body), payload);
