@@ -100,6 +100,9 @@ jobs:
       - name: Configure private bucket and restricted credentials
         run: |
           set -euo pipefail
+          # The pinned server image is also the pinned mc client image; verify the
+          # bundled client before using it so this cannot silently drift to another image.
+          docker compose -f "$MINIO_COMPOSE_FILE" exec -T minio mc --version
           docker compose -f "$MINIO_COMPOSE_FILE" exec -T minio mc alias set local http://127.0.0.1:9000 "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD"
           docker compose -f "$MINIO_COMPOSE_FILE" exec -T minio mc mb --ignore-existing "local/$MINIO_BUCKET"
           printf '%s\n' '{"Version":"2012-10-17","Statement":[{"Action":["s3:GetBucketLocation","s3:ListBucket","s3:PutObject","s3:GetObject","s3:DeleteObject"],"Effect":"Allow","Resource":["arn:aws:s3:::'"$MINIO_BUCKET"'","arn:aws:s3:::'"$MINIO_BUCKET"'/*"]}]}' | docker compose -f "$MINIO_COMPOSE_FILE" exec -T minio sh -c 'cat > /tmp/sms-v3-ci-policy.json'
