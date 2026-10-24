@@ -19,12 +19,13 @@ test('object keys reject traversal, empty segments, and unsafe names', () => {
 
 test('S3 adapter uploads with checksum metadata, reads, and deletes through injected client', async () => {
   const calls = [];
-  const client = { send: async (command) => { calls.push(command); if (command.input?.Key && command.constructor.name === 'GetObjectCommand') return { Body: { transformToByteArray: async () => Uint8Array.from([1, 2, 3]) } }; return {}; } };
+  const checksum = require('node:crypto').createHash('sha256').update(Buffer.from([1, 2, 3])).digest('hex');
+  const client = { send: async (command) => { calls.push(command); if (command.constructor.name === 'GetObjectCommand') return { Body: { transformToByteArray: async () => Uint8Array.from([1, 2, 3]) }, Metadata: { sha256: checksum } }; if (command.constructor.name === 'HeadObjectCommand') return { Metadata: { sha256: checksum }, ContentType: 'image/jpeg', ContentLength: 3 }; return {}; } };
   const storage = createS3ObjectStorage({ environment: { STORAGE_PROVIDER: 's3', S3_ENDPOINT: 'http://127.0.0.1:9000', S3_REGION: 'us-east-1', S3_ACCESS_KEY_ID: 'key', S3_SECRET_ACCESS_KEY: 'secret', S3_ALLOWED_BUCKETS: 'bucket' }, client });
   const stored = await storage.put('bucket', 'attendance-selfie/a.jpg', { buffer: Buffer.from([1, 2, 3]), mimetype: 'image/jpeg' });
   assert.equal(stored.provider, 's3');
   assert.deepEqual(await storage.get('bucket', 'attendance-selfie/a.jpg'), Buffer.from([1, 2, 3]));
   await storage.remove('bucket', 'attendance-selfie/a.jpg');
-  assert.equal(calls.length, 3);
+  assert.equal(calls.length, 4);
   assert.match(calls[0].input.Metadata.sha256, /^[a-f0-9]{64}$/);
 });
