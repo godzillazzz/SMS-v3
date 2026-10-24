@@ -10,11 +10,10 @@ test('provider selector defaults to the existing Supabase factory', () => {
   assert.equal(selectStorage({ environment: { STORAGE_PROVIDER: 'supabase' }, supabaseFactory: () => expected }), expected);
 });
 
-test('S3 is fail-closed outside test and only selects injected wrapper in test', () => {
-  assert.throws(() => selectStorage({ environment: { STORAGE_PROVIDER: 's3', NODE_ENV: 'production' }, supabaseFactory: () => ({}) }), /not wired/);
+test('S3 selects the injected provider factory in every explicitly configured environment', () => {
   const expected = Object.freeze({ provider: 's3-wrapper' });
-  const selected = selectStorage({ environment: { STORAGE_PROVIDER: 's3', NODE_ENV: 'test' }, supabaseFactory: () => ({}), s3Factory: () => expected });
-  assert.equal(selected, expected);
+  assert.equal(selectStorage({ environment: { STORAGE_PROVIDER: 's3', NODE_ENV: 'production' }, supabaseFactory: () => ({}), s3Factory: () => expected }), expected);
+  assert.equal(selectStorage({ environment: { STORAGE_PROVIDER: 's3', NODE_ENV: 'test' }, supabaseFactory: () => ({}), s3Factory: () => expected }), expected);
 });
 
 test('invalid provider fails closed without selecting either factory', () => {

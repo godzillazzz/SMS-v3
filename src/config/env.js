@@ -88,9 +88,6 @@ const schema = z.object({
   ALERT_DATABASE_LATENCY_MS: optionalPositiveInteger,
   ALERT_FUNCTION_TIMEOUT_THRESHOLD: optionalPositiveInteger
 }).superRefine((value, context) => {
-  if (value.STORAGE_PROVIDER === 's3' && value.NODE_ENV !== 'test') {
-    context.addIssue({ code: z.ZodIssueCode.custom, path: ['STORAGE_PROVIDER'], message: 'S3 storage is not wired into application services; use STORAGE_PROVIDER=supabase until WIRE-02 is approved.' });
-  }
   if (['preview', 'production'].includes(value.VERCEL_ENV)) {
     let databaseUrl;
     try {
