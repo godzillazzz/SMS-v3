@@ -100,22 +100,14 @@ jobs:
       - name: Configure private bucket and restricted credentials
         run: |
           set -euo pipefail
-          docker run --rm --network host \
-            -e MINIO_ROOT_USER -e MINIO_ROOT_PASSWORD -e MINIO_BUCKET \
-            -e MINIO_CI_ACCESS_KEY -e MINIO_CI_SECRET_KEY \
-            --entrypoint /bin/sh minio/mc:RELEASE.2025-08-13T08-35-41Z -c '
-            set -eu
-            mc alias set local http://127.0.0.1:9000 "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD"
-            mc mb --ignore-existing "local/$MINIO_BUCKET"
-            cat >/tmp/sms-v3-ci-policy.json <<EOF
-          {"Version":"2012-10-17","Statement":[{"Action":["s3:GetBucketLocation","s3:ListBucket","s3:PutObject","s3:GetObject","s3:DeleteObject"],"Effect":"Allow","Resource":["arn:aws:s3:::$MINIO_BUCKET","arn:aws:s3:::$MINIO_BUCKET/*"]}]}
-          EOF
-            mc admin policy create local sms-v3-ci-policy /tmp/sms-v3-ci-policy.json || true
-            mc admin user add local "$MINIO_CI_ACCESS_KEY" "$MINIO_CI_SECRET_KEY" || true
-            mc admin policy attach local sms-v3-ci-policy --user "$MINIO_CI_ACCESS_KEY"
-            mc anonymous set none "local/$MINIO_BUCKET"
-            mc anonymous get "local/$MINIO_BUCKET"
-          '
+          docker compose -f "$MINIO_COMPOSE_FILE" exec -T minio mc alias set local http://127.0.0.1:9000 "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD"
+          docker compose -f "$MINIO_COMPOSE_FILE" exec -T minio mc mb --ignore-existing "local/$MINIO_BUCKET"
+          printf '%s\n' '{"Version":"2012-10-17","Statement":[{"Action":["s3:GetBucketLocation","s3:ListBucket","s3:PutObject","s3:GetObject","s3:DeleteObject"],"Effect":"Allow","Resource":["arn:aws:s3:::'"$MINIO_BUCKET"'","arn:aws:s3:::'"$MINIO_BUCKET"'/*"]}]}' | docker compose -f "$MINIO_COMPOSE_FILE" exec -T minio sh -c 'cat > /tmp/sms-v3-ci-policy.json'
+          docker compose -f "$MINIO_COMPOSE_FILE" exec -T minio mc admin policy create local sms-v3-ci-policy /tmp/sms-v3-ci-policy.json || true
+          docker compose -f "$MINIO_COMPOSE_FILE" exec -T minio mc admin user add local "$MINIO_CI_ACCESS_KEY" "$MINIO_CI_SECRET_KEY" || true
+          docker compose -f "$MINIO_COMPOSE_FILE" exec -T minio mc admin policy attach local sms-v3-ci-policy --user "$MINIO_CI_ACCESS_KEY"
+          docker compose -f "$MINIO_COMPOSE_FILE" exec -T minio mc anonymous set none "local/$MINIO_BUCKET"
+          docker compose -f "$MINIO_COMPOSE_FILE" exec -T minio mc anonymous get "local/$MINIO_BUCKET"
       - run: npm ci
       - name: Run real MinIO storage integration
         env:
