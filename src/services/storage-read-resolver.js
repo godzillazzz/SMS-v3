@@ -3,6 +3,25 @@
 const crypto = require('node:crypto');
 const HttpError = require('../utils/http-error');
 const { assertBucket, assertObjectKey, createS3ObjectStorage } = require('./object-storage-provider');
+
+function supabaseBucketAllowlist(environment = process.env) {
+  const configured = [
+    environment.SUPABASE_ALLOWED_BUCKETS,
+    environment.SUPABASE_STORAGE_BUCKET,
+    environment.SUPABASE_BUCKET,
+    environment.ATTENDANCE_DEVICE_SELFIE_BUCKET,
+    environment.ATTENDANCE_FACE_EVIDENCE_BUCKET,
+    environment.EMPLOYEE_REFERENCE_PHOTOS_BUCKET,
+    environment.LICENSE_DOCUMENTS_BUCKET
+  ].filter(Boolean).join(',');
+  return new Set(configured.split(',').map((value) => String(value).trim()).filter(Boolean));
+}
+function assertSupabaseBucket(bucket, environment = process.env) {
+  if (!/^[A-Za-z0-9._-]{1,255}$/.test(bucket) || !supabaseBucketAllowlist(environment).has(bucket)) {
+    throw new HttpError(400, 'Storage bucket is not allowed.', { code: 'STORAGE_BUCKET_NOT_ALLOWED' });
+  }
+  return bucket;
+}
 const PROVIDERS = new Set(['supabase', 's3']);
 const MIME = new Set(['image/jpeg', 'image/png', 'application/pdf']);
 function fail(code, message, status = 503) { throw new HttpError(status, message, { code }); }
@@ -12,7 +31,8 @@ function locationOf(row, environment = process.env) {
   const bucket = String(row?.storageBucket || '').trim(); const key = row?.storageObjectKey;
   if (!bucket) fail('STORAGE_BUCKET_NOT_CONFIGURED', 'Stored object bucket is missing.', 400);
   if (!key) fail('STORAGE_OBJECT_KEY_INVALID', 'Stored object key is missing.', 400);
-  assertBucket(bucket, environment); assertObjectKey(key); return { provider, bucket, key };
+  (provider === 's3' ? assertBucket : assertSupabaseBucket)(bucket, environment);
+  assertObjectKey(key); return { provider, bucket, key };
 }
 function verify(bytes, row) {
   if (!Buffer.isBuffer(bytes) || bytes.length === 0) fail('STORAGE_READ_FAILED', 'Stored object could not be read.', 502);
