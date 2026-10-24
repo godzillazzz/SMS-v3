@@ -25,6 +25,7 @@ test('resolver fails closed for malformed provider, bucket, key, checksum, MIME 
   const resolver = createStorageReadResolver({ environment: env, adapters: { s3: { getBytes: async () => bytes } } });
   await assert.rejects(resolver.read({ storageProvider: 's3', storageBucket: 'private-s3', storageObjectKey: 'x', checksum: '0'.repeat(64) }), /checksum/i);
   await assert.rejects(resolver.read({ storageProvider: 's3', storageBucket: 'private-s3', storageObjectKey: 'x', sizeBytes: 99 }), /size/i);
+  await assert.rejects(resolver.read({ storageProvider: 's3', storageBucket: 'private-s3', storageObjectKey: 'x', fileSize: bytes.length + 1 }), /size/i);
   await assert.rejects(resolver.read({ storageProvider: 's3', storageBucket: 'private-s3', storageObjectKey: 'x', mimeType: 'text/plain' }), /MIME/i);
 });
 
