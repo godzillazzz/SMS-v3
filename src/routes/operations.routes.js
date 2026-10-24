@@ -92,7 +92,7 @@ const scheduleTimeInput = nullableText(20)
 const licenseInputBase = z.object({ employeeId: uuid, licenseType: z.string().trim().min(1).max(150), licenseNumber: z.string().trim().min(1).max(255), issueDate: z.coerce.date(), expiryDate: z.coerce.date(), status: z.enum(['Active', 'Suspended', 'Revoked', 'Inactive']).default('Active'), documentUrl: z.string().url().max(2000).nullable().optional(), remark: nullableText(2000) });
 const validLicenseDates = (value) => !value.issueDate || !value.expiryDate || value.issueDate <= value.expiryDate;
 const licenseInput = licenseInputBase.refine(validLicenseDates, { message: 'Issue date must not be after expiry date.', path: ['expiryDate'] });
-const licenseUpdateInput = licenseInputBase.omit({ employeeId: true }).partial().refine(validLicenseDates, { message: 'Issue date must not be after expiry date.', path: ['expiryDate'] });
+const licenseUpdateInput = licenseInputBase.omit({ employeeId: true, status: true }).partial().extend({ status: z.enum(['Active', 'Suspended', 'Revoked', 'Inactive']).optional() }).refine(validLicenseDates, { message: 'Issue date must not be after expiry date.', path: ['expiryDate'] });
 const licenseListQuery = paging.extend({ employeeStatus: z.enum(['ACTIVE', 'INACTIVE', 'ALL']).default('ACTIVE'), employeeId: uuid.optional() });
 const shiftTypeInput = z.object({
   code: z.string().trim().toUpperCase().regex(/^[A-Z0-9_-]{1,12}$/),
