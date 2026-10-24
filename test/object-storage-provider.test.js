@@ -29,3 +29,13 @@ test('S3 adapter uploads with checksum metadata, reads, and deletes through inje
   assert.equal(calls.length, 4);
   assert.match(calls[0].input.Metadata.sha256, /^[a-f0-9]{64}$/);
 });
+
+test('S3 adapter rejects missing or mismatched checksums on read and head', async () => {
+  const client = { send: async (command) => {
+    if (command.constructor.name === 'GetObjectCommand') return { Body: { transformToByteArray: async () => Buffer.from('bad') } };
+    return { Metadata: {} };
+  } };
+  const storage = createS3ObjectStorage({ environment: { STORAGE_PROVIDER: 's3', S3_ENDPOINT: 'http://127.0.0.1:9000', S3_ACCESS_KEY_ID: 'key', S3_SECRET_ACCESS_KEY: 'secret', S3_ALLOWED_BUCKETS: 'bucket' }, client });
+  await assert.rejects(storage.get('bucket', 'attendance-selfie/a.jpg'), /checksum/i);
+  await assert.rejects(storage.head('bucket', 'attendance-selfie/a.jpg'), /checksum/i);
+});
