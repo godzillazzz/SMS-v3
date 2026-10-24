@@ -87,8 +87,10 @@ async function plan({ sourceRoot, destinationRoot, manifestPath, dryRun = true, 
           result.copied += 1;
         }
       }
-      completed.add(checkpointKey);
-      await writeCheckpoint(checkpointPath, completed);
+      if (!dryRun) {
+        completed.add(checkpointKey);
+        await writeCheckpoint(checkpointPath, completed);
+      }
     } catch (error) {
       result.failed += 1;
       result.failures.push({ key: item.key || null, code: String(error.message || 'FAILED').replace(/[^A-Z0-9_]/gi, '_').slice(0, 80) });

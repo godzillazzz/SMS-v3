@@ -55,11 +55,43 @@ function createS3ObjectStorage({ environment = process.env, client } = {}) {
   const send = (command) => sdk.client.send(command);
   return Object.freeze({
     provider: PROVIDERS.S3,
-    async put(bucket, key, file) { assertObjectKey(key); assertBucket(bucket, environment); const sha256 = crypto.createHash('sha256').update(file.buffer).digest('hex'); await send(new sdk.PutObjectCommand({ Bucket: bucket, Key: key, Body: file.buffer, ContentType: file.mimetype, ContentLength: file.buffer.length, Metadata: { sha256 } })); return { provider: PROVIDERS.S3, bucket, objectKey: key, sha256 }; },
+    async put(bucket, key, file) {
+      assertObjectKey(key); assertBucket(bucket, environment);
+      const sha256 = crypto.createHash('sha256').update(file.buffer).digest('hex');
+      await send(new sdk.PutObjectCommand({ Bucket: bucket, Key: key, Body: file.buffer, ContentType: file.mimetype, ContentLength: file.buffer.length, Metadata: { sha256 } }));
+      const confirmed = await this.head(bucket, key);
+      if (confirmed.sha256 !== sha256) throw new HttpError(502, 'Object storage checksum could not be confirmed.', { code: 'S3_STORAGE_CHECKSUM_UNCONFIRMED' });
+      return { provider: PROVIDERS.S3, bucket, objectKey: key, sha256, mimeType: confirmed.contentType || file.mimetype, sizeBytes: confirmed.contentLength ?? file.buffer.length };
+    },
     async remove(bucket, key) { assertObjectKey(key); assertBucket(bucket, environment); await send(new sdk.DeleteObjectCommand({ Bucket: bucket, Key: key })); },
-    async get(bucket, key) { assertObjectKey(key); assertBucket(bucket, environment); const result = await send(new sdk.GetObjectCommand({ Bucket: bucket, Key: key })); if (!result?.Body?.transformToByteArray) throw new HttpError(502, 'Object storage read failed.', { code: 'S3_STORAGE_READ_FAILED' }); const body = Buffer.from(await result.Body.transformToByteArray()); const sha256 = crypto.createHash('sha256').update(body).digest('hex'); if (result.Metadata?.sha256 && result.Metadata.sha256 !== sha256) throw new HttpError(502, 'Object storage checksum mismatch.', { code: 'S3_STORAGE_CHECKSUM_MISMATCH' }); return body; },
-    async head(bucket, key) { assertObjectKey(key); assertBucket(bucket, environment); return send(new sdk.HeadObjectCommand({ Bucket: bucket, Key: key })); },
-    async listObjects(bucket, prefix = '') { assertBucket(bucket, environment); return send(new sdk.ListObjectsV2Command({ Bucket: bucket, Prefix: prefix })); },
+    async get(bucket, key) {
+      assertObjectKey(key); assertBucket(bucket, environment);
+      const result = await send(new sdk.GetObjectCommand({ Bucket: bucket, Key: key }));
+      if (!result?.Body?.transformToByteArray) throw new HttpError(502, 'Object storage read failed.', { code: 'S3_STORAGE_READ_FAILED' });
+      const body = Buffer.from(await result.Body.transformToByteArray());
+      const sha256 = crypto.createHash('sha256').update(body).digest('hex');
+      if (String(result.Metadata?.sha256 || '').toLowerCase() !== sha256) throw new HttpError(502, 'Object storage checksum is missing or mismatched.', { code: 'S3_STORAGE_CHECKSUM_MISMATCH' });
+      return body;
+    },
+    async head(bucket, key) {
+      assertObjectKey(key); assertBucket(bucket, environment);
+      const result = await send(new sdk.HeadObjectCommand({ Bucket: bucket, Key: key }));
+      const sha256 = String(result?.Metadata?.sha256 || '').toLowerCase();
+      if (!/^[a-f0-9]{64}$/.test(sha256)) throw new HttpError(502, 'Object storage checksum is missing.', { code: 'S3_STORAGE_CHECKSUM_UNCONFIRMED' });
+      return { bucket, objectKey: key, sha256, contentType: result.ContentType || null, contentLength: Number.isFinite(result.ContentLength) ? result.ContentLength : null, metadata: result.Metadata || {} };
+    },
+    async listObjects(bucket, prefix = '') {
+      assertBucket(bucket, environment);
+      const result = await send(new sdk.ListObjectsV2Command({ Bucket: bucket, Prefix: prefix }));
+      const contents = Array.isArray(result?.Contents) ? result.Contents : [];
+      const objects = [];
+      for (const item of contents) {
+        if (!item?.Key) continue;
+        const metadata = await this.head(bucket, item.Key);
+        objects.push({ key: item.Key, objectKey: item.Key, sizeBytes: metadata.contentLength ?? item.Size ?? null, updatedAt: item.LastModified || null, sha256: metadata.sha256, metadata: metadata.metadata });
+      }
+      return { objects, truncated: Boolean(result?.IsTruncated), nextContinuationToken: result?.NextContinuationToken || null };
+    },
     async createSignedUrl(bucket, key, expiresIn = 300) {
       assertObjectKey(key);
       assertBucket(bucket, environment);
