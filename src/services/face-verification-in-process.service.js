@@ -6,7 +6,7 @@ const HttpError = require('../utils/http-error');
 const { logger } = require('../utils/logger');
 const { createFaceVerificationSessionService } = require('./face-verification-session.service');
 const { createSupabaseEmployeeReferencePhotoStorage, detectedType } = require('./employee-reference-photo-storage.service');
-const { createStorageReadResolver, verify } = require('./storage-read-resolver');
+const { createStorageReadResolver, verify, assertLegacyMetadata } = require('./storage-read-resolver');
 const { deriveActiveFaceChallenge, ACTIVE_FACE_CHALLENGE_FRAME_COUNT } = require('./active-face-challenge.service');
 const {
   PROVIDER_NAME,
@@ -146,7 +146,7 @@ function createInProcessFaceVerificationService({
       const legacyRecord = !reference.storageProvider && !reference.storageBucket && reference.storageObjectKey;
       if (!hasProviderMetadata) throw http(409, 'VERIFICATION_STALE', 'Reference Photo storage metadata is unavailable.');
       referenceBytes = legacyRecord
-        ? verify(await referenceStorage.getBytes(reference.storageObjectKey), reference).bytes
+        ? (assertLegacyMetadata(reference), verify(await referenceStorage.getBytes(reference.storageObjectKey), reference).bytes)
         : (await readResolver.read(reference)).bytes;
       if (!Buffer.isBuffer(referenceBytes) || sha256(referenceBytes) !== snapshot.referencePhotoChecksum) {
         await sessionService.failSession(sessionId, 'VERIFICATION_STALE').catch(() => {});
