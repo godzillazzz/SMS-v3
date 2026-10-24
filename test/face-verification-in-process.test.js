@@ -15,7 +15,7 @@ function jpeg(size = 256, fill = 7) {
 }
 function sha256(buffer) { return crypto.createHash('sha256').update(buffer).digest('hex'); }
 
-function context({ providerFails = false, activeChallengePassed = true, faceMatchPassed = true, providerResultCode = null, evidenceStorage = null, recordFails = false, receiptMissing = false } = {}) {
+function context({ providerFails = false, activeChallengePassed = true, faceMatchPassed = true, providerResultCode = null, evidenceStorage = null, recordFails = false, receiptMissing = false, legacyMetadata = {} } = {}) {
   const referenceBytes = jpeg(320, 9);
   const liveBytes = jpeg(256, 5);
   const challengeFrames = [jpeg(180, 1), jpeg(181, 2), jpeg(182, 3), jpeg(183, 4)];
@@ -34,7 +34,7 @@ function context({ providerFails = false, activeChallengePassed = true, faceMatc
       async findUnique() {
         return {
           id: 'reference-1', status: 'ACTIVE', checksum: referenceChecksum, mimeType: 'image/jpeg',
-          storageObjectKey: 'reference/private.jpg', storageDeletedAt: null, storageDeletionRequestedAt: null
+          storageObjectKey: 'reference/private.jpg', fileSize: Object.prototype.hasOwnProperty.call(legacyMetadata, 'fileSize') ? legacyMetadata.fileSize : 320, mimeType: Object.prototype.hasOwnProperty.call(legacyMetadata, 'mimeType') ? legacyMetadata.mimeType : 'image/jpeg', storageDeletedAt: null, storageDeletionRequestedAt: null
         };
       }
     }
@@ -87,6 +87,13 @@ async function verify(c) {
     challengeFrameFiles: c.challengeFrameFiles
   });
 }
+
+test('legacy reference records require complete MIME and size metadata before read', async () => {
+  await assert.rejects(() => verify(context({ legacyMetadata: { fileSize: null } })), (error) => error.details?.code === 'STORAGE_METADATA_INCOMPLETE');
+  await assert.rejects(() => verify(context({ legacyMetadata: { mimeType: 'text/plain' } })), (error) => error.details?.code === 'STORAGE_METADATA_INCOMPLETE');
+  const accepted = await verify(context());
+  assert.equal(accepted.receipt, 'opaque-receipt');
+});
 
 test('safe match diagnostics are categorical and fail closed for unknown provider values', () => {
   assert.equal(safeMatchDiagnosticBand({ resultCode: 'FACE_MATCH_FAILED', diagnosticMatchBand: 'NEAR_THRESHOLD' }), 'NEAR_THRESHOLD');

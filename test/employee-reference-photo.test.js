@@ -82,7 +82,7 @@ test('service implements post-commit deletion, fail-closed viewing, retry founda
   assert.ok(service.indexOf('const preexistingPending') < service.indexOf('await storage.put(objectKey, file)'));
   assert.match(service, /status !== 'ACTIVE' && !allowedPending/);
   assert.match(service, /storageDeletionRequestedAt/);
-  assert.ok(service.includes('createSignedUrl(row.storageObjectKey, 60)'));
+  assert.match(service, /\/api\/storage-proxy\/reference/);
   assert.match(service, /retryPendingDeletions/);
   assert.doesNotMatch(service, /employeeCode/);
 });

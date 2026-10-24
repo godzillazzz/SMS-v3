@@ -5,6 +5,7 @@ const prismaDefault = require('../config/prisma');
 const HttpError = require('../utils/http-error');
 const { createFaceVerificationSessionService } = require('./face-verification-session.service');
 const { createSupabaseEmployeeReferencePhotoStorage } = require('./employee-reference-photo-storage.service');
+const { createStorageReadResolver, verify, assertLegacyMetadata } = require('./storage-read-resolver');
 const { PROVIDER_NAME, createAwsRekognitionFaceVerificationProvider } = require('./aws-rekognition-face-verification.provider');
 
 function http(statusCode, code, message) { return new HttpError(statusCode, message, { code }); }
@@ -14,7 +15,8 @@ function createFaceVerificationPocService({
   prisma = prismaDefault,
   sessionService = createFaceVerificationSessionService({ prisma }),
   provider = createAwsRekognitionFaceVerificationProvider(),
-  storage = createSupabaseEmployeeReferencePhotoStorage()
+  storage = createSupabaseEmployeeReferencePhotoStorage(),
+  readResolver = createStorageReadResolver()
 } = {}) {
   async function ownedSession(actor, sessionId, allowedStatuses) {
     const row = await prisma.faceVerificationSession.findUnique({
@@ -59,7 +61,7 @@ function createFaceVerificationPocService({
     if (session.provider !== PROVIDER_NAME) throw http(409, 'VERIFICATION_PROVIDER_SESSION_MISMATCH', 'Trusted provider session does not match.');
     const reference = await prisma.employeeReferencePhoto.findUnique({
       where: { id: session.referencePhotoId },
-      select: { id: true, status: true, checksum: true, storageObjectKey: true, storageDeletedAt: true, storageDeletionRequestedAt: true }
+      select: {        id: true, status: true, checksum: true, mimeType: true, fileSize: true, storageProvider: true, storageBucket: true, storageObjectKey: true, storageDeletedAt: true, storageDeletionRequestedAt: true }
     });
     if (!reference || reference.status !== 'ACTIVE' || reference.storageDeletedAt || reference.storageDeletionRequestedAt || reference.checksum !== session.referencePhotoChecksum) {
       await sessionService.failSession(sessionId, 'VERIFICATION_STALE').catch(() => {});
@@ -68,7 +70,12 @@ function createFaceVerificationPocService({
 
     let referenceBytes;
     try {
-      referenceBytes = await storage.getBytes(reference.storageObjectKey);
+      const hasProviderMetadata = reference.storageProvider || reference.storageBucket || reference.storageObjectKey;
+      const legacyRecord = !reference.storageProvider && !reference.storageBucket && reference.storageObjectKey;
+      if (!hasProviderMetadata) throw http(409, 'VERIFICATION_STALE', 'Reference Photo storage metadata is unavailable.');
+      referenceBytes = legacyRecord
+        ? (assertLegacyMetadata(reference), verify(await storage.getBytes(reference.storageObjectKey), reference).bytes)
+        : (await readResolver.read(reference)).bytes;
       if (sha256(referenceBytes) !== session.referencePhotoChecksum) {
         await sessionService.failSession(sessionId, 'VERIFICATION_STALE').catch(() => {});
         throw http(409, 'VERIFICATION_STALE', 'Reference Photo authority changed during verification.');

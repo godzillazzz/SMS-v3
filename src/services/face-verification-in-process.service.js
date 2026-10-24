@@ -6,6 +6,7 @@ const HttpError = require('../utils/http-error');
 const { logger } = require('../utils/logger');
 const { createFaceVerificationSessionService } = require('./face-verification-session.service');
 const { createSupabaseEmployeeReferencePhotoStorage, detectedType } = require('./employee-reference-photo-storage.service');
+const { createStorageReadResolver, verify, assertLegacyMetadata } = require('./storage-read-resolver');
 const { deriveActiveFaceChallenge, ACTIVE_FACE_CHALLENGE_FRAME_COUNT } = require('./active-face-challenge.service');
 const {
   PROVIDER_NAME,
@@ -87,6 +88,7 @@ function createInProcessFaceVerificationService({
   sessionService = createFaceVerificationSessionService({ prisma }),
   provider = createInProcessFaceMatchProvider({ environment }),
   referenceStorage = createSupabaseEmployeeReferencePhotoStorage(),
+  readResolver = createStorageReadResolver(),
   randomUUID = crypto.randomUUID
 } = {}) {
   async function ownedSession(actor, sessionId) {
@@ -120,6 +122,9 @@ function createInProcessFaceVerificationService({
         status: true,
         checksum: true,
         mimeType: true,
+        fileSize: true,
+        storageBucket: true,
+        storageProvider: true,
         storageObjectKey: true,
         storageDeletedAt: true,
         storageDeletionRequestedAt: true
@@ -134,7 +139,15 @@ function createInProcessFaceVerificationService({
     const providerSessionRef = randomUUID();
     const challengeFrameBytes = challengeFrameFiles.map((file) => file.buffer);
     try {
-      referenceBytes = await referenceStorage.getBytes(reference.storageObjectKey);
+      // Older in-process callers provide the dedicated reference adapter and
+      // predate persisted provider metadata. Keep that seam while routing all
+      // metadata-backed records through the mixed-provider resolver.
+      const hasProviderMetadata = reference.storageProvider || reference.storageBucket || reference.storageObjectKey;
+      const legacyRecord = !reference.storageProvider && !reference.storageBucket && reference.storageObjectKey;
+      if (!hasProviderMetadata) throw http(409, 'VERIFICATION_STALE', 'Reference Photo storage metadata is unavailable.');
+      referenceBytes = legacyRecord
+        ? (assertLegacyMetadata(reference), verify(await referenceStorage.getBytes(reference.storageObjectKey), reference).bytes)
+        : (await readResolver.read(reference)).bytes;
       if (!Buffer.isBuffer(referenceBytes) || sha256(referenceBytes) !== snapshot.referencePhotoChecksum) {
         await sessionService.failSession(sessionId, 'VERIFICATION_STALE').catch(() => {});
         throw http(409, 'VERIFICATION_STALE', 'Reference Photo authority changed during verification.');

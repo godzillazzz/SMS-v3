@@ -143,7 +143,8 @@ test('view uses a short-lived signed URL and returns only safe viewer metadata',
   await storage.put('licenses/e/random', pdf);
   const result = await service.view({ id: ids.document, requestUser: { sub: ids.admin, role: 'ADMIN' } });
   assert.deepEqual(Object.keys(result).sort(), ['fileName', 'mimeType', 'url']);
-  assert.equal(storage.calls.createSignedUrl[0].expiresIn, 600);
+  assert.match(result.url, /^\/api\/storage-proxy\/license\//);
+  assert.equal(storage.calls.createSignedUrl.length, 0);
 });
 
 test('admin self-approval updates master dates, supersedes old current, and writes one audit', async () => {
