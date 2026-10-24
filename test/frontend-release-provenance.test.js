@@ -79,3 +79,45 @@ test('refuses rollback target marked incompatible with MinIO-only or mixed-provi
   assert.throws(() => rehearseAtomicRollback({ root, releaseSha: 'a'.repeat(40), previousSha: 'b'.repeat(40), environment: {}, targetMetadata: { schema_version: 'sms-v3-storage-target/v1', provider: 'minio', capabilities: {} } }), /storage compatibility/);
   assert.throws(() => rehearseAtomicRollback({ root, releaseSha: 'a'.repeat(40), previousSha: 'b'.repeat(40), environment: {}, targetMetadata: { schema_version: 'sms-v3-storage-target/v1', provider: 'postgres+minio', capabilities: { database: true } } }), /storage compatibility/);
 });
+
+test('does not mutate a non-empty pre-existing release and verifies the active staged manifest', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'sms-v3-rehearsal-'));
+  const previous = 'b'.repeat(40); const release = 'a'.repeat(40);
+  const existing = path.join(root, 'releases', release);
+  fs.mkdirSync(path.join(existing, 'frontend'), { recursive: true });
+  fs.writeFileSync(path.join(existing, 'frontend', 'index.html'), 'original', { mode: 0o640 });
+  fs.writeFileSync(path.join(existing, 'keep.txt'), 'keep-me', { mode: 0o600 });
+  const before = Object.fromEntries(['frontend/index.html', 'keep.txt'].map((name) => [name, { bytes: fs.readFileSync(path.join(existing, name)), mode: fs.statSync(path.join(existing, name)).mode & 0o777 }]));
+  const previousDir = path.join(root, 'releases', previous); fs.mkdirSync(previousDir, { recursive: true });
+  fs.symlinkSync(path.join('releases', previous), path.join(root, 'active'));
+  const result = rehearseAtomicRollback({ root, releaseSha: release, previousSha: previous, environment: { NODE_ENV: 'candidate' }, targetMetadata: storage });
+  assert.equal(result.restored, false);
+  assert.equal(fs.realpathSync(path.join(root, 'active')), path.resolve(result.frontendPath, '..'));
+  assert.match(fs.readFileSync(path.join(result.frontendPath, 'index.html'), 'utf8'), new RegExp(`^${release}$`));
+  for (const [name, expected] of Object.entries(before)) {
+    assert.deepEqual(fs.readFileSync(path.join(existing, name)), expected.bytes);
+    assert.equal(fs.statSync(path.join(existing, name)).mode & 0o777, expected.mode);
+  }
+  assert.ok(fs.existsSync(path.join(result.frontendPath, '..', 'provenance-manifest.json')));
+});
+
+test('materializes exact candidate environment and restores original bytes and mode on verification failure', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'sms-v3-rehearsal-'));
+  const previous = 'b'.repeat(40); const release = 'a'.repeat(40);
+  const envFile = path.join(root, 'environment.json'); const original = Buffer.from('{"NODE_ENV":"original"}\n');
+  fs.writeFileSync(envFile, original, { mode: 0o640 });
+  fs.mkdirSync(path.join(root, 'releases', previous), { recursive: true }); fs.symlinkSync(path.join('releases', previous), path.join(root, 'active'));
+  const candidate = { NODE_ENV: 'candidate', STORAGE_PROVIDER: 'minio' };
+  const result = rehearseAtomicRollback({ root, releaseSha: release, previousSha: previous, environment: candidate, targetMetadata: storage, failureStage: 'verification' });
+  assert.equal(result.restored, true);
+  assert.deepEqual(fs.readFileSync(envFile), original);
+  assert.equal(fs.statSync(envFile).mode & 0o777, 0o640);
+  assert.equal(fs.readlinkSync(path.join(root, 'active')), path.join('releases', previous));
+});
+
+test('reports explicit rollback-recovery failure when restoration is injected to fail', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'sms-v3-rehearsal-'));
+  const previous = 'b'.repeat(40); fs.mkdirSync(path.join(root, 'releases', previous), { recursive: true });
+  fs.symlinkSync(path.join('releases', previous), path.join(root, 'active'));
+  assert.throws(() => rehearseAtomicRollback({ root, releaseSha: 'a'.repeat(40), previousSha: previous, environment: {}, targetMetadata: storage, failureStage: 'restore' }), /rollback recovery failed/);
+});

@@ -154,30 +154,47 @@ function rehearseAtomicRollback({ root, releaseSha, previousSha, environment, fa
   storageCompatible(target);
   const base = path.resolve(root); fs.mkdirSync(base, { recursive: true });
   const releases = path.join(base, 'releases'); const active = path.join(base, 'active'); const envFile = path.join(base, 'environment.json');
-  const saved = { active: snapshot(active), env: snapshot(envFile), releases: {} };
-  for (const sha of [previousSha, releaseSha]) {
-    const dir = path.join(releases, sha); saved.releases[sha] = snapshot(dir);
-  }
+  const saved = { active: snapshot(active), env: snapshot(envFile) };
   const requestedFailure = failureStage || (failAfterSwitch ? 'switch' : undefined);
-  let switched = false; let created = [];
+  const candidate = environment === undefined ? undefined : Buffer.from(`${JSON.stringify(environment)}\n`);
+  let stage;
   try {
     fs.mkdirSync(releases, { recursive: true });
+    // Never use releases/<sha> as a build workspace: it may be an existing release.
+    stage = fs.mkdtempSync(path.join(releases, `.${releaseSha}.staging-`));
     if (injected('creation', requestedFailure)) fail('injected creation failure');
-    const dir = path.join(releases, releaseSha); fs.mkdirSync(path.join(dir, 'frontend'), { recursive: true }); fs.mkdirSync(path.join(dir, 'backend'), { recursive: true });
-    const frontend = path.join(dir, 'frontend', 'index.html'); const backend = path.join(dir, 'backend', 'release.json');
-    fs.writeFileSync(frontend, releaseSha); fs.writeFileSync(backend, JSON.stringify({ git_sha: releaseSha, tree_sha: releaseSha }));
+    const frontendRoot = path.join(stage, 'frontend'); const backendRoot = path.join(stage, 'backend');
+    fs.mkdirSync(frontendRoot); fs.mkdirSync(backendRoot);
+    fs.writeFileSync(path.join(frontendRoot, 'index.html'), releaseSha, { mode: 0o644 });
+    const backendIdentity = { git_sha: releaseSha, tree_sha: releaseSha };
+    atomicWrite(path.join(backendRoot, 'release.json'), backendIdentity);
+    const manifest = generateFrontendManifest(frontendRoot, {
+      git_sha: releaseSha, tree_sha: releaseSha, backend_git_sha: releaseSha, backend_tree_sha: releaseSha,
+      build_id: `rehearsal-${releaseSha}`, build_timestamp: new Date().toISOString(),
+    });
+    atomicWrite(path.join(stage, 'provenance-manifest.json'), manifest);
+    if (candidate !== undefined) {
+      const scratch = path.join(stage, 'candidate-environment.json');
+      fs.writeFileSync(scratch, candidate, { mode: 0o600 });
+      const candidateStat = fs.statSync(scratch);
+      if ((candidateStat.mode & 0o777) !== 0o600 || !fs.readFileSync(scratch).equals(candidate)) fail('candidate environment materialization failed');
+    }
     atomicSwitch(active, path.join('releases', previousSha));
+    if (candidate !== undefined) fs.writeFileSync(envFile, candidate, { mode: 0o600 });
     if (injected('switch', requestedFailure)) fail('injected switch failure');
-    atomicSwitch(active, path.join('releases', releaseSha)); switched = true;
+    atomicSwitch(active, path.relative(path.dirname(active), stage));
     if (injected('verification', requestedFailure)) fail('injected verification failure');
-    const activeTarget = fs.realpathSync(active); if (activeTarget !== path.join(releases, releaseSha)) fail('active pointer verification failed');
+    const activeTarget = fs.realpathSync(active);
+    if (activeTarget !== path.resolve(stage)) fail('active pointer verification failed');
+    const persistedManifest = JSON.parse(fs.readFileSync(path.join(activeTarget, 'provenance-manifest.json')));
+    verifyFrontendRelease({ manifest: persistedManifest, servedRoot: path.join(activeTarget, 'frontend'), backendIdentity });
+    if (injected('restore', requestedFailure)) fail('injected restore trigger');
     return { restored: false, activeSha: releaseSha, activePath: active, backendPath: path.join(activeTarget, 'backend'), frontendPath: path.join(activeTarget, 'frontend'), environment: environment || {} };
   } catch (error) {
     try {
       if (injected('restore', requestedFailure)) throw new Error('injected restore failure');
       restore(active, saved.active); restore(envFile, saved.env);
-      for (const sha of [previousSha, releaseSha]) if (!saved.releases[sha].exists) fs.rmSync(path.join(releases, sha), { recursive: true, force: true });
-      if (saved.env.exists === false && environment !== undefined && !switched) restore(envFile, saved.env);
+      if (stage && fs.existsSync(stage)) fs.rmSync(stage, { recursive: true, force: true });
     } catch (recoveryError) { fail(`rollback recovery failed: ${recoveryError.message}`); }
     if (failureStage || failAfterSwitch) return { restored: true, activeSha: saved.active.exists && saved.active.symlink ? path.basename(saved.active.bytes) : previousSha, environment: saved.env.exists && !saved.env.symlink ? JSON.parse(saved.env.bytes) : undefined, error: error.message };
     throw error;
