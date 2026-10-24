@@ -141,9 +141,12 @@ function createInProcessFaceVerificationService({
       // Older in-process callers provide the dedicated reference adapter and
       // predate persisted provider metadata. Keep that seam while routing all
       // metadata-backed records through the mixed-provider resolver.
-      referenceBytes = (reference.storageProvider && reference.storageBucket)
-        ? (await readResolver.read(reference)).bytes
-        : await referenceStorage.getBytes(reference.storageObjectKey);
+      const hasProviderMetadata = reference.storageProvider || reference.storageBucket || reference.storageObjectKey;
+      const legacyRecord = !reference.storageProvider && !reference.storageBucket && reference.storageObjectKey;
+      if (!hasProviderMetadata) throw http(409, 'VERIFICATION_STALE', 'Reference Photo storage metadata is unavailable.');
+      referenceBytes = legacyRecord
+        ? await referenceStorage.getBytes(reference.storageObjectKey)
+        : (await readResolver.read(reference)).bytes;
       if (!Buffer.isBuffer(referenceBytes) || sha256(referenceBytes) !== snapshot.referencePhotoChecksum) {
         await sessionService.failSession(sessionId, 'VERIFICATION_STALE').catch(() => {});
         throw http(409, 'VERIFICATION_STALE', 'Reference Photo authority changed during verification.');

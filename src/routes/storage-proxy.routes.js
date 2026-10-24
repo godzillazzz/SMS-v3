@@ -32,7 +32,11 @@ function createStorageProxyRouter({ environment = process.env, db = prisma, audi
       }
       const result = await readResolver.read(row);
       res.set({ 'Content-Type': result.mimeType, 'Content-Length': String(result.sizeBytes), 'Content-Security-Policy': "default-src 'none'; frame-ancestors 'self'", 'Cache-Control': 'private, no-store' });
-      await auditService?.log?.({ actorUserId: req.user.sub, action: 'UPDATE', entityType: 'StorageObject', entityId: row.id, metadata: { event: 'PRIVATE_OBJECT_PROXY_READ', kind: req.params.kind, sizeBytes: result.sizeBytes, checksum: result.checksum } }).catch(() => undefined);
+      try {
+        await auditService?.log?.({ actorUserId: req.user.sub, action: 'UPDATE', entityType: 'StorageObject', entityId: row.id, metadata: { event: 'PRIVATE_OBJECT_PROXY_READ', kind: req.params.kind, sizeBytes: result.sizeBytes, checksum: result.checksum } });
+      } catch (error) {
+        throw new HttpError(503, 'Stored object audit is temporarily unavailable.', { code: 'STORAGE_READ_AUDIT_FAILED', cause: error });
+      }
       return res.end(result.bytes);
     } catch (error) { return next(error); }
   });

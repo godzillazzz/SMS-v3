@@ -70,9 +70,12 @@ function createFaceVerificationPocService({
 
     let referenceBytes;
     try {
-      referenceBytes = (reference.storageProvider && reference.storageBucket)
-        ? (await readResolver.read(reference)).bytes
-        : await storage.getBytes(reference.storageObjectKey)
+      const hasProviderMetadata = reference.storageProvider || reference.storageBucket || reference.storageObjectKey;
+      const legacyRecord = !reference.storageProvider && !reference.storageBucket && reference.storageObjectKey;
+      if (!hasProviderMetadata) throw http(409, 'VERIFICATION_STALE', 'Reference Photo storage metadata is unavailable.');
+      referenceBytes = legacyRecord
+        ? await storage.getBytes(reference.storageObjectKey)
+        : (await readResolver.read(reference)).bytes;
       if (sha256(referenceBytes) !== session.referencePhotoChecksum) {
         await sessionService.failSession(sessionId, 'VERIFICATION_STALE').catch(() => {});
         throw http(409, 'VERIFICATION_STALE', 'Reference Photo authority changed during verification.');

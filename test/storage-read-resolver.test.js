@@ -5,7 +5,7 @@ const assert = require('node:assert/strict');
 const crypto = require('node:crypto');
 const { createStorageReadResolver, locationOf } = require('../src/services/storage-read-resolver');
 const env = { SUPABASE_ALLOWED_BUCKETS: 'legacy-supabase', S3_ALLOWED_BUCKETS: 'private-s3', EMPLOYEE_REFERENCE_PHOTOS_BUCKET: 'private-s3' };
-const bytes = Buffer.from('deterministic object');
+const bytes = Buffer.from([0xff, 0xd8, 0xff, ...Buffer.from('deterministic jpeg object')]);
 const checksum = crypto.createHash('sha256').update(bytes).digest('hex');
 
 test('mixed Supabase and S3 records resolve from record metadata', async () => {
@@ -26,4 +26,9 @@ test('resolver fails closed for malformed provider, bucket, key, checksum, MIME 
   await assert.rejects(resolver.read({ storageProvider: 's3', storageBucket: 'private-s3', storageObjectKey: 'x', checksum: '0'.repeat(64) }), /checksum/i);
   await assert.rejects(resolver.read({ storageProvider: 's3', storageBucket: 'private-s3', storageObjectKey: 'x', sizeBytes: 99 }), /size/i);
   await assert.rejects(resolver.read({ storageProvider: 's3', storageBucket: 'private-s3', storageObjectKey: 'x', mimeType: 'text/plain' }), /MIME/i);
+});
+
+test('resolver rejects bytes whose detected type disagrees with persisted MIME', async () => {
+  const resolver = createStorageReadResolver({ environment: env, adapters: { s3: { getBytes: async () => Buffer.from('%PDF-1.7') } } });
+  await assert.rejects(resolver.read({ storageProvider: 's3', storageBucket: 'private-s3', storageObjectKey: 'x', mimeType: 'image/jpeg' }), /MIME/i);
 });
