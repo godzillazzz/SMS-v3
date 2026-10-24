@@ -10,10 +10,14 @@ test('provider selector defaults to the existing Supabase factory', () => {
   assert.equal(selectStorage({ environment: { STORAGE_PROVIDER: 'supabase' }, supabaseFactory: () => expected }), expected);
 });
 
-test('S3 selects the injected provider factory in every explicitly configured environment', () => {
+test('S3 selects the injected provider factory outside Production', () => {
   const expected = Object.freeze({ provider: 's3-wrapper' });
-  assert.equal(selectStorage({ environment: { STORAGE_PROVIDER: 's3', NODE_ENV: 'production' }, supabaseFactory: () => ({}), s3Factory: () => expected }), expected);
   assert.equal(selectStorage({ environment: { STORAGE_PROVIDER: 's3', NODE_ENV: 'test' }, supabaseFactory: () => ({}), s3Factory: () => expected }), expected);
+});
+
+test('S3 is rejected in Production without explicit approval', () => {
+  assert.throws(() => selectStorage({ environment: { STORAGE_PROVIDER: 's3', NODE_ENV: 'production' }, supabaseFactory: () => ({}), s3Factory: () => ({}) }), /not approved/);
+  assert.throws(() => selectStorage({ environment: { STORAGE_PROVIDER: 's3', VERCEL_ENV: 'production' }, supabaseFactory: () => ({}), s3Factory: () => ({}) }), /not approved/);
 });
 
 test('invalid provider fails closed without selecting either factory', () => {

@@ -33,16 +33,16 @@ function createS3ContractWrappers({ environment = process.env, backend = createS
       return put('selfie', `attendance-selfie/${identity}/${captureId}`, file);
     },
     async remove({ objectKey }) { return remove('selfie', objectKey); },
-    async listObjects() { return []; },
-    async reconcileOrphans() { return { scanned: 0, deleted: 0, kept: 0, failed: 0, skippedRecent: 0, skippedUnknown: 0, truncated: false, limitReached: null }; },
-    async purgeExpiredSelfies() { return { inspected: 0, purged: 0, failed: 0 }; }
+    async listObjects() { if (typeof store.listObjects !== 'function') fail('STORAGE_LIST_UNAVAILABLE', 'Object storage listing is unavailable.'); return store.listObjects(buckets.selfie, 'attendance-selfie/'); },
+    async reconcileOrphans() { fail('STORAGE_RECONCILE_UNAVAILABLE', 'Object storage reconciliation is unavailable.'); },
+    async purgeExpiredSelfies() { fail('STORAGE_PURGE_UNAVAILABLE', 'Object storage retention purge is unavailable.'); }
   });
   const evidence = Object.freeze({
     provider: 's3', storesBytes: true,
-    async store({ employeeId, sessionId, livePhotoBytes, mimeType = 'image/jpeg' }) { const objectKey = `attendance-face-evidence/${employeeId}/${sessionId}`; const stored = await put('evidence', objectKey, { buffer: livePhotoBytes, mimetype: mimeType }); return { storageStatus: 'STORED', stored: true, storageProvider: stored.provider || 's3', storageBucket: buckets.evidence, storageObjectKey: objectKey, checksum: require('node:crypto').createHash('sha256').update(livePhotoBytes).digest('hex') }; },
+    async store({ employeeId, sessionId, livePhotoBytes, mimeType = 'image/jpeg' }) { const objectKey = `attendance-face-evidence/${employeeId}/${sessionId}`; const checksum = crypto.createHash('sha256').update(livePhotoBytes).digest('hex'); const stored = await put('evidence', objectKey, { buffer: livePhotoBytes, mimetype: mimeType }); if (stored.sha256 !== checksum) fail('STORAGE_CHECKSUM_UNCONFIRMED', 'Object storage checksum could not be confirmed.'); return { storageStatus: 'STORED', stored: true, storageProvider: stored.provider || 's3', storageBucket: buckets.evidence, storageObjectKey: objectKey, checksum }; },
     async remove({ objectKey }) { return remove('evidence', objectKey); },
     async view({ id, actor, storageObjectKey }) { if (!actor?.sub || !id) throw new HttpError(403, 'Attendance evidence authorization is required.', { code: 'ATTENDANCE_EVIDENCE_FORBIDDEN' }); return { id, url: await sign('evidence', storageObjectKey, 60), storageProvider: 's3' }; },
-    async purgeExpired() { return { inspected: 0, purged: 0, failed: 0 }; }
+    async purgeExpired() { fail('STORAGE_PURGE_UNAVAILABLE', 'Object storage retention purge is unavailable.'); }
   });
   const reference = Object.freeze({
     provider: 's3',
@@ -63,6 +63,7 @@ function selectContractStorage({ environment = process.env, supabaseFactory, bac
   const provider = String(environment.STORAGE_PROVIDER || 'supabase').toLowerCase();
   if (provider === 'supabase') return supabaseFactory();
   if (provider !== 's3') fail('STORAGE_PROVIDER_INVALID', 'Object storage provider is unavailable.');
+  if ((environment.NODE_ENV === 'production' || environment.VERCEL_ENV === 'production') && environment.STORAGE_S3_PRODUCTION_APPROVED !== 'true') fail('S3_PRODUCTION_NOT_APPROVED', 'S3 storage is not approved for Production.');
   const wrappers = createS3ContractWrappers({ environment, backend });
   if (!wrappers[contract]) fail('STORAGE_CONTRACT_INVALID', 'Storage contract is unavailable.');
   return wrappers[contract];

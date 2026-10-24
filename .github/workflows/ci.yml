@@ -11,6 +11,7 @@ on:
       - fix/email-01-production-backport-v1
       - fix/production-mobile-responsive-v1
       - fix/production-leave-p2028-transaction-reliability-v1
+      - fix/minio-complete-integration
       - feature/approval-workflow-standard-v1
       - feature/g06-department-security-site-v1
       - feature/q11-production-assurance-dependency-hardening

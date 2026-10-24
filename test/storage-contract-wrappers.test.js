@@ -5,7 +5,7 @@ const { createS3ContractWrappers } = require('../src/services/storage-contract-w
 
 function harness() {
   const calls = []; const backend = {
-    async put(bucket, key, file) { calls.push(['put', bucket, key, file]); return { provider: 's3', bucket, objectKey: key }; },
+    async put(bucket, key, file) { calls.push(['put', bucket, key, file]); return { provider: 's3', bucket, objectKey: key, sha256: require('node:crypto').createHash('sha256').update(file.buffer).digest('hex') }; },
     async remove(bucket, key) { calls.push(['remove', bucket, key]); },
     async get(bucket, key) { calls.push(['get', bucket, key]); return Buffer.from('bytes'); },
     async createSignedUrl(bucket, key, seconds) { calls.push(['sign', bucket, key, seconds]); return `signed://${bucket}/${key}`; }
@@ -37,6 +37,8 @@ test('missing bucket configuration fails closed before backend creation', () => 
   assert.throws(() => createS3ContractWrappers({ environment: {}, backend: {} }), /bucket/);
 });
 
-test('MinIO integration is explicitly blocked without disposable backend', () => {
-  assert.equal(process.env.MINIO_INTEGRATION === 'true', false);
+test('selfie cleanup does not silently claim success when unsupported', async () => {
+  const { wrappers } = harness();
+  await assert.rejects(wrappers.selfie.reconcileOrphans(), /unavailable/);
+  await assert.rejects(wrappers.selfie.purgeExpiredSelfies(), /unavailable/);
 });

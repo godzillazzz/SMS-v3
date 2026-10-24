@@ -43,6 +43,7 @@ const schema = z.object({
   SMTP_USERNAME: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
   SMTP_PASSWORD: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
   STORAGE_PROVIDER: z.enum(['supabase', 's3']).default('supabase'),
+  STORAGE_S3_PRODUCTION_APPROVED: z.enum(['true', 'false']).default('false'),
   S3_ENDPOINT: z.preprocess(emptyToUndefined, z.string().url().optional()),
   S3_ALLOWED_BUCKETS: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
   ATTENDANCE_DEVICE_SELFIE_BUCKET: z.preprocess(emptyToUndefined, z.string().trim().min(1).max(100).optional()),
@@ -103,7 +104,9 @@ const schema = z.object({
       context.addIssue({ code: z.ZodIssueCode.custom, path: ['DATABASE_URL'], message: 'DATABASE_URL must use a non-local, non-test database in Vercel environments.' });
     }
   }
+  if (value.NODE_ENV === 'production' && value.STORAGE_PROVIDER === 's3' && value.STORAGE_S3_PRODUCTION_APPROVED !== 'true') context.addIssue({ code: z.ZodIssueCode.custom, path: ['STORAGE_PROVIDER'], message: 'S3 storage requires explicit Production approval.' });
   if (value.VERCEL_ENV === 'production') {
+    if (value.STORAGE_PROVIDER === 's3' && value.STORAGE_S3_PRODUCTION_APPROVED !== 'true') context.addIssue({ code: z.ZodIssueCode.custom, path: ['STORAGE_PROVIDER'], message: 'S3 storage requires explicit Production approval.' });
     for (const field of ['SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY', 'LICENSE_DOCUMENTS_BUCKET', 'EMPLOYEE_REFERENCE_PHOTOS_BUCKET']) {
       if (!value[field]) context.addIssue({ code: z.ZodIssueCode.custom, path: [field], message: `${field} is required in Production for private document/reference-photo storage.` });
     }

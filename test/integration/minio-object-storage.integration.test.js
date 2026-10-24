@@ -11,6 +11,7 @@ const {
   HeadBucketCommand,
   DeleteObjectCommand
 } = require('@aws-sdk/client-s3');
+const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 const { createS3ObjectStorage } = require('../../src/services/object-storage-provider');
 
 const enabled = process.env.RUN_REAL_MINIO === 'true';
@@ -59,6 +60,7 @@ test('real MinIO private storage survives restart and recovers after outage', { 
   const first = await client.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
   assert.deepEqual(await readBody(first.Body), payload);
   assert.equal(first.Metadata?.sha256, sha256);
+  assert.equal(first.ContentType, 'application/octet-stream');
   console.log(JSON.stringify({ evidence: 'initial-checksum', bucket, key, sha256 }));
 
   const unauthorized = new S3Client({
@@ -70,6 +72,13 @@ test('real MinIO private storage survives restart and recovers after outage', { 
     (error) => ['AccessDenied', 'InvalidAccessKeyId', 'SignatureDoesNotMatch'].includes(error.name)
   );
   console.log(JSON.stringify({ evidence: 'access-denied', bucket, key }));
+
+  const signed = await getSignedUrl(client, new GetObjectCommand({ Bucket: bucket, Key: key }), { expiresIn: 60 });
+  const signedResponse = await fetch(signed);
+  assert.equal(signedResponse.status, 200);
+  assert.deepEqual(Buffer.from(await signedResponse.arrayBuffer()), payload);
+  const privateResponse = await fetch(`${endpoint}/${bucket}/${key}`);
+  assert.notEqual(privateResponse.status, 200);
 
   compose('restart', 'minio');
   await waitForHealth();
@@ -86,6 +95,10 @@ test('real MinIO private storage survives restart and recovers after outage', { 
   assert.deepEqual(await readBody(afterRecovery.Body), payload);
   console.log(JSON.stringify({ evidence: 'error-recovery', bucket, key, sha256 }));
 
+  await assert.rejects(
+    unauthorized.send(new DeleteObjectCommand({ Bucket: bucket, Key: key })),
+    (error) => ['AccessDenied', 'InvalidAccessKeyId', 'SignatureDoesNotMatch'].includes(error.name)
+  );
   await client.send(new DeleteObjectCommand({ Bucket: bucket, Key: key }));
   await assert.rejects(client.send(new GetObjectCommand({ Bucket: bucket, Key: key })));
 });

@@ -36,15 +36,17 @@ function s3Client({ config, client } = {}) {
     class PutObjectCommand { constructor(input) { this.input = input; } }
     class DeleteObjectCommand { constructor(input) { this.input = input; } }
     class GetObjectCommand { constructor(input) { this.input = input; } }
-    return { client, PutObjectCommand, DeleteObjectCommand, GetObjectCommand };
+    class HeadObjectCommand { constructor(input) { this.input = input; } }
+    class ListObjectsV2Command { constructor(input) { this.input = input; } }
+    return { client, PutObjectCommand, DeleteObjectCommand, GetObjectCommand, HeadObjectCommand, ListObjectsV2Command };
   }
-  let S3Client, PutObjectCommand, DeleteObjectCommand, GetObjectCommand;
+  let S3Client, PutObjectCommand, DeleteObjectCommand, GetObjectCommand, HeadObjectCommand, ListObjectsV2Command;
   try {
-    ({ S3Client, PutObjectCommand, DeleteObjectCommand, GetObjectCommand } = require('@aws-sdk/client-s3'));
+    ({ S3Client, PutObjectCommand, DeleteObjectCommand, GetObjectCommand, HeadObjectCommand, ListObjectsV2Command } = require('@aws-sdk/client-s3'));
   } catch {
     throw new HttpError(503, 'Object storage provider is unavailable.', { code: 'S3_SDK_NOT_INSTALLED' });
   }
-  return { client: new S3Client({ endpoint: config.endpoint, region: config.region, forcePathStyle: config.forcePathStyle, credentials: { accessKeyId: config.accessKeyId, secretAccessKey: config.secretAccessKey } }), PutObjectCommand, DeleteObjectCommand, GetObjectCommand };
+  return { client: new S3Client({ endpoint: config.endpoint, region: config.region, forcePathStyle: config.forcePathStyle, credentials: { accessKeyId: config.accessKeyId, secretAccessKey: config.secretAccessKey } }), PutObjectCommand, DeleteObjectCommand, GetObjectCommand, HeadObjectCommand, ListObjectsV2Command };
 }
 function createS3ObjectStorage({ environment = process.env, client } = {}) {
   const config = providerConfig(environment);
@@ -53,9 +55,11 @@ function createS3ObjectStorage({ environment = process.env, client } = {}) {
   const send = (command) => sdk.client.send(command);
   return Object.freeze({
     provider: PROVIDERS.S3,
-    async put(bucket, key, file) { assertObjectKey(key); assertBucket(bucket, environment); await send(new sdk.PutObjectCommand({ Bucket: bucket, Key: key, Body: file.buffer, ContentType: file.mimetype, ContentLength: file.buffer.length, Metadata: { sha256: crypto.createHash('sha256').update(file.buffer).digest('hex') } })); return { provider: PROVIDERS.S3, bucket, objectKey: key }; },
+    async put(bucket, key, file) { assertObjectKey(key); assertBucket(bucket, environment); const sha256 = crypto.createHash('sha256').update(file.buffer).digest('hex'); await send(new sdk.PutObjectCommand({ Bucket: bucket, Key: key, Body: file.buffer, ContentType: file.mimetype, ContentLength: file.buffer.length, Metadata: { sha256 } })); return { provider: PROVIDERS.S3, bucket, objectKey: key, sha256 }; },
     async remove(bucket, key) { assertObjectKey(key); assertBucket(bucket, environment); await send(new sdk.DeleteObjectCommand({ Bucket: bucket, Key: key })); },
-    async get(bucket, key) { assertObjectKey(key); assertBucket(bucket, environment); const result = await send(new sdk.GetObjectCommand({ Bucket: bucket, Key: key })); if (!result?.Body?.transformToByteArray) throw new HttpError(502, 'Object storage read failed.', { code: 'S3_STORAGE_READ_FAILED' }); return Buffer.from(await result.Body.transformToByteArray()); },
+    async get(bucket, key) { assertObjectKey(key); assertBucket(bucket, environment); const result = await send(new sdk.GetObjectCommand({ Bucket: bucket, Key: key })); if (!result?.Body?.transformToByteArray) throw new HttpError(502, 'Object storage read failed.', { code: 'S3_STORAGE_READ_FAILED' }); const body = Buffer.from(await result.Body.transformToByteArray()); const sha256 = crypto.createHash('sha256').update(body).digest('hex'); if (result.Metadata?.sha256 && result.Metadata.sha256 !== sha256) throw new HttpError(502, 'Object storage checksum mismatch.', { code: 'S3_STORAGE_CHECKSUM_MISMATCH' }); return body; },
+    async head(bucket, key) { assertObjectKey(key); assertBucket(bucket, environment); return send(new sdk.HeadObjectCommand({ Bucket: bucket, Key: key })); },
+    async listObjects(bucket, prefix = '') { assertBucket(bucket, environment); return send(new sdk.ListObjectsV2Command({ Bucket: bucket, Prefix: prefix })); },
     async createSignedUrl(bucket, key, expiresIn = 300) {
       assertObjectKey(key);
       assertBucket(bucket, environment);
