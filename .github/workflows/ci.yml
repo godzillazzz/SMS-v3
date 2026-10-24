@@ -11,6 +11,7 @@ on:
       - fix/email-01-production-backport-v1
       - fix/production-mobile-responsive-v1
       - fix/production-leave-p2028-transaction-reliability-v1
+      - fix/minio-complete-integration
       - feature/approval-workflow-standard-v1
       - feature/g06-department-security-site-v1
       - feature/q11-production-assurance-dependency-hardening
@@ -67,6 +68,81 @@ jobs:
           name: t22-schedule-benchmark
           path: t22-schedule-benchmark-result.json
           if-no-files-found: error
+
+  minio-real-integration:
+    name: minio-real-integration
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      MINIO_ROOT_USER: ci-minio-root
+      MINIO_ROOT_PASSWORD: ci-minio-root-password-2026
+      MINIO_CI_ACCESS_KEY: ci-minio-restricted
+      MINIO_CI_SECRET_KEY: ci-minio-restricted-secret-2026
+      MINIO_BUCKET: sms-v3-ci-private
+      MINIO_ENDPOINT: http://127.0.0.1:9000
+      MINIO_COMPOSE_FILE: deploy/minio/docker-compose.yml
+      NODE_ENV: test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Start pinned disposable MinIO
+        run: |
+          set -euo pipefail
+          docker compose -f "$MINIO_COMPOSE_FILE" up -d
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent "$MINIO_ENDPOINT/minio/health/ready" >/dev/null; then break; fi
+            if [ "$attempt" = 30 ]; then docker compose -f "$MINIO_COMPOSE_FILE" logs --no-color minio; exit 1; fi
+            sleep 2
+          done
+      - name: Configure private bucket and restricted credentials
+        run: |
+          set -euo pipefail
+          mc_version=RELEASE.2025-08-13T08-35-41Z
+          mc_url="https://github.com/minio/mc/releases/download/$mc_version/mc.linux-amd64.$mc_version"
+          mc_checksum_url="$mc_url.sha256sum"
+          curl --fail --location --retry 3 --output /tmp/mc "$mc_url"
+          curl --fail --location --retry 3 --output /tmp/mc.sha256sum "$mc_checksum_url"
+          printf '%s  %s\n' "$(cut -d ' ' -f1 /tmp/mc.sha256sum)" /tmp/mc | sha256sum -c -
+          chmod +x /tmp/mc
+          /tmp/mc --version
+          /tmp/mc alias set local "$MINIO_ENDPOINT" "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD"
+          /tmp/mc mb --ignore-existing "local/$MINIO_BUCKET"
+          printf '%s\n' '{"Version":"2012-10-17","Statement":[{"Action":["s3:GetBucketLocation","s3:ListBucket","s3:PutObject","s3:GetObject","s3:DeleteObject"],"Effect":"Allow","Resource":["arn:aws:s3:::'"$MINIO_BUCKET"'","arn:aws:s3:::'"$MINIO_BUCKET"'/*"]}]}' > /tmp/sms-v3-ci-policy.json
+          /tmp/mc admin policy create local sms-v3-ci-policy /tmp/sms-v3-ci-policy.json || true
+          /tmp/mc admin user add local "$MINIO_CI_ACCESS_KEY" "$MINIO_CI_SECRET_KEY" || true
+          /tmp/mc admin policy attach local sms-v3-ci-policy --user "$MINIO_CI_ACCESS_KEY"
+          /tmp/mc anonymous set none "local/$MINIO_BUCKET"
+          /tmp/mc anonymous get "local/$MINIO_BUCKET"
+          rm -f /tmp/mc /tmp/mc.sha256sum /tmp/sms-v3-ci-policy.json
+      - run: npm ci
+      - name: Run real MinIO storage integration
+        env:
+          S3_ENDPOINT: ${{ env.MINIO_ENDPOINT }}
+          S3_REGION: us-east-1
+          S3_ACCESS_KEY_ID: ${{ env.MINIO_CI_ACCESS_KEY }}
+          S3_SECRET_ACCESS_KEY: ${{ env.MINIO_CI_SECRET_KEY }}
+          S3_ALLOWED_BUCKETS: ${{ env.MINIO_BUCKET }}
+          ATTENDANCE_DEVICE_SELFIE_BUCKET: ${{ env.MINIO_BUCKET }}
+          ATTENDANCE_FACE_EVIDENCE_BUCKET: ${{ env.MINIO_BUCKET }}
+          EMPLOYEE_REFERENCE_PHOTOS_BUCKET: ${{ env.MINIO_BUCKET }}
+          LICENSE_DOCUMENTS_BUCKET: ${{ env.MINIO_BUCKET }}
+          MINIO_COMPOSE_FILE: ${{ env.MINIO_COMPOSE_FILE }}
+          MINIO_BUCKET: ${{ env.MINIO_BUCKET }}
+          MINIO_RESTRICTED_ACCESS_KEY: ${{ env.MINIO_CI_ACCESS_KEY }}
+          MINIO_RESTRICTED_SECRET_KEY: ${{ env.MINIO_CI_SECRET_KEY }}
+          RUN_REAL_MINIO: 'true'
+        run: node --test --test-concurrency=1 test/integration/minio-object-storage.integration.test.js
+      - name: Capture MinIO service evidence
+        if: always()
+        run: |
+          docker compose -f "$MINIO_COMPOSE_FILE" ps
+          docker compose -f "$MINIO_COMPOSE_FILE" logs --no-color minio
+      - name: Stop disposable MinIO
+        if: always()
+        run: docker compose -f "$MINIO_COMPOSE_FILE" down -v
 
   validate:
     runs-on: ubuntu-latest

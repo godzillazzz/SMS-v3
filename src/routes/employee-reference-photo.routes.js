@@ -6,12 +6,13 @@ const { z } = require('zod');
 const { authenticate, authorize } = require('../middlewares/authenticate');
 const HttpError = require('../utils/http-error');
 const { createSupabaseEmployeeReferencePhotoStorage } = require('../services/employee-reference-photo-storage.service');
+const { selectContractStorage } = require('../services/storage-contract-wrappers');
 const { createEmployeeReferencePhotoService } = require('../services/employee-reference-photo.service');
 const { ATTACHMENT_PROFILES } = require('../services/attachment-optimizer.service');
 
 const router = express.Router();
 const service = createEmployeeReferencePhotoService({
-  storage: createSupabaseEmployeeReferencePhotoStorage()
+  storage: selectContractStorage({ environment: process.env, contract: 'reference', supabaseFactory: () => createSupabaseEmployeeReferencePhotoStorage() })
 });
 const uuid = z.string().uuid();
 const rejectSchema = z.object({ reason: z.string().trim().min(3).max(1000) }).strict();

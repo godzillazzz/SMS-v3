@@ -12,6 +12,7 @@ const { validateAttachment, ATTACHMENT_PROFILES } = require('../services/attachm
 const { createAttendanceSelfService } = require('../services/attendance-self.service');
 const { createAttendanceSimpleService } = require('../services/attendance-simple.service');
 const { createSupabaseAttendanceFaceEvidenceStorage } = require('../services/attendance-face-evidence-storage.service');
+const { selectContractStorage } = require('../services/storage-contract-wrappers');
 const { authorize } = require('../middlewares/authenticate');
 const { attendanceApiEnabled } = require('../config/attendance-api-policy');
 const { createAttendanceVoidService } = require('../services/attendance-void.service');
@@ -163,7 +164,7 @@ function createAttendanceRoutes({ environment = process.env, authenticateMiddlew
   const attendanceVoid = voidService || createAttendanceVoidService({ environment });
   const voidInput = z.object({ reason: z.string().trim().min(5).max(1000) }).strict();
   const uatResetInput = z.object({ reason: z.string().trim().min(5).max(1000) }).strict();
-  const privateEvidence = evidenceStorage || createSupabaseAttendanceFaceEvidenceStorage({ environment });
+  const privateEvidence = evidenceStorage || selectContractStorage({ environment, contract: 'evidence', supabaseFactory: () => createSupabaseAttendanceFaceEvidenceStorage({ environment }) });
   const service = contractService || createAttendanceApiContractService({
     faceVerificationService: createAttendanceFaceVerificationService({ environment }),
     isBiometricRuntimeEnabled: () => attendanceBiometricRuntimeEnabled(environment),
