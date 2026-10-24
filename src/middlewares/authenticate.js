@@ -16,7 +16,7 @@ const userSelect = {
   accountStatus: true,
   passwordResetRequired: true,
   tokenVersion: true,
-  employee: { select: { id: true, isActive: true, deletedAt: true, department: true } }
+  employee: { select: { id: true, isActive: true, deletedAt: true } }
 };
 
 async function loadSynchronizedUser(userId) {
@@ -46,7 +46,6 @@ async function authenticate(req, _res, next) {
       sub: user.id,
       email: user.email,
       role: user.role,
-      department: user.employee?.department,
       tokenVersion: user.tokenVersion,
       impersonation: Boolean(claims.impersonation),
       impersonatorSub: claims.impersonatorSub,

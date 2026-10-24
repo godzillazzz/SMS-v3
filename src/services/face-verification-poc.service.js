@@ -70,7 +70,9 @@ function createFaceVerificationPocService({
 
     let referenceBytes;
     try {
-      referenceBytes = (await readResolver.read(reference)).bytes
+      referenceBytes = (reference.storageProvider && reference.storageBucket)
+        ? (await readResolver.read(reference)).bytes
+        : await storage.getBytes(reference.storageObjectKey)
       if (sha256(referenceBytes) !== session.referencePhotoChecksum) {
         await sessionService.failSession(sessionId, 'VERIFICATION_STALE').catch(() => {});
         throw http(409, 'VERIFICATION_STALE', 'Reference Photo authority changed during verification.');
