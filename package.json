@@ -25,7 +25,8 @@
     "environment:contract": "node scripts/ci/verify-environment-contract.js --contract-only",
     "environment:linux-artifact": "node scripts/ci/verify-linux-artifact.js .vercel/output --require-sharp-load",
     "prisma:format:check": "prisma format --check",
-    "audit:dependencies": "npm audit --audit-level=high"
+    "audit:dependencies": "npm audit --audit-level=high",
+    "self-hosted:release": "node scripts/self-hosted-release.js"
   },
   "prisma": {
     "seed": "node prisma/seed.js"
