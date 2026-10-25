@@ -3397,6 +3397,7 @@ function Dashboard() {
         onConfirm={confirmLeaveDecision}
       /></React.Suspense>}
       <div
+        id={pwaShell ? undefined : 'sms-app'}
         className={`app-shell ${desktopView ? 'desktop-view' : ''} ${auth.isViewingAs ? 'view-as-active' : ''} ${pwaShell ? `pwa-shell pwa-page-${activePage}` : ''}`}
         style={{ backgroundColor: 'var(--surface-page, #020813)', color: 'var(--text-on-surface, #f1f5f9)' }}
       >

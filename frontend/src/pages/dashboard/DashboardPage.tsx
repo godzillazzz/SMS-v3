@@ -48,6 +48,11 @@ export function DashboardPage({ summary, loading, error, user, canManage, filter
   const hour = Number(new Intl.DateTimeFormat('en-GB', { hour: 'numeric', hour12: false, timeZone: 'Asia/Bangkok' }).format(new Date()));
   const greeting = hour < 12 ? 'สวัสดีตอนเช้า' : hour < 17 ? 'สวัสดีตอนบ่าย' : 'สวัสดีตอนเย็น';
   const todayLabel = new Intl.DateTimeFormat('th-TH', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Bangkok' }).format(new Date());
+  const followUpTotal = actions.reduce((sum, row) => sum + (Number((row as any).count) || 0), 0);
+  const firstFollowUp = actions[0] as any;
+  const heroSummary = loading ? 'กำลังอ่านข้อมูลภาพรวม…' : followUpTotal > 0
+    ? `มี ${numberText(followUpTotal)} รายการที่ต้องติดตาม${firstFollowUp ? ` · เริ่มจาก${String(firstFollowUp.title || firstFollowUp.label || '')} ${numberText(firstFollowUp.count)} รายการ` : ''}`
+    : 'ไม่มีรายการค้างที่ต้องติดตามในตัวกรองนี้';
   const partialErrors = Array.isArray(summary.partialErrors) ? summary.partialErrors : [];
   const navigateMetric = (metric: DashboardDetailMetric, selector: Record<string, string | undefined> = {}) =>
     onNavigate('dashboardDetails', dashboardDetailQuery(metric, filters, user?.role, selector));
@@ -61,7 +66,7 @@ export function DashboardPage({ summary, loading, error, user, canManage, filter
   };
 
   return <section className="nexus-command layout-page-surface dashboard-redesign" aria-label="ภาพรวม">
-    <PageHeader kicker="ภาพรวม" title="ภาพรวมระบบ" description={`${greeting}, ${firstName} · ${todayLabel}`} actions={<div className="nexus-hero-status"><span><i /> เข้าสู่ระบบ</span><strong>{firstName}</strong><small>อัปเดตล่าสุด {syncTime}</small></div>} className="nexus-command__hero" />
+    <PageHeader kicker={todayLabel} title="ภาพรวมระบบ" lead={`${greeting}, ${firstName}`} description={heroSummary} actions={<div className="dashboard-hero__actions"><button type="button" onClick={() => onNavigate('employees')}><SmsIcon name="search" size={16} />ค้นหาพนักงาน</button><button type="button" onClick={() => onNavigate('schedule')}><SmsIcon name="calendar" size={16} />ตารางกะรายเดือน</button>{canManage && <button type="button" className="is-primary" onClick={() => onOpenApprovalCenter?.('LEAVE_REQUEST')}><SmsIcon name="leave" size={16} />ตรวจคำขอลา</button>}</div>} className="nexus-command__hero dashboard-hero" />
 
     <DashboardFilterBar filters={filters} departments={departments} role={user?.role} loading={loading} onChange={onFiltersChange} />
 
@@ -74,7 +79,7 @@ export function DashboardPage({ summary, loading, error, user, canManage, filter
     <section className="nexus-command__grid dashboard-command-grid">
       <article className="nexus-stream nexus-panel" aria-label="รายการที่ต้องดำเนินการ">
         <header><div><p className="nexus-kicker">จากข้อมูลภาพรวม</p><h2>ต้องดูวันนี้</h2></div><b>{actions.length}</b></header>
-        <div className="nexus-stream__list">{loading ? <div className="nexus-loading">กำลังอ่านข้อมูล…</div> : actions.length ? actions.slice(0,5).map((row, index) => <div className="nexus-stream__item" key={String((row as any).id || index)}><span className="nexus-stream__pulse"/><div><strong>{String((row as any).title || (row as any).label || (row as any).type || 'รายการที่ต้องตรวจสอบ')}</strong><small>{String((row as any).description || (row as any).detail || 'เปิดดูรายละเอียด')}</small></div><em>{String((row as any).count || '')}</em></div>) : <div className="nexus-clear"><SmsIcon name="check" size={28}/><strong>ไม่มีรายการค้าง</strong><span>ไม่มีงานเร่งด่วน</span></div>}</div>
+        <div className="nexus-stream__list">{loading ? <div className="nexus-loading">กำลังอ่านข้อมูล…</div> : actions.length ? actions.slice(0,5).map((row, index) => <div className="nexus-stream__item" key={String((row as any).id || index)}><span className="nexus-stream__pulse"/><i className="dashboard-follow-icon" aria-hidden="true"><SmsIcon name="bell" size={17} /></i><div><strong>{String((row as any).title || (row as any).label || (row as any).type || 'รายการที่ต้องตรวจสอบ')}</strong><small>{String((row as any).description || (row as any).detail || 'เปิดดูรายละเอียด')}</small></div><em>{String((row as any).count || '')}</em></div>) : <div className="nexus-clear"><SmsIcon name="check" size={28}/><strong>ไม่มีรายการค้าง</strong><span>ไม่มีงานเร่งด่วน</span></div>}</div>
         {canManage && <button className="nexus-stream__cta dashboard-approval-alert" type="button" onClick={() => onOpenApprovalCenter?.()}>เปิดศูนย์อนุมัติ {pendingApprovalCount != null && pendingApprovalCount > 0 && <span>{pendingApprovalCount > 99 ? '99+' : pendingApprovalCount}</span>}</button>}
       </article>
     </section>
