@@ -28,7 +28,7 @@ const sha256 = bytes => crypto.createHash('sha256').update(bytes).digest('hex');
 const json = value => JSON.stringify(value, null, 2) + '\n';
 function fail(message) { throw new Error(`self-hosted release: ${message}`); }
 function run(command, args, cwd, options = {}) { const output = execFileSync(command, args, { cwd, stdio: options.stdio || 'inherit', encoding: options.encoding || 'utf8' }); return typeof output === 'string' ? output.trim() : ''; }
-function contained(root, candidate) { const r = path.resolve(root); const c = path.resolve(candidate); return c === r || c.startsWith(`${r}${path.sep}`); }
+function contained(root, candidate) { const relative = path.relative(path.resolve(root), path.resolve(candidate)); return relative === '' || (relative.split(path.sep)[0] !== '..' && !path.isAbsolute(relative)); }
 function permissionFailure(file, message) { fail(`unsafe filesystem permissions at ${file}: ${message}`); }
 function groupId(name) {
   try {
@@ -285,4 +285,4 @@ OPERATOR_GATE_REQUIRED=I_UNDERSTAND_ATOMIC_SELF_HOSTED_CUTOVER
 }
 async function main() { const args = parseArgs(process.argv.slice(2)); try { if (args._[0] === 'build') build(args); else if (args._[0] === 'verify') { const result = verifyRelease(required(args, 'release'), args['rollback-target'] && path.resolve(args['rollback-target']), { trustedManifestSha256: required(args, 'trusted-manifest-sha256'), trustedRollbackManifestSha256: args['rollback-target'] ? required(args, 'trusted-rollback-manifest-sha256') : undefined, parentBoundary: args['parent-boundary'] && path.resolve(args['parent-boundary']), rollbackParentBoundary: args['rollback-parent-boundary'] && path.resolve(args['rollback-parent-boundary']), repo: path.resolve(required(args, 'repo')) }); process.stdout.write(`RELEASE_VERIFY=PASS\nGIT_SHA=${result.manifest.git_sha}\nTREE_SHA=${result.manifest.tree_sha}\nMANIFEST_SHA256=${result.manifest.manifest_sha256}\n`); } else if (args._[0] === 'cutover') await cutover(args); else fail('command must be build, verify, or cutover'); } catch (error) { process.stderr.write(`RELEASE_VERIFY=FAIL\n${error.message}\n`); process.exitCode = 1; } }
 if (require.main === module) main();
-module.exports = { COMPATIBILITY, PERMISSION_CONTRACT, inventory, manifestDigest, validateParentTraversal, validateRoleOwnership, validateRuntimePermissions, verifyRelease, mandatoryChecks, canonicalizeTree, finalizeReleaseModes };
+module.exports = { COMPATIBILITY, PERMISSION_CONTRACT, inventory, manifestDigest, validateParentTraversal, validateRoleOwnership, validateRuntimePermissions, verifyRelease, mandatoryChecks, canonicalizeTree, finalizeReleaseModes, contained };
