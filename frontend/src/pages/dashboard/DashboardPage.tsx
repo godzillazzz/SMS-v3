@@ -2,10 +2,8 @@ import { DashboardHeroHeader } from '../../components/dashboard/DashboardHeroHea
 import { MetricsGrid } from '../../components/dashboard/MetricsGrid';
 import { WorkforceOverviewCard } from '../../components/dashboard/WorkforceOverviewCard';
 import { AttentionNeededCard } from '../../components/dashboard/AttentionNeededCard';
-import { RecentActivityCard } from '../../components/dashboard/RecentActivityCard';
 import { QuickActionsCard } from '../../components/dashboard/QuickActionsCard';
-import { DataSyncStatusCard } from '../../components/dashboard/DataSyncStatusCard';
-import { Alert } from '../../components/ui/primitives';
+import { Alert, Card } from '../../components/ui/primitives';
 import { asNumber, type DashboardNavigate, type DashboardSummary, type DashboardUser } from '../../components/dashboard/types';
 import '../../styles/dashboard.css';
 
@@ -27,6 +25,9 @@ export function DashboardPage({ summary, loading, error, user, canManage, onNavi
     {error && <Alert tone="danger" className="dashboard-data-error" role="alert" live="assertive"><b>ไม่สามารถโหลดข้อมูล Dashboard ได้</b><span>แสดงสถานะที่มีอยู่ล่าสุด โดยไม่มีการสร้างข้อมูลแทน</span></Alert>}
     <MetricsGrid totalEmployees={totalEmployees} activeEmployees={activeEmployees} organizationalUnits={organizationalUnits} complianceAttention={complianceAttention} loading={loading} />
     <div className="dashboard-primary-grid"><WorkforceOverviewCard totalEmployees={totalEmployees} activeEmployees={activeEmployees} monthShifts={monthShifts} loading={loading} onNavigate={onNavigate} /><AttentionNeededCard expiringLicenses={expiringLicenses} pendingLeaves={pendingLeaves} pendingUsers={pendingUsers} loading={loading} onNavigate={onNavigate} /></div>
-    <div className="dashboard-secondary-grid"><RecentActivityCard /><QuickActionsCard canManage={canManage} onNavigate={onNavigate} /><DataSyncStatusCard /></div>
+    <Card as="section" className="dashboard-panel dashboard-quick-actions">
+      <header className="dashboard-panel__header"><div><p>QUICK ACTIONS</p><h2>ทางลัดการทำงาน</h2></div></header>
+      <QuickActionsCard canManage={canManage} onNavigate={onNavigate} />
+    </Card>
   </section>;
 }

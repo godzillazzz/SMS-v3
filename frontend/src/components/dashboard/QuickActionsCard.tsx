@@ -1,4 +1,5 @@
 import type { DashboardNavigate } from './types';
+import { Button } from '../ui/primitives';
 
 type QuickActionsCardProps = { canManage: boolean; onNavigate: DashboardNavigate };
 export function QuickActionsCard({ canManage, onNavigate }: QuickActionsCardProps) {
@@ -10,8 +11,5 @@ export function QuickActionsCard({ canManage, onNavigate }: QuickActionsCardProp
       { icon: '◈', title: 'ใบอนุญาตพนักงาน', detail: 'ติดตามสถานะใบอนุญาต', page: 'licenses' as const }
     ] : [])
   ];
-  return <section className="dashboard-panel dashboard-quick-actions">
-    <header className="dashboard-panel__header"><div><p>QUICK ACTIONS</p><h2>ทางลัดการทำงาน</h2></div></header>
-    <div className="dashboard-quick-actions__grid">{actions.map((action) => <button className="btn-ghost" key={action.title} onClick={() => onNavigate(action.page)}><span>{action.icon}</span><b>{action.title}</b><small>{action.detail}</small></button>)}</div>
-  </section>;
+  return <div className="dashboard-quick-actions__grid">{actions.map((action) => <Button variant="ghost" key={action.title} onClick={() => onNavigate(action.page)}><span aria-hidden="true">{action.icon}</span><b>{action.title}</b><small>{action.detail}</small></Button>)}</div>;
 }

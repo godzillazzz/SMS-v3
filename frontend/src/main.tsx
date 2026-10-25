@@ -18,13 +18,14 @@ import { PersonnelDirectoryPage } from './pages/personnel/PersonnelDirectoryPage
 import { AuditCompliancePage } from './pages/audit/AuditCompliancePage';
 import { AccessManagementPage } from './pages/access-management/AccessManagementPage';
 import { canLoadAccessManagement } from './components/access-management/access-management-utils';
-import { Button } from './components/ui/primitives';
+import { Alert, Button, Field, SelectInput, TextInput } from './components/ui/primitives';
 import { AppearancePanel } from './components/shell/AppearancePanel';
 import { CommandPalette, type PaletteCommand } from './components/shell/CommandPalette';
 import { UserMenu } from './components/shell/UserMenu';
 import { applyAppearancePreferences, readAppearancePreferences, saveAppearancePreferences, type AppearancePreferences } from './components/shell/appearance-preferences';
 import './styles/responsive-shell.css';
 import './styles/shell-controls.css';
+import './styles/auth-dashboard.css';
 
 applyAppearancePreferences(readAppearancePreferences());
 
@@ -233,22 +234,24 @@ function Login() {
           <form className="login-form" onSubmit={submit}>
             <h2>{title}</h2>
             <p className="form-lead">{lead}</p>
-            {(formError || (mode === 'login' ? auth.error : undefined)) && <div className="alert alert-error" role="alert">{formError || auth.error}</div>}
-            {formMessage && <div className="login-help-action" role="status">{formMessage}</div>}
-            {mode === 'register' && <label className="field-group" htmlFor="registration-employee"><span>ชื่อพนักงาน</span><select id="registration-employee" value={registrationEmployeeId} onChange={(event) => setRegistrationEmployeeId(event.target.value)} required disabled={registrationEmployeesLoading}><option value="">{registrationEmployeesLoading ? 'กำลังโหลดรายชื่อพนักงาน...' : '-- เลือกชื่อของคุณ --'}</option>{registrationEmployeeOptions.map((employee) => <option key={employee.value} value={employee.value}>{employee.label}</option>)}</select>{!registrationEmployeesLoading && !registrationEmployeeOptions.length && <small className="field-hint">ไม่มีรายชื่อพนักงานที่เปิดให้สมัคร หากเคยสมัครแล้วให้ติดต่อ Admin เพื่ออนุมัติ/รีเซ็ตรหัสผ่าน</small>}</label>}
-            <label className="field-group" htmlFor="email">
-              <span>อีเมล</span>
-              <input id="email" value={email} onChange={(event) => setEmail(event.target.value)} type="email" placeholder="name@company.com" required autoComplete="username" />
-            </label>
-            {(mode === 'registerVerify' || mode === 'resetVerify') && <label className="field-group" htmlFor="otp-code"><span>รหัส OTP 6 หลัก</span><input id="otp-code" value={code} onChange={(event) => setCode(event.target.value.replace(/\D/g, '').slice(0, 6))} inputMode="numeric" pattern="[0-9]{6}" maxLength={6} required autoComplete="one-time-code" /></label>}
-            {(mode === 'login' || mode === 'register' || mode === 'resetVerify') && <label className="field-group" htmlFor="password">
-              <span>รหัสผ่าน</span>
+            {(formError || (mode === 'login' ? auth.error : undefined)) && <Alert tone="danger" className="alert alert-error login-error" role="alert" live="assertive">{formError || auth.error}</Alert>}
+            {formMessage && <Alert tone="success" className="login-help-action">{formMessage}</Alert>}
+            {mode === 'register' && <Field label="ชื่อพนักงาน" htmlFor="registration-employee" className="field-group" required hint={!registrationEmployeesLoading && !registrationEmployeeOptions.length ? 'ไม่มีรายชื่อพนักงานที่เปิดให้สมัคร หากเคยสมัครแล้วให้ติดต่อ Admin เพื่ออนุมัติ/รีเซ็ตรหัสผ่าน' : undefined}>
+              <SelectInput id="registration-employee" value={registrationEmployeeId} onChange={(event) => setRegistrationEmployeeId(event.target.value)} required disabled={registrationEmployeesLoading}><option value="">{registrationEmployeesLoading ? 'กำลังโหลดรายชื่อพนักงาน...' : '-- เลือกชื่อของคุณ --'}</option>{registrationEmployeeOptions.map((employee) => <option key={employee.value} value={employee.value}>{employee.label}</option>)}</SelectInput>
+            </Field>}
+            <Field label="อีเมล" htmlFor="email" className="field-group" required>
+              <TextInput id="email" value={email} onChange={(event) => setEmail(event.target.value)} type="email" placeholder="name@company.com" required autoComplete="username" />
+            </Field>
+            {(mode === 'registerVerify' || mode === 'resetVerify') && <Field label="รหัส OTP 6 หลัก" htmlFor="otp-code" className="field-group" required>
+              <TextInput id="otp-code" value={code} onChange={(event) => setCode(event.target.value.replace(/\D/g, '').slice(0, 6))} inputMode="numeric" pattern="[0-9]{6}" maxLength={6} required autoComplete="one-time-code" />
+            </Field>}
+            {(mode === 'login' || mode === 'register' || mode === 'resetVerify') && <Field label="รหัสผ่าน" htmlFor="password" className="field-group" required>
               <span className="password-field">
-                <input id="password" value={password} onChange={(event) => setPassword(event.target.value)} type={showPassword ? 'text' : 'password'} placeholder={mode === 'resetVerify' ? 'รหัสผ่านใหม่อย่างน้อย 8 ตัวอักษร' : 'กรอกรหัสผ่าน'} minLength={mode === 'login' ? undefined : 8} required autoComplete={mode === 'login' ? 'current-password' : 'new-password'} />
-                <button className="password-toggle" type="button" onClick={() => setShowPassword((visible) => !visible)}>{showPassword ? 'ซ่อน' : 'แสดง'}</button>
+                <TextInput id="password" value={password} onChange={(event) => setPassword(event.target.value)} type={showPassword ? 'text' : 'password'} placeholder={mode === 'resetVerify' ? 'รหัสผ่านใหม่อย่างน้อย 8 ตัวอักษร' : 'กรอกรหัสผ่าน'} minLength={mode === 'login' ? undefined : 8} required autoComplete={mode === 'login' ? 'current-password' : 'new-password'} />
+                <Button className="password-toggle" type="button" aria-label={showPassword ? 'ซ่อนรหัสผ่าน' : 'แสดงรหัสผ่าน'} onClick={() => setShowPassword((visible) => !visible)}>{showPassword ? 'ซ่อน' : 'แสดง'}</Button>
               </span>
-            </label>}
-            <button className="btn-primary" type="submit" disabled={submitDisabled}>{busy ? 'กำลังดำเนินการ…' : mode === 'login' ? 'เข้าสู่ระบบ' : mode === 'register' ? 'ส่งรหัส OTP' : mode === 'registerVerify' ? 'ยืนยันอีเมล' : mode === 'reset' ? 'ส่งรหัส OTP' : 'ตั้งรหัสผ่านใหม่'}</button>
+            </Field>}
+            <Button variant="primary" className="login-submit" type="submit" disabled={submitDisabled} isLoading={busy}>{busy ? 'กำลังดำเนินการ…' : mode === 'login' ? 'เข้าสู่ระบบ' : mode === 'register' ? 'ส่งรหัส OTP' : mode === 'registerVerify' ? 'ยืนยันอีเมล' : mode === 'reset' ? 'ส่งรหัส OTP' : 'ตั้งรหัสผ่านใหม่'}</Button>
             {mode === 'login' ? <div className="login-links"><button type="button" onClick={() => resetView('register')}>ยังไม่มีบัญชี? <b>ลงทะเบียนเข้าใช้ระบบ</b></button><button type="button" onClick={() => resetView('reset')}>ลืมรหัสผ่าน? <b>รีเซ็ตรหัสผ่านด้วย OTP</b></button></div> : <div className="login-links"><button type="button" onClick={() => resetView('login')}>← กลับไปหน้าเข้าสู่ระบบ</button></div>}
             <p className="login-help">พบปัญหาการใช้งาน: ติดต่อผู้ดูแลระบบของหน่วยงาน</p>
           </form>
