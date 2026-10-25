@@ -1,0 +1,22 @@
+/* Page-level UI Redesign styles (licenses 06, leave 13-16). Loaded as its own chunk right after start-up
+   so the main CSS stays within budget. */
+/* Shared avatar + licenses (06 / W-08) */
+#sms-app .personnel-avatar{display:inline-grid;place-items:center;flex:0 0 auto;width:36px;height:36px;border-radius:50%;background:#1d4ed8;color:#fff;font-size:13px;font-weight:700}#sms-app .personnel-avatar[data-tone="1"]{background:#0b7a74}#sms-app .personnel-avatar[data-tone="2"]{background:#7c3aed}#sms-app .personnel-avatar[data-tone="3"]{background:#047857}#sms-app .personnel-avatar[data-tone="4"]{background:#0a68a0}
+#sms-app .license-person{display:inline-flex;align-items:center;gap:12px}#sms-app .license-person>span:last-child{display:grid}#sms-app .license-person strong{color:var(--color-text);font-weight:600}#sms-app .license-person small{color:var(--color-text-secondary);font-size:12px}
+#sms-app .license-expiry.is-expired{color:var(--color-danger);font-weight:700}#sms-app .license-expiry.is-soon{color:var(--color-warning);font-weight:700}
+#sms-app .license-bucket-chips{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 4px}#sms-app .license-bucket-chips button{display:inline-flex;align-items:center;gap:8px;min-height:36px;padding:0 14px;border:1px solid var(--color-border);border-radius:999px;background:var(--color-surface);color:var(--color-text);font-size:14px;font-weight:500;cursor:pointer}#sms-app .license-bucket-chips button b{padding:1px 8px;border-radius:999px;background:var(--color-surface-muted);color:var(--color-text-secondary);font-size:12px}#sms-app .license-bucket-chips button.is-active{border-color:var(--sidebar-active);background:var(--sidebar-active);color:#fff}#sms-app .license-bucket-chips button.is-active b{background:rgba(255,255,255,.2);color:#fff}
+/* Leave request per 13 / W-06: form left, balances + my requests right. */
+#sms-app .leave-page.leave-mode-all .leave-main-grid{display:grid!important;grid-template-columns:minmax(0,1.25fr) minmax(320px,1fr);gap:16px;align-items:start}
+#sms-app .leave-side{display:grid;gap:16px;min-width:0}
+#sms-app .leave-side .leave-quota-grid{display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px!important;margin:0!important}
+#sms-app .leave-side .layout-metric-card{grid-template-columns:1fr;grid-template-areas:"label" "value" "desc";padding:14px 16px!important}
+#sms-app .leave-side .layout-metric-card>svg{display:none}
+@media(max-width:1100px){#sms-app .leave-page.leave-mode-all .leave-main-grid{grid-template-columns:1fr}}
+#sms-app .leave-mode-all .leave-side .data-table-desktop{display:none!important}
+#sms-app .leave-mode-all .leave-side .data-table-mobile{display:block!important}
+#sms-app .leave-side .leave-history-mobile-list{display:grid;gap:10px}
+#sms-app .leave-side .leave-history-mobile-card{padding:14px 16px;border:0!important;border-radius:12px;background:var(--color-surface-muted)!important;box-shadow:none!important}
+#sms-app .leave-submit-card label>svg{display:none}
+#sms-app .leave-mode-history .leave-main-grid{display:block!important}#sms-app .leave-mode-history .leave-side .leave-quota-grid{display:none!important}
+#sms-app .leave-print-button{border:1px solid var(--color-border)!important;background:var(--color-surface)!important;color:var(--color-text)!important;box-shadow:none!important;border-radius:10px!important}
+#sms-app .quota-balance{display:grid;gap:6px;min-width:150px}#sms-app .quota-balance>span{color:var(--color-text-secondary);font-size:12px}#sms-app .quota-balance b{color:var(--color-text);font-size:15px}#sms-app .quota-balance>i{display:block;height:5px;border-radius:999px;background:var(--color-surface-muted)}#sms-app .quota-balance>i>i{display:block;height:100%;border-radius:inherit;background:#0e7a42}#sms-app .quota-balance--personal>i>i{background:#0a68a0}#sms-app .quota-balance--vacation>i>i{background:#985304}
