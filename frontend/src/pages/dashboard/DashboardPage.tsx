@@ -5,6 +5,8 @@ import { TodayOperationsCard } from '../../components/dashboard/TodayOperationsC
 import { AttentionNeededCard } from '../../components/dashboard/AttentionNeededCard';
 import { RecentActivityCard } from '../../components/dashboard/RecentActivityCard';
 import { QuickActionsCard } from '../../components/dashboard/QuickActionsCard';
+import { MyWorkQueueCard } from '../../components/dashboard/MyWorkQueueCard';
+import type { ApprovalCountSummary, ApprovalCountType } from '../../components/approval-count-badge';
 import { WorkQueueJourney } from '../../components/dashboard/WorkQueueJourney';
 import { DataSyncStatusCard } from '../../components/dashboard/DataSyncStatusCard';
 import { LeaveSummaryCard } from '../../components/dashboard/LeaveSummaryCard';
@@ -14,11 +16,11 @@ import { asNumber, type DashboardAction, type DashboardActivity, type DashboardE
 import { PageHeader, SectionCard } from '../../components/layout';
 import { dashboardDetailQuery, type DashboardDetailMetric } from '../../components/dashboard/deep-links';
 
-type DashboardPageProps = { summary: DashboardSummary; loading: boolean; error?: RequestErrorInput; user?: DashboardUser; canManage: boolean; filters: DashboardFilters; pendingApprovalCount?: number | null; onOpenApprovalCenter?(): void; onFiltersChange: (filters: Partial<DashboardFilters>) => void; onNavigate: DashboardNavigate };
+type DashboardPageProps = { summary: DashboardSummary; loading: boolean; error?: RequestErrorInput; user?: DashboardUser; canManage: boolean; filters: DashboardFilters; pendingApprovalCount?: number | null; approvalSummary?: ApprovalCountSummary | null; approvalCountStatus?: 'idle' | 'loading' | 'ready' | 'error'; onOpenApprovalCenter?(type?: ApprovalCountType): void; onFiltersChange: (filters: Partial<DashboardFilters>) => void; onNavigate: DashboardNavigate };
 
 const numberText = (value: unknown) => new Intl.NumberFormat('th-TH').format(asNumber(value));
 
-export function DashboardPage({ summary, loading, error, user, canManage, filters, pendingApprovalCount, onOpenApprovalCenter, onFiltersChange, onNavigate }: DashboardPageProps) {
+export function DashboardPage({ summary, loading, error, user, canManage, filters, pendingApprovalCount, approvalSummary, approvalCountStatus, onOpenApprovalCenter, onFiltersChange, onNavigate }: DashboardPageProps) {
   const total = asNumber(summary.totalEmployees);
   const active = asNumber(summary.activeEmployees);
   const onDuty = asNumber(summary.onDutyToday ?? summary.workingToday);
@@ -59,7 +61,9 @@ export function DashboardPage({ summary, loading, error, user, canManage, filter
 
     <DashboardFilterBar filters={filters} departments={departments} role={user?.role} loading={loading} onChange={onFiltersChange} />
 
-    <WorkQueueJourney canManage={canManage} pendingApprovalCount={pendingApprovalCount} onOpenApprovalCenter={onOpenApprovalCenter} onNavigate={onNavigate} />
+    {canManage && <MyWorkQueueCard summary={approvalSummary} status={approvalCountStatus === 'error' ? 'error' : approvalSummary ? 'ready' : 'loading'} onOpen={(type) => onOpenApprovalCenter?.(type)} />}
+
+    <WorkQueueJourney canManage={canManage} pendingApprovalCount={pendingApprovalCount} onOpenApprovalCenter={() => onOpenApprovalCenter?.()} onNavigate={onNavigate} />
 
     {error ? <div className="nexus-command__alert dashboard-data-error" role="alert"><strong>ข้อมูลไม่พร้อมใช้งาน</strong><span>โหลดภาพรวมไม่สำเร็จ ระบบไม่สร้างข้อมูลแทน</span><RequestErrorReference requestId={typeof error === 'string' ? undefined : error?.requestId} /></div> : partialErrors.length > 0 ? <div className="nexus-command__alert dashboard-data-warning" role="status"><strong>ข้อมูลบางส่วนไม่พร้อม</strong><span>ข้อมูลพร้อมแสดงตามสิทธิ์</span></div> : null}
 

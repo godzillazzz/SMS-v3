@@ -1,0 +1,21 @@
+.my-work-queue{display:grid;gap:12px;padding:16px;border:1px solid rgba(54,197,221,.18);border-radius:12px;background:linear-gradient(135deg,rgba(7,22,34,.96),rgba(8,29,42,.9))}
+.my-work-queue>header{margin:0;padding:0;border:0;display:flex;align-items:flex-end;justify-content:space-between;gap:16px}
+.my-work-queue h2{margin:2px 0;color:#edf8fb;font:700 18px "Kanit",sans-serif}
+.my-work-queue header span{color:#8ba2b3;font:500 12px "Kanit",sans-serif}
+.my-work-queue__all{min-height:38px;padding:0 12px;border:1px solid rgba(54,197,221,.34);border-radius:8px;background:rgba(54,197,221,.08);color:#7fe0ee;font:600 12px "Kanit",sans-serif;cursor:pointer}
+.my-work-queue__list{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:8px;margin:0;padding:0;list-style:none}
+.my-work-queue__list button{display:grid;grid-template-columns:auto minmax(0,1fr) auto auto;align-items:center;gap:10px;width:100%;min-height:52px;padding:8px 12px;border:1px solid rgba(148,163,184,.12);border-radius:9px;background:rgba(255,255,255,.025);color:#dcebf1;text-align:left;cursor:pointer}
+.my-work-queue__list button:hover,.my-work-queue__list button:focus-visible{outline:0;border-color:rgba(54,197,221,.42);background:rgba(54,197,221,.07)}
+.my-work-queue__icon{display:grid;place-items:center;width:32px;height:32px;border-radius:8px;background:rgba(54,197,221,.1);color:#58d6e9}
+.my-work-queue__list strong{overflow:hidden;font:600 13px "Kanit",sans-serif;text-overflow:ellipsis;white-space:nowrap}
+.my-work-queue__count{display:grid;place-items:center;min-width:28px;height:24px;padding:0 6px;border-radius:999px;background:rgba(54,197,221,.16);color:#a5f3fc;font:700 12px "Plus Jakarta Sans",sans-serif}
+.my-work-queue__open{color:#5ccfe2;font:500 11px "Kanit",sans-serif}
+.my-work-queue__clear{display:flex;align-items:center;gap:8px;color:#7fd9a8;font:500 13px "Kanit",sans-serif}
+[data-theme="light"] .my-work-queue{border-color:#d6e5ec;background:linear-gradient(135deg,#fff,#f4fafc)}
+[data-theme="light"] .my-work-queue h2,[data-theme="light"] .my-work-queue__list strong{color:#12283a}
+[data-theme="light"] .my-work-queue header span{color:#475569}
+[data-theme="light"] .my-work-queue__list button{border-color:#e0eaf0;background:#fff;color:#243d50}
+[data-theme="light"] .my-work-queue__all,[data-theme="light"] .my-work-queue__open{color:#0e6f80}
+[data-theme="light"] .my-work-queue__count{background:#e3f3f6;color:#0e5f6e}
+[data-theme="light"] .my-work-queue__clear{color:#1f7a4d}
+@media(max-width:640px){.my-work-queue{padding:12px}.my-work-queue>header{flex-direction:column;align-items:stretch}.my-work-queue__open{display:none}}
