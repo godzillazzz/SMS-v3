@@ -49,6 +49,6 @@
 /* The bottom action is intentionally neutral and shares the standard button vocabulary. */
 .audit-preview-panel footer .btn-neutral { min-width: 72px; min-height: 40px; border: 1px solid #d9e2ef; border-radius: 8px; background: #fff; color: #344054; font: 600 13px "IBM Plex Sans Thai", system-ui, sans-serif; }
 .audit-preview-panel footer .btn-neutral:hover:not(:disabled) { border-color: #aeb7c5; background: #f5f7fa; }
-.audit-preview-panel footer .btn-neutral:focus-visible { outline: 3px solid rgba(87,70,217,.35); outline-offset: 2px; box-shadow: 0 0 0 1px #fff; }
+.audit-preview-panel footer .btn-neutral:focus-visible { outline: none; box-shadow: var(--ds-focus-ring-shadow); }
 .audit-table-scroll { max-width: 100%; overscroll-behavior-inline: contain; }
 .audit-preview-link:focus-visible { outline-offset: -2px; }

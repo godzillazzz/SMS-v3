@@ -1,0 +1,282 @@
+/* SMSv3 design tokens read from the Figma F1/F2 foundation boards. */
+:root {
+  color-scheme: light;
+
+  /* Navy accent, light mode: default theme. */
+  --ds-color-brand: #1d4ed8;
+  --ds-color-brand-strong: #1e40af;
+  --ds-color-brand-soft: #e8eefd;
+  --ds-color-brand-rgb: 29, 78, 216;
+  --ds-color-sidebar-ink: #0e1a31;
+  --ds-color-brand-gradient-start: #38bdf8;
+  --ds-color-brand-gradient-end: #6366f1;
+
+  /* Neutral light palette. */
+  --ds-color-canvas: #f3f5f9;
+  --ds-color-surface: #ffffff;
+  --ds-color-surface-sunken: #f7f9fc;
+  --ds-color-surface-track: #e8ecf2;
+  --ds-color-border: #e2e7ef;
+  --ds-color-border-strong: #c9d2de;
+  --ds-color-text: #111a2c;
+  --ds-color-text-secondary: #43506a;
+  --ds-color-text-muted: #5d6a80;
+
+  /* Semantic colors, light mode. */
+  --ds-color-success: #0e7a42;
+  --ds-color-warning: #8f5300;
+  --ds-color-danger: #b42318;
+  --ds-color-info: #0a68a0;
+  --ds-color-neutral: #475467;
+  --ds-color-violet: #6d28d9;
+
+  /* Shift data colors are stable across themes; label colors adapt for contrast. */
+  --ds-color-shift-d: #2563eb;
+  --ds-color-shift-n: #7c3aed;
+  --ds-color-shift-s: #0d9488;
+  --ds-color-shift-off: #94a3b8;
+  --ds-color-shift-al: #d97706;
+  --ds-color-shift-d-text: #235edf;
+  --ds-color-shift-n-text: #7c3aed;
+  --ds-color-shift-s-text: #0a766d;
+  --ds-color-shift-off-text: #606a78;
+  --ds-color-shift-al-text: #985304;
+
+  /* Paper colors do not change with the active screen theme. */
+  --ds-color-document-ink: #0f1b33;
+  --ds-color-document-text: #1f2937;
+  --ds-color-document-soft: #4b5563;
+  --ds-color-document-rule: #9ca3af;
+  --ds-color-document-accent: #1e3a8a;
+  --ds-color-document-void: #b42318;
+
+  /* Typography. */
+  --ds-font-family-sans: "IBM Plex Sans Thai", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --ds-font-family-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Consolas, monospace;
+  --ds-font-family-print: "Sarabun", "IBM Plex Sans Thai", system-ui, sans-serif;
+  --ds-font-size-display: 40px;
+  --ds-font-size-h1: 26px;
+  --ds-font-size-kpi: 30px;
+  --ds-font-size-h2: 16px;
+  --ds-font-size-body: 14px;
+  --ds-font-size-caption: 12.5px;
+  --ds-font-size-badge: 12px;
+  --ds-font-size-mono: 13px;
+  --ds-font-weight-regular: 400;
+  --ds-font-weight-medium: 500;
+  --ds-font-weight-semibold: 600;
+  --ds-font-weight-bold: 700;
+  --ds-font-variant-numeric: tabular-nums;
+
+  /* Spacing scale. */
+  --ds-space-1: 4px;
+  --ds-space-2: 8px;
+  --ds-space-3: 12px;
+  --ds-space-4: 16px;
+  --ds-space-5: 20px;
+  --ds-space-6: 24px;
+  --ds-space-8: 32px;
+  --ds-space-12: 48px;
+
+  /* Shape, layout and interaction sizes. */
+  --ds-radius-card: 14px;
+  --ds-radius-control: 10px;
+  --ds-radius-button-small: 8px;
+  --ds-radius-shift-chip: 6px;
+  --ds-radius-legacy-large: 18px;
+  --ds-size-control: 40px;
+  --ds-size-touch: 44px;
+  --ds-size-button-small: 32px;
+  --ds-size-mobile-control: 48px;
+  --ds-size-mobile-row: 64px;
+  --ds-layout-sidebar: 248px;
+  --ds-layout-navigation-rail: 76px;
+  --ds-layout-topbar: 64px;
+  --ds-layout-content-inset: 32px;
+  --ds-layout-card-gap: 16px;
+  --ds-layout-card-gap-comfortable: 20px;
+  --ds-breakpoint-tablet: 1024px;
+  --ds-breakpoint-mobile: 760px;
+
+  /* Figma names these elevations; retain the existing CSS shadow values. */
+  --ds-shadow-sm: 0 1px 2px rgba(7, 26, 56, .04), 0 4px 12px rgba(7, 26, 56, .045);
+  --ds-shadow-md: 0 12px 30px rgba(13, 34, 69, .10);
+  --ds-shadow-lg: 0 24px 70px rgba(8, 23, 48, .30);
+  --ds-focus-edge-width: 1.5px;
+  --ds-focus-ring-width: 3px;
+  --ds-focus-ring-color: rgba(var(--ds-color-brand-rgb), .18);
+  --ds-focus-ring-shadow: 0 0 0 var(--ds-focus-edge-width) var(--ds-color-surface),
+    0 0 0 4.5px var(--ds-focus-ring-color);
+
+  /* Compatibility aliases used by the existing CSS while pages migrate. */
+  --font-sans: var(--ds-font-family-sans);
+  --font-mono: var(--ds-font-family-mono);
+  --page: var(--ds-color-canvas);
+  --card: var(--ds-color-surface);
+  --text: var(--ds-color-text);
+  --muted: var(--ds-color-text-muted);
+  --border: var(--ds-color-border);
+  --navy-950: var(--ds-color-sidebar-ink);
+  --navy-900: var(--ds-color-sidebar-ink);
+  --indigo-600: var(--ds-color-brand);
+  --indigo-500: var(--ds-color-brand-strong);
+  /* Existing interaction-state colors stay centralized until shared component states migrate. */
+  --action-primary: var(--ds-color-brand);
+  --action-primary-hover: var(--ds-color-brand-strong);
+  --action-primary-active: var(--ds-color-brand-strong);
+  --action-info: var(--ds-color-info);
+  --action-info-hover: #2169be;
+  --action-success: var(--ds-color-success);
+  --action-success-hover: #126f4c;
+  --action-warning: var(--ds-color-warning);
+  --action-warning-hover: #a96612;
+  --action-danger: var(--ds-color-danger);
+  --action-danger-hover: #ac303c;
+  --action-neutral-text: var(--ds-color-text-secondary);
+  --action-neutral-border: var(--ds-color-border-strong);
+  --action-neutral-hover: var(--ds-color-surface-sunken);
+  --action-disabled-text: #7d8795;
+  --action-disabled-background: #edf0f4;
+  --action-disabled-border: #d7dce4;
+
+  --sms-font: var(--font-sans);
+  --sms-navy-950: var(--ds-color-sidebar-ink);
+  --sms-navy-900: var(--ds-color-sidebar-ink);
+  --sms-indigo-600: var(--ds-color-brand);
+  --sms-indigo-500: var(--ds-color-brand-strong);
+  --sms-purple-400: var(--ds-color-brand-gradient-end);
+  --sms-teal-500: var(--ds-color-shift-s);
+  --sms-green-600: var(--ds-color-success);
+  --sms-warning-600: var(--ds-color-warning);
+  --sms-critical-600: var(--ds-color-danger);
+  --sms-blue-600: var(--ds-color-info);
+  --sms-page: var(--ds-color-canvas);
+  --sms-card: var(--ds-color-surface);
+  --sms-text: var(--ds-color-text);
+  --sms-text-secondary: var(--ds-color-text-secondary);
+  --sms-text-muted: var(--ds-color-text-muted);
+  --sms-muted: var(--ds-color-text-muted);
+  --sms-border: var(--ds-color-border);
+  --sms-line: var(--ds-color-border);
+  --sms-soft: var(--ds-color-surface-sunken);
+  --sms-radius: var(--ds-radius-card);
+  --sms-radius-sm: var(--ds-radius-control);
+  --sms-radius-md: var(--ds-radius-card);
+  --sms-radius-lg: var(--ds-radius-legacy-large);
+  --sms-shadow: var(--ds-shadow-sm);
+  --sms-shadow-sm: var(--ds-shadow-sm);
+  --sms-shadow-md: var(--ds-shadow-md);
+  --sms-card-shadow: var(--ds-shadow-sm);
+  --sms-focus: var(--ds-focus-ring-shadow);
+  --sms-transition: 160ms ease;
+  --sms-z-sidebar: 40;
+  --sms-z-drawer: 200;
+  --sms-breakpoint-tablet: var(--ds-breakpoint-tablet);
+  --sms-breakpoint-mobile: var(--ds-breakpoint-mobile);
+}
+
+/* Accent theme variants. The mode selector supplies the neutral and semantic palette. */
+:root[data-accent="teal"] {
+  --ds-color-brand: #0b7a74;
+  --ds-color-brand-strong: #086561;
+  --ds-color-brand-soft: #e2f4f2;
+  --ds-color-brand-rgb: 11, 122, 116;
+  --ds-color-sidebar-ink: #0c2a31;
+  --ds-color-brand-gradient-start: #2ec5f0;
+  --ds-color-brand-gradient-end: #29c39b;
+}
+
+:root[data-accent="emerald"] {
+  --ds-color-brand: #047857;
+  --ds-color-brand-strong: #036349;
+  --ds-color-brand-soft: #e1f5ec;
+  --ds-color-brand-rgb: 4, 120, 87;
+  --ds-color-sidebar-ink: #0e2a20;
+  --ds-color-brand-gradient-start: #34d399;
+  --ds-color-brand-gradient-end: #a3e635;
+}
+
+/* Shared dark-mode neutrals, semantic colors and contrast-safe shift labels. */
+:root[data-mode="dark"] {
+  color-scheme: dark;
+  --ds-color-canvas: #0a0f17;
+  --ds-color-surface: #111925;
+  --ds-color-surface-sunken: #0d141e;
+  --ds-color-surface-track: #1c2635;
+  --ds-color-border: #212d3e;
+  --ds-color-border-strong: #33435a;
+  --ds-color-text: #e8edf5;
+  --ds-color-text-secondary: #b6c1d3;
+  --ds-color-text-muted: #93a0b5;
+  --ds-color-success: #4ade80;
+  --ds-color-warning: #fbbf24;
+  --ds-color-danger: #f87171;
+  --ds-color-info: #60a5fa;
+  --ds-color-neutral: #b6c1d3;
+  --ds-color-violet: #c4b5fd;
+  --ds-color-shift-d-text: #719af2;
+  --ds-color-shift-n-text: #aa7ff3;
+  --ds-color-shift-s-text: #4aafa6;
+  --ds-color-shift-off-text: #a4b1c3;
+  --ds-color-shift-al-text: #e19238;
+  --ds-color-brand: #86a8ff;
+  --ds-color-brand-strong: #a9c1ff;
+  --ds-color-brand-soft: #18264a;
+  --ds-color-brand-rgb: 134, 168, 255;
+  --ds-color-sidebar-ink: #0c131f;
+  --ds-color-brand-gradient-start: #38bdf8;
+  --ds-color-brand-gradient-end: #818cf8;
+  --ds-focus-ring-color: rgba(var(--ds-color-brand-rgb), .18);
+}
+
+:root[data-mode="dark"][data-accent="teal"] {
+  --ds-color-brand: #4fd1c5;
+  --ds-color-brand-strong: #81e0d6;
+  --ds-color-brand-soft: #0f2d2c;
+  --ds-color-brand-rgb: 79, 209, 197;
+  --ds-color-sidebar-ink: #0a1517;
+  --ds-color-brand-gradient-start: #2ec5f0;
+  --ds-color-brand-gradient-end: #29c39b;
+}
+
+:root[data-mode="dark"][data-accent="emerald"] {
+  --ds-color-brand: #4ade9b;
+  --ds-color-brand-strong: #7ee9b8;
+  --ds-color-brand-soft: #0f2a1f;
+  --ds-color-brand-rgb: 74, 222, 155;
+  --ds-color-sidebar-ink: #0a1511;
+  --ds-color-brand-gradient-start: #34d399;
+  --ds-color-brand-gradient-end: #a3e635;
+}
+
+/* Printed pages always use the fixed Figma paper palette, regardless of screen mode. */
+@media print {
+  :root,
+  :root[data-mode],
+  :root[data-accent],
+  :root[data-mode][data-accent] {
+    color-scheme: light;
+    --ds-color-canvas: #ffffff;
+    --ds-color-surface: #ffffff;
+    --ds-color-surface-sunken: #ffffff;
+    --ds-color-surface-track: #ffffff;
+    --ds-color-border: var(--ds-color-document-rule);
+    --ds-color-border-strong: var(--ds-color-document-rule);
+    --ds-color-text: var(--ds-color-document-text);
+    --ds-color-text-secondary: var(--ds-color-document-soft);
+    --ds-color-text-muted: var(--ds-color-document-soft);
+    --ds-color-brand: var(--ds-color-document-accent);
+    --ds-color-brand-strong: var(--ds-color-document-accent);
+    --ds-color-brand-soft: #ffffff;
+    --ds-color-brand-rgb: 30, 58, 138;
+    --ds-color-sidebar-ink: var(--ds-color-document-ink);
+    --ds-color-success: var(--ds-color-document-text);
+    --ds-color-warning: var(--ds-color-document-text);
+    --ds-color-danger: var(--ds-color-document-text);
+    --ds-color-info: var(--ds-color-document-text);
+    --ds-color-neutral: var(--ds-color-document-text);
+    --ds-color-violet: var(--ds-color-document-text);
+    --ds-focus-ring-color: transparent;
+    --ds-focus-ring-shadow: none;
+  }
+}
