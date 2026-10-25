@@ -5,7 +5,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { execFileSync, spawnSync } = require('node:child_process');
-const { inventory, manifestDigest, verifyRelease, COMPATIBILITY } = require('../scripts/self-hosted-release');
+const { inventory, manifestDigest, verifyRelease, archiveCommit, COMPATIBILITY } = require('../scripts/self-hosted-release');
 
 function fixture(trustedRepo = null) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'sms-v3-release-rehearsal-')); const repo = trustedRepo || path.join(root, 'trusted-repo');
@@ -84,3 +84,5 @@ test('resists concurrent replacement of a parent directory during inventory read
 });
 
 test('restores an absent pointer after post-cutover mandatory-check failure', () => { const f = fixture(); const pointer = path.join(f.root, 'current'); const bad = path.join(f.root, 'bad'); fs.cpSync(f.release, bad, { recursive: true }); fs.writeFileSync(path.join(bad, 'backend', 'server.js'), 'not runnable'); const m = JSON.parse(fs.readFileSync(path.join(bad, 'release-manifest.json'))); m.backend_inventory_digest = inventory(path.join(bad, 'backend')).digest; m.manifest_sha256 = manifestDigest(m); fs.writeFileSync(path.join(bad, 'release-manifest.json'), JSON.stringify(m)); try { const result = cli(f, ['cutover', '--release', bad, '--pointer', pointer, '--repo', f.repo, '--trusted-manifest-sha256', m.manifest_sha256, '--apply', '--operator-gate', 'I_UNDERSTAND_ATOMIC_SELF_HOSTED_CUTOVER']); assert.notEqual(result.status, 0); assert.equal(fs.existsSync(pointer), false); } finally { fs.rmSync(f.root, { recursive: true, force: true }); } });
+
+test('archives a commit without buffering git archive stdout', () => { const f = fixture(); const stage = fs.mkdtempSync(path.join(os.tmpdir(), 'sms-v3-archive-stage-')); try { assert.doesNotThrow(() => archiveCommit(f.repo, f.manifest.git_sha, stage)); assert.equal(fs.readFileSync(path.join(stage, 'provenance.txt'), 'utf8'), 'trusted\n'); } finally { fs.rmSync(f.root, { recursive: true, force: true }); fs.rmSync(stage, { recursive: true, force: true }); } });
