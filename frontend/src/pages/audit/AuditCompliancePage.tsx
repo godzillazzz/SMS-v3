@@ -20,9 +20,9 @@ export function AuditCompliancePage({ rows, total, page = 1, totalPages = 1, pag
   const hasActiveFilters = Object.entries(filters).some(([key, value]) => key === 'category' ? value !== 'default' : Boolean(value));
   return <section className="audit-compliance-page data-surface-page layout-page-surface" aria-label="บันทึกการใช้งานระบบ">
     <AuditPageHeader total={total} page={page} pageCount={rows.length} onRefresh={onRefresh} onExport={() => onExport(rows)} onPrint={onPrint} authorized={!permissionDenied} loading={loading} hasError={Boolean(error)} hasRows={rows.length > 0} />
-    {!permissionDenied && !error && <SectionCard kicker="ภาพรวม" title="สรุปบันทึกการใช้งาน" description="จำนวนเหตุการณ์จากตัวกรองที่ใช้อยู่" className="audit-summary-card">
+    {!permissionDenied && !error && <div className="audit-summary-card" role="group" aria-label="สรุปบันทึกการใช้งาน">
       <AuditSummaryGrid total={total} pageCount={rows.length} categories={categories} actors={actors} loading={loading} />
-    </SectionCard>}
+    </div>}
     {permissionDenied ? <div className="audit-state audit-state--permission data-state data-state--permission"><span aria-hidden="true"><SmsIcon name="shield" size={24} /></span><h2>ไม่มีสิทธิ์เข้าถึงบันทึกการใช้งานระบบ</h2><p>เฉพาะผู้ดูแลระบบเท่านั้นที่สามารถดูรายการนี้ได้</p></div> : <SectionCard kicker="รายการเหตุการณ์" title="บันทึกที่ตรวจสอบได้" description="ค้นหา กรอง ส่งออก หรือพิมพ์ข้อมูลตามสิทธิ์ที่ได้รับ" className="audit-records-card">
       {!error && <AuditToolbar pageSize={pageSize} onPageSize={onPageSize} filters={filters} onFiltersChange={onFiltersChange} onClear={() => onFiltersChange({ dateFrom: '', dateTo: '', actor: '', entityType: '', action: '', search: '', category: 'default' })} />}
       <AuditTable rows={rows} selected={selected} onSelect={setSelected} loading={loading} hasActiveFilters={hasActiveFilters} error={Boolean(error)} onRetry={onRefresh} />

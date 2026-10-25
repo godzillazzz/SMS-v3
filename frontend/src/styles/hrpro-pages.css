@@ -35,3 +35,23 @@
 .shift-editor-code-card[data-shift-code="OFF"]{--shift:#64748B}
 .shift-editor-code-card[data-shift-code="AL"]{--shift:#D97706}
 :root[data-theme="dark"] .shift-editor-code-card b{color:color-mix(in srgb,var(--shift) 55%,#fff)}
+.rule-switch{display:inline-flex;align-items:center;gap:8px;min-height:40px;padding:0 6px;border:0;background:none;color:var(--color-text);font:inherit;font-size:13px;cursor:pointer}
+.rule-switch__track{position:relative;width:36px;height:20px;border-radius:999px;background:var(--color-border-strong,#CBD5E1);transition:background .15s}
+.rule-switch__track::after{content:"";position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(15,23,42,.3);transition:transform .15s}
+.rule-switch[aria-checked="true"] .rule-switch__track{background:var(--color-primary,#1E3A8A)}
+.rule-switch[aria-checked="true"] .rule-switch__track::after{transform:translateX(16px)}
+.rule-switch:focus-visible{outline:2px solid var(--color-primary);outline-offset:2px;border-radius:8px}
+#sms-app .rule-result-badge::before{content:"";display:inline-block;width:6px;height:6px;border-radius:50%;background:currentColor;margin-right:6px;vertical-align:1px}
+#sms-app .rule-switch{border:0!important;background:none!important;box-shadow:none!important;min-width:0;padding:0 6px;color:var(--color-text)}
+#sms-app .users-access-workspace>.access-management-page{width:100%;max-width:none;margin-inline:0;justify-self:stretch}
+#sms-app .access-name-cell{display:flex;align-items:center;gap:10px}
+#sms-app .access-name-cell>span:last-child{display:grid}
+#sms-app .access-avatar{display:inline-grid;place-items:center;flex:0 0 32px;width:32px;height:32px;border-radius:50%;background:var(--color-primary);color:#fff;font-size:12px;font-weight:700}
+body>.workflow-command-layer .workflow-command{font-family:'IBM Plex Sans Thai',sans-serif;border-radius:16px;background:var(--color-surface);color:var(--color-text)}
+body>.workflow-command-layer .workflow-command header input{border:0!important;box-shadow:none!important;outline:0;background:transparent!important;font-size:16px;color:var(--color-text)}
+body>.workflow-command-layer .workflow-command__meta span{text-transform:none;letter-spacing:0;font-size:12px;font-weight:600;color:var(--color-text-secondary)}
+body>.workflow-command-layer .workflow-command__results button{border-radius:10px}
+body>.workflow-command-layer .workflow-command__results button:first-child,body>.workflow-command-layer .workflow-command__results button:hover,body>.workflow-command-layer .workflow-command__results button:focus-visible{background:color-mix(in srgb,var(--color-primary) 9%,transparent)}
+body>.workflow-command-layer .workflow-command__go{margin-left:auto;color:var(--color-primary);font-weight:700}
+body>.workflow-command-layer .workflow-command footer kbd{margin:0 2px 0 8px}
+body>.workflow-command-layer .workflow-command footer kbd:first-child{margin-left:0}

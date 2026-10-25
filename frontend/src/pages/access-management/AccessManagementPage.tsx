@@ -58,6 +58,11 @@ function AccountStatusBadge({ account }: { account: AccountRecord }) {
   return <span className={`account-status account-status--${tone}`}><span className="account-status-dot" aria-hidden="true" />{accountStatusLabel(account)}</span>;
 }
 
+function accessInitials(name?: string) {
+  const parts = String(name || '').trim().split(/\s+/).filter(Boolean).slice(0, 2);
+  return parts.map((part) => (/^[เแโใไ]/.test(part) ? part.slice(1, 2) : part.slice(0, 1))).join('') || '?';
+}
+
 function ResetBadge({ required }: { required?: boolean }) {
   return <span className={`reset-badge ${required ? 'reset-badge--required' : ''}`}>{required ? 'ต้องรีเซ็ตรหัสผ่าน' : 'ปกติ'}</span>;
 }
@@ -85,7 +90,7 @@ function AccountTable({ rows, role, originalUserId, loading, onDetails, onEdit, 
   return <div className="access-table-card data-surface-card"><div className="access-table-scroll data-table-scroll"><table className="access-table data-surface-table"><thead><tr><th scope="col">ชื่อที่แสดง</th><th scope="col">บทบาท</th><th scope="col">หน่วยงาน</th><th scope="col">สถานะบัญชี</th><th scope="col">สถานะใช้งาน</th><th scope="col">ความปลอดภัย</th><th scope="col">อัปเดตล่าสุด</th><th scope="col"><span className="sr-only">จัดการบัญชี</span></th></tr></thead><tbody>{rows.map((account) => {
     const actions = visibleAccountActions(role, account, originalUserId);
     return <tr key={account.id} data-account-id={account.id}>
-      <td><strong>{account.displayName || 'ไม่ระบุชื่อ'}</strong><small>บัญชีผู้ใช้งาน</small></td>
+      <td><div className="access-name-cell"><span className="access-avatar" aria-hidden="true">{accessInitials(account.displayName)}</span><span><strong>{account.displayName || 'ไม่ระบุชื่อ'}</strong><small>บัญชีผู้ใช้งาน</small></span></div></td>
       <td><span className="role-badge">{roleLabel[account.role || ''] || account.role || 'ไม่ระบุ'}</span></td>
       <td>{account.department || 'ไม่ระบุหน่วยงาน'}</td>
       <td><span className={`access-account-state access-account-state--${String(account.accountStatus || '').toLowerCase()}`}>{statusLabel[String(account.accountStatus || '')] || 'ไม่ระบุ'}</span></td>
