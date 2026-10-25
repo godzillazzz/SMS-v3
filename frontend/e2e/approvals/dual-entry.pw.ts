@@ -66,8 +66,9 @@ test('Manager retains leave review while schedule review stays limited to existi
   await expect(page.getByRole('heading', { name: 'ศูนย์อนุมัติคำขอ' })).toBeVisible();
   await expect(page.getByRole('button', { name: /ลา/ }).first()).toBeVisible();
   await expect(page.locator('[data-navigation-id="approvals"]')).toHaveCount(0);
-  await expect(page.locator('[data-navigation-id="leavePending"]')).toBeVisible();
-  await page.locator('[data-navigation-id="leavePending"]').click();
+  // D-U2: the duplicate leave-approval menu is hidden; the route itself is unchanged and still authorized.
+  await expect(page.locator('[data-navigation-id="leavePending"]')).toHaveCount(0);
+  await page.goto('/app/leave/approvals');
   await expect(page).toHaveURL('/app/leave/approvals');
   await expect(page.getByRole('heading', { name: 'อนุมัติคำขอลา' })).toBeVisible();
 });
