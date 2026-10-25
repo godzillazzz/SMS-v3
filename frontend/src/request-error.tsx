@@ -1,5 +1,6 @@
 import type { MouseEvent } from 'react';
 import { normalizeRequestId } from './api';
+import { thaiErrorMessage } from './error-messages-th';
 
 export type RequestErrorState = {
   message: string;
@@ -14,7 +15,7 @@ const unsafeTechnicalMessage = /(?:internal server error|unexpected error|databa
 export function safeUserErrorMessage(value: unknown, fallback = defaultMessage) {
   const text = typeof value === 'string' ? value.replace(/[\r\n\t]+/g, ' ').trim() : '';
   if (!text || unsafeTechnicalMessage.test(text)) return fallback;
-  return text.slice(0, 300);
+  return thaiErrorMessage(text).slice(0, 300);
 }
 
 export function toRequestErrorState(reason: unknown, fallback = defaultMessage): RequestErrorState {

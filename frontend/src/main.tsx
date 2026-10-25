@@ -204,7 +204,7 @@ const navigation: Array<{ label: string; items: Array<{ id: Page; icon: SmsIconN
     { id: 'leave', icon: 'leave', label: 'คำขอลา' },
     { id: 'leavePending', icon: 'approval', label: 'อนุมัติคำขอลา' },
     { id: 'leaveHistory', icon: 'history', label: 'ประวัติการลาทั้งหมด' },
-    { id: 'quota', icon: 'quota', label: 'โควต้าวันลา' }
+    { id: 'quota', icon: 'quota', label: 'โควตาวันลา' }
   ] },
   { label: 'รายงาน', items: [{ id: 'reportCenter', icon: 'report', label: 'รายงานและวิเคราะห์' }] },
   { label: 'ตั้งค่า', items: [
@@ -2318,7 +2318,11 @@ function Dashboard() {
   const canManage = !auth.isViewingAs && ['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(auth.user?.role || '');
   const canViewPage = (page: Page) => canViewRoutePage(page, auth);
   const visibleNavigation = navigation
-    .map((section) => ({ ...section, items: section.items.filter((item) => canViewPage(item.id)) }))
+    .map((section) => ({ ...section, items: section.items.filter((item) => canViewPage(item.id)
+      // D-U3: only accounts linked to an employee can clock in; others do not see the menu (the route and permissions are unchanged).
+      && !(item.id === 'attendance' && !auth.user?.employeeId)
+      // D-U2: leave approvals live in the Approval Center; /app/leave/pending still works from links.
+      && item.id !== 'leavePending') }))
     .filter((section) => section.items.length > 0);
   const workflowCommands = visibleNavigation.flatMap((section) => section.items.map((item) => ({ ...item, group: section.label })));
   useEffect(() => {
