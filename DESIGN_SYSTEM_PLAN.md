@@ -18,11 +18,11 @@ Production: ไม่มีการแก้ไขหรือ deploy
 | --- | --- | --- |
 | Attendance-Figma | [เปิดไฟล์](https://www.figma.com/design/kju2TfQSQXIZK5W54gC35z/Attendance-Figma) | รออ่าน; URL นี้ถูกส่งมาซ้ำ 2 ครั้ง นับเป็นไฟล์เดียว |
 | SMS-v3 UX Audit Flow Wireframe | [เปิดไฟล์](https://www.figma.com/design/MOFCUfthR4wKx4Iq0T0eXd/SMS-v3_UX-Audit-Flow-Wireframe_Figma-SVG) | รออ่าน |
-| Landing-Page | [เปิดไฟล์](https://www.figma.com/design/6C11zFm0xH0drax45HXFsl/Landing-Page) | รออ่าน; บันทึกเป็น reference เท่านั้น |
+| Landing-Page | [เปิดไฟล์](https://www.figma.com/design/6C11zFm0xH0drax45HXFsl/Landing-Page) | ผู้ใช้กำหนดให้เป็นแหล่งอ้างอิงสำหรับ Login/Landing; รออ่านก่อน implement |
 
 การอ่านทั้งสามไฟล์ผ่าน Figma MCP ถูกปฏิเสธด้วยข้อความ `You've reached the Figma MCP tool call limit on the Starter plan`; `whoami` ยืนยันว่าแผนปัจจุบันเป็น Starter และมี seat แบบ View. จึงยังไม่มีหลักฐานเรื่อง frames, tokens, components หรือ flow จากไฟล์เหล่านี้ และไม่ได้อนุมานรายละเอียดดีไซน์. ต้องอ่านใหม่เมื่อมีโควตาหรือสิทธิ์เข้าถึงแล้ว.
 
-ตามคำสั่งผู้ใช้ ห้ามเปลี่ยนหรือ implement หน้า Login และ Landing จนกว่าจะได้รับคำสั่งเพิ่มเติม. PR4 ที่มี Login/Dashboard จึงพักไว้; PR1 ที่เปิดอยู่มีการเปลี่ยนสี accent ของ Login จึงยังไม่ควรรวมจนกว่าจะจัดขอบเขตให้ตรงกับข้อกำหนดนี้.
+ตามคำสั่งล่าสุด ให้ใช้ไฟล์ Landing-Page เป็นแหล่งอ้างอิงของ Login/Landing. ขณะนี้ยังอ่านรายละเอียดจาก Figma MCP ไม่ได้ จึงยังไม่มีการ implement หรือเปลี่ยนหน้าเหล่านี้. PR4 ที่มี Login/Dashboard พักรอการอ่านแบบ; PR1 ที่เปิดอยู่เปลี่ยนสี accent ของ Login จึงยังไม่ควรรวมจนกว่าจะตรวจเทียบกับแหล่งอ้างอิงที่ผู้ใช้กำหนด.
 
 ## สรุปผลการอ่าน Figma
 
@@ -187,7 +187,7 @@ F1 ระบุให้สถานะมีข้อความและส�
 | PR1 — Token foundation | รวม token ซ้ำใน design-system.css/styles; สร้าง accent × mode, neutral, semantic, shift, document tokens และ typography/spacing/radius/elevation/focus | Navy-light เป็นค่าเริ่มต้น; Teal/Emerald + dark mode ใช้ token เดียวกัน; print ไม่รับ dark theme; ไม่มีการเปลี่ยน API |
 | PR2 — Shared primitives | เพิ่ม/รวม Button, Icon, Field, Badge, Card, Alert/Toast, Table, EmptyState, Pagination และ dialog surface | component รับ props/callback เดิมได้; ทุก state จาก F3 มีตัวแทน; status แสดงไอคอน/ข้อความร่วมกับสี |
 | PR3 — Shell, navigation, appearance entry | ปรับ Sidebar/rail, topbar/breadcrumb/user menu, responsive drawer; เพิ่ม appearance controls และ Ctrl+K palette สำหรับ route ที่มีอยู่ | คง navigation, role visibility, read-only View-As และ logout behavior; appearance เก็บเฉพาะ preference ฝั่ง browser; palette ซ่อน route ที่ role เข้าไม่ได้ |
-| PR4 — Auth + dashboard (พักไว้) | งาน Login/register และ Dashboard รอคำสั่งจากผู้ใช้; ห้าม implement Landing Page จาก reference ที่เพิ่มมาจนกว่าจะได้รับอนุญาต | PR #687 คงแยกและยังไม่รวม; auth/OTP และ dashboard callbacks เดิมต้องคงเดิมเมื่อเริ่มงานภายหลัง |
+| PR4 — Auth + dashboard (พักรออ่าน Figma) | ใช้ Landing-Page เป็นแหล่งอ้างอิง Login/Landing ตามคำสั่งล่าสุด; อ่านดีไซน์ก่อนเริ่มแก้ UI | PR #687 คงแยกและยังไม่รวม; auth/OTP และ dashboard callbacks เดิมต้องคงเดิมเมื่อเริ่มงานภายหลัง |
 | PR5 — Data/admin views | Personnel, licenses, rules, approvals, audit, users และ summary/settings tables | ใช้ surface/table/status กลาง; คง columns, actions, permission guards และ callbacks เดิม; employee form ยังใช้ flow เดิม |
 | PR6 — Schedule workflow | Schedule grid, shift setup/editor, auto-preview, wand, approval states และ draft bar | map D/N/S/OFF/AL และ override/draft states ตาม F3; คง payload, validation, save/approval logic และ export เดิม |
 | PR7 — Leave workflow | Request, pending, history, quota และ attachment/approval surfaces | คงเงื่อนไขลา, validation, attachment/API และ approval logic; มือถือมี controls/submit area ตาม M3 |
@@ -197,7 +197,7 @@ F1 ระบุให้สถานะมีข้อความและส�
 ## Guardrails สำหรับทุก PR
 
 - เปลี่ยนเฉพาะ presentation/component composition; ห้ามแก้ API, Database, Auth, RBAC, validation, business rules หรือ workflow semantics.
-- Login และ Landing Page ถูกพักไว้ตามคำสั่งผู้ใช้; ห้ามแก้ code หรือ visual ของสองหน้านี้ก่อนมีคำสั่งเพิ่มเติม.
+- Login/Landing ต้องอ้างอิงไฟล์ Landing-Page ที่ผู้ใช้ระบุ; ห้ามคาดเดาดีไซน์หรือแก้หน้าเหล่านี้ก่อน Figma MCP อ่านไฟล์ได้.
 - คง handler, props, payload, route IDs และ role checks ที่มีอยู่; UI ใหม่ของ appearance/palette ต้องเป็น client-side และเปิดเฉพาะหน้าที่ผู้ใช้เข้าถึงได้แล้ว.
 - ใช้ screenshot/reference Figma ที่เกี่ยวข้องประกอบ review สำหรับ desktop และ mobile; ถ้า annotation ขัดกับพฤติกรรมจริงให้หยุดที่ UI mapping และยกประเด็นก่อนแตะ logic.
 - งานนี้ไม่แก้ Production, ไม่เขียนข้อมูลจริง และไม่ deploy. การเปิด Production ยังไม่ได้รับการยืนยันเพราะ network access ถูก proxy ปฏิเสธ.
