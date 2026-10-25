@@ -69,6 +69,12 @@ The legacy Google Sheets export is migrated with a source-only dry run and an ex
 
 Copy `.env.example` to `.env` and provide a real database URL, a JWT secret of at least 32 characters, and an explicit production CORS allowlist. Access tokens last 30 minutes by default and are validated against the active user and token version on every protected request. See [security controls](docs/security.md) and [Technical Review Gate 1](docs/technical-review-gate-1.md).
 
+## Self-hosted paired release cutover
+
+`scripts/self-hosted-release.js` builds and verifies an immutable paired release without database migrations or storage mutation. Build canonicalizes neutral/frontend directories to `0755` and frontend files to `root:www-data` `0644`; backend directories are `0750` and backend files are `root:smsv3` `0640`, expanding safe in-tree symlinks before inventory and manifest generation. This keeps nginx/www-data out of backend private files while allowing the smsv3 service to start. `verify` requires independent manifest and git/tree provenance.
+
+An apply cutover requires backend and webroot symlinks to share the exact pointer and validates the current pointer as the rollback release before switching atomically. It then restarts `sms-v3` and polls fixed local endpoints (`/api/v1/health`, `/api/v1/ready`, `/`, and one hashed asset) through the deployment contract's local port 8080 (override only with the validated `--runtime-port`). Any failure restores the old pointer atomically, restarts the service, and reruns checks, reporting `FAIL_ROLLED_BACK` or `FAIL_ROLLBACK_UNHEALTHY` nonzero. No arbitrary health or shell command is accepted.
+
 ## CI
 
 GitHub Actions installs locked dependencies, generates the Prisma client, and runs tests for pushes and pull requests to `main`. Add a lockfile by running `npm install` before the first commit.

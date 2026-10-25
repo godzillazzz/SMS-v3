@@ -4,14 +4,14 @@ This tooling is a release artifact builder, read-only verifier, and explicitly g
 
 ## Build an immutable paired release
 
-From a clean checkout, supply one exact 40-character commit SHA:
+From a clean checkout, run as root (the build applies `root:smsv3` backend and `root:www-data` frontend ownership and fails before any install step if either group is missing), supplying one exact 40-character commit SHA:
 
 ```sh
 npm run self-hosted:release -- build \
   --sha <EXACT_GIT_SHA> \
-  --output /opt/sms-v3/releases \
+  --output /srv/sms-v3/releases \
   --identity operator@host \
-  --previous-release /opt/sms-v3/releases/<KNOWN_GOOD_RELEASE>
+  --previous-release /srv/sms-v3/releases/<KNOWN_GOOD_RELEASE>
 ```
 
 The resulting `sms-v3-<SHA>` directory contains `backend/`, `frontend/dist/`, and `release-manifest.json`. The manifest binds the Git SHA/tree SHA, build identity/toolchain, backend and frontend inventory digests, every frontend asset hash, the previous rollback release, and the compatibility contract `postgres-authoritative-mixed-provider-read-v1` (Supabase plus MinIO/S3 reads). The build runs `npm ci --omit=dev`, Prisma generate, frontend `npm ci`, and the frontend production build. It never runs migrations.
@@ -20,10 +20,10 @@ The resulting `sms-v3-<SHA>` directory contains `backend/`, `frontend/dist/`, an
 
 ```sh
 npm run self-hosted:release -- verify \
-  --release /opt/sms-v3/releases/sms-v3-<SHA> \
+  --release /srv/sms-v3/releases/sms-v3-<SHA> \
   --repo /srv/sms-v3-checkout \
   --trusted-manifest-sha256 <CANDIDATE_EXTERNALLY_PINNED_SHA256> \
-  --rollback-target /opt/sms-v3/releases/<KNOWN_GOOD_RELEASE> \
+  --rollback-target /srv/sms-v3/releases/<KNOWN_GOOD_RELEASE> \
   --trusted-rollback-manifest-sha256 <ROLLBACK_EXTERNALLY_PINNED_SHA256>
 ```
 
@@ -41,7 +41,7 @@ A real cutover requires all of these exact gates, in order:
 
 1. **Artifact creation:** exact SHA build succeeds and the manifest is retained with its digest.
 2. **Preflight:** verifier passes for the candidate and rollback target; host filesystem, service account, environment file, and static asset/readiness checks are reviewed. Existing production webroot provenance remains **NOT VERIFIED** until an authorized versioned cutover.
-3. **OWNER deploy authorization:** operator supplies `--apply --operator-gate I_UNDERSTAND_ATOMIC_SELF_HOSTED_CUTOVER` only after explicit Owner authorization. No database rollback or migration is implied.
+3. **OWNER deploy authorization:** operator supplies `--apply --operator-gate I_UNDERSTAND_ATOMIC_SELF_HOSTED_CUTOVER` only after explicit Owner authorization. `--apply` also requires `--rollback-target` to be the exact release the shared pointer `/srv/sms-v3/.current` currently resolves to, pinned by its own `--trusted-rollback-manifest-sha256`. No database rollback or migration is implied.
 4. **Post-cutover verification:** the verifier performs fixed structured backend/static/pointer checks; no arbitrary shell health command is accepted or executed. Backend and frontend are exposed through one shared release pointer, so interruption cannot leave mixed pointers. Any failed check restores the prior shared pointer.
 5. **Rollback authorization/trigger:** Owner authorizes rollback to a verified compatible release; run verifier against that target before cutover. Automatic restore is only the safety response to failed post-cutover checks, not a database rollback.
 
