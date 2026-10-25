@@ -692,7 +692,7 @@ export function AttendanceSimplePage({
             ? { message: message || 'ตารางกะยังไม่พร้อม กรุณาติดต่อหัวหน้างาน', actionLabel: onOpenSupervisor ? 'เปิดหน้าติดตามการลงเวลา' : undefined, action: onOpenSupervisor }
             : !identity
               ? tone === 'danger'
-                ? { message: 'อุปกรณ์นี้ยังไม่พร้อมสำหรับการยืนยัน กรุณาลองใหม่หรือตรวจสอบอุปกรณ์ลงเวลา', actionLabel: onOpenAttendanceDevice ? 'เปิดอุปกรณ์ลงเวลา' : undefined, action: onOpenAttendanceDevice }
+                ? { message: onOpenAttendanceDevice ? 'อุปกรณ์นี้ยังไม่พร้อมสำหรับการยืนยัน กรุณาลองใหม่หรือตรวจสอบอุปกรณ์ลงเวลา' : 'อุปกรณ์นี้ยังไม่พร้อมสำหรับการยืนยัน ลองปิดแล้วเปิดแอปใหม่ ถ้ายังไม่ได้ แจ้งหัวหน้างานพร้อมรหัสอ้างอิงด้านล่าง', actionLabel: onOpenAttendanceDevice ? 'เปิดอุปกรณ์ลงเวลา' : undefined, action: onOpenAttendanceDevice }
                 : { message: 'กำลังเตรียมอุปกรณ์สำหรับการลงเวลา กรุณารอสักครู่' }
               : !bootstrap
                 ? tone === 'danger'

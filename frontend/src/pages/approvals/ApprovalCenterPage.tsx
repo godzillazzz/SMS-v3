@@ -10,6 +10,7 @@ import type { LeaveDecisionAction } from '../../components/LeaveDecisionConfirma
 import { approveAttendanceAdjustment, rejectAttendanceAdjustment } from '../attendance-supervisor/attendance-adjustment-client';
 import '../../styles/approval-center.css';
 import { MetricCard, PageHeader, SectionCard } from '../../components/layout';
+import { useActionDialog } from '../../components/useActionDialog';
 
 type ApprovalUrgency = 'NEW' | 'DUE_SOON' | 'OVERDUE';
 type ApprovalType =
@@ -73,6 +74,16 @@ const typeLabel: Record<ApprovalType, string> = {
   REGISTRATION_REQUEST: 'ลงทะเบียนบัญชี',
   USER_ACCESS: 'เปิดสิทธิ์ผู้ใช้',
   LEAVE_REQUEST: 'คำขอลา'
+};
+
+/* What actually happens after approval, shown before the decision (audit AC-01 / AC-02). */
+const approveConsequence: Partial<Record<ApprovalType, string>> = {
+  EMPLOYEE_REFERENCE_PHOTO: 'รูปนี้จะใช้เป็นรูปอ้างอิงของพนักงานในการลงเวลา',
+  LICENSE_DOCUMENT: 'ข้อมูลใบอนุญาตตามเอกสารนี้จะมีผลกับการตรวจสิทธิ์ตอนจัดกะ',
+  ATTENDANCE_DEVICE_REQUEST: 'อุปกรณ์นี้จะใช้ลงเวลาได้ และเครื่องหลักเดิมของพนักงานจะถูกแทน',
+  ATTENDANCE_ADJUSTMENT_REQUEST: 'เวลาที่ขอจะมีผลเป็นเวลาลงงาน โดยบันทึกเดิมยังเก็บไว้ตรวจย้อนหลังได้',
+  REGISTRATION_REQUEST: 'บัญชีนี้จะเข้าสู่ระบบได้ตามบทบาทเริ่มต้น',
+  USER_ACCESS: 'บัญชีนี้จะเปลี่ยนเป็นใช้งานได้และเข้าสู่ระบบได้ทันที'
 };
 
 const approvalTypeOrder: ApprovalType[] = [
@@ -213,6 +224,7 @@ export function ApprovalCenterPage({
   const [selectedId, setSelectedId] = useState('');
   const [loading, setLoading] = useState(true);
   const [busyAction, setBusyAction] = useState<{ id: string; action: 'approve' | 'reject' }>();
+  const actionDialog = useActionDialog();
   const [error, setError] = useState<RequestErrorInput>();
   const [notice, setNotice] = useState('');
   const [detailState, setDetailState] = useState<{ status: 'loading' | 'not-found' | 'forbidden' | 'error'; message: string }>();
@@ -381,6 +393,23 @@ export function ApprovalCenterPage({
     await executeDirectDecision(rejecting, 'reject', rejectReason.trim());
   };
 
+  const confirmApprove = async (item: ApprovalCenterItem) => {
+    if (item.type === 'LEAVE_REQUEST' || item.type === 'EMPLOYEE_MASTER_CHANGE' || item.type === 'SCHEDULE_APPROVAL') {
+      await executeDirectDecision(item, 'approve');
+      return;
+    }
+    const confirmed = await actionDialog.confirm({
+      eyebrow: typeLabel[item.type],
+      title: `อนุมัติ${typeLabel[item.type]}?`,
+      message: approveConsequence[item.type] || 'คำขอนี้จะถูกอนุมัติตามสิทธิ์ของคุณ',
+      context: employeeName(item),
+      confirmLabel: 'ยืนยันอนุมัติ',
+      cancelLabel: 'ยกเลิก',
+      tone: 'primary'
+    });
+    if (confirmed) await executeDirectDecision(item, 'approve');
+  };
+
   const renderActionButtons = (item: ApprovalCenterItem, mobile = false) => {
     const busy = busyAction?.id === item.id;
     const selfLeave = item.type === 'LEAVE_REQUEST'
@@ -408,10 +437,10 @@ export function ApprovalCenterPage({
       <button
         type="button"
         disabled={busy}
-        onClick={() => void executeDirectDecision(item, 'approve')}
+        onClick={() => void confirmApprove(item)}
         className="approval-action-button approval-action-button--approve"
       >
-        {busy && busyAction?.action === 'approve' ? 'กำลังอนุมัติ…' : 'อนุมัติทันที'}
+        {busy && busyAction?.action === 'approve' ? 'กำลังอนุมัติ…' : 'อนุมัติ…'}
       </button>
       {item.type === 'LEAVE_REQUEST' && <button
         type="button"
@@ -484,6 +513,7 @@ export function ApprovalCenterPage({
     className="nexus-approval-center approval-center-page layout-page-surface"
     aria-label="ศูนย์อนุมัติคำขอ"
   >
+    {actionDialog.dialog}
     <div className="approval-center-content">
       <PageHeader kicker="งานที่รอการพิจารณา" title="ศูนย์อนุมัติคำขอ" description="ดูและดำเนินการกับคำขอที่รออนุมัติตามสิทธิ์ของคุณ" className="approval-center-header" actions={<button type="button" disabled={loading} onClick={() => void loadQueue(true)} className="btn-neutral small-action"><SmsIcon name="refresh" size={16} />รีเฟรชข้อมูล</button>} />
 

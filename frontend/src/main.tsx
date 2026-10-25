@@ -3097,7 +3097,7 @@ function Dashboard() {
           </div>
 
           <div className="schedule-draft-actions" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '12px', paddingTop: '12px', borderTop: '1px dashed #bfdbfe' }}>
-            <button type="button" className="btn-primary compact" style={{ padding: '8px 18px', fontWeight: 'bold', fontSize: '14px', borderRadius: '8px' }} disabled={batchSaveBusy || Object.keys(scheduleDrafts).length === 0} onClick={saveAllDrafts}>
+            <button type="button" className="btn-primary compact" style={{ padding: '8px 18px', fontWeight: 'bold', fontSize: '14px', borderRadius: '8px' }} disabled={batchSaveBusy || Object.keys(scheduleDrafts).length === 0} onClick={async () => { if (approval.status === 'APPROVED') { const confirmed = await actionDialog.confirm({ title: 'บันทึกการแก้ตารางที่อนุมัติแล้ว', message: 'ตารางเดือนนี้อนุมัติแล้ว เมื่อบันทึก สถานะจะกลับเป็นรออนุมัติและต้องส่งอนุมัติใหม่ (ยกเว้นการเปลี่ยนเฉพาะวันลา AL)', context: `${monthLabel} · ${Object.keys(scheduleDrafts).length} รายการ`, confirmLabel: 'บันทึกและส่งอนุมัติใหม่', tone: 'warning' }); if (!confirmed) return; } await saveAllDrafts(); }}>
               {batchSaveBusy ? `กำลังบันทึก ${batchSaveProgress?.total ?? Object.keys(scheduleDrafts).length} รายการ…` : `บันทึกการเปลี่ยนแปลงทั้งหมด (${Object.keys(scheduleDrafts).length})`}
             </button>
             <button
@@ -3283,7 +3283,6 @@ function Dashboard() {
         employeeV4={pwaShell}
         onTodayHistory={() => selectPwaPage('attendanceHistory', { today: true })}
         onOpenSettings={() => selectPwaPage('profile')}
-        onOpenAttendanceDevice={() => undefined}
         onOpenSupervisor={pwaShell && ['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(auth.user?.role || '') && !auth.isViewingAs ? openPwaAttendanceSupervisor : undefined}
       />;
     }
