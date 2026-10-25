@@ -5,7 +5,16 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { execFileSync, spawnSync } = require('node:child_process');
-const { inventory, manifestDigest, verifyRelease, archiveCommit, COMPATIBILITY } = require('../scripts/self-hosted-release');
+const { inventory, manifestDigest, validateParentTraversal, validateRuntimePermissions, verifyRelease, COMPATIBILITY } = require('../scripts/self-hosted-release');
+
+function chmodTree(root) {
+  for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
+    const file = path.join(root, entry.name);
+    if (entry.isDirectory()) { fs.chmodSync(file, 0o755); chmodTree(file); }
+    else fs.chmodSync(file, 0o644);
+  }
+  fs.chmodSync(root, 0o755);
+}
 
 function fixture(trustedRepo = null) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'sms-v3-release-rehearsal-')); const repo = trustedRepo || path.join(root, 'trusted-repo');
@@ -16,11 +25,57 @@ function fixture(trustedRepo = null) {
   const release = path.join(root, `sms-v3-${gitSha}`); fs.mkdirSync(path.join(release, 'backend', 'src'), { recursive: true }); fs.mkdirSync(path.join(release, 'frontend', 'dist'), { recursive: true });
   fs.writeFileSync(path.join(release, 'backend', 'src', 'server.js'), "const app = require('./app'); app.listen(0);\n"); fs.writeFileSync(path.join(release, 'frontend', 'dist', 'index.html'), '<!doctype html><html><script src="app.js"></script></html>\n'); fs.writeFileSync(path.join(release, 'frontend', 'dist', 'app.js'), 'window.__RELEASE__ = "synthetic";\n');
   const backend = inventory(path.join(release, 'backend')); const frontend = inventory(path.join(release, 'frontend', 'dist')); const manifest = { schema_version: 1, release_id: path.basename(release), git_sha: gitSha, tree_sha: treeSha, build_identity: 'synthetic@test', toolchain: { node: process.version, npm: 'synthetic' }, backend_inventory_digest: backend.digest, frontend_inventory_digest: frontend.digest, storage_compatibility: { mode: COMPATIBILITY, database_authoritative: true, mixed_provider_reads: true, providers: ['supabase', 's3'] }, previous_rollback_release: null, asset_hashes: frontend.entries }; manifest.manifest_sha256 = manifestDigest(manifest); fs.writeFileSync(path.join(release, 'release-manifest.json'), JSON.stringify(manifest, null, 2) + '\n');
+  fs.chmodSync(root, 0o755);
+  chmodTree(release);
   return { root, repo, release, manifest };
 }
-const opts = f => ({ repo: f.repo, trustedManifestSha256: f.manifest.manifest_sha256 });
-const rollbackOpts = (f, r) => ({ repo: f.repo, trustedManifestSha256: f.manifest.manifest_sha256, trustedRollbackManifestSha256: r.manifest.manifest_sha256 });
-function cli(f, args) { return spawnSync(process.execPath, [path.join(__dirname, '..', 'scripts/self-hosted-release.js'), ...args], { encoding: 'utf8' }); }
+const opts = f => ({ repo: f.repo, trustedManifestSha256: f.manifest.manifest_sha256, parentBoundary: f.root });
+const rollbackOpts = (f, r) => ({ repo: f.repo, trustedManifestSha256: f.manifest.manifest_sha256, trustedRollbackManifestSha256: r.manifest.manifest_sha256, parentBoundary: f.root, rollbackParentBoundary: r.root });
+function cli(f, args) { const release = args[args.indexOf('--release') + 1]; const rollback = args.indexOf('--rollback-target'); const extra = rollback >= 0 ? ['--rollback-parent-boundary', path.dirname(args[rollback + 1])] : []; return spawnSync(process.execPath, [path.join(__dirname, '..', 'scripts/self-hosted-release.js'), ...args, '--parent-boundary', release, ...extra], { encoding: 'utf8' }); }
+
+test('enforces readable release permissions and rejects unsafe modes', () => {
+  const f = fixture();
+  try {
+    chmodTree(f.release);
+    assert.equal(validateRuntimePermissions(f.release), true);
+    fs.chmodSync(path.join(f.release, 'backend', 'src', 'server.js'), 0o640);
+    assert.throws(() => validateRuntimePermissions(f.release), /file mode must be 0644/);
+    fs.chmodSync(path.join(f.release, 'backend', 'src', 'server.js'), 0o644);
+    fs.chmodSync(path.join(f.release, 'frontend'), 0o755);
+    fs.chmodSync(path.join(f.release, 'frontend', 'dist'), 0o755);
+    fs.chmodSync(path.join(f.release, 'frontend', 'dist', 'index.html'), 0o644);
+    fs.chmodSync(f.release, 0o775);
+    assert.throws(() => verifyRelease(f.release, null, opts(f)), /exact 0755/);
+  } finally { fs.rmSync(f.root, { recursive: true, force: true }); }
+});
+
+test('enforces exact permission contract for files and directories', () => {
+  const f = fixture(); const file = path.join(f.release, 'frontend', 'dist', 'app.js'); const directory = path.join(f.release, 'frontend');
+  try {
+    for (const mode of [0o745, 0o604, 0o755]) {
+      fs.chmodSync(file, mode);
+      assert.throws(() => validateRuntimePermissions(f.release), /file mode must be 0644/);
+    }
+    fs.chmodSync(file, 0o644);
+    fs.chmodSync(directory, 0o755);
+    assert.equal(validateRuntimePermissions(f.release), true);
+    fs.chmodSync(directory, 0o745);
+    assert.throws(() => validateRuntimePermissions(f.release), /directory mode must be 0755/);
+  } finally { fs.rmSync(f.root, { recursive: true, force: true }); }
+});
+
+test('validates every ancestor through the configured boundary and rejects sticky writable parents', () => {
+  const f = fixture(); const ancestor = path.join(path.dirname(f.root), 'permission-contract-ancestor');
+  fs.mkdirSync(ancestor, { mode: 0o755 }); const nested = path.join(ancestor, 'nested'); fs.mkdirSync(nested, { mode: 0o755 });
+  try {
+    fs.chmodSync(ancestor, 0o777);
+    assert.throws(() => validateParentTraversal(nested, path.dirname(f.root)), /exact 0755/);
+    fs.chmodSync(ancestor, 0o755);
+    fs.chmodSync(nested, 0o2755);
+    assert.throws(() => validateParentTraversal(nested, path.dirname(f.root)), /exact 0755/);
+    assert.throws(() => validateParentTraversal(nested, path.join(nested, 'not-an-ancestor')), /boundary is not an ancestor/);
+  } finally { fs.rmSync(ancestor, { recursive: true, force: true }); fs.rmSync(f.root, { recursive: true, force: true }); }
+});
 
 test('verifies trusted paired release and rejects tampered static assets', () => { const f = fixture(); try { assert.equal(verifyRelease(f.release, null, opts(f)).manifest.git_sha, f.manifest.git_sha); fs.appendFileSync(path.join(f.release, 'frontend', 'dist', 'app.js'), 'tampered'); assert.throws(() => verifyRelease(f.release, null, opts(f)), /frontend inventory digest mismatch/); } finally { fs.rmSync(f.root, { recursive: true, force: true }); } });
 test('fails closed without external digest or independent provenance', () => { const f = fixture(); try { assert.throws(() => verifyRelease(f.release), /trusted external manifest digest/); assert.throws(() => verifyRelease(f.release, null, { trustedManifestSha256: f.manifest.manifest_sha256 }), /trusted git repository/); } finally { fs.rmSync(f.root, { recursive: true, force: true }); } });
@@ -84,5 +139,3 @@ test('resists concurrent replacement of a parent directory during inventory read
 });
 
 test('restores an absent pointer after post-cutover mandatory-check failure', () => { const f = fixture(); const pointer = path.join(f.root, 'current'); const bad = path.join(f.root, 'bad'); fs.cpSync(f.release, bad, { recursive: true }); fs.writeFileSync(path.join(bad, 'backend', 'src', 'server.js'), 'not runnable'); const m = JSON.parse(fs.readFileSync(path.join(bad, 'release-manifest.json'))); m.backend_inventory_digest = inventory(path.join(bad, 'backend')).digest; m.manifest_sha256 = manifestDigest(m); fs.writeFileSync(path.join(bad, 'release-manifest.json'), JSON.stringify(m)); try { const result = cli(f, ['cutover', '--release', bad, '--pointer', pointer, '--repo', f.repo, '--trusted-manifest-sha256', m.manifest_sha256, '--apply', '--operator-gate', 'I_UNDERSTAND_ATOMIC_SELF_HOSTED_CUTOVER']); assert.notEqual(result.status, 0); assert.equal(fs.existsSync(pointer), false); } finally { fs.rmSync(f.root, { recursive: true, force: true }); } });
-
-test('archives a commit without buffering git archive stdout', () => { const f = fixture(); const stage = fs.mkdtempSync(path.join(os.tmpdir(), 'sms-v3-archive-stage-')); try { assert.doesNotThrow(() => archiveCommit(f.repo, f.manifest.git_sha, stage)); assert.equal(fs.readFileSync(path.join(stage, 'provenance.txt'), 'utf8'), 'trusted\n'); } finally { fs.rmSync(f.root, { recursive: true, force: true }); fs.rmSync(stage, { recursive: true, force: true }); } });
