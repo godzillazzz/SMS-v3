@@ -219,6 +219,8 @@ jobs:
       - run: npm run db:seed
       - run: node scripts/ci/prisma-migration.js status
       - run: npm test
+      - name: Run self-hosted release ownership tests as root
+        run: sudo env "PATH=$PATH" SMS_V3_REQUIRE_ROOT_TESTS=1 node --test test/self-hosted-release.test.js
       - run: npm run test:integration
       - name: Run authoritative Attendance event integration
         env:

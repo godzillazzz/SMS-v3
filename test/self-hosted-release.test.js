@@ -7,6 +7,14 @@ const path = require('node:path');
 const { execFileSync, spawnSync } = require('node:child_process');
 const { canonicalizeTree, finalizeReleaseModes, inventory, manifestDigest, validateParentTraversal, validateRoleOwnership, validateRuntimePermissions, verifyRelease, COMPATIBILITY } = require('../scripts/self-hosted-release');
 
+// These rehearsals create runtime groups and establish root-owned release trees, so they need root.
+// CI runs them in a dedicated sudo step with SMS_V3_REQUIRE_ROOT_TESTS=1, which turns a skip into a failure.
+if (process.getuid?.() !== 0) {
+  if (process.env.SMS_V3_REQUIRE_ROOT_TESTS === '1') throw new Error('self-hosted release tests must run as root');
+  test('self-hosted release ownership rehearsals (run as root: sudo node --test test/self-hosted-release.test.js)', { skip: 'requires root' }, () => {});
+  return;
+}
+
 const temporaryGroups = [];
 for (const group of ['smsv3']) {
   try { execFileSync('getent', ['group', group], { stdio: 'ignore' }); }
