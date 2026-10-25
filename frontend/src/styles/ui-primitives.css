@@ -1,0 +1,64 @@
+.ui-button {
+  display: inline-flex;
+  min-height: var(--ds-size-control);
+  align-items: center;
+  justify-content: center;
+  gap: var(--ds-space-2);
+  border-radius: var(--ds-radius-control);
+  font: inherit;
+  cursor: pointer;
+}
+
+.ui-button:disabled { cursor: not-allowed; }
+.ui-button.ui-button--small { min-height: var(--ds-size-button-small); border-radius: var(--ds-radius-button-small); }
+.ui-button--compact { min-height: var(--ds-size-button-small); }
+.ui-button--icon { min-width: var(--ds-size-control); padding: 0; }
+.ui-icon { display: inline-grid; flex: 0 0 auto; place-items: center; line-height: 1; }
+
+.ui-field { display: grid; min-width: 0; gap: var(--ds-space-2); }
+.ui-field__label { color: var(--ds-color-text-secondary); font-size: var(--ds-font-size-body); font-weight: var(--ds-font-weight-semibold); }
+.ui-field__required { color: var(--ds-color-danger); }
+.ui-field__hint, .ui-field__error { color: var(--ds-color-text-muted); font-size: var(--ds-font-size-caption); }
+.ui-field__error { color: var(--ds-color-danger); }
+.ui-input, .ui-select, .ui-textarea {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: var(--ds-size-control);
+  border: 1px solid var(--ds-color-border-strong);
+  border-radius: var(--ds-radius-control);
+  padding: 0 var(--ds-space-3);
+  color: var(--ds-color-text);
+  background: var(--ds-color-surface);
+  font: inherit;
+}
+.ui-textarea { min-height: 96px; padding-block: var(--ds-space-3); resize: vertical; }
+.ui-input:focus-visible, .ui-select:focus-visible, .ui-textarea:focus-visible { outline: none; box-shadow: var(--ds-focus-ring-shadow); }
+
+.ui-badge { display: inline-flex; min-height: 24px; align-items: center; gap: var(--ds-space-1); border-radius: 999px; padding: 2px var(--ds-space-2); background: var(--ds-color-surface); font-size: var(--ds-font-size-badge); font-weight: var(--ds-font-weight-semibold); line-height: 1.25; }
+.ui-badge--success { color: var(--ds-color-success); }
+.ui-badge--warning { color: var(--ds-color-warning); }
+.ui-badge--danger { color: var(--ds-color-danger); }
+.ui-badge--info { color: var(--ds-color-info); }
+.ui-badge--neutral { color: var(--ds-color-neutral); }
+.ui-badge--violet { color: var(--ds-color-violet); }
+.ui-badge__icon { font-size: 1em; }
+
+.ui-card { min-width: 0; border: 1px solid var(--ds-color-border); border-radius: var(--ds-radius-card); background: var(--ds-color-surface); box-shadow: var(--ds-shadow-sm); }
+.ui-alert, .ui-toast { display: flex; min-width: 0; align-items: flex-start; gap: var(--ds-space-3); border: 1px solid var(--ds-color-border); border-left-width: 3px; border-radius: var(--ds-radius-control); padding: var(--ds-space-3) var(--ds-space-4); color: var(--ds-color-text); background: var(--ds-color-surface); }
+.ui-alert--success { border-left-color: var(--ds-color-success); }
+.ui-alert--warning { border-left-color: var(--ds-color-warning); }
+.ui-alert--danger { border-left-color: var(--ds-color-danger); }
+.ui-alert--info { border-left-color: var(--ds-color-info); }
+.ui-alert--neutral { border-left-color: var(--ds-color-neutral); }
+.ui-alert--violet { border-left-color: var(--ds-color-violet); }
+
+.ui-empty-state { display: grid; justify-items: center; gap: var(--ds-space-2); padding: var(--ds-space-8) var(--ds-space-6); border: 1px dashed var(--ds-color-border-strong); border-radius: var(--ds-radius-card); background: var(--ds-color-surface); text-align: center; }
+.ui-empty-state > .ui-icon { color: var(--ds-color-text-muted); font-size: 24px; }
+.ui-empty-state > h2, .ui-empty-state > p { margin: 0; }
+.ui-empty-state > h2 { color: var(--ds-color-text); font-size: var(--ds-font-size-h2); }
+.ui-empty-state > p { color: var(--ds-color-text-secondary); font-size: var(--ds-font-size-body); }
+.ui-table-scroll { min-width: 0; overflow-x: auto; overscroll-behavior-inline: contain; }
+.ui-table { width: 100%; border-collapse: collapse; }
+.ui-pagination { display: flex; align-items: center; justify-content: center; gap: var(--ds-space-3); color: var(--ds-color-text-secondary); }
+.ui-dialog-surface { min-width: 0; color: var(--ds-color-text); background: var(--ds-color-surface); }
+.ui-visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; clip-path: inset(50%); }

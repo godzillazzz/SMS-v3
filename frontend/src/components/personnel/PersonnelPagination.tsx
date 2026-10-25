@@ -1,5 +1,6 @@
 type Props = { page: number; totalPages: number; onChange(page: number): void };
+import { Pagination } from '../ui/primitives';
+
 export function PersonnelPagination({ page, totalPages, onChange }: Props) {
-  if (totalPages <= 1) return null;
-  return <nav className="personnel-pagination" aria-label="แบ่งหน้าบุคลากร"><button type="button" disabled={page === 1} onClick={() => onChange(page - 1)}>‹</button><span>หน้า {page} / {totalPages}</span><button type="button" disabled={page === totalPages} onClick={() => onChange(page + 1)}>›</button></nav>;
+  return <Pagination page={page} totalPages={totalPages} onChange={onChange} label="แบ่งหน้าบุคลากร" previousLabel="‹" nextLabel="›" pageLabel={(current, total) => `หน้า ${current} / ${total}`} className="personnel-pagination" />;
 }
