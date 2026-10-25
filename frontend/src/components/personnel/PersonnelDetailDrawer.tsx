@@ -107,13 +107,13 @@ export function PersonnelDetailDrawer({ employee, token, canManage, role, onClos
   const expiringLicense = useMemo(() => activeLicenses.filter((license) => { if (!license.expiryDate) return false; const days = (new Date(license.expiryDate).getTime() - Date.now()) / 86400000; return days >= 0 && days <= 30; }).sort((a, b) => String(a.expiryDate).localeCompare(String(b.expiryDate)))[0], [activeLicenses]);
   if (!employee) return null;
   const fullName = `${employee.firstName} ${employee.lastName}`.trim();
-  const initials = fullName.split(/\s+/).filter(Boolean).map((value) => value[0]).join('').slice(0, 2) || 'SM';
+  const initials = fullName.split(/\s+/).filter(Boolean).map((value) => value.replace(/^[เแโใไ]+/, '').charAt(0)).join('').slice(0, 2) || 'SM';
   const quotaYear = currentBangkokQuotaYear();
   const employeeQuery = `employeeId=${encodeURIComponent(employee.id)}`;
-  const accountCheck = onboardingReadiness?.checks.account;
-  const scheduleCheck = onboardingReadiness?.checks.schedule;
-  const siteCheck = onboardingReadiness?.checks.site;
-  const deviceCheck = onboardingReadiness?.checks.device;
+  const accountCheck = onboardingReadiness?.checks?.account;
+  const scheduleCheck = onboardingReadiness?.checks?.schedule;
+  const siteCheck = onboardingReadiness?.checks?.site;
+  const deviceCheck = onboardingReadiness?.checks?.device;
   const readinessStatus = (check?: { ready: boolean }) => statusLoading ? { status: 'กำลังตรวจสอบ', detail: 'กำลังอ่านข้อมูลจากระบบ', tone: 'neutral' as const } : !check ? { status: 'ตรวจสอบไม่ได้', detail: 'ระบบไม่ส่งผลตรวจรายการนี้ จึงไม่สรุปสถานะ', tone: 'neutral' as const } : check.ready ? { status: 'พบข้อมูล', detail: 'ยืนยันจากผลตรวจของระบบ', tone: 'success' as const } : { status: 'ยังไม่พบ', detail: 'ระบบยังไม่ยืนยันข้อมูลนี้', tone: 'warning' as const };
   const accountItem = readinessStatus(accountCheck);
   const scheduleItem = readinessStatus(scheduleCheck);

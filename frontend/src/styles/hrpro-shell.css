@@ -62,3 +62,13 @@
   #sms-app .accent-control button { width: 20px; height: 20px; min-height: 20px; }
 }
 #sms-app .sr-only { position: absolute !important; width: 1px !important; height: 1px !important; margin: -1px !important; padding: 0 !important; overflow: hidden !important; clip: rect(0 0 0 0) !important; clip-path: inset(50%) !important; white-space: nowrap !important; border: 0 !important; }
+
+/* KPI / metric cards everywhere (F3 Kpi): icon chip + label, large value, quiet context. */
+#sms-app .layout-metric-card { display: grid !important; grid-template-columns: auto minmax(0, 1fr); grid-template-areas: "icon label" "value value" "desc desc"; align-items: center; gap: 10px 12px !important; padding: 18px !important; text-align: left; }
+#sms-app .layout-metric-card > svg { grid-area: icon; box-sizing: content-box; width: 20px; height: 20px; padding: 10px; border-radius: 10px; background: var(--color-primary-soft); color: var(--color-primary); }
+#sms-app .layout-metric-card > h2 { grid-area: label; margin: 0 !important; color: var(--color-text-secondary) !important; font-size: 14px !important; font-weight: 500 !important; }
+#sms-app .layout-metric-card > .layout-metric-card__value { grid-area: value; color: var(--color-text) !important; font-size: 30px !important; font-weight: 700 !important; line-height: 1.1; }
+#sms-app .layout-metric-card > p { grid-area: desc; margin: 0 !important; color: var(--color-text-secondary) !important; font-size: 12px !important; }
+#sms-app :is(.personnel-metric--green, .layout-metric-card--success) > svg { background: var(--color-success-soft); color: var(--color-success); }
+#sms-app :is(.personnel-metric--amber, .layout-metric-card--warning) > svg { background: var(--color-warning-soft); color: var(--color-warning); }
+#sms-app :is(.personnel-metric--blue, .layout-metric-card--info) > svg { background: var(--color-info-soft); color: var(--color-info); }
