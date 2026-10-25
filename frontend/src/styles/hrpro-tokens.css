@@ -2,7 +2,7 @@
    Loaded right after tokens.css; every surface that already consumes --color-* follows the design set.
    Accent themes (navy default · teal · emerald) live in ui-accent.css. */
 [data-theme="light"] .app-shell,
-[data-theme="light"] body > :is(.mobile-utility-panel, .mobile-utility-backdrop) {
+[data-theme="light"] body > :is(.mobile-utility-panel, .mobile-utility-backdrop, #modal-root) {
   --color-bg: #f3f5f9;
   --color-surface: #ffffff;
   --color-surface-elevated: #ffffff;
@@ -47,7 +47,7 @@
   --radius-xl: 14px;
 }
 [data-theme="dark"] .app-shell,
-[data-theme="dark"] body > :is(.mobile-utility-panel, .mobile-utility-backdrop) {
+[data-theme="dark"] body > :is(.mobile-utility-panel, .mobile-utility-backdrop, #modal-root) {
   --color-bg: #0a0f17;
   --color-surface: #111925;
   --color-surface-elevated: #111925;

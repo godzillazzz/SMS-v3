@@ -912,6 +912,7 @@ function EmployeeMagicWandModal({
                   <div className="option-text">
                     <strong>{pattern.name}</strong>
                     <p>{describePattern(pattern)}</p>
+                    {Array.isArray(pattern.steps) && pattern.steps.length > 0 && <span className="wand-pattern-chips" aria-hidden="true">{pattern.steps.slice(0, 16).map((step, stepIndex) => <i key={`${step.phaseCode}-${stepIndex}`} data-shift-code={String(step.shiftCode || '').toUpperCase()}>{step.shiftCode}</i>)}</span>}
                     <small>{pattern.targetGroup === 'SUPERVISOR' ? 'ค่าเริ่มต้นหัวหน้างาน' : pattern.targetGroup === 'GENERAL' ? 'ค่าเริ่มต้นพนักงานทั่วไป' : 'แพทเทิร์นเลือกเอง'} · {pattern.mode === 'WEEKLY' ? 'รายสัปดาห์' : 'วนตาม Phase'}</small>
                   </div>
                 </label>)}
@@ -3151,30 +3152,32 @@ function Dashboard() {
         </SectionCard>
         {auth.user?.role === 'ADMIN' && autoSchedulePreview && (
           <div className="dialog-backdrop" role="presentation" onMouseDown={(e) => { if (e.target === e.currentTarget && !autoScheduleBusy) setAutoSchedulePreview(undefined); }}>
-            <section className="edit-dialog" style={{ maxWidth: '780px', backgroundColor: '#0f1d2a', borderRadius: '16px', padding: '24px', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)' }}>
-              <div className="dialog-heading" style={{ marginBottom: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 700, color: '#0f172a' }}>🪄 ตัวอย่างตารางจัดกะอัตโนมัติ ( Auto Schedule Preview )</h2>
-                <button type="button" aria-label="ปิดตัวอย่างตารางจัดกะอัตโนมัติ" style={{ background: 'none', border: 'none', cursor: 'pointer' }} disabled={autoScheduleBusy} onClick={() => setAutoSchedulePreview(undefined)}><SmsIcon name="close" size={20} /></button>
+            <section className="edit-dialog auto-preview-dialog" role="dialog" aria-modal="true" aria-labelledby="auto-preview-title">
+              <div className="dialog-heading auto-preview-head">
+                <div><h2 id="auto-preview-title">🪄 ตัวอย่างตารางจัดกะอัตโนมัติ ( Auto Schedule Preview )</h2><p>{monthLabel} · ยังไม่มีอะไรถูกบันทึก ตรวจผลแล้วใส่ลงในฉบับร่าง</p></div>
+                <button type="button" aria-label="ปิดตัวอย่างตารางจัดกะอัตโนมัติ" className="auto-preview-close" disabled={autoScheduleBusy} onClick={() => setAutoSchedulePreview(undefined)}><SmsIcon name="close" size={20} /></button>
               </div>
 
-              <div className="preview-summary" style={{ display: 'flex', gap: '16px', marginBottom: '14px', fontSize: '13px', color: '#334155' }}>
-                <strong className="auto-schedule-fill-summary">จะเติม {previewFillSummary.generated} ช่องว่าง · คงกะเดิมไว้ {previewFillSummary.preservedExisting} ช่อง</strong>
-                <span><b>{text(previewSummary.employees)}</b> พนักงาน</span>
-                <span><b>{text(previewSummary.totalRows)}</b> กะทั้งหมด</span>
-                <span><b>{previewWarnings.length}</b> คำเตือน</span>
+              <strong className="auto-schedule-fill-summary">จะเติม {previewFillSummary.generated} ช่องว่าง · คงกะเดิมไว้ {previewFillSummary.preservedExisting} ช่อง</strong>
+              <div className="preview-summary auto-preview-kpis">
+                <div><span>พนักงาน</span><b>{text(previewSummary.employees)}</b></div>
+                <div><span>กะทั้งหมด</span><b>{text(previewSummary.totalRows)}</b></div>
+                <div className="is-ok"><span>รายการที่คงไว้</span><b>{previewFillSummary.preservedExisting}</b></div>
+                <div className={previewWarnings.length ? 'is-warn' : undefined}><span>คำเตือน</span><b>{previewWarnings.length}</b></div>
               </div>
 
               {previewFillSummary.generated === 0 && <div className="auto-schedule-empty-notice" role="status">ทุกช่องจัดไว้แล้ว ไม่มีอะไรให้เติม</div>}
 
               {previewWarnings.length > 0 && (
-                <div className="preview-warning" style={{ backgroundColor: '#211807', border: '1px solid #ffedd5', color: '#c2410c', padding: '12px', borderRadius: '10px', marginBottom: '14px', fontSize: '13px' }}>
-                  <strong>รายการที่ต้องตรวจสอบ:</strong>
-                  {previewWarnings.slice(0, 8).map((warning, index) => <p key={`${String(warning)}-${index}`} style={{ margin: '4px 0 0 0' }}>• {text(warning)}</p>)}
+                <div className="preview-warning auto-preview-warnings">
+                  <strong>รายการที่ต้องตรวจสอบ</strong>
+                  {previewWarnings.slice(0, 8).map((warning, index) => <p key={`${String(warning)}-${index}`}>{text(warning)}</p>)}
                 </div>
               )}
 
-              <div className="table-scroll preview-table-wrap" style={{ maxHeight: '320px', overflowY: 'auto', marginBottom: '16px', border: '1px solid #e2e8f0', borderRadius: '10px' }}>
-                <table className="data-table preview-table" style={{ width: '100%' }}>
+              <h3 className="auto-preview-subhead">ตัวอย่างตาราง</h3>
+              <div className="table-scroll preview-table-wrap">
+                <table className="data-table preview-table">
                   <thead>
                     <tr><th>พนักงาน</th><th>วันที่</th><th>กะ</th><th>เหตุผล</th><th>สถานะ</th></tr>
                   </thead>
@@ -3195,9 +3198,9 @@ function Dashboard() {
                 </table>
               </div>
 
-              <div className="preview-actions" style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
-                <button className="btn-secondary" style={{ padding: '9px 18px', borderRadius: '10px', border: '1px solid #cbd5e1', backgroundColor: '#0f1d2a', cursor: 'pointer' }} disabled={autoScheduleBusy} onClick={() => setAutoSchedulePreview(undefined)}>ยกเลิก Preview</button>
-                <button className="btn-primary compact" style={{ padding: '9px 20px', borderRadius: '10px', border: 'none', background: 'linear-gradient(135deg, #3b82f6 0%, #6366f1 100%)', color: '#ffffff', fontWeight: 700, cursor: 'pointer' }} disabled={autoScheduleBusy || previewFillSummary.generated === 0} onClick={saveAutoSchedule}>🪄 ใส่ลงในฉบับร่าง (ยังไม่บันทึก)</button>
+              <div className="preview-actions">
+                <button className="btn-secondary" disabled={autoScheduleBusy} onClick={() => setAutoSchedulePreview(undefined)}>ยกเลิก Preview</button>
+                <button className="btn-primary compact" disabled={autoScheduleBusy || previewFillSummary.generated === 0} onClick={saveAutoSchedule}>🪄 ใส่ลงในฉบับร่าง (ยังไม่บันทึก)</button>
               </div>
             </section>
           </div>
