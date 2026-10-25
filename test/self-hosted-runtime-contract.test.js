@@ -28,3 +28,18 @@ test('deployment templates do not retain the split legacy runtime layout', () =>
   assert.doesNotMatch(nginx, /^    root \/var\/www\/sms;$/m);
   assert.match(releaseTool, /args\.pointer \|\| '\/srv\/sms-v3\/.current'/);
 });
+
+test('boundary containment accepts the filesystem root as an ancestor', () => {
+  const { contained } = require('../scripts/self-hosted-release');
+  assert.equal(contained('/', '/srv/sms-v3/releases/sms-v3-x'), true);
+  assert.equal(contained('/srv', '/srv/sms-v3'), true);
+  assert.equal(contained('/srv', '/srv'), true);
+  assert.equal(contained('/srv', '/srvx/sms-v3'), false);
+  assert.equal(contained('/srv/sms-v3', '/srv'), false);
+  assert.equal(contained('/srv/a', '/srv/a/..b'), true);
+});
+
+test('default parent traversal reaches the filesystem root without a boundary error', () => {
+  const { validateParentTraversal } = require('../scripts/self-hosted-release');
+  assert.throws(() => validateParentTraversal('/definitely-missing-sms-v3-release'), /missing parent/);
+});
