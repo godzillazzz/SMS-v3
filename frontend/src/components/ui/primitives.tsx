@@ -94,6 +94,19 @@ export function StatusBadge({ value, className, children, ...props }: StatusBadg
   return <Badge {...props} tone={tone} icon={statusToneIcon[tone]} className={className}>{children ?? String(value ?? '—')}</Badge>;
 }
 
+const shiftToneByCode: Readonly<Record<string, string>> = {
+  D: 'd', N: 'n', S: 's', OFF: 'off', AL: 'al',
+};
+
+export type ShiftBadgeProps = Omit<BadgeProps, 'tone' | 'icon'> & { code: unknown };
+export function ShiftBadge({ code, className, children, ...props }: ShiftBadgeProps) {
+  const normalized = String(code ?? '').trim().toUpperCase();
+  const shiftTone = shiftToneByCode[normalized];
+  return <Badge {...props} tone="neutral" className={cx('ui-shift-badge', shiftTone && `ui-shift-badge--${shiftTone}`, className)}>
+    {children ?? (normalized || '—')}
+  </Badge>;
+}
+
 export type CardProps = HTMLAttributes<HTMLElement> & { as?: 'div' | 'article' | 'section' };
 export function Card({ as: Element = 'div', className, children, ...props }: CardProps) {
   const classes = cx('ui-card', className);
