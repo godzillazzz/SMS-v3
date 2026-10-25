@@ -176,7 +176,7 @@
 }
 
 /* Accent theme variants. The mode selector supplies the neutral and semantic palette. */
-:root[data-accent="teal"] {
+.app-shell[data-accent="teal"] {
   --ds-color-brand: #0b7a74;
   --ds-color-brand-strong: #086561;
   --ds-color-brand-soft: #e2f4f2;
@@ -186,7 +186,7 @@
   --ds-color-brand-gradient-end: #29c39b;
 }
 
-:root[data-accent="emerald"] {
+.app-shell[data-accent="emerald"] {
   --ds-color-brand: #047857;
   --ds-color-brand-strong: #036349;
   --ds-color-brand-soft: #e1f5ec;
@@ -197,7 +197,7 @@
 }
 
 /* Shared dark-mode neutrals, semantic colors and contrast-safe shift labels. */
-:root[data-mode="dark"] {
+.app-shell[data-mode="dark"] {
   color-scheme: dark;
   --ds-color-canvas: #0a0f17;
   --ds-color-surface: #111925;
@@ -229,7 +229,7 @@
   --ds-focus-ring-color: rgba(var(--ds-color-brand-rgb), .18);
 }
 
-:root[data-mode="dark"][data-accent="teal"] {
+.app-shell[data-mode="dark"][data-accent="teal"] {
   --ds-color-brand: #4fd1c5;
   --ds-color-brand-strong: #81e0d6;
   --ds-color-brand-soft: #0f2d2c;
@@ -239,7 +239,7 @@
   --ds-color-brand-gradient-end: #29c39b;
 }
 
-:root[data-mode="dark"][data-accent="emerald"] {
+.app-shell[data-mode="dark"][data-accent="emerald"] {
   --ds-color-brand: #4ade9b;
   --ds-color-brand-strong: #7ee9b8;
   --ds-color-brand-soft: #0f2a1f;
@@ -254,7 +254,11 @@
   :root,
   :root[data-mode],
   :root[data-accent],
-  :root[data-mode][data-accent] {
+  :root[data-mode][data-accent],
+  .app-shell,
+  .app-shell[data-mode],
+  .app-shell[data-accent],
+  .app-shell[data-mode][data-accent] {
     color-scheme: light;
     --ds-color-canvas: #ffffff;
     --ds-color-surface: #ffffff;

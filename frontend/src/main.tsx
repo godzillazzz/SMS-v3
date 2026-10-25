@@ -26,8 +26,6 @@ import { applyAppearancePreferences, readAppearancePreferences, saveAppearancePr
 import './styles/responsive-shell.css';
 import './styles/shell-controls.css';
 
-applyAppearancePreferences(readAppearancePreferences());
-
 type User = { id: string; email: string; displayName: string; role: string; department?: string };
 type Employee = { id: string; employeeCode: string; firstName: string; lastName: string; department?: string; jobTitle?: string; isActive: boolean };
 type RegistrationEmployee = { id: string; employeeCode: string; displayName: string; department?: string; jobTitle?: string };
@@ -1015,6 +1013,9 @@ function Dashboard() {
   const commandPaletteReturnFocusRef = useRef<HTMLElement | null>(null);
   const closeAppearance = React.useCallback(() => setAppearanceOpen(false), []);
   const closeCommandPalette = React.useCallback(() => setCommandPaletteOpen(false), []);
+  useEffect(() => {
+    applyAppearancePreferences(appearance);
+  }, [appearance]);
   const openAppearanceFromUserMenu = React.useCallback((restoreTo: HTMLElement | null) => {
     appearanceReturnFocusRef.current = restoreTo;
     setAppearanceOpen(true);

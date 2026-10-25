@@ -25,10 +25,11 @@ export function readAppearancePreferences(): AppearancePreferences {
 
 export function applyAppearancePreferences(preferences: AppearancePreferences): void {
   if (typeof document === 'undefined') return;
-  const root = document.documentElement;
-  root.dataset.mode = preferences.mode;
-  if (preferences.accent === 'navy') delete root.dataset.accent;
-  else root.dataset.accent = preferences.accent;
+  const appShell = document.querySelector<HTMLElement>('.app-shell');
+  if (!appShell) return;
+  appShell.dataset.mode = preferences.mode;
+  if (preferences.accent === 'navy') delete appShell.dataset.accent;
+  else appShell.dataset.accent = preferences.accent;
 }
 
 export function saveAppearancePreferences(preferences: AppearancePreferences): void {
