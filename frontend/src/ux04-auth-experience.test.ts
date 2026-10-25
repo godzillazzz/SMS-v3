@@ -13,7 +13,8 @@ const iconSource = read('components/SmsIcon.tsx');
 const authCss = read('styles/auth-experience.css');
 const t06Css = read('styles/ux-t06-login-public.css');
 const publicPage = read('components/AwardPublicExperience.tsx');
-const globe = read('components/CyberGlobe.tsx');
+const thaiMap = read('components/ThailandMap.tsx');
+const oneScreenCss = read('styles/public-one-screen.css');
 const designSystem = read('design-system.css');
 const themeFoundation = read('styles/theme-foundation.css');
 const login = main.slice(main.indexOf('function Login() {'), main.indexOf('\nconst text = ', main.indexOf('function Login() {')));
@@ -143,27 +144,26 @@ describe('G04.2 UX-04 auth experience contract', () => {
     expect(login).not.toContain('••••••••••••');
   });
 
-  it('moves the public login block below the hero on mobile and focuses email from both entry links', () => {
+  it('puts the login card beside the hero on one screen and keeps registration one tap away', () => {
     expect(main).toContain('accessContent={mode === \'login\' ? authStage : undefined}');
-    expect(main).toContain('onRequestAccess={focusLoginEmail}');
-    expect(main).toContain('emailField.focus();');
-    expect(publicPage).toContain('onRequestAccess?.()');
-    expect(publicPage).toContain('{accessContent && <div className="nexus-public__access">{accessContent}</div>}');
-    expect(t06Css).toContain('@media (max-width: 768px)');
-    expect(t06Css).toContain('.nexus-public__main > .nexus-public__access {\n    order: 1;');
-    expect(t06Css).toContain('.nexus-public__main > .nexus-telemetry-section {\n    order: 2;');
+    expect(main).toContain("onRequestRegister={showAccountRecovery ? undefined : () => resetView('register')}");
+    expect(publicPage).toContain('{accessContent && <div className="nexus-public__access nexus-onescreen__access">{accessContent}</div>}');
+    expect(publicPage).toContain('<ThailandMap />');
+    expect(oneScreenCss).toContain('height: 100svh;');
+    expect(oneScreenCss).toContain('@media (max-height: 599px)');
+    expect(oneScreenCss).toContain('@media (max-width: 1023px)');
   });
 
   it('keeps one public h1, gives the login block a lower heading level, and hides tiny decorative telemetry from assistive technology', () => {
     expect((publicPage.match(/<h1\b/g) || []).length).toBe(1);
     expect(login).not.toMatch(/<h1\b/);
     expect(login).toContain('<h2>Zero-Trust Identity Hub<br />สำหรับ Command Console</h2>');
-    expect(publicPage).toContain('className="nexus-mesh-strip" aria-hidden="true"');
-    expect(publicPage).toContain('className="nexus-hero__eyebrow" aria-hidden="true"');
-    expect(publicPage).toContain('className="nexus-micro-metrics" aria-hidden="true"');
-    expect(publicPage).toContain('className="nexus-kpi__top" aria-hidden="true"');
-    expect(publicPage).toContain('className="nexus-signal-console" aria-hidden="true"');
-    expect(globe).toContain('className="cyber-node__label" aria-hidden="true"');
+    // D-U5: no simulated telemetry on the public page any more.
+    for (const removed of ['nexus-mesh-strip', 'nexus-kpi', 'nexus-signal-console', 'SIMULATED', 'Math.random', 'setInterval']) expect(publicPage).not.toContain(removed);
+    expect(publicPage).toContain('className="nexus-micro-metrics nexus-onescreen__facts" aria-label="ความสามารถหลักของระบบ"');
+    expect(thaiMap).toContain('aria-label="ภาพประกอบแผนที่ประเทศไทย"');
+    expect(thaiMap).toContain('ไม่แสดงตำแหน่งหรือข้อมูลปฏิบัติการจริง');
+    expect(thaiMap).toContain('className={`th-map__node${label.master ? \' is-master\' : \'\'}`} aria-hidden="true"');
     expect(t06Css).toContain('font-size: 12px !important;');
   });
 
