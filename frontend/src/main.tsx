@@ -27,6 +27,7 @@ import './styles/responsive-shell.css';
 import './styles/shell-controls.css';
 import './styles/admin-views.css';
 import './styles/schedule-workflow.css';
+import './styles/leave-workflow.css';
 
 type User = { id: string; email: string; displayName: string; role: string; department?: string };
 type Employee = { id: string; employeeCode: string; firstName: string; lastName: string; department?: string; jobTitle?: string; isActive: boolean };
@@ -871,45 +872,86 @@ function LeaveManagementPage({ rows, loading, error, linked, remaining, employee
     catch (reason) { setNotice(reason instanceof Error ? reason.message : 'ส่งคำขอลาไม่สำเร็จ'); }
     finally { setSubmitting(false); }
   };
-  const status = (row: DataRow) => { const actorName = row.approvedByDisplayName ? String(row.approvedByDisplayName) : ''; const actorRole = String(row.approvedByRole || 'ผู้อนุมัติ'); const actionDate = row.approvedAt ? String(date(row.approvedAt)) : ''; return <div className="leave-status-cell"><span className={`status-badge ${row.status === 'APPROVED' ? 'active' : row.status === 'REJECTED' ? 'inactive' : 'pending'}`}>{String(text(row.status))}</span>{actorName ? <small className="leave-action-log">ดำเนินการโดย {actorName} ({actorRole})<br />วันที่ {actionDate}</small> : null}</div>; };
-  const leaveTable = (items: DataRow[], actions = false) => <div className="table-scroll"><table className="data-table leave-data-table"><thead><tr><th>พนักงาน</th><th>ประเภท</th><th>วันที่ลา</th><th>วัน</th><th>แทน / เหตุผล</th><th>เอกสาร</th>{!actions && <th>สถานะ</th>}<th>พิมพ์</th>{(actions || canCancelApprovedLeave) && <th>จัดการ</th>}</tr></thead><tbody>{items.length ? items.map((row) => <tr key={text(row.id)}><td className="employee-name">{text(row.employeeNameSnapshot)}<small className="cell-note">{text(row.departmentSnapshot)}</small></td><td>{text(row.leaveType)}</td><td>{date(row.startDate)} – {date(row.endDate)}</td><td>{text(row.dayCount)}</td><td>{text(row.reason)}</td><td>{row.attachmentUrl ? <button className="attachment-link" onClick={() => onAttachment(row)}>📎 เอกสาร</button> : <span className="muted-text">–</span>}</td>{!actions && <td>{status(row)}</td>}<td>{row.status === 'APPROVED' ? <button className="btn-info leave-print-button" onClick={() => onPrint(row)}>🖨 พิมพ์ A4</button> : <span className="muted-text">–</span>}</td>{actions && <td className="row-actions"><button className="btn-primary compact" onClick={() => onApprove(row)}>อนุมัติ</button><button className="danger-action" onClick={() => onReject(row)}>ไม่อนุมัติ</button></td>}{!actions && canCancelApprovedLeave && <td className="row-actions">{row.status === 'APPROVED' ? <button className="danger-action" onClick={() => onCancel(row)}>ยกเลิกใบลาที่อนุมัติแล้ว</button> : <span className="muted-text">–</span>}</td>}</tr>) : <tr><td colSpan={(actions || canCancelApprovedLeave) ? 9 : 8} className="no-rows">ไม่มีรายการ</td></tr>}</tbody></table></div>;
+  const status = (row: DataRow) => {
+    const actorName = row.approvedByDisplayName ? String(row.approvedByDisplayName) : '';
+    const actorRole = String(row.approvedByRole || 'ผู้อนุมัติ');
+    const actionDate = row.approvedAt ? String(date(row.approvedAt)) : '';
+    return <div className="leave-status-cell"><StatusBadge value={row.status}>{String(text(row.status))}</StatusBadge>{actorName ? <small className="leave-action-log">ดำเนินการโดย {actorName} ({actorRole})<br />วันที่ {actionDate}</small> : null}</div>;
+  };
+  const leaveTable = (items: DataRow[], actions = false) => {
+    const hasManagementColumn = actions || canCancelApprovedLeave;
+    const columnCount = 6 + (actions ? 0 : 1) + 1 + (hasManagementColumn ? 1 : 0);
+    return <DataTable className="data-table leave-data-table" scrollClassName="table-scroll" caption={actions ? 'คำขอลาที่รออนุมัติ' : 'ประวัติคำขอลา'}>
+      <thead><tr>
+        <th scope="col">พนักงาน</th><th scope="col">ประเภท</th><th scope="col">วันที่ลา</th><th scope="col">วัน</th><th scope="col">แทน / เหตุผล</th><th scope="col">เอกสาร</th>
+        {!actions && <th scope="col">สถานะ</th>}<th scope="col">พิมพ์</th>{hasManagementColumn && <th scope="col">จัดการ</th>}
+      </tr></thead>
+      <tbody>{items.length ? items.map((row) => <tr key={text(row.id)}>
+        <td className="employee-name">{text(row.employeeNameSnapshot)}<small className="cell-note">{text(row.departmentSnapshot)}</small></td>
+        <td>{text(row.leaveType)}</td>
+        <td>{date(row.startDate)} – {date(row.endDate)}</td>
+        <td>{text(row.dayCount)}</td>
+        <td>{text(row.reason)}</td>
+        <td>{row.attachmentUrl ? <Button type="button" variant="ghost" size="small" className="attachment-link" onClick={() => onAttachment(row)}>📎 เอกสาร</Button> : <span className="muted-text">–</span>}</td>
+        {!actions && <td>{status(row)}</td>}
+        <td>{row.status === 'APPROVED' ? <Button type="button" variant="success" size="small" className="leave-print-button" onClick={() => onPrint(row)}>🖨 พิมพ์ A4</Button> : <span className="muted-text">–</span>}</td>
+        {actions && <td className="row-actions"><Button type="button" variant="success" size="compact" onClick={() => onApprove(row)}>อนุมัติ</Button><Button type="button" variant="danger" size="compact" onClick={() => onReject(row)}>ไม่อนุมัติ</Button></td>}
+        {!actions && canCancelApprovedLeave && <td className="row-actions">{row.status === 'APPROVED' ? <Button type="button" variant="danger" size="small" onClick={() => onCancel(row)}>ยกเลิกใบลาที่อนุมัติแล้ว</Button> : <span className="muted-text">–</span>}</td>}
+      </tr>) : <tr><td colSpan={columnCount} className="no-rows">ไม่มีรายการ</td></tr>}</tbody>
+    </DataTable>;
+  };
   const quotaCards: Array<[string, string, unknown, string]> = [['🩺', 'ลาป่วยคงเหลือ', remaining.sickLeave, 'green'], ['🏢', 'ลากิจคงเหลือ', remaining.personalLeave, 'blue'], ['🌴', 'ลาพักร้อนคงเหลือ', remaining.vacationLeave, 'amber']];
-  return <section className={`view-pane leave-page leave-mode-${mode}`}>
-    <div className="leave-hero"><div><span>🗓️</span><div><h1>ระบบจัดการการลา (Leave Management)</h1><p>ยื่นคำขอลา ตรวจสอบโควตา และอนุมัติรายการเข้าสู่ตารางกะ</p></div></div><button onClick={onRefresh}>↻ รีเฟรชข้อมูล</button></div>
-    {canManage && (
-      <div className="leave-quota-grid" style={{ marginBottom: '20px' }}>
-        <article className="leave-quota-card amber">
-          <div>
-            <p>⏳ คำขอรออนุมัติ</p>
-            <strong>{pendingRows.length}</strong>
-            <small>รายการรอผู้บริหารอนุมัติ</small>
+  return <section className={`view-pane leave-page leave-mode-${mode}`} aria-label="ระบบจัดการการลา">
+    <Card as="section" className="leave-hero">
+      <div><Icon className="leave-hero-icon">🗓️</Icon><div><h1>ระบบจัดการการลา (Leave Management)</h1><p>ยื่นคำขอลา ตรวจสอบโควตา และอนุมัติรายการเข้าสู่ตารางกะ</p></div></div>
+      <Button type="button" variant="neutral" size="small" onClick={onRefresh}>↻ รีเฟรชข้อมูล</Button>
+    </Card>
+
+    {canManage && <div className="leave-quota-grid leave-summary-grid">
+      <Card as="article" className="leave-quota-card amber"><div><p>⏳ คำขอรออนุมัติ</p><strong>{pendingRows.length}</strong><small>รายการรอผู้บริหารอนุมัติ</small></div><Icon className="leave-quota-icon">⏳</Icon></Card>
+      <Card as="article" className="leave-quota-card green"><div><p>✓ อนุมัติแล้ว</p><strong>{rows.filter((row) => row.status === 'APPROVED').length}</strong><small>รายการลงตารางกะเรียบร้อย</small></div><Icon className="leave-quota-icon">✓</Icon></Card>
+      <Card as="article" className="leave-quota-card red"><div><p>✕ ไม่อนุมัติ</p><strong>{rows.filter((row) => row.status === 'REJECTED').length}</strong><small>รายการที่ไม่ผ่านการอนุมัติ</small></div><Icon className="leave-quota-icon">✕</Icon></Card>
+    </div>}
+
+    {linked ? <div className="leave-quota-grid leave-entitlement-grid">{quotaCards.map(([icon, label, value, tone]) => <Card as="article" className={`leave-quota-card ${tone}`} key={label}><div><p>{icon} {label}</p><strong>{text(value)}</strong><small>ตามสิทธิ์ประจำปี (วัน)</small></div><Icon className="leave-quota-icon">{icon}</Icon></Card>)}</div> : !canManage && <Alert tone="danger" role="alert" live="assertive">บัญชีนี้ยังไม่ได้ผูกกับข้อมูลพนักงาน กรุณาติดต่อ Admin ก่อนส่งคำขอลา</Alert>}
+
+    <div className="leave-main-grid">
+      <Card as="section" className="leave-submit-card">
+        <header><Icon className="leave-submit-icon">✍️</Icon><div><h2>ยื่นคำขอลาพัก (Submit Leave Request)</h2><p>กรอกข้อมูลให้ครบก่อนส่งเข้าคิวอนุมัติ</p></div></header>
+        <form onSubmit={submit}>
+          {canManage && <Field label="👤 พนักงาน" htmlFor="leave-employee" required><SelectInput id="leave-employee" required value={form.employeeId} onChange={(event) => update('employeeId', event.target.value)}><option value="">-- เลือกพนักงาน --</option>{employeeOptions.map((employee) => <option key={employee.value} value={employee.value}>{employee.label}</option>)}</SelectInput></Field>}
+          <Field label="📌 ประเภทการลา" htmlFor="leave-type" required><SelectInput id="leave-type" required value={form.leaveType} onChange={(event) => update('leaveType', event.target.value)}><option value="">-- กรุณาเลือกประเภทการลา --</option><option value="ลาป่วย">🩺 ลาป่วย (Sick Leave)</option><option value="ลากิจ">🏢 ลากิจ (Personal Leave)</option><option value="ลาพักร้อน">🌴 ลาพักร้อน (Vacation Leave)</option></SelectInput></Field>
+          <div className="leave-date-grid">
+            <Field label="📅 วันที่เริ่มต้น" htmlFor="leave-start-date" required><TextInput id="leave-start-date" required type="date" value={form.startDate} onChange={(event) => update('startDate', event.target.value)} /></Field>
+            <Field label="🏁 วันที่สิ้นสุด" htmlFor="leave-end-date" required><TextInput id="leave-end-date" required type="date" min={form.startDate || undefined} value={form.endDate} onChange={(event) => update('endDate', event.target.value)} /></Field>
           </div>
-          <span style={{ background: '#fef3c7', color: '#d97706' }}>⏳</span>
-        </article>
-        <article className="leave-quota-card green">
-          <div>
-            <p>✓ อนุมัติแล้ว</p>
-            <strong>{rows.filter((r) => r.status === 'APPROVED').length}</strong>
-            <small>รายการลงตารางกะเรียบร้อย</small>
+          {days > 0 && <div className="leave-days-note">ระยะเวลาการลา: <strong>{days}</strong> วัน</div>}
+          <Field label="👥 ผู้ปฏิบัติงานแทน" htmlFor="leave-substitute" required><TextInput id="leave-substitute" required value={form.substitute} placeholder="ระบุชื่อ-นามสกุล ผู้เข้าเวร/ปฏิบัติงานแทน" onChange={(event) => update('substitute', event.target.value)} /></Field>
+          <Field label="📝 เหตุผลการลา" htmlFor="leave-reason"><TextArea id="leave-reason" rows={3} value={form.reason} placeholder="ระบุเหตุผลหรือความจำเป็นในการลา... (ไม่บังคับ)" onChange={(event) => update('reason', event.target.value)} /></Field>
+          <div className="leave-file-field">
+            <Field label="📎 แนบไฟล์เอกสาร (ใบรับรองแพทย์/รูปภาพ/PDF)" htmlFor="leave-attachment" hint="จำเป็นเมื่อลาป่วยเกิน 3 วัน · PDF, JPG หรือ PNG ไม่เกิน 4 MB">
+              <TextInput id="leave-attachment" type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" onChange={(event) => setFile(event.target.files?.[0])} />
+            </Field>
+            {file && <em>เลือกไฟล์แล้ว: {file.name}</em>}
           </div>
-          <span style={{ background: '#d1fae5', color: '#059669' }}>✓</span>
-        </article>
-        <article className="leave-quota-card red" style={{ borderLeftColor: '#ef4444' }}>
-          <div>
-            <p>✕ ไม่อนุมัติ</p>
-            <strong>{rows.filter((r) => r.status === 'REJECTED').length}</strong>
-            <small>รายการที่ไม่ผ่านการอนุมัติ</small>
-          </div>
-          <span style={{ background: '#fee2e2', color: '#dc2626' }}>✕</span>
-        </article>
-      </div>
-    )}
-    {linked ? <div className="leave-quota-grid">{quotaCards.map(([icon, label, value, tone]) => <article className={`leave-quota-card ${tone}`} key={label}><div><p>{icon} {label}</p><strong>{text(value)}</strong><small>ตามสิทธิ์ประจำปี (วัน)</small></div><span>{icon}</span></article>)}</div> : !canManage && <div className="alert alert-error">บัญชีนี้ยังไม่ได้ผูกกับข้อมูลพนักงาน กรุณาติดต่อ Admin ก่อนส่งคำขอลา</div>}
-    <div className="leave-main-grid"><section className="leave-submit-card"><header><span>✍️</span><div><h2>ยื่นคำขอลาพัก (Submit Leave Request)</h2><p>กรอกข้อมูลให้ครบก่อนส่งเข้าคิวอนุมัติ</p></div></header><form onSubmit={submit}>{canManage && <label className="field-group"><span>👤 พนักงาน <b>*</b></span><select required value={form.employeeId} onChange={(event) => update('employeeId', event.target.value)}><option value="">-- เลือกพนักงาน --</option>{employeeOptions.map((employee) => <option key={employee.value} value={employee.value}>{employee.label}</option>)}</select></label>}<label className="field-group"><span>📌 ประเภทการลา <b>*</b></span><select required value={form.leaveType} onChange={(event) => update('leaveType', event.target.value)}><option value="">-- กรุณาเลือกประเภทการลา --</option><option value="ลาป่วย">🩺 ลาป่วย (Sick Leave)</option><option value="ลากิจ">🏢 ลากิจ (Personal Leave)</option><option value="ลาพักร้อน">🌴 ลาพักร้อน (Vacation Leave)</option></select></label><div className="leave-date-grid"><label className="field-group"><span>📅 วันที่เริ่มต้น <b>*</b></span><input required type="date" value={form.startDate} onChange={(event) => update('startDate', event.target.value)} /></label><label className="field-group"><span>🏁 วันที่สิ้นสุด <b>*</b></span><input required type="date" min={form.startDate || undefined} value={form.endDate} onChange={(event) => update('endDate', event.target.value)} /></label></div>{days > 0 && <div className="leave-days-note">ระยะเวลาการลา: <strong>{days}</strong> วัน</div>}<label className="field-group"><span>👥 ผู้ปฏิบัติงานแทน <b>*</b></span><input required value={form.substitute} placeholder="ระบุชื่อ-นามสกุล ผู้เข้าเวร/ปฏิบัติงานแทน" onChange={(event) => update('substitute', event.target.value)} /></label><label className="field-group"><span>📝 เหตุผลการลา</span><textarea rows={3} value={form.reason} placeholder="ระบุเหตุผลหรือความจำเป็นในการลา... (ไม่บังคับ)" onChange={(event) => update('reason', event.target.value)} /></label><label className="leave-file-field"><span>📎 แนบไฟล์เอกสาร (ใบรับรองแพทย์/รูปภาพ/PDF)</span><small>จำเป็นเมื่อลาป่วยเกิน 3 วัน · PDF, JPG หรือ PNG ไม่เกิน 4 MB</small><input type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" onChange={(event) => setFile(event.target.files?.[0])} />{file && <em>เลือกไฟล์แล้ว: {file.name}</em>}</label>{notice && <div className={notice.includes('สำเร็จ') ? 'settings-notice success' : 'settings-notice error'}>{notice}</div>}<button className="leave-submit-button" disabled={!canSubmit || !formReady || submitting} type="submit">🚀 {submitting ? 'กำลังส่งคำขอลา…' : 'ยืนยันและส่งคำขอลา'}</button></form></section>
-      <section className="leave-history-card"><header><span>📋</span><div><h2>{mode === 'history' ? 'ประวัติการลาพนักงานทั้งหมด (All Employee Leaves & Print A4)' : 'ประวัติคำขอลาของฉัน (My Leave History)'}</h2><p>{mode === 'history' ? 'สำหรับหัวหน้างานและ Admin ตรวจสอบรายการลาทั้งหมด และพิมพ์ใบลาอนุมัติ' : 'วันที่ลา ประเภทการลา และสถานะคำขอลา'}</p></div>{mode === 'history' && <button className="btn-neutral small-action" onClick={onRefresh}>↻ รีเฟรชข้อมูล</button>}</header>{mode !== 'history' && <><div className="my-leave-quota-heading">โควต้าคงเหลือ</div><div className="my-leave-quota-grid">{quotaCards.map(([icon, label, value, tone]) => <article className={`leave-quota-card ${tone}`} key={`my-${label}`}><div><p>{icon} {label}</p><strong>{text(value)}</strong><small>ตามสิทธิ์ประจำปี (วัน)</small></div><span>{icon}</span></article>)}</div></>}{loading ? <div className="loading-row">กำลังดึงประวัติการลา…</div> : leaveTable(historyRows)}</section>
+          {notice && <Alert tone={notice.includes('สำเร็จ') ? 'success' : 'danger'} role={notice.includes('สำเร็จ') ? 'status' : 'alert'} live={notice.includes('สำเร็จ') ? 'polite' : 'assertive'}>{notice}</Alert>}
+          <div className="leave-submit-dock"><Button className="leave-submit-button" variant="primary" size="default" disabled={!canSubmit || !formReady || submitting} isLoading={submitting} type="submit">🚀 {submitting ? 'กำลังส่งคำขอลา…' : 'ยืนยันและส่งคำขอลา'}</Button></div>
+        </form>
+      </Card>
+
+      <Card as="section" className="leave-history-card">
+        <header><Icon className="leave-history-icon">📋</Icon><div><h2>{mode === 'history' ? 'ประวัติการลาพนักงานทั้งหมด (All Employee Leaves & Print A4)' : 'ประวัติคำขอลาของฉัน (My Leave History)'}</h2><p>{mode === 'history' ? 'สำหรับหัวหน้างานและ Admin ตรวจสอบรายการลาทั้งหมด และพิมพ์ใบลาอนุมัติ' : 'วันที่ลา ประเภทการลา และสถานะคำขอลา'}</p></div>{mode === 'history' && <Button type="button" variant="neutral" size="small" onClick={onRefresh}>↻ รีเฟรชข้อมูล</Button>}</header>
+        {mode !== 'history' && <><div className="my-leave-quota-heading">โควต้าคงเหลือ</div><div className="my-leave-quota-grid">{quotaCards.map(([icon, label, value, tone]) => <Card as="article" className={`leave-quota-card ${tone}`} key={`my-${label}`}><div><p>{icon} {label}</p><strong>{text(value)}</strong><small>ตามสิทธิ์ประจำปี (วัน)</small></div><Icon className="leave-quota-icon">{icon}</Icon></Card>)}</div></>}
+        {loading ? <div className="loading-row" role="status">กำลังดึงประวัติการลา…</div> : leaveTable(historyRows)}
+      </Card>
     </div>
-    <ErrorAlert message={error} className="leave-error" />
-    {canManage && <section className="leave-pending-card"><header><span>⚡</span><div><h2>รายการใบลาที่รออนุมัติ (Pending Approval Queue)</h2><p>สำหรับหัวหน้างาน (Manager) และผู้ดูแลระบบ (Admin) ในการตรวจสอบสิทธิ์และอนุมัติวันลา</p></div><b>🛡️ สิทธิ์ผู้บริหาร/หัวหน้างาน</b></header>{loading ? <div className="loading-row">กำลังตรวจสอบรายการที่รออนุมัติ…</div> : leaveTable(pendingRows, true)}</section>}
+
+    {error && <Alert tone="danger" role="alert" live="assertive" className="leave-error">{error}</Alert>}
+
+    {canManage && <Card as="section" className="leave-pending-card">
+      <header><Icon className="leave-pending-icon">⚡</Icon><div><h2>รายการใบลาที่รออนุมัติ (Pending Approval Queue)</h2><p>สำหรับหัวหน้างาน (Manager) และผู้ดูแลระบบ (Admin) ในการตรวจสอบสิทธิ์และอนุมัติวันลา</p></div><Badge tone="warning" className="leave-approval-scope">🛡️ สิทธิ์ผู้บริหาร/หัวหน้างาน</Badge></header>
+      {loading ? <div className="loading-row" role="status">กำลังตรวจสอบรายการที่รออนุมัติ…</div> : leaveTable(pendingRows, true)}
+    </Card>}
   </section>;
 }
 
