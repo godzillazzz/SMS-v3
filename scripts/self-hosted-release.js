@@ -103,7 +103,7 @@ function mandatoryChecks(root) {
   const backend = path.join(root, 'backend'); const dist = path.join(root, 'frontend', 'dist');
   if (!fs.lstatSync(backend).isDirectory() || fs.lstatSync(backend).isSymbolicLink()) fail('backend runtime is not a real directory');
   if (!fs.lstatSync(dist).isDirectory() || fs.lstatSync(dist).isSymbolicLink()) fail('frontend/dist is not a real directory');
-  const server = safeRead(path.join(backend, 'server.js'), root).toString('utf8');
+  const server = safeRead(path.join(backend, 'src', 'server.js'), root).toString('utf8');
   if (!/require\(['"]\.\/app['"]\)/.test(server) || !/app\.listen\(/.test(server)) fail('backend server entrypoint is not a fixed runnable server');
   const index = safeRead(path.join(dist, 'index.html'), root).toString('utf8');
   if (!/<html(?:\s|>)/i.test(index) || !/<script\b/i.test(index)) fail('frontend index is not a fixed served document');

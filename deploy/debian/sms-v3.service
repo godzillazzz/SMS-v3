@@ -7,11 +7,11 @@ Wants=network-online.target
 Type=simple
 User=smsv3
 Group=smsv3
-WorkingDirectory=/opt/sms-v3/app
+WorkingDirectory=/opt/sms-v3/app/backend
 EnvironmentFile=/opt/sms-v3/shared/app.env
 Environment=NODE_ENV=production
 Environment=PORT=3000
-ExecStart=/usr/bin/node /opt/sms-v3/app/src/server.js
+ExecStart=/usr/bin/node /opt/sms-v3/app/backend/src/server.js
 Restart=on-failure
 RestartSec=5s
 TimeoutStopSec=30s

@@ -42,15 +42,20 @@ old=/opt/sms-v3/app
 [ -d "$old" ] && [ ! -L "$old" ] || { echo 'already migrated or invalid'; exit 1; }
 legacy="/opt/sms-v3/releases/legacy-$(date -u +%Y%m%dT%H%M%SZ)"
 mv -- "$old" "$legacy"
-ln -s -- "$legacy" "$old"
-readlink -f "$old" | grep -Fx -- "$legacy"
+mkdir -p /opt/sms-v3/releases
+ln -s -- /opt/sms-v3/.sms-v3-current "$old"
+readlink "$old" | grep -Fx -- /opt/sms-v3/.sms-v3-current
 ```
 
-This is an operator migration procedure, not executed by CI. Abort if the directory is absent, already a symlink, or the assertion fails.
+This is an operator migration procedure, not executed by CI. Abort if the directory is absent, already a symlink, or the assertion fails. The frontend target must also be a symlink to the same pointer:
+
+```text
+test "$(readlink /var/www/sms)" = /opt/sms-v3/.sms-v3-current
+```
 
 ### Release cutover
 
-Each build is copied to `/opt/sms-v3/releases/<full-git-sha>`. Frontend output is staged from that exact release to `/var/www/sms.<full-git-sha>.next`, then atomically renamed to `/var/www/sms.<full-git-sha>` and linked as `/var/www/sms`. Keep the prior release and webroot for rollback. A cutover rehearsal must run in a scratch filesystem first; it must assert `readlink -f` for both API and frontend targets equals the same full SHA, and must run health/readiness checks only against a running scratch service. No green result may be claimed without those assertions.
+Each build is copied to `/opt/sms-v3/releases/<full-git-sha>` and contains the paired `backend/` and `frontend/dist/` artifacts. `/opt/sms-v3/.sms-v3-current` is the one shared release pointer. Both `/opt/sms-v3/app` and `/var/www/sms` must be symlinks to that pointer; systemd then executes `/opt/sms-v3/app/backend/src/server.js` and nginx serves `/var/www/sms/frontend/dist`. Keep the prior release for rollback. A cutover rehearsal must run in a scratch filesystem first; it must assert both runtime targets are symlinks to the shared pointer and that the pointer resolves to the same full SHA for both artifacts. No green result may be claimed without those assertions.
 
 ## Environment and migration gate
 
@@ -66,7 +71,7 @@ Never use `prisma migrate dev` or `prisma migrate reset`. Application rollback d
 
 ## Cutover, rollback, and rehearsal
 
-Before production cutover, record `readlink -f /opt/sms-v3/app` and `readlink -f /var/www/sms`, expected full SHA, backup ID, and prior release. Atomically switch both symlinks, restart the service, then verify local `/api/v1/health`, `/api/v1/ready`, and static asset HTTP 200. Rollback atomically switches both symlinks to the same prior SHA and repeats all checks. Preserve logs; never retry a failed migration blindly. A rollback rehearsal on a disposable scratch tree is required evidence, but it does not authorize a remote cutover.
+Before production cutover, record `readlink /opt/sms-v3/app`, `readlink /var/www/sms`, `readlink -f /opt/sms-v3/.sms-v3-current`, expected full SHA, backup ID, and prior release. The cutover tool fails closed unless both runtime targets are symlinks to the shared pointer, then atomically switches that pointer, restarts the service, and verifies local `/api/v1/health`, `/api/v1/ready`, and static asset HTTP 200. Rollback atomically switches the same pointer to the prior release and repeats all checks. Preserve logs; never retry a failed migration blindly. A rollback rehearsal on a disposable scratch tree is required evidence, but it does not authorize a remote cutover.
 
 ## Proxy identity and security
 
