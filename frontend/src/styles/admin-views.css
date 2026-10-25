@@ -1,0 +1,155 @@
+/* Admin/data screens consume shared design tokens without changing shell or landing pages. */
+.admin-view { display: grid; gap: var(--ds-space-4); color: var(--ds-color-text); }
+.admin-view .page-heading { align-items: flex-start; gap: var(--ds-space-4); margin-bottom: 0; }
+.admin-view .page-heading h1, .admin-view .settings-heading h1 { color: var(--ds-color-text); font-family: var(--ds-font-family-sans); font-size: var(--ds-font-size-h1); font-weight: var(--ds-font-weight-bold); line-height: 1.3; }
+.admin-view .page-heading p, .admin-view .settings-heading p { color: var(--ds-color-text-muted); font-size: var(--ds-font-size-body); line-height: 1.5; }
+.admin-view .eyebrow { color: var(--ds-color-text-muted); font-size: var(--ds-font-size-caption) !important; }
+.admin-view .heading-actions { gap: var(--ds-space-2); }
+.admin-view .record-chip { border: 1px solid var(--ds-color-border); border-radius: 999px; color: var(--ds-color-text-secondary); background: var(--ds-color-surface); font-size: var(--ds-font-size-caption); }
+.admin-view-error { border-color: color-mix(in srgb, var(--ds-color-danger) 35%, var(--ds-color-border)); color: var(--ds-color-danger); background: color-mix(in srgb, var(--ds-color-danger) 7%, var(--ds-color-surface)); }
+.admin-table-card { min-width: 0; overflow: hidden; border: 1px solid var(--ds-color-border); border-radius: var(--ds-radius-card); background: var(--ds-color-surface); box-shadow: var(--ds-shadow-sm); }
+.admin-view .table-scroll { min-width: 0; overflow-x: auto; }
+.admin-view .data-table { min-width: 680px; border-collapse: collapse; color: var(--ds-color-text); font-size: var(--ds-font-size-body); }
+.admin-view .data-table th { border-bottom: 1px solid var(--ds-color-border); padding: var(--ds-space-3) var(--ds-space-4); color: var(--ds-color-text-secondary); background: var(--ds-color-surface-sunken); font-size: var(--ds-font-size-caption); font-weight: var(--ds-font-weight-semibold); text-align: left; white-space: nowrap; }
+.admin-view .data-table td { border-bottom: 1px solid var(--ds-color-border); padding: var(--ds-space-3) var(--ds-space-4); color: var(--ds-color-text-secondary); font-size: var(--ds-font-size-body); vertical-align: middle; }
+.admin-view .data-table tbody tr:last-child td { border-bottom: 0; }
+.admin-view .data-table code { color: var(--ds-color-brand); font-family: var(--ds-font-family-mono); font-size: var(--ds-font-size-mono); }
+.admin-view .row-actions { display: flex; min-width: max-content; align-items: center; gap: var(--ds-space-1); }
+.admin-view .row-actions button { min-height: var(--ds-size-button-small); border-radius: var(--ds-radius-button-small); padding-inline: var(--ds-space-2); font-size: var(--ds-font-size-caption); }
+.admin-view .loading-row { padding: var(--ds-space-8); color: var(--ds-color-text-muted); text-align: center; }
+.admin-table-empty { min-height: 220px; border-color: var(--ds-color-border-strong); color: var(--ds-color-text-secondary); background: var(--ds-color-surface); }
+.admin-table-empty h2 { color: var(--ds-color-text); }
+.admin-table-empty p { color: var(--ds-color-text-muted); }
+.admin-view .pagination-bar { display: flex; align-items: center; justify-content: center; gap: var(--ds-space-3); color: var(--ds-color-text-secondary); }
+.admin-view .toolbar { display: flex; align-items: center; gap: var(--ds-space-3); margin: 0; }
+.admin-view .search-box { min-width: 240px; border: 1px solid var(--ds-color-border-strong); border-radius: var(--ds-radius-control); color: var(--ds-color-text-muted); background: var(--ds-color-surface); }
+.admin-view .search-box:focus-within { border-color: var(--ds-color-brand); box-shadow: var(--ds-focus-ring-shadow); }
+.admin-view .search-box .ui-input { min-width: 0; border: 0; color: var(--ds-color-text); background: transparent; box-shadow: none; }
+.admin-view .toolbar-count { color: var(--ds-color-text-muted); font-size: var(--ds-font-size-caption); }
+
+.personnel-directory-page, .audit-compliance-page, .access-management-page { color: var(--ds-color-text); font-family: var(--ds-font-family-sans); }
+.personnel-directory-header h1, .audit-page-header h1, .access-page-header h1 { color: var(--ds-color-text); font-size: var(--ds-font-size-h1); font-weight: var(--ds-font-weight-bold); }
+.personnel-eyebrow, .audit-eyebrow, .access-eyebrow { color: var(--ds-color-text-muted); font-size: var(--ds-font-size-caption); font-weight: var(--ds-font-weight-semibold); }
+.personnel-directory-header > div > p:last-child, .audit-page-header > div > p:last-child, .access-page-header > div > p:last-child { color: var(--ds-color-text-secondary); font-size: var(--ds-font-size-body); }
+.personnel-result-support, .audit-result-support, .access-result-count, .personnel-result-line { color: var(--ds-color-text-muted); font-size: var(--ds-font-size-caption); }
+
+.personnel-search-panel, .personnel-table-card, .personnel-metric, .personnel-detail-drawer,
+.audit-metric, .audit-toolbar, .audit-table-card, .audit-state, .audit-preview-panel,
+.access-summary-card, .access-table-card, .access-state, .account-drawer, .account-modal,
+.account-mobile-card, .personnel-detail-grid div, .audit-preview-panel dl div,
+.account-drawer-body dl div, .drawer-status-grid > div {
+  border-color: var(--ds-color-border);
+  color: var(--ds-color-text);
+  background-color: var(--ds-color-surface);
+  box-shadow: var(--ds-shadow-sm);
+}
+.personnel-table-card, .audit-table-card, .access-table-card { overflow: hidden; border-radius: var(--ds-radius-card); }
+.personnel-search-panel, .audit-toolbar { padding: var(--ds-space-3); border-radius: var(--ds-radius-card); }
+.personnel-search-input, .personnel-search-filter .ui-select, .audit-search, .audit-page-size .ui-select {
+  border-color: var(--ds-color-border-strong);
+  border-radius: var(--ds-radius-control);
+  color: var(--ds-color-text-muted);
+  background: var(--ds-color-surface-sunken);
+}
+.personnel-search-input input, .audit-search input { color: var(--ds-color-text); background: transparent; }
+.personnel-search-filter .ui-select, .audit-page-size .ui-select { color: var(--ds-color-text); }
+.personnel-filter-chips button { border-color: color-mix(in srgb, var(--ds-color-brand) 28%, var(--ds-color-border)); border-radius: 999px; color: var(--ds-color-brand); background: var(--ds-color-brand-soft); }
+.personnel-summary-grid, .audit-summary-grid, .access-summary-grid { gap: var(--ds-layout-card-gap); }
+.personnel-metric, .audit-metric, .access-summary-card { min-width: 0; border-radius: var(--ds-radius-card); box-shadow: var(--ds-shadow-sm); }
+.personnel-metric, .audit-metric, .access-summary-card { --metric-accent: var(--ds-color-brand); border-left-color: var(--metric-accent); }
+.personnel-metric--green, .audit-metric--teal, .access-summary-card--green { --metric-accent: var(--ds-color-success); }
+.personnel-metric--amber, .audit-metric--amber, .access-summary-card--amber { --metric-accent: var(--ds-color-warning); }
+.personnel-metric--blue, .audit-metric--blue, .access-summary-card--purple { --metric-accent: var(--ds-color-info); }
+.personnel-metric--red, .access-summary-card--red { --metric-accent: var(--ds-color-danger); }
+.personnel-metric__icon, .audit-metric-icon, .access-summary-icon { color: var(--metric-accent); background: color-mix(in srgb, var(--metric-accent) 12%, var(--ds-color-surface)); }
+.personnel-metric p, .personnel-metric small, .audit-metric p, .audit-metric small, .access-summary-card p, .access-summary-card small { color: var(--ds-color-text-muted); }
+.personnel-metric strong, .audit-metric strong, .access-summary-card strong { color: var(--ds-color-text); font-variant-numeric: var(--ds-font-variant-numeric); }
+
+.personnel-table th, .audit-table th, .access-table th { border-bottom: 1px solid var(--ds-color-border); color: var(--ds-color-text-secondary); background: var(--ds-color-surface-sunken); font-size: var(--ds-font-size-caption); }
+.personnel-table td, .audit-table td, .access-table td { border-color: var(--ds-color-border); color: var(--ds-color-text-secondary); }
+.personnel-table tbody tr:hover, .audit-table tbody tr:hover, .access-table tbody tr:hover { background: var(--ds-color-surface-sunken); }
+.personnel-table tbody tr.is-selected, .audit-table tbody tr.is-selected { background: var(--ds-color-brand-soft); box-shadow: inset 3px 0 var(--ds-color-brand); }
+.personnel-table tbody tr:focus-visible, .audit-table tbody tr:focus-visible, .access-table tbody tr:focus-visible { outline: 2px solid var(--ds-color-brand); outline-offset: -2px; background: var(--ds-color-brand-soft); }
+.personnel-table code { color: var(--ds-color-brand); font-family: var(--ds-font-family-mono); }
+.personnel-name-button { color: var(--ds-color-text); }
+.personnel-row-actions button, .personnel-pagination button, .audit-preview-link, .audit-pagination button { border-color: var(--ds-color-border-strong); border-radius: var(--ds-radius-button-small); color: var(--ds-color-text-secondary); background: var(--ds-color-surface); }
+.personnel-row-actions .danger-action { color: var(--ds-color-danger); }
+.personnel-pagination span, .audit-pagination span { color: var(--ds-color-text-muted); }
+.personnel-loading, .personnel-no-rows, .audit-no-rows { color: var(--ds-color-text-muted); }
+.personnel-empty-state, .audit-state { border-color: var(--ds-color-border-strong); border-radius: var(--ds-radius-card); background: var(--ds-color-surface); }
+.personnel-empty-state > span, .audit-state > span { color: var(--ds-color-brand); background: var(--ds-color-brand-soft); }
+.personnel-empty-state h2, .audit-state h2, .audit-no-rows strong { color: var(--ds-color-text); }
+.personnel-empty-state p, .audit-state p, .audit-no-rows p { color: var(--ds-color-text-muted); }
+.personnel-detail-drawer, .audit-preview-panel { background: var(--ds-color-surface); }
+.personnel-drawer-header, .personnel-drawer-tabs, .personnel-drawer-actions, .audit-preview-panel header, .audit-preview-panel footer { border-color: var(--ds-color-border); background: var(--ds-color-surface); }
+.personnel-drawer-identity h2, .personnel-drawer-content h3, .personnel-detail-grid dd, .personnel-drawer-empty b, .audit-preview-panel h2, .audit-preview-panel dd { color: var(--ds-color-text); }
+.personnel-drawer-identity p, .personnel-drawer-identity span:last-child, .personnel-detail-grid dt, .personnel-drawer-empty small, .audit-preview-panel header p, .audit-preview-panel dt { color: var(--ds-color-text-muted); }
+.personnel-detail-grid div, .audit-preview-panel dl div { border-radius: var(--ds-radius-control); background: var(--ds-color-surface-sunken); }
+.personnel-drawer-tabs button { color: var(--ds-color-text-muted); }
+.personnel-drawer-tabs button.active { border-color: var(--ds-color-brand); color: var(--ds-color-brand); }
+.personnel-drawer-empty span, .audit-no-rows span { color: var(--ds-color-brand); }
+
+.access-page-actions button, .access-management-page .account-row-actions button, .account-mobile-card footer button { min-height: var(--ds-size-control); }
+.access-summary-card { padding: var(--ds-space-4); }
+.access-table { min-width: 1000px; border-collapse: collapse; }
+.account-status--active { color: var(--ds-color-success); background: color-mix(in srgb, var(--ds-color-success) 12%, var(--ds-color-surface)); }
+.account-status--pending { color: var(--ds-color-warning); background: color-mix(in srgb, var(--ds-color-warning) 12%, var(--ds-color-surface)); }
+.account-status--suspended, .access-account-state--suspended, .access-account-state--rejected { color: var(--ds-color-danger); background: color-mix(in srgb, var(--ds-color-danger) 12%, var(--ds-color-surface)); }
+.access-account-state--active { color: var(--ds-color-success); background: color-mix(in srgb, var(--ds-color-success) 12%, var(--ds-color-surface)); }
+.access-account-state--pending { color: var(--ds-color-warning); background: color-mix(in srgb, var(--ds-color-warning) 12%, var(--ds-color-surface)); }
+.role-badge { color: var(--ds-color-violet); background: color-mix(in srgb, var(--ds-color-violet) 12%, var(--ds-color-surface)); }
+.reset-badge { color: var(--ds-color-neutral); background: var(--ds-color-surface-sunken); }
+.reset-badge--required { color: var(--ds-color-warning); background: color-mix(in srgb, var(--ds-color-warning) 12%, var(--ds-color-surface)); }
+.account-mobile-card { border-radius: var(--ds-radius-card); }
+.account-mobile-card h2, .account-drawer header h2, .account-modal h2, .account-drawer dd, .drawer-status-grid b { color: var(--ds-color-text); }
+.account-mobile-card p, .account-mobile-label, .account-mobile-card footer small, .account-drawer header p, .account-drawer header span, .account-drawer dt, .drawer-status-grid span, .drawer-security-copy, .account-modal-body > p { color: var(--ds-color-text-muted); }
+.account-mobile-card footer, .account-drawer header, .account-drawer footer, .account-modal header, .account-modal footer, .account-drawer-body section { border-color: var(--ds-color-border); background: var(--ds-color-surface); }
+.account-drawer-body dl div, .drawer-status-grid > div { border-radius: var(--ds-radius-control); background: var(--ds-color-surface-sunken); }
+.account-drawer-body h3 { color: var(--ds-color-text); }
+.drawer-close { border-color: var(--ds-color-border-strong); color: var(--ds-color-text-secondary); background: var(--ds-color-surface); }
+.access-state { border-style: dashed; border-radius: var(--ds-radius-card); background: var(--ds-color-surface); }
+.access-state h2 { color: var(--ds-color-text); }
+.access-state p { color: var(--ds-color-text-muted); }
+.access-notice { border-color: color-mix(in srgb, var(--ds-color-success) 30%, var(--ds-color-border)); border-radius: var(--ds-radius-control); color: var(--ds-color-success); background: color-mix(in srgb, var(--ds-color-success) 8%, var(--ds-color-surface)); }
+.account-modal { border: 1px solid var(--ds-color-border); border-radius: var(--ds-radius-card); background: var(--ds-color-surface); box-shadow: var(--ds-shadow-lg); }
+.account-modal-body label { color: var(--ds-color-text-secondary); }
+.account-modal-body input:not([type="checkbox"]), .account-modal-body select { border-color: var(--ds-color-border-strong); border-radius: var(--ds-radius-control); color: var(--ds-color-text); background: var(--ds-color-surface-sunken); }
+.account-modal-body .access-check input { accent-color: var(--ds-color-brand); }
+.access-dialog-error { border-color: color-mix(in srgb, var(--ds-color-danger) 30%, var(--ds-color-border)); color: var(--ds-color-danger) !important; background: color-mix(in srgb, var(--ds-color-danger) 8%, var(--ds-color-surface)); }
+
+.admin-view .settings-table { min-width: 680px; }
+.settings-table-card { border-radius: var(--ds-radius-card); }
+.line-settings-card { display: grid; gap: var(--ds-space-5); margin-top: 0; border-color: var(--ds-color-border); border-radius: var(--ds-radius-card); padding: var(--ds-space-5); color: var(--ds-color-text); background: var(--ds-color-surface); box-shadow: var(--ds-shadow-sm); }
+.line-settings-title h2 { color: var(--ds-color-text); font-size: var(--ds-font-size-h2); }
+.line-settings-title p, .template-help { color: var(--ds-color-text-muted); }
+.line-secure-grid, .line-template-grid { gap: var(--ds-space-4); }
+.line-settings-card .field-group { color: var(--ds-color-text-secondary); font-size: var(--ds-font-size-body); font-weight: var(--ds-font-weight-semibold); }
+.line-settings-card .field-group .ui-input, .line-settings-card .field-group .ui-textarea { border-color: var(--ds-color-border-strong); border-radius: var(--ds-radius-control); color: var(--ds-color-text); background: var(--ds-color-surface-sunken); }
+.line-settings-card .field-group .ui-textarea { min-height: 168px; padding: var(--ds-space-3); line-height: 1.5; }
+.line-settings-card .field-group small { color: var(--ds-color-text-muted); }
+.template-help code { border-radius: var(--ds-radius-button-small); color: var(--ds-color-brand); background: var(--ds-color-brand-soft); }
+.settings-notice { margin: 0; }
+.report-grid { gap: var(--ds-layout-card-gap); }
+.report-grid .metric-card { border-radius: var(--ds-radius-card); background: var(--ds-color-surface); }
+.report-grid .metric-icon { color: var(--ds-color-brand); background: var(--ds-color-brand-soft); }
+.report-grid .metric-card p, .report-grid .metric-card small { color: var(--ds-color-text-muted); }
+.report-grid .metric-card strong { color: var(--ds-color-text); }
+
+.admin-view button:focus-visible, .personnel-directory-page button:focus-visible,
+.audit-compliance-page button:focus-visible, .access-management-page button:focus-visible,
+.personnel-directory-page input:focus-visible, .personnel-directory-page select:focus-visible,
+.audit-compliance-page input:focus-visible, .audit-compliance-page select:focus-visible {
+  outline: none;
+  box-shadow: var(--ds-focus-ring-shadow);
+}
+.admin-view button:disabled, .personnel-directory-page button:disabled, .audit-compliance-page button:disabled, .access-management-page button:disabled { cursor: not-allowed; }
+
+@media (max-width: 760px) {
+  .admin-view .page-heading { flex-direction: column; }
+  .admin-view .heading-actions { justify-content: flex-start; }
+  .admin-view .toolbar { align-items: stretch; flex-direction: column; }
+  .admin-view .search-box { min-width: 0; width: 100%; }
+  .admin-view .pagination-bar { flex-wrap: wrap; }
+  .personnel-summary-grid, .audit-summary-grid, .access-summary-grid { gap: var(--ds-space-2); }
+  .line-settings-card { padding: var(--ds-space-4); }
+}

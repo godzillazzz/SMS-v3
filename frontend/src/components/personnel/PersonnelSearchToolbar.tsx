@@ -1,9 +1,9 @@
-import { Button, Field, Icon, SelectInput, TextInput } from '../ui/primitives';
+import { Button, Card, Field, Icon, SelectInput, TextInput } from '../ui/primitives';
 
 type Props = { search: string; department: string; status: string; departments: string[]; onSearch(value: string): void; onDepartment(value: string): void; onStatus(value: string): void; onClear(): void };
 export function PersonnelSearchToolbar({ search, department, status, departments, onSearch, onDepartment, onStatus, onClear }: Props) {
   const active = Boolean(search || department || status);
-  return <section className="personnel-search-panel" aria-label="ค้นหาและกรองบุคลากร">
+  return <Card as="section" className="personnel-search-panel" aria-label="ค้นหาและกรองบุคลากร">
     <div className="personnel-search-row">
       <label className="personnel-search-input"><Icon>⌕</Icon><TextInput aria-label="ค้นหาบุคลากร" value={search} onChange={(event) => onSearch(event.target.value)} placeholder="ค้นหารหัส ชื่อ หน่วยงาน หรือตำแหน่ง" /></label>
       <Field label="กรองหน่วยงาน" htmlFor="personnel-department-filter" labelClassName="ui-visually-hidden" className="personnel-search-filter">
@@ -19,5 +19,5 @@ export function PersonnelSearchToolbar({ search, department, status, departments
       {department && <Button type="button" size="compact" onClick={() => onDepartment('')}>หน่วยงาน: {department} ×</Button>}
       {status && <Button type="button" size="compact" onClick={() => onStatus('')}>สถานะ: {status === 'active' ? 'ใช้งาน' : 'ไม่ใช้งาน'} ×</Button>}
     </div>}
-  </section>;
+  </Card>;
 }

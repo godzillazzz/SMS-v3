@@ -70,6 +70,30 @@ export function Badge({ tone = 'neutral', icon, className, children, ...props }:
   </span>;
 }
 
+const statusToneByValue: Record<Exclude<BadgeTone, 'violet'>, ReadonlySet<string>> = {
+  success: new Set(['ACTIVE', 'APPROVED', 'MATCHED', 'DUPLICATE_MATCHED', 'VALID', 'ENABLED', 'PASS', 'PASSED', 'SUCCESS', 'COMPLETED']),
+  warning: new Set(['PENDING', 'UNMATCHED', 'DUPLICATE_UNMATCHED', 'WARNING', 'REVIEW', 'PASSWORD_RESET_REQUIRED']),
+  danger: new Set(['SUSPENDED', 'REJECTED', 'REVOKED', 'INACTIVE', 'EXPIRED', 'MISSING', 'INVALID', 'ERROR', 'FAILED', 'DISABLED', 'CRITICAL']),
+  info: new Set(['INFO', 'INFORMATION', 'MANAGER']),
+  neutral: new Set(['VIEWER', 'CANCELLED', 'CANCELED', 'CLOSED', 'UNKNOWN']),
+};
+
+const statusToneIcon: Record<BadgeTone, string> = {
+  success: '✓', warning: '!', danger: '×', info: 'i', neutral: '•', violet: '♙',
+};
+
+export function statusBadgeTone(value: unknown): BadgeTone {
+  const normalized = String(value ?? '').trim().toUpperCase();
+  if (normalized === 'ADMIN') return 'violet';
+  return (Object.entries(statusToneByValue).find(([, values]) => values.has(normalized))?.[0] as BadgeTone | undefined) || 'neutral';
+}
+
+export type StatusBadgeProps = Omit<BadgeProps, 'tone' | 'icon'> & { value: unknown };
+export function StatusBadge({ value, className, children, ...props }: StatusBadgeProps) {
+  const tone = statusBadgeTone(value);
+  return <Badge {...props} tone={tone} icon={statusToneIcon[tone]} className={className}>{children ?? String(value ?? '—')}</Badge>;
+}
+
 export type CardProps = HTMLAttributes<HTMLElement> & { as?: 'div' | 'article' | 'section' };
 export function Card({ as: Element = 'div', className, children, ...props }: CardProps) {
   const classes = cx('ui-card', className);

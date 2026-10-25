@@ -1,10 +1,10 @@
-import { Button, Icon, SelectInput, TextInput } from '../ui/primitives';
+import { Button, Card, Icon, SelectInput, TextInput } from '../ui/primitives';
 
 type Props = { pageSize: number; onPageSize(value: number): void; search: string; onSearch(value: string): void; onClear(): void; active: boolean };
 export function AuditToolbar({ pageSize, onPageSize, search, onSearch, onClear, active }: Props) {
-  return <section className="audit-toolbar" aria-label="เครื่องมือบันทึกการตรวจสอบ">
+  return <Card as="section" className="audit-toolbar" aria-label="เครื่องมือบันทึกการตรวจสอบ">
     <label className="audit-search"><Icon>⌕</Icon><TextInput aria-label="ค้นหาในหน้าปัจจุบัน" value={search} onChange={(event) => onSearch(event.target.value)} placeholder="ค้นหาการดำเนินการหรือประเภทข้อมูล" /><small>ค้นหาเฉพาะรายการในหน้าปัจจุบัน</small></label>
     <label className="audit-page-size">แสดง<SelectInput aria-label="จำนวนรายการต่อหน้า" value={pageSize} onChange={(event) => onPageSize(Number(event.target.value))}><option value={25}>25</option><option value={50}>50</option><option value={100}>100</option></SelectInput> รายการ</label>
     {active && <Button type="button" variant="neutral" size="small" onClick={onClear}>ล้างคำค้น</Button>}
-  </section>;
+  </Card>;
 }

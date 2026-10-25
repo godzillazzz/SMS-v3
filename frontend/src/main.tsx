@@ -18,13 +18,14 @@ import { PersonnelDirectoryPage } from './pages/personnel/PersonnelDirectoryPage
 import { AuditCompliancePage } from './pages/audit/AuditCompliancePage';
 import { AccessManagementPage } from './pages/access-management/AccessManagementPage';
 import { canLoadAccessManagement } from './components/access-management/access-management-utils';
-import { Button } from './components/ui/primitives';
+import { Alert, Button, Card, DataTable, EmptyState, Field, Icon, Pagination, SelectInput, StatusBadge, TextArea, TextInput } from './components/ui/primitives';
 import { AppearancePanel } from './components/shell/AppearancePanel';
 import { CommandPalette, type PaletteCommand } from './components/shell/CommandPalette';
 import { UserMenu } from './components/shell/UserMenu';
 import { applyAppearancePreferences, readAppearancePreferences, saveAppearancePreferences, type AppearancePreferences } from './components/shell/appearance-preferences';
 import './styles/responsive-shell.css';
 import './styles/shell-controls.css';
+import './styles/admin-views.css';
 
 type User = { id: string; email: string; displayName: string; role: string; department?: string };
 type Employee = { id: string; employeeCode: string; firstName: string; lastName: string; department?: string; jobTitle?: string; isActive: boolean };
@@ -494,7 +495,7 @@ const tablePages: Record<Exclude<Page, 'dashboard' | 'employees' | 'reports' | '
     { label: 'พนักงาน', value: (row) => { const employee = nested(row.employee); return `${text(employee.firstName)} ${text(employee.lastName)}`; } },
     { label: 'รหัส', value: (row) => text(nested(row.employee).employeeCode) }, { label: 'ประเภท', value: (row) => text(row.licenseType) },
     { label: 'เลขที่ใบอนุญาต', value: (row) => text(row.licenseNumber) }, { label: 'วันหมดอายุ', value: (row) => date(row.expiryDate) },
-    { label: 'สถานะ', value: (row) => <span className="status-badge active">{text(row.status)}</span> }
+    { label: 'สถานะ', value: (row) => <StatusBadge value={row.status}>{text(row.status)}</StatusBadge> }
   ] },
   schedule: { title: 'ตารางกะ', eyebrow: 'ตารางและกฎการทำงาน', description: 'ตารางกะย้อนหลังเรียงจากวันที่ล่าสุด', columns: [
     { label: 'วันที่', value: (row) => date(row.workDate) }, { label: 'พนักงาน', value: (row) => text(row.employeeNameSnapshot) },
@@ -503,30 +504,30 @@ const tablePages: Record<Exclude<Page, 'dashboard' | 'employees' | 'reports' | '
   ] },
   approvals: { title: 'อนุมัติตารางกะ', eyebrow: 'ตารางและกฎการทำงาน', description: 'ประวัติสถานะและ revision การอนุมัติตาราง', columns: [
     { label: 'เดือน', value: (row) => date(row.month) }, { label: 'Revision', value: (row) => text(row.revision) },
-    { label: 'สถานะ', value: (row) => <span className="status-badge active">{text(row.status)}</span> },
+    { label: 'สถานะ', value: (row) => <StatusBadge value={row.status}>{text(row.status)}</StatusBadge> },
     { label: 'ประเภทการเปลี่ยน', value: (row) => text(row.changeType) }, { label: 'อนุมัติเมื่อ', value: (row) => date(row.approvedAt) }, { label: 'หมายเหตุ', value: (row) => text(row.approvalNote) }
   ] },
   rules: { title: 'กฎการทำงาน', eyebrow: 'ตารางและกฎการทำงาน', description: 'กฎที่ใช้ตรวจสอบและจัดตารางกำลังคน', columns: [
     { label: 'รหัสกฎ', value: (row) => text(row.ruleId) }, { label: 'ชื่อกฎ', value: (row) => text(row.name) },
     { label: 'ค่า', value: (row) => text(row.value) }, { label: 'หน่วย', value: (row) => text(row.unit) },
-    { label: 'สถานะ', value: (row) => <span className={row.enabled ? 'status-badge active' : 'status-badge inactive'}>{row.enabled ? 'เปิดใช้' : 'ปิดใช้'}</span> }
+    { label: 'สถานะ', value: (row) => <StatusBadge value={row.enabled ? 'ACTIVE' : 'INACTIVE'}>{row.enabled ? 'เปิดใช้' : 'ปิดใช้'}</StatusBadge> }
   ] },
   leave: { title: 'คำขอลา', eyebrow: 'การลา', description: 'ประวัติคำขอลาและสถานะการอนุมัติ', columns: [
     { label: 'พนักงาน', value: (row) => text(row.employeeNameSnapshot) }, { label: 'ประเภท', value: (row) => text(row.leaveType) },
     { label: 'วันที่เริ่ม', value: (row) => date(row.startDate) }, { label: 'วันที่สิ้นสุด', value: (row) => date(row.endDate) },
-    { label: 'จำนวนวัน', value: (row) => text(row.dayCount) }, { label: 'สถานะ', value: (row) => <span className="status-badge active">{text(row.status)}</span> }
+    { label: 'จำนวนวัน', value: (row) => text(row.dayCount) }, { label: 'สถานะ', value: (row) => <StatusBadge value={row.status}>{text(row.status)}</StatusBadge> }
   ] },
   quota: { title: 'โควตาวันลา', eyebrow: 'การลา', description: 'แสดงสิทธิ์ทั้งหมด ใช้แล้ว และคงเหลือจากใบลาที่อนุมัติ', columns: [
     { label: 'พนักงาน', value: (row) => text(row.employeeNameSnapshot) },
     { label: 'ลาป่วย', value: (row) => quotaBalanceText(row.sickLeave, row.sickLeaveUsed) },
     { label: 'ลากิจ', value: (row) => quotaBalanceText(row.personalLeave, row.personalLeaveUsed) },
     { label: 'ลาพักร้อน', value: (row) => quotaBalanceText(row.vacationLeave, row.vacationLeaveUsed) },
-    { label: 'การจับคู่ข้อมูล', value: (row) => quotaMatchStatusText(row.matchStatus) }
+    { label: 'การจับคู่ข้อมูล', value: (row) => <StatusBadge value={row.matchStatus}>{quotaMatchStatusText(row.matchStatus)}</StatusBadge> }
   ] },
   users: { title: 'ผู้ใช้และสิทธิ์', eyebrow: 'ผู้ดูแลระบบ', description: 'บัญชี บทบาท สถานะ และข้อกำหนดเปลี่ยนรหัสผ่าน', columns: [
     { label: 'ชื่อผู้ใช้', value: (row) => text(row.displayName) }, { label: 'อีเมล', value: (row) => text(row.email) },
-    { label: 'บทบาท', value: (row) => text(row.role) }, { label: 'สถานะบัญชี', value: (row) => text(row.accountStatus) },
-    { label: 'เปลี่ยนรหัสผ่าน', value: (row) => row.passwordResetRequired ? 'จำเป็น' : 'ไม่จำเป็น' }
+    { label: 'บทบาท', value: (row) => <StatusBadge value={row.role}>{text(row.role)}</StatusBadge> }, { label: 'สถานะบัญชี', value: (row) => <StatusBadge value={row.accountStatus}>{text(row.accountStatus)}</StatusBadge> },
+    { label: 'เปลี่ยนรหัสผ่าน', value: (row) => <StatusBadge value={row.passwordResetRequired ? 'PASSWORD_RESET_REQUIRED' : 'NORMAL'}>{row.passwordResetRequired ? 'จำเป็น' : 'ไม่จำเป็น'}</StatusBadge> }
   ] },
   audit: { title: 'ประวัติการทำรายการ', eyebrow: 'ผู้ดูแลระบบ', description: 'เหตุการณ์สำคัญของระบบโดยไม่แสดง payload ที่อ่อนไหว', columns: [
     { label: 'เวลา', value: (row) => date(row.createdAt) }, { label: 'เหตุการณ์', value: (row) => text(row.action) },
@@ -556,13 +557,13 @@ function OperationalTable({ page, response, loading, error, onPageChange, onActi
   const canEditRows = canManage && !(['licenses', 'approvals'].includes(page) && role !== 'ADMIN');
   const rowActions = (row: DataRow) => {
     if (!canEditRows || !actionPages.includes(page)) return null;
-    if (page === 'approvals') return <><button className="btn-success compact" onClick={() => onAction(row, 'approve')}>อนุมัติ</button><button className="btn-danger compact" onClick={() => onAction(row, 'reject')}>ไม่อนุมัติ</button></>;
-    if (page === 'leave') return <><button className="btn-success compact" onClick={() => onAction(row, 'approve')}>อนุมัติ</button><button className="btn-danger compact" onClick={() => onAction(row, 'reject')}>ไม่อนุมัติ</button></>;
-    if (page === 'rules') return <><button onClick={() => onAction(row, 'edit')}>แก้ไข</button><button onClick={() => onAction(row, 'toggle')}>{row.enabled ? 'ปิดใช้' : 'เปิดใช้'}</button></>;
-    if (page === 'licenses') return <><button onClick={() => onAction(row, 'edit')}>แก้ไข</button><button className="btn-danger compact" onClick={() => onAction(row, 'delete')}>ลบ</button></>;
-    if (page === 'quota') return <button onClick={() => onAction(row, 'edit')}>แก้ไขโควตา</button>;
-    if (page === 'schedule') return <><button onClick={() => onAction(row, 'edit')}>แก้ไข</button><button onClick={() => onAction(row, 'toggle-lock')}>{row.locked ? 'ปลดล็อก' : 'ล็อก'}</button><button className="btn-danger compact" onClick={() => onAction(row, 'delete')}>ลบ</button></>;
-    return <><button onClick={() => onAction(row, 'edit')}>สิทธิ์</button><button onClick={() => onAction(row, 'reset-password')}>ตั้งรหัสผ่าน</button><button onClick={() => onAction(row, 'toggle-user')}>{row.isActive ? 'ระงับ' : 'เปิดใช้'}</button></>;
+    if (page === 'approvals') return <><Button variant="success" size="compact" onClick={() => onAction(row, 'approve')}>อนุมัติ</Button><Button variant="danger" size="compact" onClick={() => onAction(row, 'reject')}>ไม่อนุมัติ</Button></>;
+    if (page === 'leave') return <><Button variant="success" size="compact" onClick={() => onAction(row, 'approve')}>อนุมัติ</Button><Button variant="danger" size="compact" onClick={() => onAction(row, 'reject')}>ไม่อนุมัติ</Button></>;
+    if (page === 'rules') return <><Button variant="neutral" size="small" onClick={() => onAction(row, 'edit')}>แก้ไข</Button><Button variant="neutral" size="small" onClick={() => onAction(row, 'toggle')}>{row.enabled ? 'ปิดใช้' : 'เปิดใช้'}</Button></>;
+    if (page === 'licenses') return <><Button variant="neutral" size="small" onClick={() => onAction(row, 'edit')}>แก้ไข</Button><Button variant="danger" size="compact" onClick={() => onAction(row, 'delete')}>ลบ</Button></>;
+    if (page === 'quota') return <Button variant="neutral" size="small" onClick={() => onAction(row, 'edit')}>แก้ไขโควตา</Button>;
+    if (page === 'schedule') return <><Button variant="neutral" size="small" onClick={() => onAction(row, 'edit')}>แก้ไข</Button><Button variant="neutral" size="small" onClick={() => onAction(row, 'toggle-lock')}>{row.locked ? 'ปลดล็อก' : 'ล็อก'}</Button><Button variant="danger" size="compact" onClick={() => onAction(row, 'delete')}>ลบ</Button></>;
+    return <><Button variant="neutral" size="small" onClick={() => onAction(row, 'edit')}>สิทธิ์</Button><Button variant="neutral" size="small" onClick={() => onAction(row, 'reset-password')}>ตั้งรหัสผ่าน</Button><Button variant="neutral" size="small" onClick={() => onAction(row, 'toggle-user')}>{row.isActive ? 'ระงับ' : 'เปิดใช้'}</Button></>;
   };
   const showActions = canEditRows && actionPages.includes(page);
   const canCreate = page === 'leave' || (canManage && ['licenses', 'schedule'].includes(page));
@@ -576,7 +577,29 @@ function OperationalTable({ page, response, loading, error, onPageChange, onActi
   const noResultsMessage = page === 'licenses' && tableSearch ? 'ไม่พบใบอนุญาตที่ตรงกับคำค้นหา' : 'ยังไม่มีข้อมูลในหมวดนี้';
   const currentPage = response.meta?.page ?? 1;
   const totalPages = response.meta?.totalPages ?? 0;
-  return <section className="view-pane"><div className="page-heading"><div><p className="eyebrow">{config.eyebrow}</p><h1>{config.title}</h1><p>{config.description}</p></div><div className="heading-actions">{showRelated && <button className="btn-neutral small-action" onClick={() => onNavigate(relatedPage.page)}>{relatedPage.label}</button>}{canCreate && <button className="btn-primary compact" onClick={onCreate}>{page === 'leave' ? '+ ส่งคำขอลา' : '+ เพิ่มรายการ'}</button>}<span className="record-chip">ทั้งหมด {response.meta?.total ?? rows.length} รายการ</span><button className="btn-info small-action" disabled={!visibleRows.length} onClick={() => downloadCsv(visibleRows, page)}>CSV</button><button className="btn-info small-action" onClick={() => window.print()}>พิมพ์ / PDF</button></div></div><ErrorAlert message={error} />{page === 'licenses' && <div className="toolbar"><label className="search-box"><span>⌕</span><input value={tableSearch} onChange={(event) => setTableSearch(event.target.value)} placeholder="ค้นหารหัสพนักงาน ชื่อ เลขที่ใบอนุญาต หรือสถานะ" /></label><span className="toolbar-count">แสดง {visibleRows.length} จาก {rows.length} รายการ</span></div>}<div className="table-card">{loading ? <div className="loading-row" role="status">กำลังอ่านข้อมูล…</div> : <div className="table-scroll"><table className="data-table"><thead><tr>{config.columns.map((column) => <th key={column.label}>{column.label}</th>)}{showActions && <th>ดำเนินการ</th>}</tr></thead><tbody>{visibleRows.length ? visibleRows.map((row, index) => <tr key={text(row.id) + index}>{config.columns.map((column) => <td key={column.label}>{column.value(row)}</td>)}{showActions && <td className="row-actions">{rowActions(row)}</td>}</tr>) : <tr><td colSpan={config.columns.length + (showActions ? 1 : 0)} className="no-rows"><div className="empty-state"><span aria-hidden="true">⌁</span><strong>{noResultsMessage}</strong><p>{page === 'licenses' && tableSearch ? 'ลองเปลี่ยนคำค้นหา หรือล้างตัวกรองแล้วค้นหาอีกครั้ง' : 'เพิ่มข้อมูลรายการแรกเพื่อเริ่มใช้งานหน้านี้'}</p>{canCreate && !(page === 'licenses' && tableSearch) && <button className="btn-neutral small-action" onClick={onCreate}>+ เพิ่มรายการแรก</button>}</div></td></tr>}</tbody></table></div>}</div>{totalPages > 1 && <div className="pagination-bar"><button disabled={currentPage <= 1 || loading} onClick={() => onPageChange(currentPage - 1)}>‹ ก่อนหน้า</button><span>หน้า {currentPage} จาก {totalPages}</span><button disabled={currentPage >= totalPages || loading} onClick={() => onPageChange(currentPage + 1)}>หน้าถัดไป ›</button></div>}</section>;
+  return <section className={`view-pane admin-view admin-view--${page}`}>
+    <div className="page-heading">
+      <div><p className="eyebrow">{config.eyebrow}</p><h1>{config.title}</h1><p>{config.description}</p></div>
+      <div className="heading-actions">
+        {showRelated && <Button variant="neutral" size="small" onClick={() => onNavigate(relatedPage.page)}>{relatedPage.label}</Button>}
+        {canCreate && <Button variant="primary" size="compact" onClick={onCreate}>{page === 'leave' ? '+ ส่งคำขอลา' : '+ เพิ่มรายการ'}</Button>}
+        <span className="record-chip">ทั้งหมด {response.meta?.total ?? rows.length} รายการ</span>
+        <Button variant="info" size="small" disabled={!visibleRows.length} onClick={() => downloadCsv(visibleRows, page)}>CSV</Button>
+        <Button variant="info" size="small" onClick={() => window.print()}>พิมพ์ / PDF</Button>
+      </div>
+    </div>
+    <ErrorAlert message={error} />
+    {page === 'licenses' && <div className="toolbar"><label className="search-box"><Icon>⌕</Icon><TextInput aria-label="ค้นหาใบอนุญาต" value={tableSearch} onChange={(event) => setTableSearch(event.target.value)} placeholder="ค้นหารหัสพนักงาน ชื่อ เลขที่ใบอนุญาต หรือสถานะ" /></label><span className="toolbar-count">แสดง {visibleRows.length} จาก {rows.length} รายการ</span></div>}
+    {loading ? <Card className="table-card admin-table-card" aria-busy="true"><div className="loading-row" role="status">กำลังอ่านข้อมูล…</div></Card> : visibleRows.length ? <Card className="table-card admin-table-card">
+      <DataTable className="data-table" scrollClassName="table-scroll" caption={config.title}>
+        <thead><tr>{config.columns.map((column) => <th key={column.label} scope="col">{column.label}</th>)}{showActions && <th scope="col">ดำเนินการ</th>}</tr></thead>
+        <tbody>{visibleRows.map((row, index) => <tr key={text(row.id) + index}>{config.columns.map((column) => <td key={column.label}>{column.value(row)}</td>)}{showActions && <td className="row-actions">{rowActions(row)}</td>}</tr>)}</tbody>
+      </DataTable>
+    </Card> : <EmptyState icon="⌁" title={noResultsMessage} description={page === 'licenses' && tableSearch ? 'ลองเปลี่ยนคำค้นหา หรือล้างตัวกรองแล้วค้นหาอีกครั้ง' : 'เพิ่มข้อมูลรายการแรกเพื่อเริ่มใช้งานหน้านี้'} className="admin-table-empty">
+      {canCreate && !(page === 'licenses' && tableSearch) && <Button variant="neutral" size="small" onClick={onCreate}>+ เพิ่มรายการแรก</Button>}
+    </EmptyState>}
+    {totalPages > 1 && <Pagination page={currentPage} totalPages={totalPages} onChange={onPageChange} label={`แบ่งหน้าข้อมูล ${config.title}`} previousLabel="‹ ก่อนหน้า" nextLabel="หน้าถัดไป ›" pageLabel={(current, total) => `หน้า ${current} จาก ${total}`} disabled={loading} className="pagination-bar" />}
+  </section>;
 }
 
 const defaultNewLeaveTemplate = `🔔 [คำขอลางานใหม่] รอตรวจรับเอกสาร
@@ -614,19 +637,19 @@ function SettingsPage({ settings, loading, error, onRefresh, onSaveTemplates, on
     catch (reason) { setNotice(reason instanceof Error ? reason.message : 'บันทึกเทมเพลตไม่สำเร็จ'); }
     finally { setSaving(false); }
   };
-  return <section className="view-pane settings-page">
-    <div className="page-heading settings-heading"><div><h1>Settings</h1><p>ตั้งค่าระบบและการแจ้งเตือน โดยไม่เก็บ token หรือความลับไว้ในฐานข้อมูล</p></div><div className="heading-actions"><button className="btn-neutral small-action" disabled={!visibleSettings.length} onClick={() => downloadCsv(visibleSettings, 'smsv3-settings')}>⇧ Export</button><button className="btn-neutral small-action" onClick={onAudit}>Audit Log</button><button className="btn-primary compact" disabled title="SMS v3 ไม่ใช้ Google Sheets เป็นแหล่งข้อมูลหลัก">↻ Google Sheets ถูกยกเลิก</button></div></div>
-    {error && <div className="alert alert-error">{error}</div>}
-    <div className="table-card settings-table-card">{loading ? <div className="loading-row">กำลังอ่านข้อมูล Settings…</div> : <div className="table-scroll"><table className="data-table settings-table"><thead><tr><th>Key</th><th>Value</th><th>Description</th></tr></thead><tbody>{visibleSettings.length ? visibleSettings.map((setting) => <tr key={text(setting.key)}><td><code>{text(setting.key)}</code></td><td>{setting.configured === undefined ? text(setting.value) : <span className={setting.configured ? 'status-badge active' : 'status-badge inactive'}>{setting.configured ? 'Configured' : 'Not configured'}</span>}</td><td>{text(setting.description)}</td></tr>) : <tr><td colSpan={3} className="no-rows">ยังไม่มีข้อมูล Settings ที่นำเข้าจากระบบเดิม</td></tr>}</tbody></table></div>}</div>
-    <section className="line-settings-card">
+  return <section className="view-pane settings-page admin-view">
+    <div className="page-heading settings-heading"><div><h1>Settings</h1><p>ตั้งค่าระบบและการแจ้งเตือน โดยไม่เก็บ token หรือความลับไว้ในฐานข้อมูล</p></div><div className="heading-actions"><Button variant="neutral" size="small" disabled={!visibleSettings.length} onClick={() => downloadCsv(visibleSettings, 'smsv3-settings')}>⇧ Export</Button><Button variant="neutral" size="small" onClick={onAudit}>Audit Log</Button><Button variant="primary" size="compact" disabled title="SMS v3 ไม่ใช้ Google Sheets เป็นแหล่งข้อมูลหลัก">↻ Google Sheets ถูกยกเลิก</Button></div></div>
+    {error && <Alert tone="danger" className="admin-view-error" role="alert" live="assertive">{error}</Alert>}
+    <Card className="table-card settings-table-card admin-table-card">{loading ? <div className="loading-row" role="status">กำลังอ่านข้อมูล Settings…</div> : <DataTable className="data-table settings-table" scrollClassName="table-scroll" caption="Settings"><thead><tr><th scope="col">Key</th><th scope="col">Value</th><th scope="col">Description</th></tr></thead><tbody>{visibleSettings.length ? visibleSettings.map((setting) => <tr key={text(setting.key)}><td><code>{text(setting.key)}</code></td><td>{setting.configured === undefined ? text(setting.value) : <StatusBadge value={setting.configured ? 'ACTIVE' : 'INACTIVE'}>{setting.configured ? 'Configured' : 'Not configured'}</StatusBadge>}</td><td>{text(setting.description)}</td></tr>) : <tr><td colSpan={3} className="no-rows">ยังไม่มีข้อมูล Settings ที่นำเข้าจากระบบเดิม</td></tr>}</tbody></DataTable>}</Card>
+    <Card as="section" className="line-settings-card">
       <div className="line-settings-title"><span>💬</span><div><h2>LINE Notification Settings (ตั้งค่าแจ้งเตือน LINE)</h2><p>รูปแบบเดิมถูกคงไว้ แต่ credential ต้องตั้งค่าที่ Vercel Environment Variables เท่านั้น</p></div></div>
-      <div className="line-secure-grid"><label className="field-group"><span>LINE Access Token / Channel Access Token</span><input type="password" value="••••••••••••••••" disabled aria-label="LINE access token is managed securely" /><small>ไม่แสดงและไม่บันทึก token ในหน้าจอนี้</small></label><label className="field-group"><span>LINE Group ID / Target ID</span><input type="text" value="จัดการผ่าน deployment configuration" disabled /><small>ตั้งค่าจาก Vercel Environment Variables เมื่อเปิดใช้ provider ที่อนุมัติ</small></label></div>
-      <div className="line-template-grid"><label className="field-group"><span>🔔 เทมเพลตคำขอลางานใหม่ (New Leave Request Template)</span><textarea rows={7} value={newLeaveTemplate} onChange={(event) => setNewLeaveTemplate(event.target.value)} maxLength={2000} /></label><label className="field-group"><span>📢 เทมเพลตอัปเดตสถานะใบลา (Leave Status Update Template)</span><textarea rows={7} value={leaveStatusTemplate} onChange={(event) => setLeaveStatusTemplate(event.target.value)} maxLength={2000} /></label></div>
+      <div className="line-secure-grid"><label className="field-group"><span>LINE Access Token / Channel Access Token</span><TextInput type="password" value="••••••••••••••••" disabled aria-label="LINE access token is managed securely" /><small>ไม่แสดงและไม่บันทึก token ในหน้าจอนี้</small></label><label className="field-group"><span>LINE Group ID / Target ID</span><TextInput type="text" value="จัดการผ่าน deployment configuration" disabled /><small>ตั้งค่าจาก Vercel Environment Variables เมื่อเปิดใช้ provider ที่อนุมัติ</small></label></div>
+      <div className="line-template-grid"><label className="field-group"><span>🔔 เทมเพลตคำขอลางานใหม่ (New Leave Request Template)</span><TextArea rows={7} value={newLeaveTemplate} onChange={(event) => setNewLeaveTemplate(event.target.value)} maxLength={2000} /></label><label className="field-group"><span>📢 เทมเพลตอัปเดตสถานะใบลา (Leave Status Update Template)</span><TextArea rows={7} value={leaveStatusTemplate} onChange={(event) => setLeaveStatusTemplate(event.target.value)} maxLength={2000} /></label></div>
       <div className="template-help"><strong>💡 ตัวแปรที่ใช้ในข้อความได้</strong><span><code>{'{Name}'}</code> พนักงาน</span><span><code>{'{Department}'}</code> แผนก</span><span><code>{'{Type}'}</code> ประเภทการลา</span><span><code>{'{Days}'}</code> จำนวนวัน</span><span><code>{'{StartDate}'}</code> / <code>{'{EndDate}'}</code> วันที่ลา</span><span><code>{'{Reason}'}</code> เหตุผล</span><span><code>{'{FileUrl}'}</code> ไฟล์แนบ</span><span><code>{'{Status}'}</code> สถานะ</span></div>
-      {notice && <div className={notice.includes('สำเร็จ') ? 'settings-notice success' : 'settings-notice error'}>{notice}</div>}
-      <div className="line-settings-actions"><button className="btn-primary compact" disabled={saving} onClick={saveTemplates}>💾 {saving ? 'กำลังบันทึก…' : 'บันทึกเทมเพลตการแจ้งเตือน'}</button><button className="btn-neutral small-action" disabled title="การส่ง LINE ยังไม่เปิดใช้ใน staging">🔔 ทดสอบส่งข้อความแจ้งเตือน</button><button className="btn-neutral small-action" onClick={onRefresh}>↻ รีเฟรช</button></div>
+      {notice && <Alert tone={notice.includes('สำเร็จ') ? 'success' : 'danger'} className="settings-notice">{notice}</Alert>}
+      <div className="line-settings-actions"><Button variant="primary" size="compact" disabled={saving} onClick={saveTemplates}>💾 {saving ? 'กำลังบันทึก…' : 'บันทึกเทมเพลตการแจ้งเตือน'}</Button><Button variant="neutral" size="small" disabled title="การส่ง LINE ยังไม่เปิดใช้ใน staging">🔔 ทดสอบส่งข้อความแจ้งเตือน</Button><Button variant="neutral" size="small" onClick={onRefresh}>↻ รีเฟรช</Button></div>
       <p className="line-settings-footnote">สถานะปัจจุบัน: การส่ง LINE ยังไม่เปิดใช้งานใน staging — การบันทึกด้านบนเก็บเฉพาะเทมเพลตที่ไม่มีข้อมูลลับ</p>
-    </section>
+    </Card>
   </section>;
 }
 
@@ -1978,7 +2001,7 @@ function Dashboard() {
     if (activePage === 'reports') {
       const summary = !Array.isArray(operationResponse.data) ? operationResponse.data || {} : {};
       const cards: Array<[string, unknown]> = [['พนักงานทั้งหมด', summary.employees], ['พนักงานที่ใช้งาน', summary.activeEmployees], ['ใบอนุญาต', summary.licenses], ['รายการกะ', summary.shifts], ['คำขอลา', summary.leaveRequests], ['โควตาวันลา', summary.leaveQuotas], ['บัญชีผู้ใช้', summary.users]];
-      return <section className="view-pane"><div className="page-heading"><div><p className="eyebrow">รายงาน</p><h1>รายงานและส่งออก</h1><p>ยอดรวมจากฐานข้อมูลกลาง ณ เวลาที่เปิดหน้านี้</p></div></div>{operationError && <div className="alert alert-error">{operationError}</div>}<div className="metrics-grid report-grid">{operationLoading ? <div className="loading-row">กำลังสรุปข้อมูล…</div> : cards.map(([label, value]) => <article className="metric-card" key={String(label)}><span className="metric-icon blue">▦</span><div><p>{label}</p><strong>{text(value)}</strong><small>รายการใน staging</small></div></article>)}</div></section>;
+      return <section className="view-pane admin-view report-page"><div className="page-heading"><div><p className="eyebrow">รายงาน</p><h1>รายงานและส่งออก</h1><p>ยอดรวมจากฐานข้อมูลกลาง ณ เวลาที่เปิดหน้านี้</p></div></div>{operationError && <Alert tone="danger" className="admin-view-error" role="alert" live="assertive">{operationError}</Alert>}<div className="metrics-grid report-grid">{operationLoading ? <div className="loading-row" role="status">กำลังสรุปข้อมูล…</div> : cards.map(([label, value]) => <Card as="article" className="metric-card" key={String(label)}><Icon className="metric-icon blue">▦</Icon><div><p>{label}</p><strong>{text(value)}</strong><small>รายการจากข้อมูลระบบ</small></div></Card>)}</div></section>;
     }
     return <OperationalTable page={activePage as Exclude<Page, 'dashboard' | 'employees' | 'reports' | 'shiftSetup' | 'settings' | 'leavePending' | 'leaveHistory'>} response={operationResponse} loading={operationLoading} error={operationError} onPageChange={setOperationPage} onAction={handleOperationAction} onCreate={openCreateOperation} onNavigate={setActivePage} role={auth.user?.role || 'VIEWER'} />;
   };
