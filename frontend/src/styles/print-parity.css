@@ -1,0 +1,149 @@
+.report-print-only { display: none; }
+.leave-history-header-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-left: auto; }
+.access-print-error,
+.audit-print-error { margin: 0 0 12px; color: var(--ds-color-danger); font-size: 13px; }
+
+@media print {
+  @page { size: A4 landscape; margin: 10mm 12mm; }
+
+  html,
+  body {
+    background: #fff !important;
+    color: #111 !important;
+    font-family: var(--ds-font-family-print, "Sarabun", "IBM Plex Sans Thai", sans-serif) !important;
+  }
+
+  body.printing-report .app-shell { display: none !important; }
+  body.printing-report .report-print-only { display: block !important; }
+
+  .report-print-only {
+    width: 100% !important;
+    box-sizing: border-box;
+    padding: 0 !important;
+    color: #111 !important;
+    background: #fff !important;
+    font-family: var(--ds-font-family-print, "Sarabun", "IBM Plex Sans Thai", sans-serif) !important;
+    font-size: 9pt !important;
+    line-height: 1.35 !important;
+  }
+
+  .report-print-letterhead {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    padding-bottom: 2mm;
+    border-bottom: 1.5pt solid #111;
+    color: #111 !important;
+    font-size: 9pt;
+  }
+
+  .report-print-letterhead strong { font-size: 12pt; }
+  .report-print-title-row { display: flex; align-items: flex-end; justify-content: space-between; gap: 12mm; margin: 5mm 0 3mm; }
+  .report-print-eyebrow { margin: 0 0 1mm; color: #4b5563 !important; font-size: 8pt; }
+  .report-print-title-row h1 { margin: 0; color: #111 !important; font-size: 17pt; line-height: 1.2; }
+  .report-print-generated { color: #374151 !important; font-size: 8pt; text-align: right; white-space: nowrap; }
+  .report-print-meta { display: flex; justify-content: space-between; gap: 8mm; margin: 0 0 3mm; padding: 2mm 0; border-top: .5pt solid #9ca3af; border-bottom: .5pt solid #9ca3af; color: #374151 !important; font-size: 8pt; }
+
+  .report-print-table,
+  .print-table,
+  .print-legend-table,
+  .leave-print-table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+    color: #111 !important;
+    background: #fff !important;
+    font-family: var(--ds-font-family-print, "Sarabun", "IBM Plex Sans Thai", sans-serif) !important;
+  }
+
+  .report-print-table { table-layout: auto; font-size: 8pt !important; }
+  .report-print-table th,
+  .report-print-table td,
+  .print-table th,
+  .print-table td,
+  .print-legend-table th,
+  .print-legend-table td,
+  .leave-print-table th,
+  .leave-print-table td {
+    padding: 1.3mm 1.5mm !important;
+    border: .5pt solid #525252 !important;
+    color: #111 !important;
+    background: #fff !important;
+    vertical-align: top;
+  }
+
+  .report-print-table th,
+  .print-table th,
+  .print-legend-table th,
+  .leave-print-table th {
+    font-weight: 700 !important;
+    text-align: center;
+  }
+
+  .report-print-table thead,
+  .print-table thead,
+  .print-legend-table thead,
+  .leave-print-table thead { display: table-header-group !important; }
+
+  .report-print-table tr,
+  .print-table tr,
+  .print-legend-table tr,
+  .leave-print-table tr { break-inside: avoid !important; page-break-inside: avoid !important; }
+
+  .report-print-table .status-badge,
+  .report-print-table .badge,
+  .report-print-table [class*="status"],
+  .report-print-status,
+  .print-table .print-legend-badge,
+  .print-table td[class*="shift-cell-"] {
+    border: .75pt solid #111 !important;
+    border-radius: 0 !important;
+    color: #111 !important;
+    background: #fff !important;
+    box-shadow: none !important;
+    font-weight: 700 !important;
+    -webkit-print-color-adjust: economy !important;
+    print-color-adjust: economy !important;
+  }
+
+  .report-print-footer { display: flex; justify-content: space-between; gap: 8mm; margin-top: 4mm; padding-top: 2mm; border-top: .5pt solid #9ca3af; color: #4b5563 !important; font-size: 7pt; }
+
+  .print-page {
+    display: block !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    break-inside: auto !important;
+    page-break-inside: auto !important;
+    break-after: page !important;
+    page-break-after: always !important;
+    color: #111 !important;
+    background: #fff !important;
+    font-family: var(--ds-font-family-print, "Sarabun", "IBM Plex Sans Thai", sans-serif) !important;
+  }
+
+  .print-page:last-child { break-after: auto !important; page-break-after: auto !important; }
+  .print-header { margin: 0 0 2mm !important; padding: 2mm 3mm !important; border: 1pt solid #111 !important; border-radius: 0 !important; color: #111 !important; background: #fff !important; font-size: 10pt !important; }
+  .print-metadata { display: flex !important; justify-content: space-between !important; gap: 5mm !important; margin: 0 0 2mm !important; color: #111 !important; font-size: 7pt !important; }
+  .print-metadata-left,
+  .print-metadata-right { display: flex !important; flex-wrap: wrap !important; gap: 1mm 3mm !important; }
+  .print-filter-note { font-weight: 700; }
+  .print-table { table-layout: fixed !important; font-size: 6.4pt !important; }
+  .print-table th { padding: .9mm .4mm !important; }
+  .print-table td { padding: .75mm .4mm !important; text-align: center; }
+  .print-table td.emp-name-col,
+  .print-table td.emp-role-col { text-align: left; }
+  .print-table .weekend,
+  .print-table .sat,
+  .print-table .sun { color: #111 !important; background: #fff !important; }
+  .print-legend { margin-top: 2mm !important; }
+  .print-legend-table { width: auto !important; font-size: 6.5pt !important; }
+  .print-footer-container { margin-top: 3mm !important; }
+  .print-signatures { display: flex !important; justify-content: flex-end !important; gap: 14mm !important; }
+  .signature-box { width: 30% !important; color: #111 !important; font-size: 7pt !important; }
+
+  body.printing-leave .leave-print-document { font-family: var(--ds-font-family-print, "Sarabun", "IBM Plex Sans Thai", sans-serif) !important; }
+}
+
+@media (max-width: 700px) {
+  .leave-history-header-actions { width: 100%; margin-left: 0; }
+}

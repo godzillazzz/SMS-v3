@@ -7,6 +7,8 @@ import '@fontsource/ibm-plex-sans-thai/700.css';
 import '@fontsource/ibm-plex-mono/400.css';
 import '@fontsource/ibm-plex-mono/500.css';
 import '@fontsource/ibm-plex-mono/600.css';
+import '@fontsource/sarabun/400.css';
+import '@fontsource/sarabun/700.css';
 import { api, setTokenRefreshHandler } from './api';
 import './design-tokens.css';
 import './styles/ui-primitives.css';
@@ -28,6 +30,7 @@ import './styles/shell-controls.css';
 import './styles/admin-views.css';
 import './styles/schedule-workflow.css';
 import './styles/leave-workflow.css';
+import './styles/print-parity.css';
 
 type User = { id: string; email: string; displayName: string; role: string; department?: string };
 type Employee = { id: string; employeeCode: string; firstName: string; lastName: string; department?: string; jobTitle?: string; isActive: boolean };
@@ -36,6 +39,7 @@ type Page = 'dashboard' | 'employees' | 'licenses' | 'shiftSetup' | 'schedule' |
 type Auth = { token?: string; user?: User; originalUser?: User; loading: boolean; error?: string; isViewingAs: boolean; login(email: string, password: string): Promise<void>; logout(): Promise<void>; beginViewAs(userId: string): Promise<void>; endViewAs(): void };
 type DataRow = Record<string, unknown>;
 type DataResponse = { data?: DataRow[] | DataRow; meta?: { total?: number; page?: number; totalPages?: number } };
+type PrintDocument = { kind: 'schedule' | 'table' | 'leave' | 'audit' | 'users'; page: Page; rows?: DataRow[]; calendar?: DataRow; filterNote: string };
 type FormField = { name: string; label: string; type?: 'text' | 'email' | 'password' | 'date' | 'number' | 'select' | 'textarea' | 'file'; required?: boolean; accept?: string; hint?: string; options?: Array<{ value: string; label: string }> };
 type Editor = { title: string; submitLabel: string; fields: FormField[]; values: Record<string, string>; submit(values: Record<string, string>, files: Record<string, File>): Promise<void> };
 
@@ -260,6 +264,20 @@ function Login() {
 }
 
 const text = (value: unknown) => value === null || value === undefined || value === '' ? '-' : String(value);
+const printRoleLabel = (value: unknown) => ({ ADMIN: 'ผู้ดูแลระบบ', MANAGER: 'ผู้จัดการ', VIEWER: 'ผู้ใช้งาน' }[String(value || '')] || text(value));
+const printAccountStatusLabel = (value: unknown) => ({ ACTIVE: 'ใช้งานอยู่', PENDING: 'รออนุมัติ', SUSPENDED: 'ระงับใช้งาน', REJECTED: 'ไม่อนุมัติ' }[String(value || '')] || 'ไม่ระบุ');
+const printAccountAccessLabel = (row: DataRow) => row.accountStatus === 'PENDING' ? 'รออนุมัติ' : row.accountStatus === 'SUSPENDED' || row.isActive === false ? 'ระงับใช้งาน' : row.accountStatus === 'REJECTED' ? 'ไม่อนุมัติ' : row.isActive === true && row.accountStatus === 'ACTIVE' ? 'ใช้งานอยู่' : 'ไม่พร้อมใช้งาน';
+const responseRows = (response: DataResponse) => Array.isArray(response.data) ? response.data : [];
+async function loadAllPages(loadPage: (page: number) => Promise<DataResponse>) {
+  const first = await loadPage(1);
+  const totalPages = Math.max(1, Number(first.meta?.totalPages) || 1);
+  const responses = [first];
+  for (let start = 2; start <= totalPages; start += 8) {
+    const pages = Array.from({ length: Math.min(8, totalPages - start + 1) }, (_, index) => start + index);
+    responses.push(...await Promise.all(pages.map(loadPage)));
+  }
+  return responses.flatMap(responseRows);
+}
 const userFacingError = (value?: string) => {
   if (!value) return undefined;
   return /internal server error|unexpected error|database_client_error/i.test(value)
@@ -535,7 +553,7 @@ const tablePages: Record<Exclude<Page, 'dashboard' | 'employees' | 'reports' | '
   ] }
 };
 
-function OperationalTable({ page, response, loading, error, onPageChange, onAction, onCreate, onNavigate, role }: { page: Exclude<Page, 'dashboard' | 'employees' | 'reports' | 'shiftSetup' | 'settings' | 'leavePending' | 'leaveHistory'>; response: DataResponse; loading: boolean; error?: string; onPageChange(page: number): void; onAction(row: DataRow, action: string): void; onCreate(): void; onNavigate(page: Page): void; role: string }) {
+function OperationalTable({ page, response, loading, error, onPageChange, onAction, onCreate, onNavigate, onPrint, printLoading, printError, role }: { page: Exclude<Page, 'dashboard' | 'employees' | 'reports' | 'shiftSetup' | 'settings' | 'leavePending' | 'leaveHistory'>; response: DataResponse; loading: boolean; error?: string; onPageChange(page: number): void; onAction(row: DataRow, action: string): void; onCreate(): void; onNavigate(page: Page): void; onPrint(search: string): void; printLoading: boolean; printError?: string; role: string }) {
   const config = tablePages[page];
   const rows = Array.isArray(response.data) ? response.data : [];
   const [tableSearch, setTableSearch] = useState('');
@@ -585,9 +603,10 @@ function OperationalTable({ page, response, loading, error, onPageChange, onActi
         {canCreate && <Button variant="primary" size="compact" onClick={onCreate}>{page === 'leave' ? '+ ส่งคำขอลา' : '+ เพิ่มรายการ'}</Button>}
         <span className="record-chip">ทั้งหมด {response.meta?.total ?? rows.length} รายการ</span>
         <Button variant="info" size="small" disabled={!visibleRows.length} onClick={() => downloadCsv(visibleRows, page)}>CSV</Button>
-        <Button variant="info" size="small" onClick={() => window.print()}>พิมพ์ / PDF</Button>
+        <Button variant="info" size="small" disabled={loading || printLoading || (!rows.length && !response.meta?.total)} onClick={() => onPrint(tableSearch)}>{printLoading ? 'กำลังจัดพิมพ์…' : 'พิมพ์ / PDF'}</Button>
       </div>
     </div>
+    <ErrorAlert message={printError} />
     <ErrorAlert message={error} />
     {page === 'licenses' && <div className="toolbar"><label className="search-box"><Icon>⌕</Icon><TextInput aria-label="ค้นหาใบอนุญาต" value={tableSearch} onChange={(event) => setTableSearch(event.target.value)} placeholder="ค้นหารหัสพนักงาน ชื่อ เลขที่ใบอนุญาต หรือสถานะ" /></label><span className="toolbar-count">แสดง {visibleRows.length} จาก {rows.length} รายการ</span></div>}
     {loading ? <Card className="table-card admin-table-card" aria-busy="true"><div className="loading-row" role="status">กำลังอ่านข้อมูล…</div></Card> : visibleRows.length ? <Card className="table-card admin-table-card">
@@ -848,7 +867,7 @@ function ShiftEditorModal({ shift, defaults, employees, shiftTypes, licenses, is
   );
 }
 
-function LeaveManagementPage({ rows, loading, error, linked, remaining, employeeId, canManage, canSubmit, canCancelApprovedLeave, mode = 'all', historyScope = 'mine', employeeOptions, onSubmit, onApprove, onReject, onCancel, onRefresh, onAttachment, onPrint }: { rows: DataRow[]; loading: boolean; error?: string; linked: boolean; remaining: DataRow; employeeId?: string; canManage: boolean; canSubmit: boolean; canCancelApprovedLeave: boolean; mode?: 'all' | 'pending' | 'history'; historyScope?: 'mine' | 'all'; employeeOptions: Array<{ value: string; label: string }>; onSubmit(values: Record<string, string>, file?: File): Promise<void>; onApprove(row: DataRow): void; onReject(row: DataRow): void; onCancel(row: DataRow): void; onRefresh(): void; onAttachment(row: DataRow): void; onPrint(row: DataRow): void }) {
+function LeaveManagementPage({ rows, loading, error, linked, remaining, employeeId, canManage, canSubmit, canCancelApprovedLeave, mode = 'all', historyScope = 'mine', employeeOptions, onSubmit, onApprove, onReject, onCancel, onRefresh, onAttachment, onPrint, onPrintList, printLoading, printError }: { rows: DataRow[]; loading: boolean; error?: string; linked: boolean; remaining: DataRow; employeeId?: string; canManage: boolean; canSubmit: boolean; canCancelApprovedLeave: boolean; mode?: 'all' | 'pending' | 'history'; historyScope?: 'mine' | 'all'; employeeOptions: Array<{ value: string; label: string }>; onSubmit(values: Record<string, string>, file?: File): Promise<void>; onApprove(row: DataRow): void; onReject(row: DataRow): void; onCancel(row: DataRow): void; onRefresh(): void; onAttachment(row: DataRow): void; onPrint(row: DataRow): void; onPrintList(): void; printLoading: boolean; printError?: string }) {
   const [form, setForm] = useState({ employeeId: '', leaveType: '', startDate: '', endDate: '', substitute: '', reason: '' });
   const [file, setFile] = useState<File>();
   const [submitting, setSubmitting] = useState(false);
@@ -940,7 +959,8 @@ function LeaveManagementPage({ rows, loading, error, linked, remaining, employee
       </Card>
 
       <Card as="section" className="leave-history-card">
-        <header><Icon className="leave-history-icon">📋</Icon><div><h2>{mode === 'history' ? 'ประวัติการลาพนักงานทั้งหมด (All Employee Leaves & Print A4)' : 'ประวัติคำขอลาของฉัน (My Leave History)'}</h2><p>{mode === 'history' ? 'สำหรับหัวหน้างานและ Admin ตรวจสอบรายการลาทั้งหมด และพิมพ์ใบลาอนุมัติ' : 'วันที่ลา ประเภทการลา และสถานะคำขอลา'}</p></div>{mode === 'history' && <Button type="button" variant="neutral" size="small" onClick={onRefresh}>↻ รีเฟรชข้อมูล</Button>}</header>
+        <header><Icon className="leave-history-icon">📋</Icon><div><h2>{mode === 'history' ? 'ประวัติการลาพนักงานทั้งหมด (All Employee Leaves & Print A4)' : 'ประวัติคำขอลาของฉัน (My Leave History)'}</h2><p>{mode === 'history' ? 'สำหรับหัวหน้างานและ Admin ตรวจสอบรายการลาทั้งหมด และพิมพ์ใบลาอนุมัติ' : 'วันที่ลา ประเภทการลา และสถานะคำขอลา'}</p></div><div className="leave-history-header-actions">{mode === 'history' && <Button type="button" variant="neutral" size="small" onClick={onRefresh}>↻ รีเฟรชข้อมูล</Button>}<Button type="button" variant="info" size="small" disabled={loading || printLoading} onClick={onPrintList}>{printLoading ? 'กำลังจัดพิมพ์…' : 'พิมพ์รายการ / PDF'}</Button></div></header>
+        <ErrorAlert message={printError} />
         {mode !== 'history' && <><div className="my-leave-quota-heading">โควต้าคงเหลือ</div><div className="my-leave-quota-grid">{quotaCards.map(([icon, label, value, tone]) => <Card as="article" className={`leave-quota-card ${tone}`} key={`my-${label}`}><div><p>{icon} {label}</p><strong>{text(value)}</strong><small>ตามสิทธิ์ประจำปี (วัน)</small></div><Icon className="leave-quota-icon">{icon}</Icon></Card>)}</div></>}
         {loading ? <div className="loading-row" role="status">กำลังดึงประวัติการลา…</div> : leaveTable(historyRows)}
       </Card>
@@ -998,6 +1018,9 @@ function Dashboard() {
   const [operationLoading, setOperationLoading] = useState(false);
   const [operationError, setOperationError] = useState<string>();
   const [leavePrintTarget, setLeavePrintTarget] = useState<DataRow>();
+  const [printDocument, setPrintDocument] = useState<PrintDocument>();
+  const [printLoading, setPrintLoading] = useState(false);
+  const [printError, setPrintError] = useState<string>();
   const [operationPage, setOperationPage] = useState(1);
   const [auditPageSize, setAuditPageSize] = useState(100);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -1092,6 +1115,19 @@ function Dashboard() {
       document.body.classList.remove('printing-leave');
     };
   }, [leavePrintTarget]);
+
+  useEffect(() => {
+    if (!printDocument) return;
+    document.body.classList.add('printing-report');
+    const timer = window.setTimeout(() => window.print(), 120);
+    const finishPrint = () => setPrintDocument(undefined);
+    window.addEventListener('afterprint', finishPrint, { once: true });
+    return () => {
+      window.clearTimeout(timer);
+      window.removeEventListener('afterprint', finishPrint);
+      document.body.classList.remove('printing-report');
+    };
+  }, [printDocument]);
 
   const saveAllDrafts = async () => {
     if (!auth.token || !Object.keys(scheduleDrafts).length) return;
@@ -1459,6 +1495,111 @@ function Dashboard() {
     finally { setOperationLoading(false); }
   };
 
+  const loadPrintRows = async (page: Page) => {
+    const token = auth.token;
+    if (!token) throw new Error('เซสชันหมดอายุ กรุณาเข้าสู่ระบบอีกครั้ง');
+    if (page === 'licenses') return loadAllPages((number) => api.licenses(token, number));
+    if (page === 'schedule') return loadAllPages((number) => api.shifts(token, number));
+    if (page === 'approvals') return loadAllPages((number) => api.scheduleApprovals(token, number));
+    if (page === 'rules') return responseRows(await api.schedulingRules(token));
+    if (page === 'leave' || page === 'leavePending' || page === 'leaveHistory') return loadAllPages((number) => api.leaveRequests(token, number));
+    if (page === 'quota') return loadAllPages((number) => api.leaveQuotas(token, number));
+    if (page === 'users') return responseRows(await api.users(token));
+    if (page === 'audit') return loadAllPages((number) => api.auditEvents(token, number, auditPageSize));
+    throw new Error('หน้านี้ยังไม่มีข้อมูลสำหรับพิมพ์');
+  };
+
+  const printOperationalTable = async (page: Page, searchTerm = '') => {
+    setPrintError(undefined);
+    setPrintLoading(true);
+    try {
+      let rows = await loadPrintRows(page);
+      const term = searchTerm.trim().toLowerCase();
+      if (page === 'licenses' && term) {
+        rows = rows.filter((row) => {
+          const employee = nested(row.employee);
+          return [employee.employeeCode, employee.firstName, employee.lastName, employee.department, row.licenseType, row.licenseNumber, row.status, row.remark].map(text).join(' ').toLowerCase().includes(term);
+        });
+      }
+      const filterNote = page === 'licenses' && term ? `ตัวกรอง: ${searchTerm.trim()}` : 'แสดงรายการทั้งหมดในขอบเขตข้อมูลที่ระบบส่งกลับ';
+      setPrintDocument({ kind: 'table', page, rows, filterNote });
+    } catch (reason) {
+      setPrintError(reason instanceof Error ? reason.message : 'เตรียมเอกสารพิมพ์ไม่สำเร็จ');
+    } finally {
+      setPrintLoading(false);
+    }
+  };
+
+  const printLeaveList = async () => {
+    setPrintError(undefined);
+    setPrintLoading(true);
+    try {
+      let rows = await loadPrintRows(activePage);
+      let filterNote = 'ประวัติการลาทั้งหมดที่บัญชีนี้ได้รับอนุญาตให้ดู';
+      if (activePage === 'leavePending') {
+        rows = rows.filter((row) => row.status === 'PENDING');
+        filterNote = 'ตัวกรอง: คำขอลาที่รออนุมัติ';
+      } else if (activePage === 'leave') {
+        const currentEmployeeId = String(leaveSummary.employeeId || '');
+        rows = currentEmployeeId ? rows.filter((row) => String(row.employeeId || '') === currentEmployeeId) : [];
+        filterNote = 'ตัวกรอง: ประวัติคำขอลาของบัญชีที่ผูกกับพนักงาน';
+      }
+      setPrintDocument({ kind: 'leave', page: activePage, rows, filterNote });
+    } catch (reason) {
+      setPrintError(reason instanceof Error ? reason.message : 'เตรียมเอกสารพิมพ์ไม่สำเร็จ');
+    } finally {
+      setPrintLoading(false);
+    }
+  };
+
+  const printAuditLog = async (searchTerm: string) => {
+    setPrintError(undefined);
+    setPrintLoading(true);
+    try {
+      const term = searchTerm.trim().toLowerCase();
+      let rows = await loadPrintRows('audit');
+      if (term) rows = rows.filter((row) => [row.action, row.entityType, nested(row.actor).displayName, nested(row.actor).role].map((value) => String(value ?? '')).join(' ').toLowerCase().includes(term));
+      setPrintDocument({ kind: 'audit', page: 'audit', rows, filterNote: term ? `ตัวกรอง: ${searchTerm.trim()}` : 'แสดงบันทึกทั้งหมดในขอบเขตข้อมูลที่บัญชีนี้ได้รับอนุญาต' });
+    } catch (reason) {
+      setPrintError(reason instanceof Error ? reason.message : 'เตรียมเอกสารพิมพ์ไม่สำเร็จ');
+    } finally {
+      setPrintLoading(false);
+    }
+  };
+
+  const printUsers = (rows: DataRow[]) => {
+    setPrintError(undefined);
+    setPrintDocument({ kind: 'users', page: 'users', rows, filterNote: 'บัญชีผู้ใช้ที่ระบบส่งกลับภายใต้สิทธิ์ของบัญชีปัจจุบัน' });
+  };
+
+  const printScheduleCalendar = async () => {
+    if (!auth.token) return;
+    setPrintError(undefined);
+    setPrintLoading(true);
+    try {
+      const loadPage = (page: number) => api.scheduleCalendar(auth.token!, scheduleMonth, page, scheduleDepartment);
+      const first = await loadPage(1);
+      const totalPages = Math.max(1, Number(first.meta?.totalPages) || 1);
+      const responses = [first];
+      for (let start = 2; start <= totalPages; start += 8) {
+        const pages = Array.from({ length: Math.min(8, totalPages - start + 1) }, (_, index) => start + index);
+        responses.push(...await Promise.all(pages.map(loadPage)));
+      }
+      const calendar = nested(first.data);
+      const employeesForMonth = responses.flatMap((response) => {
+        const pageCalendar = nested(response.data);
+        return Array.isArray(pageCalendar.employees) ? pageCalendar.employees as DataRow[] : [];
+      });
+      const allCalendarRows = { ...calendar, employees: employeesForMonth };
+      const filterNote = selectedDepartments.length ? `ตัวกรองหน่วยงาน: ${selectedDepartments.join(', ')}` : 'ตัวกรองหน่วยงาน: ทั้งหมด';
+      setPrintDocument({ kind: 'schedule', page: 'schedule', calendar: allCalendarRows, filterNote });
+    } catch (reason) {
+      setPrintError(reason instanceof Error ? reason.message : 'เตรียมเอกสารตารางกะไม่สำเร็จ');
+    } finally {
+      setPrintLoading(false);
+    }
+  };
+
   const content = () => {
     if (activePage === 'dashboard') return <DashboardPage summary={dashboardSummary} loading={dashboardLoading} error={dashboardError} user={auth.user} canManage={canManage} onNavigate={setActivePage} />;
     // The former inline dashboard is intentionally disabled. DashboardPage above
@@ -1643,7 +1784,7 @@ function Dashboard() {
     if (activePage === 'employees') return <PersonnelDirectoryPage employees={employees} totalCount={totalCount} loading={empLoading} error={fetchError} canManage={canManage} role={auth.user?.role || 'VIEWER'} searchValue={search} onSearchValueChange={setSearch} onAdd={() => openEmployeeEditor()} onEdit={openEmployeeEditor} onDeactivate={async (employee) => { if (!auth.token || !window.confirm('ยืนยันการปิดใช้งานพนักงานรายการนี้?')) return; try { await api.deleteEmployee(auth.token, employee.id); setEmployeeRefresh((value) => value + 1); } catch (reason) { setFetchError(reason instanceof Error ? reason.message : 'ปิดใช้งานพนักงานไม่สำเร็จ'); } }} onRefresh={() => setEmployeeRefresh((value) => value + 1)} />;
     if (activePage === 'audit') {
       const auditRows = Array.isArray(operationResponse.data) ? operationResponse.data : [];
-      return <AuditCompliancePage rows={auditRows} total={operationResponse.meta?.total ?? auditRows.length} page={operationResponse.meta?.page || operationPage} totalPages={operationResponse.meta?.totalPages || 1} pageSize={auditPageSize} loading={operationLoading} error={operationError} permissionDenied={auth.user?.role !== 'ADMIN'} onRefresh={() => setOperationRefresh((value) => value + 1)} onPageChange={setOperationPage} onPageSize={(value) => { setAuditPageSize(value); setOperationPage(1); }} onExport={(rows) => downloadCsv(rows as DataRow[], 'audit-events')} onPrint={() => window.print()} />;
+      return <AuditCompliancePage rows={auditRows} total={operationResponse.meta?.total ?? auditRows.length} page={operationResponse.meta?.page || operationPage} totalPages={operationResponse.meta?.totalPages || 1} pageSize={auditPageSize} loading={operationLoading} error={operationError} printLoading={printLoading} printError={printError} permissionDenied={auth.user?.role !== 'ADMIN'} onRefresh={() => setOperationRefresh((value) => value + 1)} onPageChange={setOperationPage} onPageSize={(value) => { setAuditPageSize(value); setOperationPage(1); }} onExport={(rows) => downloadCsv(rows as DataRow[], 'audit-events')} onPrint={printAuditLog} />;
     }
     if (activePage === 'shiftSetup') return (
       <section className="view-pane shift-setup-page">
@@ -1769,10 +1910,11 @@ function Dashboard() {
             {auth.user?.role === 'ADMIN' && !auth.isViewingAs && <Button variant="neutral" size="small" onClick={() => setActivePage('approvals')}>ประวัติการอนุมัติ</Button>}
             {approval.status === 'APPROVED' && <>
               <Button variant="success" size="small" className="excel-action" disabled={scheduleExportBusy} onClick={exportApprovedExcel}>▦ {scheduleExportBusy ? 'กำลังสร้าง Excel…' : `Export Excel${selectedDepartments.length ? ` · ${selectedDepartments.length} แผนก` : ''}`}</Button>
-              <Button variant="info" size="small" onClick={() => window.print()}>📄 Export PDF</Button>
+              <Button variant="info" size="small" disabled={printLoading} onClick={printScheduleCalendar}>{printLoading ? 'กำลังเตรียม PDF…' : '📄 Export PDF'}</Button>
             </>}
           </div>
         </div>
+        <ErrorAlert message={printError} />
         <Card className={`approval-banner schedule-approval-card ${approval.status === 'APPROVED' ? 'approved schedule-approval-card--approved' : 'pending'}`}>
           <div className="schedule-approval-copy">
             <StatusBadge value={approval.status}>{approval.status === 'APPROVED' ? 'Approved' : 'Pending Approval'} · {monthLabel}</StatusBadge>
@@ -1999,7 +2141,7 @@ function Dashboard() {
       const rows = Array.isArray(operationResponse.data) ? operationResponse.data : [];
       const remaining = nested(leaveSummary.remaining);
         const canCancelApprovedLeave = auth.user?.role === 'ADMIN';
-        return <LeaveManagementPage mode={activePage === 'leavePending' ? 'pending' : activePage === 'leaveHistory' ? 'history' : 'all'} historyScope={activePage === 'leaveHistory' ? 'all' : 'mine'} employeeId={String(leaveSummary.employeeId || '')} rows={rows} loading={operationLoading} error={operationError} linked={Boolean(leaveSummary.linked)} remaining={remaining} canManage={canManage} canSubmit={auth.user?.role !== 'VIEWER' || Boolean(leaveSummary.linked)} canCancelApprovedLeave={canCancelApprovedLeave} employeeOptions={employeeOptions} onRefresh={() => setOperationRefresh((value) => value + 1)} onApprove={(row) => handleOperationAction(row, 'approve')} onReject={(row) => handleOperationAction(row, 'reject')} onCancel={(row) => handleOperationAction(row, 'cancel')} onPrint={setLeavePrintTarget} onAttachment={async (row) => { if (!auth.token) return; try { const result = await api.downloadLeaveAttachment(auth.token, String(row.id)); const url = URL.createObjectURL(result.blob); window.open(url, '_blank', 'noopener,noreferrer'); window.setTimeout(() => URL.revokeObjectURL(url), 60000); } catch (reason) { setOperationError(reason instanceof Error ? reason.message : 'เปิดไฟล์แนบไม่สำเร็จ'); } }} onSubmit={async (form, file) => { if (!auth.token) return; if (file) await api.createLeaveRequestWithAttachment(auth.token, form, file); else await api.createLeaveRequest(auth.token, form); setOperationRefresh((value) => value + 1); }} />;
+        return <LeaveManagementPage mode={activePage === 'leavePending' ? 'pending' : activePage === 'leaveHistory' ? 'history' : 'all'} historyScope={activePage === 'leaveHistory' ? 'all' : 'mine'} employeeId={String(leaveSummary.employeeId || '')} rows={rows} loading={operationLoading} error={operationError} printLoading={printLoading} printError={printError} linked={Boolean(leaveSummary.linked)} remaining={remaining} canManage={canManage} canSubmit={auth.user?.role !== 'VIEWER' || Boolean(leaveSummary.linked)} canCancelApprovedLeave={canCancelApprovedLeave} employeeOptions={employeeOptions} onRefresh={() => setOperationRefresh((value) => value + 1)} onPrintList={printLeaveList} onApprove={(row) => handleOperationAction(row, 'approve')} onReject={(row) => handleOperationAction(row, 'reject')} onCancel={(row) => handleOperationAction(row, 'cancel')} onPrint={setLeavePrintTarget} onAttachment={async (row) => { if (!auth.token) return; try { const result = await api.downloadLeaveAttachment(auth.token, String(row.id)); const url = URL.createObjectURL(result.blob); window.open(url, '_blank', 'noopener,noreferrer'); window.setTimeout(() => URL.revokeObjectURL(url), 60000); } catch (reason) { setOperationError(reason instanceof Error ? reason.message : 'เปิดไฟล์แนบไม่สำเร็จ'); } }} onSubmit={async (form, file) => { if (!auth.token) return; if (file) await api.createLeaveRequestWithAttachment(auth.token, form, file); else await api.createLeaveRequest(auth.token, form); setOperationRefresh((value) => value + 1); }} />;
     }
     if (activePage === 'rules') {
       const rules = Array.isArray(operationResponse.data) ? operationResponse.data : [];
@@ -2021,6 +2163,9 @@ function Dashboard() {
         rows={users as Array<{ id: string; displayName?: string; role?: string; department?: string | null; accountStatus?: string; isActive?: boolean; passwordResetRequired?: boolean; createdAt?: string; updatedAt?: string }>}
         loading={operationLoading}
         error={operationError}
+        printLoading={printLoading}
+        printError={printError}
+        onPrint={() => printUsers(users)}
         role={auth.user?.role || 'VIEWER'}
         originalUserId={auth.originalUser?.id}
         onRefresh={() => setOperationRefresh((value) => value + 1)}
@@ -2039,12 +2184,12 @@ function Dashboard() {
       const cards: Array<[string, unknown]> = [['พนักงานทั้งหมด', summary.employees], ['พนักงานที่ใช้งาน', summary.activeEmployees], ['ใบอนุญาต', summary.licenses], ['รายการกะ', summary.shifts], ['คำขอลา', summary.leaveRequests], ['โควตาวันลา', summary.leaveQuotas], ['บัญชีผู้ใช้', summary.users]];
       return <section className="view-pane admin-view report-page"><div className="page-heading"><div><p className="eyebrow">รายงาน</p><h1>รายงานและส่งออก</h1><p>ยอดรวมจากฐานข้อมูลกลาง ณ เวลาที่เปิดหน้านี้</p></div></div>{operationError && <Alert tone="danger" className="admin-view-error" role="alert" live="assertive">{operationError}</Alert>}<div className="metrics-grid report-grid">{operationLoading ? <div className="loading-row" role="status">กำลังสรุปข้อมูล…</div> : cards.map(([label, value]) => <Card as="article" className="metric-card" key={String(label)}><Icon className="metric-icon blue">▦</Icon><div><p>{label}</p><strong>{text(value)}</strong><small>รายการจากข้อมูลระบบ</small></div></Card>)}</div></section>;
     }
-    return <OperationalTable page={activePage as Exclude<Page, 'dashboard' | 'employees' | 'reports' | 'shiftSetup' | 'settings' | 'leavePending' | 'leaveHistory'>} response={operationResponse} loading={operationLoading} error={operationError} onPageChange={setOperationPage} onAction={handleOperationAction} onCreate={openCreateOperation} onNavigate={setActivePage} role={auth.user?.role || 'VIEWER'} />;
+    return <OperationalTable page={activePage as Exclude<Page, 'dashboard' | 'employees' | 'reports' | 'shiftSetup' | 'settings' | 'leavePending' | 'leaveHistory'>} response={operationResponse} loading={operationLoading} error={operationError} printLoading={printLoading} printError={printError} onPrint={(query) => printOperationalTable(activePage, query)} onPageChange={setOperationPage} onAction={handleOperationAction} onCreate={openCreateOperation} onNavigate={setActivePage} role={auth.user?.role || 'VIEWER'} />;
   };
 
   const printData = useMemo(() => {
     if (activePage !== 'schedule') return null;
-    const calendar = !Array.isArray(operationResponse.data) ? operationResponse.data || {} : {};
+    const calendar = printDocument?.kind === 'schedule' ? printDocument.calendar || {} : !Array.isArray(operationResponse.data) ? operationResponse.data || {} : {};
     const dates = Array.isArray(calendar.dates) ? calendar.dates.map(String) : [];
     const rawCalendarEmployees = Array.isArray(calendar.employees) ? calendar.employees as DataRow[] : [];
     const allCalendarEmployees = [...rawCalendarEmployees].sort((a, b) => (String(a.employeeCode || '')).localeCompare(String(b.employeeCode || ''), undefined, { numeric: true }));
@@ -2057,15 +2202,19 @@ function Dashboard() {
     const monthNameOnly = new Intl.DateTimeFormat('th-TH', { month: 'long', timeZone: 'UTC' }).format(new Date(Date.UTC(Number(yStr), Number(mStr) - 1, 1)));
     const printMonthLabel = `${monthNameOnly} ${thaiYearNum}`;
     const printDepartments = Array.from(new Set(calendarEmployees.map((e) => String(e.department || '')))).sort();
+    if (!printDepartments.length) printDepartments.push('');
 
     return {
       dates,
       calendarEmployees,
       approval,
       printMonthLabel,
-      printDepartments
+      printDepartments,
+      filterNote: printDocument?.kind === 'schedule' ? printDocument.filterNote : 'ตัวกรองหน่วยงาน: ทั้งหมด'
     };
-  }, [activePage, operationResponse, selectedDepartments, scheduleMonth]);
+  }, [activePage, operationResponse, printDocument, selectedDepartments, scheduleMonth]);
+
+  const reportPrintConfig = printDocument?.kind === 'table' ? tablePages[printDocument.page as keyof typeof tablePages] : undefined;
 
   return (
     <>
@@ -2125,6 +2274,7 @@ function Dashboard() {
               <div className="print-metadata">
                 <div className="print-metadata-left">
                   <span>แผนก: <strong>{dept || 'ทั่วไป'}</strong></span>
+                  <span className="print-filter-note">{printData.filterNote}</span>
                   <span style={{ marginLeft: '12px' }}>Revision: <strong>{text(printData.approval.revision || 1)}</strong></span>
                   <span style={{ marginLeft: '12px' }}>อนุมัติโดย: <strong>{text(printData.approval.approvedBy || printData.approval.approvedByDisplayName || 'Admin')}</strong></span>
                   <span style={{ marginLeft: '12px' }}>วันที่อนุมัติ: <strong>{printData.approval.approvedAt ? formatApprovalDateTime(printData.approval.approvedAt) : '-'}</strong></span>
@@ -2233,6 +2383,36 @@ function Dashboard() {
           );
         })}
       </div>
+    )}
+    {printDocument && printDocument.kind !== 'schedule' && (
+      <section className="report-print-only" aria-hidden="true">
+        <header className="report-print-letterhead"><strong>SMS v3</strong><span>Security Management System</span></header>
+        <div className="report-print-title-row">
+          <div>
+            <p className="report-print-eyebrow">รายงานจากระบบ</p>
+            <h1>{printDocument.kind === 'table' ? reportPrintConfig?.title : printDocument.kind === 'leave' ? 'รายการคำขอลา' : printDocument.kind === 'audit' ? 'บันทึกการตรวจสอบและการกำกับดูแล' : 'ผู้ใช้และสิทธิ์'}</h1>
+          </div>
+          <div className="report-print-generated">พิมพ์เมื่อ<br /><strong>{formatApprovalDateTime(new Date())}</strong></div>
+        </div>
+        <div className="report-print-meta"><span>{printDocument.filterNote}</span><strong>{printDocument.rows?.length || 0} รายการ</strong></div>
+        {printDocument.kind === 'table' && reportPrintConfig && <table className="report-print-table">
+          <thead><tr><th scope="col">ลำดับ</th>{reportPrintConfig.columns.map((column) => <th scope="col" key={column.label}>{column.label}</th>)}</tr></thead>
+          <tbody>{(printDocument.rows || []).map((row, index) => <tr key={`${text(row.id)}-${index}`}><td>{index + 1}</td>{reportPrintConfig.columns.map((column) => <td key={column.label}>{column.value(row)}</td>)}</tr>)}</tbody>
+        </table>}
+        {printDocument.kind === 'leave' && <table className="report-print-table">
+          <thead><tr><th scope="col">ลำดับ</th><th scope="col">พนักงาน</th><th scope="col">ประเภทการลา</th><th scope="col">วันที่ลา</th><th scope="col">วัน</th><th scope="col">ผู้ปฏิบัติงานแทน</th><th scope="col">เหตุผล</th><th scope="col">สถานะ</th></tr></thead>
+          <tbody>{(printDocument.rows || []).map((row, index) => <tr key={`${text(row.id)}-${index}`}><td>{index + 1}</td><td>{text(row.employeeNameSnapshot)}</td><td>{text(row.leaveType)}</td><td>{date(row.startDate)} – {date(row.endDate)}</td><td>{text(row.dayCount)}</td><td>{text(row.substitute || row.substituteName)}</td><td>{text(row.reason)}</td><td><strong className="report-print-status">{text(row.status)}</strong></td></tr>)}</tbody>
+        </table>}
+        {printDocument.kind === 'audit' && <table className="report-print-table">
+          <thead><tr><th scope="col">ลำดับ</th><th scope="col">วันและเวลา</th><th scope="col">ผู้ดำเนินการ</th><th scope="col">บทบาท</th><th scope="col">เหตุการณ์</th><th scope="col">ประเภทข้อมูล</th></tr></thead>
+          <tbody>{(printDocument.rows || []).map((row, index) => <tr key={`${text(row.id)}-${index}`}><td>{index + 1}</td><td>{formatApprovalDateTime(row.createdAt)}</td><td>{text(nested(row.actor).displayName)}</td><td>{text(nested(row.actor).role)}</td><td><strong className="report-print-status">{text(row.action)}</strong></td><td>{text(row.entityType)}</td></tr>)}</tbody>
+        </table>}
+        {printDocument.kind === 'users' && <table className="report-print-table">
+          <thead><tr><th scope="col">ลำดับ</th><th scope="col">ชื่อที่แสดง</th><th scope="col">บทบาท</th><th scope="col">หน่วยงาน</th><th scope="col">สถานะบัญชี</th><th scope="col">สถานะใช้งาน</th><th scope="col">ความปลอดภัย</th><th scope="col">อัปเดตล่าสุด</th></tr></thead>
+          <tbody>{(printDocument.rows || []).map((row, index) => <tr key={`${text(row.id)}-${index}`}><td>{index + 1}</td><td>{text(row.displayName) === '-' ? 'ไม่ระบุชื่อ' : text(row.displayName)}</td><td>{printRoleLabel(row.role)}</td><td>{text(row.department) === '-' ? 'ไม่ระบุหน่วยงาน' : text(row.department)}</td><td><strong className="report-print-status">{printAccountStatusLabel(row.accountStatus)}</strong></td><td><strong className="report-print-status">{printAccountAccessLabel(row)}</strong></td><td>{row.passwordResetRequired ? 'ต้องตั้งรหัสผ่านใหม่' : 'ปกติ'}</td><td>{date(row.updatedAt || row.createdAt)}</td></tr>)}</tbody>
+        </table>}
+        <footer className="report-print-footer"><span>Security Management System · ข้อมูลตามสิทธิ์และตัวกรองที่ระบุ</span><span>เอกสารจาก SMS v3</span></footer>
+      </section>
     )}
     {leavePrintTarget && <LeavePrintDocument row={leavePrintTarget} />}
     </>

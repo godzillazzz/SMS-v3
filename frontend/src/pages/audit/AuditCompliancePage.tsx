@@ -8,16 +8,17 @@ import { Button, EmptyState, Pagination } from '../../components/ui/primitives';
 import { filterAuditEvents, summarizeAuditEvents } from '../../components/audit/audit-utils';
 import '../../styles/audit-compliance.css';
 
-type Props = { rows: AuditEvent[]; total: number; page?: number; totalPages?: number; pageSize?: number; loading: boolean; error?: string; permissionDenied?: boolean; onRefresh(): void; onPageChange(page: number): void; onPageSize(value: number): void; onExport(rows: AuditEvent[]): void; onPrint(): void };
+type Props = { rows: AuditEvent[]; total: number; page?: number; totalPages?: number; pageSize?: number; loading: boolean; error?: string; printLoading: boolean; printError?: string; permissionDenied?: boolean; onRefresh(): void; onPageChange(page: number): void; onPageSize(value: number): void; onExport(rows: AuditEvent[]): void; onPrint(search: string): void };
 
-export function AuditCompliancePage({ rows, total, page = 1, totalPages = 1, pageSize = 100, loading, error, permissionDenied, onRefresh, onPageChange, onPageSize, onExport, onPrint }: Props) {
+export function AuditCompliancePage({ rows, total, page = 1, totalPages = 1, pageSize = 100, loading, error, printLoading, printError, permissionDenied, onRefresh, onPageChange, onPageSize, onExport, onPrint }: Props) {
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState<AuditEvent>();
   const filtered = useMemo(() => filterAuditEvents(rows, search), [rows, search]);
   const { categories, actors } = summarizeAuditEvents(rows);
 
   return <section className="audit-compliance-page" aria-label="Audit and Compliance">
-    <AuditPageHeader total={total} onRefresh={onRefresh} onExport={() => onExport(filtered)} onPrint={onPrint} authorized={!permissionDenied} loading={loading} hasError={Boolean(error)} hasRows={rows.length > 0} />
+    <AuditPageHeader total={total} onRefresh={onRefresh} onExport={() => onExport(filtered)} onPrint={() => onPrint(search)} printLoading={printLoading} authorized={!permissionDenied} loading={loading} hasError={Boolean(error)} hasRows={total > 0 || rows.length > 0} />
+    {printError && <p className="audit-print-error" role="alert">เตรียมเอกสารพิมพ์ไม่สำเร็จ: {printError}</p>}
     {!permissionDenied && !error && <AuditSummaryGrid total={total} pageCount={rows.length} categories={categories} actors={actors} loading={loading} />}
     {permissionDenied ? <EmptyState icon="⛨" title="ไม่มีสิทธิ์เข้าถึงบันทึกการตรวจสอบ" description="บัญชีนี้ไม่ได้รับอนุญาตให้ดูข้อมูล Audit & Compliance" className="audit-state audit-state--permission" /> : error ? <EmptyState icon="!" title="ไม่สามารถโหลดบันทึกการตรวจสอบ" description="ระบบไม่พร้อมใช้งานชั่วคราว กรุณาลองใหม่อีกครั้ง" className="audit-state" role="alert" aria-live="assertive">
       <Button type="button" variant="neutral" size="small" onClick={onRefresh}>ลองใหม่</Button>
