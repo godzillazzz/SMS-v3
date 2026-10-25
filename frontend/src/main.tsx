@@ -1822,6 +1822,8 @@ function Dashboard() {
   }, [activePage]);
   const [operationRefresh, setOperationRefresh] = useState(0);
   const [ruleFocusDate, setRuleFocusDate] = useState('');
+  const [rosterSearch, setRosterSearch] = useState('');
+  const [railExpanded, setRailExpanded] = useState(() => { try { return localStorage.getItem('sms-v3-rail-expanded') === '1'; } catch { return false; } });
   const [approvalSummary, setApprovalSummary] = useState<ApprovalCountSummary | null>(null);
   const [approvalCountStatus, setApprovalCountStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
   const [registrationReviewInitialRequestId, setRegistrationReviewInitialRequestId] = useState<string>();
@@ -2949,9 +2951,13 @@ function Dashboard() {
       const dates = Array.isArray(calendar.dates) ? calendar.dates.map(String) : [];
       const rawCalendarEmployees = Array.isArray(calendar.employees) ? calendar.employees as DataRow[] : [];
       const allCalendarEmployees = sortScheduleEmployeesByDepartment(rawCalendarEmployees);
-      const calendarEmployees = selectedDepartments.length > 0
+      const departmentEmployees = selectedDepartments.length > 0
         ? allCalendarEmployees.filter((emp) => selectedDepartments.includes(text(emp.department)))
         : allCalendarEmployees;
+      const rosterTerm = rosterSearch.trim().toLowerCase();
+      const calendarEmployees = rosterTerm
+        ? departmentEmployees.filter((emp) => [emp.displayName, emp.firstName, emp.lastName, emp.employeeCode].map(text).join(' ').toLowerCase().includes(rosterTerm))
+        : departmentEmployees;
       const todayScheduleDate = bangkokDateInput();
       const approval = nested(calendar.approval);
       const [yStr, mStr] = scheduleMonth.split('-');
@@ -3107,6 +3113,7 @@ function Dashboard() {
                 {autoScheduleBusy ? 'กำลังคำนวณ…' : '✨ ดูตัวอย่างจัดกะอัตโนมัติ'}
               </button>
             )}
+            <label className="roster-search"><SmsIcon name="search" size={16} /><span className="sr-only">ค้นหาพนักงานในตาราง</span><input type="search" value={rosterSearch} onChange={(event) => setRosterSearch(event.target.value)} placeholder="ค้นหาพนักงานในตาราง" /></label>
             <span className="toolbar-count" style={{ marginLeft: 'auto' }}>{operationLoading ? 'แสดง — จาก — คน' : `แสดง ${calendarEmployees.length} จาก ${allCalendarEmployees.length} คน`}</span>
           </div>
 
@@ -3403,6 +3410,7 @@ function Dashboard() {
       /></React.Suspense>}
       <div
         id={pwaShell ? undefined : 'sms-app'}
+        data-rail={railExpanded ? 'expanded' : undefined}
         className={`app-shell ${desktopView ? 'desktop-view' : ''} ${auth.isViewingAs ? 'view-as-active' : ''} ${pwaShell ? `pwa-shell pwa-page-${activePage}` : ''}`}
         style={{ backgroundColor: 'var(--surface-page, #020813)', color: 'var(--text-on-surface, #f1f5f9)' }}
       >
@@ -3429,6 +3437,7 @@ function Dashboard() {
           })}</div>
         ))}</nav>
         <div className="sidebar-footer">
+          <button type="button" className="sidebar-rail-toggle" aria-pressed={railExpanded} onClick={() => setRailExpanded((value) => { const next = !value; try { localStorage.setItem('sms-v3-rail-expanded', next ? '1' : '0'); } catch { /* best effort */ } return next; })}><SmsIcon name="menu" size={18} /><span>{railExpanded ? 'ย่อเมนู' : 'ขยายเมนู'}</span></button>
           <div className="sidebar-user sidebar-profile"><span className="avatar">{initials}</span><span><b>{auth.user?.displayName || 'ผู้ใช้งาน'}</b><small>{roleDisplayName(auth.user?.role || 'VIEWER')}</small></span></div>
           <button type="button" className="sidebar-logout" onClick={() => auth.logout()}><SmsIcon name="logout" size={18} /><span>ออกจากระบบ</span></button>
         </div>

@@ -130,3 +130,24 @@
 #sms-app .schedule-legend__chip.is-blocked { border: 2px solid #b91c1c; }
 #sms-app .schedule-legend__chip.is-blocked::after { content: ""; position: absolute; top: -3px; right: -3px; width: 8px; height: 8px; border-radius: 50%; background: #b91c1c; }
 #sms-app .schedule-calendar-page .approval-banner .btn-primary { border-color: #047857 !important; background: #047857 !important; }
+/* 07 #3: month, filters and search sit in one quiet row (no card chrome). */
+#sms-app .schedule-calendar-page .schedule-workbench > :is(header, .layout-section-card__header) { left: 16px !important; top: 12px !important; }
+#sms-app .schedule-calendar-page .schedule-workbench { position: relative; padding: 0 !important; border: 0 !important; background: transparent !important; box-shadow: none !important; }
+#sms-app .schedule-calendar-page .schedule-workbench .roster-month-label { margin: 0 0 6px !important; color: var(--color-text) !important; font-size: 12px !important; font-weight: 500 !important; }
+#sms-app .schedule-calendar-page .roster-search { display: inline-flex; align-items: center; gap: 8px; min-width: 240px; min-height: 40px; padding: 0 12px; border: 1px solid var(--color-border); border-radius: 10px; background: var(--color-surface); color: var(--color-text-muted); }
+#sms-app .schedule-calendar-page .roster-search input { flex: 1; min-width: 0; border: 0 !important; background: transparent !important; color: var(--color-text) !important; outline: none; box-shadow: none !important; }
+
+/* 07 #1: on the monthly roster the menu is an icon rail; the button at the bottom expands it (remembered). */
+@media (min-width:1024px){
+#sms-app:has(.schedule-calendar-page) .sidebar-rail-toggle{display:flex;align-items:center;gap:10px;width:100%;min-height:40px;margin-bottom:8px;padding:0 12px;border:1px solid var(--color-sidebar-border);border-radius:10px;background:transparent;color:var(--sidebar-item);cursor:pointer}
+#sms-app:has(.schedule-calendar-page):not([data-rail=expanded]) .main-area{margin-left:76px!important;width:auto!important;max-width:none!important}
+#sms-app:has(.schedule-calendar-page):not([data-rail=expanded]) .sidebar{width:76px!important;padding-inline:10px!important}
+#sms-app:has(.schedule-calendar-page):not([data-rail=expanded]) .sidebar :is(.nav-section>p,.nav-item>span:not(.nav-icon),.sidebar-user>span:not(.avatar),.sidebar-logout>span,.sidebar-rail-toggle>span){position:absolute!important;width:1px!important;height:1px!important;overflow:hidden!important;clip-path:inset(50%)!important;white-space:nowrap!important}
+#sms-app:has(.schedule-calendar-page):not([data-rail=expanded]) .sidebar :is(.nav-item,.sidebar-rail-toggle){position:relative;justify-content:center;width:56px!important;margin-inline:auto!important;padding-inline:0!important}
+#sms-app:has(.schedule-calendar-page):not([data-rail=expanded]) .sidebar .nav-menu{scrollbar-width:none;padding-inline:0!important}
+#sms-app:has(.schedule-calendar-page):not([data-rail=expanded]) .sidebar .nav-menu::-webkit-scrollbar{display:none}
+#sms-app:has(.schedule-calendar-page):not([data-rail=expanded]) .sidebar-brand{justify-content:center;padding-inline:0!important}
+#sms-app:has(.schedule-calendar-page):not([data-rail=expanded]) .sidebar-brand picture{width:44px;overflow:hidden}
+#sms-app:has(.schedule-calendar-page):not([data-rail=expanded]) .sidebar-brand img{max-width:none;object-fit:cover;object-position:left}
+#sms-app:has(.schedule-calendar-page):not([data-rail=expanded]) .nav-count-badge{position:absolute;top:2px;right:4px;transform:scale(.8)}
+}
