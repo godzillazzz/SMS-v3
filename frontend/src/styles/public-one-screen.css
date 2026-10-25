@@ -19,7 +19,7 @@
 
 .nexus-onescreen .nexus-nav { position: relative; }
 .nexus-onescreen .nexus-nav__inner { min-height: var(--os-nav); }
-.nexus-onescreen .nexus-brand .sms-brand-logo img { height: 44px; width: auto; }
+.nexus-onescreen .nexus-brand .sms-brand-logo img { height: 40px; width: auto; }
 .nexus-onescreen__register {
   min-height: 40px;
   padding: 0 18px;

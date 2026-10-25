@@ -23,7 +23,7 @@ export function AwardPublicExperience({ showLanding, renderLogo, accessContent, 
   if (!showLanding) return null;
 
   return (
-    <div className="nexus-public nexus-onescreen" data-design="sms-command-nexus-one-screen">
+    <div className="nexus-public nexus-onescreen" data-design="sms-command-nexus-full-bleed" data-layout="one-screen">
       <div className="nexus-grid-field" aria-hidden="true" />
       <div className="nexus-ambient nexus-ambient--north" aria-hidden="true" />
       <div className="nexus-ambient nexus-ambient--east" aria-hidden="true" />

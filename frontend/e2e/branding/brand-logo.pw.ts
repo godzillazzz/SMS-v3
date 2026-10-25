@@ -26,7 +26,8 @@ for(const theme of ['light','dark'] as const)for(const width of [1366,375])test(
  await page.setViewportSize({width,height:812});await page.addInitScript(value=>localStorage.setItem('sms-v3-theme',value),theme);await mock(page);
  await page.goto('/');await expect(page.locator('.nexus-public #auth-login-form')).toBeVisible();
  await checkBrand(page.locator('.nexus-brand'),'dark',width===375?32:40);
- await checkBrand(page.locator(width===375?'.auth-mobile-brand':'.intro-brand.auth-brand'),'dark',width===375?32:40);
+ // One-screen landing (L-01…L-05): the nav logo is the single brand mark; the auth card no longer repeats it.
+ await expect(page.locator(width===375?'.auth-mobile-brand':'.intro-brand.auth-brand').locator('.sms-brand-logo img').filter({visible:true})).toHaveCount(0);
  await expect(page.locator('a.nexus-brand')).toHaveAttribute('href','#overview');
  await page.locator('#email').fill('brand@example.test');await page.locator('#password').fill('synthetic-brand-password');await page.locator('#auth-login-form button[type=submit]').click();await expect(page.locator('.app-shell')).toBeVisible();
  if(width===375)await checkBrand(page.locator('.mobile-brand'),theme,32);
