@@ -247,7 +247,7 @@ for (const viewport of [{ label: 'desktop', width: 1366, height: 768 }, { label:
   await expect(page.getByRole('heading', { name: 'ศูนย์อนุมัติคำขอ' })).toBeVisible();
   await openNavigation(page, viewport.width);
   if (viewport.width <= 760) await page.locator('.sidebar-close-button').click();
-  await page.getByRole('button', { name: 'อนุมัติทันที', exact: true }).first().click();
+  await page.getByRole('button', { name: 'อนุมัติ…', exact: true }).first().click();
   const dialog = page.getByRole('dialog');
   await expect(dialog).toBeVisible();
   const summaryRequestsBeforeApprove = decisionSummaryRequests;
