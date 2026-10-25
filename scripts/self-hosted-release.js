@@ -153,6 +153,18 @@ function verifyRelease(release, rollbackTarget, options = {}) {
   return { release: root, manifest, backend_inventory_digest: backendInventory.digest, frontend_inventory_digest: frontendInventory.digest };
 }
 
+function archiveCommit(repo, sha, destination) {
+  const archivePath = path.join(destination, '.release.tar');
+  const fd = fs.openSync(archivePath, 'w', 0o600);
+  try {
+    const result = require('node:child_process').spawnSync('git', ['archive', '--format=tar', sha], { cwd: repo, stdio: ['ignore', fd, 'pipe'], encoding: 'utf8', maxBuffer: 1024 * 1024 });
+    if (result.error) throw result.error;
+    if (result.status !== 0) fail(`git archive failed (${result.status}): ${(result.stderr || '').trim()}`);
+    execFileSync('tar', ['-xf', archivePath, '-C', destination]);
+  } finally { fs.closeSync(fd); fs.rmSync(archivePath, { force: true }); }
+}
+function build(args) { const repo = path.resolve(args.repo || process.cwd()); const output = path.resolve(required(args, 'output')); const identity = args.identity || `${os.userInfo().username}@${os.hostname()}`; const git = gitSha(repo, required(args, 'sha')); const releaseName = `sms-v3-${git.sha}`; const release = path.join(output, releaseName); if (fs.existsSync(release)) fail(`release already exists: ${release}`); fs.mkdirSync(output, { recursive: true }); const stage = fs.mkdtempSync(path.join(output, `.sms-v3-release-stage-${process.pid}-`)); try { fs.mkdirSync(release, { recursive: true }); archiveCommit(repo, git.sha, stage); const backend = path.join(release, 'backend'); fs.cpSync(stage, backend, { recursive: true }); run('npm', ['ci', '--omit=dev', '--ignore-scripts'], backend); run('npx', ['prisma', 'generate'], backend); const frontend = path.join(stage, 'frontend'); run('npm', ['ci', '--ignore-scripts'], frontend); run('npm', ['run', 'build'], frontend); fs.mkdirSync(path.join(release, 'frontend'), { recursive: true }); fs.cpSync(path.join(frontend, 'dist'), path.join(release, 'frontend', 'dist'), { recursive: true }); const bi = inventory(backend, p => p === 'node_modules' || p.startsWith('node_modules/')); const fi = inventory(path.join(release, 'frontend', 'dist')); const manifest = { schema_version: SCHEMA_VERSION, release_id: releaseName, git_sha: git.sha, tree_sha: git.tree, build_identity: identity, toolchain: { node: process.version, npm: run('npm', ['--version'], repo, { stdio: 'pipe' }) }, backend_inventory_digest: bi.digest, frontend_inventory_digest: fi.digest, storage_compatibility: { mode: COMPATIBILITY, database_authoritative: true, mixed_provider_reads: true, providers: PROVIDERS, migrations: 'not-run-by-release-cutover' }, previous_rollback_release: args['previous-release'] || null, asset_hashes: fi.entries }; manifest.manifest_sha256 = manifestDigest(manifest); fs.writeFileSync(path.join(release, 'release-manifest.json'), json(manifest), { mode: 0o644 }); process.stdout.write(`RELEASE_BUILD=PASS\nRELEASE_DIR=${release}\nMANIFEST_SHA256=${manifest.manifest_sha256}\n`); } finally { fs.rmSync(stage, { recursive: true, force: true }); } }
+
 function runtimeIntegration(app, web, pointer) {
   for (const [name, target] of [['backend', app], ['frontend', web]]) {
     let stat;

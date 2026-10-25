@@ -33,6 +33,13 @@ const opts = f => ({ repo: f.repo, trustedManifestSha256: f.manifest.manifest_sh
 const rollbackOpts = (f, r) => ({ repo: f.repo, trustedManifestSha256: f.manifest.manifest_sha256, trustedRollbackManifestSha256: r.manifest.manifest_sha256, parentBoundary: f.root, rollbackParentBoundary: r.root });
 function cli(f, args) { const release = args[args.indexOf('--release') + 1]; const rollback = args.indexOf('--rollback-target'); const extra = rollback >= 0 ? ['--rollback-parent-boundary', path.dirname(args[rollback + 1])] : []; return spawnSync(process.execPath, [path.join(__dirname, '..', 'scripts/self-hosted-release.js'), ...args, '--parent-boundary', release, ...extra], { encoding: 'utf8' }); }
 
+test('routes the build command into the restored build implementation', () => {
+  const result = spawnSync(process.execPath, [path.join(__dirname, '..', 'scripts/self-hosted-release.js'), 'build', '--sha', 'not-a-valid-sha'], { encoding: 'utf8' });
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /--output is required/);
+  assert.doesNotMatch(result.stderr, /build is not defined/);
+});
+
 test('enforces readable release permissions and rejects unsafe modes', () => {
   const f = fixture();
   try {
