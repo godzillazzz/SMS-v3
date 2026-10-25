@@ -40,10 +40,12 @@ describe('ApprovalCenterPage confirm before approve (audit AC-01)', () => {
 
     render(<ApprovalCenterPage token="t" role="ADMIN" onChanged={vi.fn()} onOpenEmployeeChange={vi.fn()} onNavigate={vi.fn()} onLeaveDecision={vi.fn()} />);
 
-    const [approve] = await screen.findAllByRole('button', { name: 'อนุมัติ…' });
+    expect(screen.queryByRole('button', { name: 'อนุมัติ…' })).toBeNull();
+    fireEvent.click((await screen.findAllByRole('button', { name: 'พิจารณา' }))[0]);
+    const approve = await screen.findByRole('button', { name: 'อนุมัติ…' });
     fireEvent.click(approve);
     expect(await screen.findByText('อนุมัติเอกสารใบอนุญาต?')).toBeTruthy();
-    expect(screen.getByText(/มีผลกับการตรวจสิทธิ์ตอนจัดกะ/)).toBeTruthy();
+    expect(document.getElementById('sms-action-dialog-description')?.textContent).toMatch(/มีผลกับการตรวจสิทธิ์ตอนจัดกะ/);
     expect(mocks.approveLicenseDocument).not.toHaveBeenCalled();
 
     fireEvent.click(screen.getByRole('button', { name: 'ยืนยันอนุมัติ' }));
@@ -57,10 +59,34 @@ describe('ApprovalCenterPage confirm before approve (audit AC-01)', () => {
     });
     mocks.getApprovalCenterSummary.mockResolvedValue({ summary: { total: 1, byType: { LICENSE_DOCUMENT: 1 } } });
     render(<ApprovalCenterPage token="t" role="ADMIN" onChanged={vi.fn()} onOpenEmployeeChange={vi.fn()} onNavigate={vi.fn()} onLeaveDecision={vi.fn()} />);
-    const [approve] = await screen.findAllByRole('button', { name: 'อนุมัติ…' });
+    expect(screen.queryByRole('button', { name: 'อนุมัติ…' })).toBeNull();
+    fireEvent.click((await screen.findAllByRole('button', { name: 'พิจารณา' }))[0]);
+    const approve = await screen.findByRole('button', { name: 'อนุมัติ…' });
     fireEvent.click(approve);
     fireEvent.click(await screen.findByRole('button', { name: 'ยกเลิก' }));
     await waitFor(() => expect(screen.queryByText('อนุมัติเอกสารใบอนุญาต?')).toBeNull());
     expect(mocks.approveLicenseDocument).not.toHaveBeenCalled();
+  });
+
+  it('opens the W-02 decision panel with facts and consequence; rows never decide directly', async () => {
+    mocks.getApprovalCenter.mockResolvedValue({
+      data: [{ id: 'row-3', requestId: 'req-3', type: 'LEAVE_REQUEST', title: 'ลาพักร้อน', status: 'PENDING', sourcePage: 'leavePending', submittedAt: '2026-10-21T00:00:00.000Z', ageHours: 50, urgency: 'OVERDUE', sla: { overdueHours: 2 },
+        metadata: { leaveType: 'ลาพักร้อน', startDate: '2026-10-26', endDate: '2026-10-28', dayCount: 3, substitute: 'ประเสริฐ มั่นคง' },
+        employee: { id: 'e3', displayName: 'อรุณี แสงทอง', employeeCode: 'SG-0031', department: 'บางนา' } }],
+      summary: { total: 1 }
+    });
+    mocks.getApprovalCenterSummary.mockResolvedValue({ summary: { total: 1, byType: { LEAVE_REQUEST: 1 } } });
+    render(<ApprovalCenterPage token="t" role="ADMIN" onChanged={vi.fn()} onOpenEmployeeChange={vi.fn()} onNavigate={vi.fn()} onLeaveDecision={vi.fn()} />);
+    expect(await screen.findAllByRole('button', { name: 'พิจารณา' })).toBeTruthy();
+    expect(screen.queryByRole('complementary', { name: /อรุณี แสงทอง/ })).toBeNull();
+    fireEvent.click(screen.getAllByRole('button', { name: 'พิจารณา' })[0]);
+    const panel = await screen.findByRole('complementary', { name: 'อรุณี แสงทอง · คำขอลา' });
+    expect(panel.textContent).toContain('ประเสริฐ มั่นคง');
+    expect(panel.textContent).toContain('3 วัน');
+    expect(panel.textContent).toContain('ถ้าอนุมัติ');
+    expect(panel.textContent).toContain('ลง AL แทนกะเดิม');
+    expect(panel.querySelector('.approval-action-button--approve')).toBeTruthy();
+    fireEvent.keyDown(panel, { key: 'Escape' });
+    await waitFor(() => expect(screen.queryByRole('complementary', { name: 'อรุณี แสงทอง · คำขอลา' })).toBeNull());
   });
 });
