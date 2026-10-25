@@ -5,19 +5,48 @@ const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
 const os = require('node:os');
-const { execFileSync, spawnSync } = require('node:child_process');
+const { execFileSync } = require('node:child_process');
 
 const SCHEMA_VERSION = 1;
 const PROVIDERS = ['supabase', 's3'];
 const COMPATIBILITY = 'postgres-authoritative-mixed-provider-read-v1';
 const SHA = /^[0-9a-f]{40}$/;
 const DIGEST = /^[0-9a-f]{64}$/;
+const PERMISSION_CONTRACT = Object.freeze({ directoryMode: 0o755, fileMode: 0o644, readableByOther: true, writableByGroupOrOther: false });
 const rel = p => p.split(path.sep).join('/');
 const sha256 = bytes => crypto.createHash('sha256').update(bytes).digest('hex');
 const json = value => JSON.stringify(value, null, 2) + '\n';
 function fail(message) { throw new Error(`self-hosted release: ${message}`); }
 function run(command, args, cwd, options = {}) { const output = execFileSync(command, args, { cwd, stdio: options.stdio || 'inherit', encoding: options.encoding || 'utf8' }); return typeof output === 'string' ? output.trim() : ''; }
 function contained(root, candidate) { const r = path.resolve(root); const c = path.resolve(candidate); return c === r || c.startsWith(`${r}${path.sep}`); }
+function permissionFailure(file, message) { fail(`unsafe filesystem permissions at ${file}: ${message}`); }
+function validateRuntimePermissions(root) {
+  const base = path.resolve(root);
+  function visit(file) {
+    let stat; try { stat = fs.lstatSync(file); } catch { permissionFailure(file, 'missing path'); }
+    if (stat.isSymbolicLink()) permissionFailure(file, 'symlinks are not allowed inside a release');
+    const mode = stat.mode & 0o7777;
+    if (stat.isDirectory()) {
+      if (mode !== PERMISSION_CONTRACT.directoryMode) permissionFailure(file, `directory mode must be 0755 (got ${mode.toString(8).padStart(4, '0')})`);
+      for (const entry of fs.readdirSync(file)) visit(path.join(file, entry));
+    } else if (stat.isFile()) {
+      if (mode !== PERMISSION_CONTRACT.fileMode) permissionFailure(file, `file mode must be 0644 (got ${mode.toString(8).padStart(4, '0')})`);
+    } else permissionFailure(file, 'only regular files and directories are allowed');
+  }
+  visit(base); return true;
+}
+function validateParentTraversal(file, boundary = '/') {
+  let current = path.resolve(file); const stop = path.resolve(boundary);
+  if (!contained(stop, current)) permissionFailure(stop, 'configured boundary is not an ancestor of the target');
+  while (true) {
+    let stat; try { stat = fs.lstatSync(current); } catch { permissionFailure(current, 'missing parent'); }
+    if (!stat.isDirectory()) permissionFailure(current, 'parent is not a directory');
+    const mode = stat.mode & 0o7777;
+    if (mode !== PERMISSION_CONTRACT.directoryMode) permissionFailure(current, 'runtime readers need exact 0755 non-writable read/execute traversal');
+    const parent = path.dirname(current); if (current === stop || parent === current) break; current = parent;
+  }
+  return true;
+}
 const procFd = fd => `/proc/self/fd/${fd}`;
 const closeFd = fd => { try { fs.closeSync(fd); } catch (error) { if (error.code !== 'EBADF') throw error; } };
 const noFollow = fs.constants.O_NOFOLLOW || 0;
@@ -117,12 +146,13 @@ function verifyRelease(release, rollbackTarget, options = {}) {
   verifyProvenance(manifest, options.repo);
   if (manifest.storage_compatibility?.mode !== COMPATIBILITY || manifest.storage_compatibility.database_authoritative !== true || manifest.storage_compatibility.mixed_provider_reads !== true) fail('release is incompatible with MinIO mixed-provider reads');
   if (!Array.isArray(manifest.storage_compatibility.providers) || PROVIDERS.some(p => !manifest.storage_compatibility.providers.includes(p))) fail('release does not support both Supabase and MinIO/S3 reads');
-  mandatoryChecks(root); const backendInventory = inventory(path.join(root, 'backend'), p => p === 'node_modules' || p.startsWith('node_modules/')); const frontendInventory = inventory(path.join(root, 'frontend', 'dist'));
+  validateParentTraversal(root, options.parentBoundary || '/'); validateRuntimePermissions(root); mandatoryChecks(root); const backendInventory = inventory(path.join(root, 'backend'), p => p === 'node_modules' || p.startsWith('node_modules/')); const frontendInventory = inventory(path.join(root, 'frontend', 'dist'));
   if (backendInventory.digest !== manifest.backend_inventory_digest) fail('backend inventory digest mismatch'); if (frontendInventory.digest !== manifest.frontend_inventory_digest) fail('frontend inventory digest mismatch');
   for (const asset of manifest.asset_hashes || []) { if (!asset || typeof asset.path !== 'string' || asset.path.includes('..') || path.isAbsolute(asset.path)) fail('manifest asset path traversal'); const assetPath = path.join(root, 'frontend', 'dist', asset.path); if (!contained(path.join(root, 'frontend', 'dist'), assetPath) || sha256(safeRead(assetPath, path.join(root, 'frontend', 'dist'))) !== asset.sha256) fail(`frontend asset hash mismatch: ${asset.path}`); }
-  if (rollbackTarget) verifyRelease(rollbackTarget, null, { ...options, trustedManifestSha256: options.trustedRollbackManifestSha256 });
+  if (rollbackTarget) verifyRelease(rollbackTarget, null, { ...options, parentBoundary: options.rollbackParentBoundary || (options.parentBoundary && contained(options.parentBoundary, rollbackTarget) ? options.parentBoundary : rollbackTarget), trustedManifestSha256: options.trustedRollbackManifestSha256 });
   return { release: root, manifest, backend_inventory_digest: backendInventory.digest, frontend_inventory_digest: frontendInventory.digest };
 }
+
 function archiveCommit(repo, sha, destination) {
   const archivePath = path.join(destination, '.release.tar');
   const fd = fs.openSync(archivePath, 'w', 0o600);
@@ -134,6 +164,7 @@ function archiveCommit(repo, sha, destination) {
   } finally { fs.closeSync(fd); fs.rmSync(archivePath, { force: true }); }
 }
 function build(args) { const repo = path.resolve(args.repo || process.cwd()); const output = path.resolve(required(args, 'output')); const identity = args.identity || `${os.userInfo().username}@${os.hostname()}`; const git = gitSha(repo, required(args, 'sha')); const releaseName = `sms-v3-${git.sha}`; const release = path.join(output, releaseName); if (fs.existsSync(release)) fail(`release already exists: ${release}`); fs.mkdirSync(output, { recursive: true }); const stage = fs.mkdtempSync(path.join(output, `.sms-v3-release-stage-${process.pid}-`)); try { fs.mkdirSync(release, { recursive: true }); archiveCommit(repo, git.sha, stage); const backend = path.join(release, 'backend'); fs.cpSync(stage, backend, { recursive: true }); run('npm', ['ci', '--omit=dev', '--ignore-scripts'], backend); run('npx', ['prisma', 'generate'], backend); const frontend = path.join(stage, 'frontend'); run('npm', ['ci', '--ignore-scripts'], frontend); run('npm', ['run', 'build'], frontend); fs.mkdirSync(path.join(release, 'frontend'), { recursive: true }); fs.cpSync(path.join(frontend, 'dist'), path.join(release, 'frontend', 'dist'), { recursive: true }); const bi = inventory(backend, p => p === 'node_modules' || p.startsWith('node_modules/')); const fi = inventory(path.join(release, 'frontend', 'dist')); const manifest = { schema_version: SCHEMA_VERSION, release_id: releaseName, git_sha: git.sha, tree_sha: git.tree, build_identity: identity, toolchain: { node: process.version, npm: run('npm', ['--version'], repo, { stdio: 'pipe' }) }, backend_inventory_digest: bi.digest, frontend_inventory_digest: fi.digest, storage_compatibility: { mode: COMPATIBILITY, database_authoritative: true, mixed_provider_reads: true, providers: PROVIDERS, migrations: 'not-run-by-release-cutover' }, previous_rollback_release: args['previous-release'] || null, asset_hashes: fi.entries }; manifest.manifest_sha256 = manifestDigest(manifest); fs.writeFileSync(path.join(release, 'release-manifest.json'), json(manifest), { mode: 0o644 }); process.stdout.write(`RELEASE_BUILD=PASS\nRELEASE_DIR=${release}\nMANIFEST_SHA256=${manifest.manifest_sha256}\n`); } finally { fs.rmSync(stage, { recursive: true, force: true }); } }
+
 function runtimeIntegration(app, web, pointer) {
   for (const [name, target] of [['backend', app], ['frontend', web]]) {
     let stat;
@@ -144,7 +175,7 @@ function runtimeIntegration(app, web, pointer) {
   }
   if (!fs.existsSync(pointer) || !fs.lstatSync(pointer).isSymbolicLink()) fail(`shared pointer is missing or is not a symlink: ${pointer}`);
 }
-function cutover(args) { const release = path.resolve(required(args, 'release')); const app = path.resolve(args.app || '/opt/sms-v3/app'); const web = path.resolve(args.webroot || '/var/www/sms'); const pointer = path.resolve(args.pointer || path.join(path.dirname(app), '.sms-v3-current')); verifyRelease(release, args['rollback-target'] && path.resolve(args['rollback-target']), { trustedManifestSha256: required(args, 'trusted-manifest-sha256'), trustedRollbackManifestSha256: args['rollback-target'] ? required(args, 'trusted-rollback-manifest-sha256') : undefined, repo: path.resolve(required(args, 'repo')) }); if (!args.apply || args['operator-gate'] !== 'I_UNDERSTAND_ATOMIC_SELF_HOSTED_CUTOVER') { process.stdout.write(`CUTOVER=DRY_RUN\nRELEASE_DIR=${release}\nSHARED_POINTER=${pointer}\nAPP_POINTER=${app}\nWEBROOT_POINTER=${web}\nMANDATORY_CHECKS=PASS\nOPERATOR_GATE_REQUIRED=I_UNDERSTAND_ATOMIC_SELF_HOSTED_CUTOVER\n`); return; } runtimeIntegration(app, web, pointer); const old = fs.readlinkSync(pointer); const staged = `${pointer}.next-${process.pid}`; fs.symlinkSync(release, staged, 'dir'); try { fs.renameSync(staged, pointer); mandatoryChecks(release); if (path.resolve(fs.realpathSync(pointer)) !== release) fail('shared pointer check failed'); process.stdout.write('CUTOVER=PASS\nMANDATORY_CHECKS=PASS\n'); } catch (error) { if (fs.existsSync(staged)) fs.unlinkSync(staged); const restore = `${pointer}.restore-${process.pid}`; fs.symlinkSync(old, restore, 'dir'); fs.renameSync(restore, pointer); throw error; } }
-function main() { const args = parseArgs(process.argv.slice(2)); try { if (args._[0] === 'build') build(args); else if (args._[0] === 'verify') { const result = verifyRelease(required(args, 'release'), args['rollback-target'] && path.resolve(args['rollback-target']), { trustedManifestSha256: required(args, 'trusted-manifest-sha256'), trustedRollbackManifestSha256: args['rollback-target'] ? required(args, 'trusted-rollback-manifest-sha256') : undefined, repo: path.resolve(required(args, 'repo')) }); process.stdout.write(`RELEASE_VERIFY=PASS\nGIT_SHA=${result.manifest.git_sha}\nTREE_SHA=${result.manifest.tree_sha}\nMANIFEST_SHA256=${result.manifest.manifest_sha256}\n`); } else if (args._[0] === 'cutover') cutover(args); else fail('command must be build, verify, or cutover'); } catch (error) { process.stderr.write(`RELEASE_VERIFY=FAIL\n${error.message}\n`); process.exitCode = 1; } }
+function cutover(args) { const release = path.resolve(required(args, 'release')); const app = path.resolve(args.app || '/opt/sms-v3/app'); const web = path.resolve(args.webroot || '/var/www/sms'); const pointer = path.resolve(args.pointer || path.join(path.dirname(app), '.sms-v3-current')); verifyRelease(release, args['rollback-target'] && path.resolve(args['rollback-target']), { trustedManifestSha256: required(args, 'trusted-manifest-sha256'), trustedRollbackManifestSha256: args['rollback-target'] ? required(args, 'trusted-rollback-manifest-sha256') : undefined, parentBoundary: args['parent-boundary'] && path.resolve(args['parent-boundary']), rollbackParentBoundary: args['rollback-parent-boundary'] && path.resolve(args['rollback-parent-boundary']), repo: path.resolve(required(args, 'repo')) }); if (!args.apply || args['operator-gate'] !== 'I_UNDERSTAND_ATOMIC_SELF_HOSTED_CUTOVER') { process.stdout.write(`CUTOVER=DRY_RUN\nRELEASE_DIR=${release}\nSHARED_POINTER=${pointer}\nAPP_POINTER=${app}\nWEBROOT_POINTER=${web}\nMANDATORY_CHECKS=PASS\nOPERATOR_GATE_REQUIRED=I_UNDERSTAND_ATOMIC_SELF_HOSTED_CUTOVER\n`); return; } runtimeIntegration(app, web, pointer); const old = fs.readlinkSync(pointer); const staged = `${pointer}.next-${process.pid}`; fs.symlinkSync(release, staged, 'dir'); try { fs.renameSync(staged, pointer); mandatoryChecks(release); if (path.resolve(fs.realpathSync(pointer)) !== release) fail('shared pointer check failed'); process.stdout.write('CUTOVER=PASS\nMANDATORY_CHECKS=PASS\n'); } catch (error) { if (fs.existsSync(staged)) fs.unlinkSync(staged); const restore = `${pointer}.restore-${process.pid}`; fs.symlinkSync(old, restore, 'dir'); fs.renameSync(restore, pointer); throw error; } }
+function main() { const args = parseArgs(process.argv.slice(2)); try { if (args._[0] === 'build') build(args); else if (args._[0] === 'verify') { const result = verifyRelease(required(args, 'release'), args['rollback-target'] && path.resolve(args['rollback-target']), { trustedManifestSha256: required(args, 'trusted-manifest-sha256'), trustedRollbackManifestSha256: args['rollback-target'] ? required(args, 'trusted-rollback-manifest-sha256') : undefined, parentBoundary: args['parent-boundary'] && path.resolve(args['parent-boundary']), rollbackParentBoundary: args['rollback-parent-boundary'] && path.resolve(args['rollback-parent-boundary']), repo: path.resolve(required(args, 'repo')) }); process.stdout.write(`RELEASE_VERIFY=PASS\nGIT_SHA=${result.manifest.git_sha}\nTREE_SHA=${result.manifest.tree_sha}\nMANIFEST_SHA256=${result.manifest.manifest_sha256}\n`); } else if (args._[0] === 'cutover') cutover(args); else fail('command must be build, verify, or cutover'); } catch (error) { process.stderr.write(`RELEASE_VERIFY=FAIL\n${error.message}\n`); process.exitCode = 1; } }
 if (require.main === module) main();
-module.exports = { COMPATIBILITY, inventory, manifestDigest, verifyRelease, mandatoryChecks, archiveCommit };
+module.exports = { COMPATIBILITY, PERMISSION_CONTRACT, inventory, manifestDigest, validateParentTraversal, validateRuntimePermissions, verifyRelease, mandatoryChecks };

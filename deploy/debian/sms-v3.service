@@ -7,6 +7,7 @@ Wants=network-online.target
 Type=simple
 User=smsv3
 Group=smsv3
+# Release and every parent directory must be traversable by smsv3 (0755); release files readable (0644).
 WorkingDirectory=/opt/sms-v3/app/backend
 EnvironmentFile=/opt/sms-v3/shared/app.env
 Environment=NODE_ENV=production
