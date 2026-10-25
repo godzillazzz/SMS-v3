@@ -130,7 +130,7 @@ describe('FE-VERIFY-003 approval target contracts', () => {
       expect(onNavigate).toHaveBeenCalledWith(item);
     } else if (testCase.destination === 'schedule') {
       expect(onNavigate).toHaveBeenCalledWith(item);
-      expect(screen.queryByRole('button', { name: 'อนุมัติทันที' })).toBeNull();
+      expect(screen.queryByRole('button', { name: 'อนุมัติ…' })).toBeNull();
     } else {
       expect(onNavigate).not.toHaveBeenCalled();
       expect(screen.getAllByText(item.title).length).toBeGreaterThan(0);
