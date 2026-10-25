@@ -1363,6 +1363,13 @@ function ShiftEditorModal({ shift, defaults, employees, shiftTypes, licenses, is
               <input id="shift-editor-remark" type="text" value={remark} onChange={(e) => setRemark(e.target.value)} placeholder="หมายเหตุสำหรับกะนี้" />
             </div>
           </div>
+          <div className="shift-editor-code-cards" role="group" aria-label="เลือกรหัสกะ">
+            {selectableShiftTypes.filter((t) => t.isActive !== false || String(t.id) === shiftTypeId).map((t) => (
+              <button key={`card-${String(t.id)}`} type="button" className="shift-editor-code-card" aria-pressed={String(t.id) === shiftTypeId} data-shift-code={String(t.code || '').toUpperCase()} onClick={() => setShiftTypeId(String(t.id))}>
+                <b>{String(t.code || '')}</b><span>{String(t.name || '')}</span><small>{t.startTime && t.endTime && String(t.startTime) !== String(t.endTime) ? `${String(t.startTime)}–${String(t.endTime)}` : 'ไม่มีเวลาทำงาน'}</small>
+              </button>
+            ))}
+          </div>
           {isInvalidLicense && <div className="shift-editor-license-warning" aria-labelledby="shift-editor-license-title">
             <strong id="shift-editor-license-title">⚠️ ไม่สามารถลงกะทำงานตามปกติได้</strong>
             <p>{warningDetailText}</p>
