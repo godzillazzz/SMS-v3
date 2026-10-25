@@ -21,7 +21,8 @@ function contained(root, candidate) { const r = path.resolve(root); const c = pa
 const procFd = fd => `/proc/self/fd/${fd}`;
 const closeFd = fd => { try { fs.closeSync(fd); } catch (error) { if (error.code !== 'EBADF') throw error; } };
 const noFollow = fs.constants.O_NOFOLLOW || 0;
-const directoryFlags = fs.constants.O_RDONLY | (fs.constants.O_DIRECTORY || 0);
+const directoryFlags = fs.constants.O_RDONLY | (fs.constants.O_DIRECTORY || 0) | noFollow;
+const regularFileFlags = fs.constants.O_RDONLY | noFollow;
 function openDirectory(directory) {
   try { return fs.openSync(directory, directoryFlags); } catch { fail(`missing or unsafe directory: ${directory}`); }
 }
@@ -36,11 +37,11 @@ function openRelative(root, relative, flags = fs.constants.O_RDONLY, anchoredRoo
     for (const part of parts.slice(0, -1)) {
       const next = openChildDirectory(directoryFd, part); if (!anchoredRootFd || directoryFd !== anchoredRootFd) closeFd(directoryFd); directoryFd = next;
     }
-    return { fd: fs.openSync(path.join(procFd(directoryFd), parts.at(-1)), flags), parentFd: directoryFd, anchored: Boolean(anchoredRootFd) };
+    return { fd: fs.openSync(path.join(procFd(directoryFd), parts.at(-1)), flags | noFollow), parentFd: directoryFd, anchored: Boolean(anchoredRootFd) };
   } catch (error) { if (!anchoredRootFd || directoryFd !== anchoredRootFd) closeFd(directoryFd); throw error; }
 }
 function regularFile(file, root = path.dirname(file), anchoredRootFd = null) {
-  let opened; try { opened = openRelative(root, path.relative(root, file), fs.constants.O_RDONLY, anchoredRootFd); } catch (error) { if (error.code === 'ENOENT' || error.code === 'ELOOP' || error.code === 'ENOTDIR') return false; throw error; }
+  let opened; try { opened = openRelative(root, path.relative(root, file), regularFileFlags, anchoredRootFd); } catch (error) { if (error.code === 'ENOENT' || error.code === 'ELOOP' || error.code === 'ENOTDIR') return false; throw error; }
   try {
     const stable = fs.fstatSync(opened.fd);
     if (!stable.isFile()) fail(`non-regular file or symlink is not allowed: ${file}`);
@@ -60,6 +61,17 @@ function files(root, ignored = () => false) {
   }
   const rootFd = openDirectory(base); try { walk(rootFd, ''); } finally { closeFd(rootFd); } return result;
 }
+function readInventoryFile(directoryFd, name, relative) {
+  let fd;
+  try { fd = fs.openSync(path.join(procFd(directoryFd), name), regularFileFlags); } catch (error) {
+    if (error.code === 'ENOENT' || error.code === 'ELOOP' || error.code === 'ENOTDIR') fail(`missing regular file: ${relative}`);
+    throw error;
+  }
+  try {
+    if (!fs.fstatSync(fd).isFile()) fail(`non-regular file or symlink is not allowed: ${relative}`);
+    return fs.readFileSync(fd);
+  } finally { closeFd(fd); }
+}
 function safeRead(file, root, anchoredRootFd = null) {
   if (!contained(root, file)) fail(`path escapes release: ${file}`);
   const opened = regularFile(file, root, anchoredRootFd);
@@ -67,7 +79,18 @@ function safeRead(file, root, anchoredRootFd = null) {
   try { return fs.readFileSync(opened.fd); } finally { closeFd(opened.fd); if (!opened.anchored || opened.parentFd !== anchoredRootFd) closeFd(opened.parentFd); }
 }
 function inventory(root, ignored) {
-  const entries = files(root, ignored).map(file => ({ path: file, sha256: sha256(safeRead(path.join(root, file), root)) }));
+  const entries = []; const base = path.resolve(root);
+  function walk(directoryFd, prefix) {
+    for (const entry of fs.readdirSync(procFd(directoryFd), { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
+      const relative = prefix ? `${prefix}/${entry.name}` : entry.name;
+      if (ignored?.(relative, entry)) continue;
+      if (entry.isSymbolicLink()) fail(`symlink is not allowed: ${relative}`);
+      if (entry.isDirectory()) { const childFd = openChildDirectory(directoryFd, entry.name); try { walk(childFd, relative); } finally { closeFd(childFd); } }
+      else if (entry.isFile()) entries.push({ path: relative, sha256: sha256(readInventoryFile(directoryFd, entry.name, relative)) });
+      else fail(`non-regular entry is not allowed: ${relative}`);
+    }
+  }
+  const rootFd = openDirectory(base); try { walk(rootFd, ''); } finally { closeFd(rootFd); }
   return { entries, digest: sha256(json(entries)) };
 }
 function parseArgs(argv) { const out = { _: [] }; for (let i = 0; i < argv.length; i++) { const item = argv[i]; if (!item.startsWith('--')) { out._.push(item); continue; } const [key, inline] = item.slice(2).split('=', 2); out[key] = inline === undefined ? (key === 'apply' ? true : argv[++i]) : inline; } return out; }

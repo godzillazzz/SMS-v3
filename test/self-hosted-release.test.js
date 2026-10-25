@@ -32,6 +32,40 @@ test('rejects incompatible provider manifest', () => { const f = fixture(); try 
 
 test('requires and independently verifies a distinct rollback trust anchor', () => { const f = fixture(); const r = fixture(); try { fs.appendFileSync(path.join(r.release, 'frontend', 'dist', 'app.js'), 'rollback'); r.manifest.frontend_inventory_digest = inventory(path.join(r.release, 'frontend', 'dist')).digest; r.manifest.asset_hashes = [{ path: 'app.js', sha256: require('node:crypto').createHash('sha256').update(fs.readFileSync(path.join(r.release, 'frontend', 'dist', 'app.js'))).digest('hex') }, { path: 'index.html', sha256: require('node:crypto').createHash('sha256').update(fs.readFileSync(path.join(r.release, 'frontend', 'dist', 'index.html'))).digest('hex') }]; r.manifest.manifest_sha256 = manifestDigest(r.manifest); fs.writeFileSync(path.join(r.release, 'release-manifest.json'), JSON.stringify(r.manifest)); assert.notEqual(f.manifest.manifest_sha256, r.manifest.manifest_sha256); assert.throws(() => verifyRelease(f.release, r.release, opts(f)), /trusted external manifest digest/); assert.equal(verifyRelease(f.release, r.release, rollbackOpts(f, r)).manifest.git_sha, f.manifest.git_sha); assert.throws(() => verifyRelease(f.release, r.release, { ...rollbackOpts(f, r), trustedRollbackManifestSha256: f.manifest.manifest_sha256 }), /trusted external manifest digest/); } finally { fs.rmSync(f.root, { recursive: true, force: true }); fs.rmSync(r.root, { recursive: true, force: true }); } });
 
+test('rejects a file entry swapped to an outside symlink during inventory reads', () => {
+  const f = fixture(); const backend = path.join(f.release, 'backend'); const file = path.join(backend, 'server.js'); const secret = path.join(f.root, 'outside-secret');
+  fs.writeFileSync(secret, 'must-not-be-read'); const originalReaddir = fs.readdirSync; let swapped = false;
+  try {
+    fs.readdirSync = function (...args) {
+      const entries = originalReaddir.apply(this, args);
+      if (!swapped) { swapped = true; fs.unlinkSync(file); fs.symlinkSync(secret, file); }
+      return entries;
+    };
+    assert.throws(() => inventory(backend), /missing regular file|ELOOP|symlink/);
+    assert.equal(swapped, true);
+  } finally { fs.readdirSync = originalReaddir; fs.rmSync(f.root, { recursive: true, force: true }); }
+});
+
+test('reads files from the enumerated directory FD after external regular-directory replacement', () => {
+  const f = fixture(); const backend = path.join(f.release, 'backend'); const replacement = path.join(f.root, 'backend-replacement'); const displaced = path.join(f.root, 'backend-displaced');
+  fs.cpSync(backend, replacement, { recursive: true }); fs.writeFileSync(path.join(replacement, 'server.js'), 'REPLACED\n');
+  const expected = inventory(backend); const originalReaddir = fs.readdirSync; let swapped = false;
+  try {
+    fs.readdirSync = function (...args) {
+      const entries = originalReaddir.apply(this, args);
+      if (!swapped && String(args[0]).startsWith('/proc/self/fd/')) { swapped = true; fs.renameSync(backend, displaced); fs.renameSync(replacement, backend); }
+      return entries;
+    };
+    assert.deepEqual(inventory(backend), expected);
+    assert.equal(swapped, true);
+  } finally {
+    fs.readdirSync = originalReaddir;
+    if (fs.existsSync(backend)) fs.rmSync(backend, { recursive: true, force: true });
+    if (fs.existsSync(displaced)) fs.renameSync(displaced, backend);
+    fs.rmSync(f.root, { recursive: true, force: true });
+  }
+});
+
 test('resists concurrent replacement of a parent directory during inventory reads', () => {
   const f = fixture(); const backend = path.join(f.release, 'backend'); const replacement = path.join(f.root, 'backend-replacement');
   fs.cpSync(backend, replacement, { recursive: true }); fs.writeFileSync(path.join(f.root, 'outside-secret'), 'must-not-be-read');
