@@ -19,7 +19,7 @@ describe('SMSv3 UI foundation on the corporate tokens', () => {
   });
 
   it('offers navy as default plus three accent hues and falls back safely', () => {
-    expect(ACCENT_OPTIONS.map((option) => option.value)).toEqual(['navy', 'teal', 'emerald', 'plum']);
+    expect(ACCENT_OPTIONS.map((option) => option.value)).toEqual(['navy', 'teal', 'emerald']);
     expect(normalizeAccent('pink')).toBe('navy');
     const store = new Map<string, string>();
     const storage = { getItem: (k: string) => store.get(k) ?? null, setItem: (k: string, v: string) => void store.set(k, v) };

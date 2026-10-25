@@ -2,6 +2,12 @@ import React, { createContext, useContext, useEffect, useMemo, useRef, useState 
 import { browserSupportsWebAuthn, startAuthentication } from '@simplewebauthn/browser';
 import { createPortal } from 'react-dom';
 import { createRoot } from 'react-dom/client';
+import '@fontsource/ibm-plex-sans-thai/thai-400.css';
+import '@fontsource/ibm-plex-sans-thai/thai-500.css';
+import '@fontsource/ibm-plex-sans-thai/thai-600.css';
+import '@fontsource/ibm-plex-sans-thai/thai-700.css';
+import '@fontsource/ibm-plex-sans-thai/latin-400.css';
+import '@fontsource/ibm-plex-sans-thai/latin-600.css';
 import '@fontsource/kanit/thai-400.css';
 import '@fontsource/kanit/thai-500.css';
 import '@fontsource/kanit/thai-600.css';
@@ -92,6 +98,7 @@ import './styles/license-table.css';
 import './styles/responsive-shell.css';
 import './styles/action-system.css';
 import './styles/tokens.css';
+import './styles/hrpro-tokens.css';
 import './styles/theme-foundation.css';
 import './styles/app-shell.css';
 import './styles/data-surfaces.css';
@@ -121,6 +128,7 @@ import './styles/layout-foundation.css';
 import './styles/personnel-layout.css';
 import './styles/system-layout-group4.css';
 import './styles/r71-theme-contrast.css';
+import './styles/hrpro-shell.css';
 
 const DashboardDetailsPage = React.lazy(() => import('./pages/dashboard/DashboardDetailsPage').then((module) => ({ default: module.DashboardDetailsPage })));
 const LicenseTableDocumentColumns = React.lazy(() => import('./components/LicenseDocuments').then((module) => ({ default: module.LicenseTableDocumentColumns })));

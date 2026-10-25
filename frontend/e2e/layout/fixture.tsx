@@ -1,3 +1,9 @@
+import '@fontsource/ibm-plex-sans-thai/thai-400.css';
+import '@fontsource/ibm-plex-sans-thai/thai-500.css';
+import '@fontsource/ibm-plex-sans-thai/thai-600.css';
+import '@fontsource/ibm-plex-sans-thai/thai-700.css';
+import '@fontsource/ibm-plex-sans-thai/latin-400.css';
+import '@fontsource/ibm-plex-sans-thai/latin-600.css';
 import '@fontsource/kanit/thai-400.css';
 import '@fontsource/kanit/thai-500.css';
 import '@fontsource/kanit/thai-600.css';
@@ -27,6 +33,7 @@ import '../../src/styles/license-table.css';
 import '../../src/styles/responsive-shell.css';
 import '../../src/styles/action-system.css';
 import '../../src/styles/tokens.css';
+import '../../src/styles/hrpro-tokens.css';
 import '../../src/styles/theme-foundation.css';
 import '../../src/styles/app-shell.css';
 import '../../src/styles/data-surfaces.css';
@@ -52,6 +59,7 @@ import '../../src/styles/employee-pwa-theme.css';
 import '../../src/styles/ux-t06-login-public.css';
 import '../../src/styles/schedule-roster-ux.css';
 import '../../src/styles/layout-foundation.css';
+import '../../src/styles/hrpro-shell.css';
 
 import React, {useState} from 'react';
 import {createRoot} from 'react-dom/client';

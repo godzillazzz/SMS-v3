@@ -31,7 +31,7 @@ for(const theme of ['light','dark'] as const)for(const width of [1366,375])test(
  await expect(page.locator('a.nexus-brand')).toHaveAttribute('href','#overview');
  await page.locator('#email').fill('brand@example.test');await page.locator('#password').fill('synthetic-brand-password');await page.locator('#auth-login-form button[type=submit]').click();await expect(page.locator('.app-shell')).toBeVisible();
  if(width===375)await checkBrand(page.locator('.mobile-brand'),theme,32);
- else await checkBrand(page.locator('.sidebar-brand'),theme,58);
+ else await checkBrand(page.locator('.sidebar-brand'),'dark',58); // UI Redesign: ink sidebar in both modes uses the dark-ground logo
  const chosen=page.locator(width===375?'.mobile-brand':'.sidebar-brand');const initial=await chosen.locator('.sms-brand-logo img').filter({visible:true}).evaluate(el=>el.getBoundingClientRect().height);
  await page.evaluate(()=>{document.documentElement.dataset.theme=document.documentElement.dataset.theme==='dark'?'light':'dark'});
  expect(await chosen.locator('.sms-brand-logo img').filter({visible:true}).evaluate(el=>el.getBoundingClientRect().height)).toBe(initial);

@@ -1,10 +1,9 @@
-export type AccentTheme = 'navy' | 'teal' | 'emerald' | 'plum';
+export type AccentTheme = 'navy' | 'teal' | 'emerald';
 export const ACCENT_STORAGE_KEY = 'sms-v3-accent';
 export const ACCENT_OPTIONS: Array<{ value: AccentTheme; label: string; swatch: string }> = [
-  { value: 'navy', label: 'กรมท่า', swatch: '#1e3a5f' },
-  { value: 'teal', label: 'เขียวน้ำทะเล', swatch: '#0f6b75' },
-  { value: 'emerald', label: 'เขียวมรกต', swatch: '#1f6b4a' },
-  { value: 'plum', label: 'ม่วง', swatch: '#5b3d8a' }
+  { value: 'navy', label: 'น้ำเงิน', swatch: '#1d4ed8' },
+  { value: 'teal', label: 'เขียวน้ำทะเล', swatch: '#0b7a74' },
+  { value: 'emerald', label: 'เขียวมรกต', swatch: '#047857' }
 ];
 
 export function normalizeAccent(value: unknown): AccentTheme {

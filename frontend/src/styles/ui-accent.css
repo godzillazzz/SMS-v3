@@ -1,14 +1,11 @@
-.app-shell[data-accent] { --color-primary-hover: color-mix(in srgb, var(--color-primary) 85%, #000); --color-primary-active: color-mix(in srgb, var(--color-primary) 72%, #000); }
-[data-theme="dark"] .app-shell[data-accent] { --color-primary-hover: color-mix(in srgb, var(--color-primary) 80%, #fff); --color-primary-active: color-mix(in srgb, var(--color-primary) 85%, #000); }
-/* Accent themes (multi-colour). Navy is the corporate default from tokens.css; the others only swap the brand hue. */
-.app-shell[data-accent="teal"] { --color-primary: #0f6b75; --color-primary-soft: #e3f3f4; --color-sidebar-bg: #0d3f45; --color-sidebar-bg-strong: #0a3237; }
-.app-shell[data-accent="emerald"] { --color-primary: #1f6b4a; --color-primary-soft: #e4f2ea; --color-sidebar-bg: #163f2d; --color-sidebar-bg-strong: #113324; }
-.app-shell[data-accent="plum"] { --color-primary: #5b3d8a; --color-primary-soft: #efe9f8; --color-sidebar-bg: #34234f; --color-sidebar-bg-strong: #2a1c40; }
-[data-theme="dark"] .app-shell[data-accent="teal"] { --color-primary: #4fc3cf; --color-primary-soft: #133a3e; }
-[data-theme="dark"] .app-shell[data-accent="emerald"] { --color-primary: #5ccf98; --color-primary-soft: #153a29; }
-[data-theme="dark"] .app-shell[data-accent="plum"] { --color-primary: #b39af0; --color-primary-soft: #2c2347; }
+/* Accent themes from the UI Redesign (Figma F1): Navy (default, hrpro-tokens.css) · Teal · Emerald.
+   Only the brand hue and the sidebar ink change; neutrals and status colours stay put. */
+[data-theme="light"] .app-shell[data-accent="teal"] { --color-primary: #0b7a74; --color-primary-hover: #086561; --color-primary-active: #075550; --color-primary-soft: #e2f4f2; --color-accent: #0b7a74; --color-sidebar-bg: #0c2a31; --color-sidebar-bg-strong: #0c2a31; --focus-ring: 0 0 0 3px rgba(11, 122, 116, 0.26); }
+[data-theme="light"] .app-shell[data-accent="emerald"] { --color-primary: #047857; --color-primary-hover: #036349; --color-primary-active: #02533d; --color-primary-soft: #e1f5ec; --color-accent: #047857; --color-sidebar-bg: #0e2a20; --color-sidebar-bg-strong: #0e2a20; --focus-ring: 0 0 0 3px rgba(4, 120, 87, 0.26); }
+[data-theme="dark"] .app-shell[data-accent="teal"] { --color-primary: #4fd1c5; --color-primary-hover: #81e0d6; --color-primary-active: #38b2a6; --color-primary-soft: #0f2d2c; --color-accent: #4fd1c5; --color-sidebar-bg: #0a1517; --color-sidebar-bg-strong: #0a1517; }
+[data-theme="dark"] .app-shell[data-accent="emerald"] { --color-primary: #4ade9b; --color-primary-hover: #7ee9b8; --color-primary-active: #34c483; --color-primary-soft: #0f2a1f; --color-accent: #4ade9b; --color-sidebar-bg: #0a1511; --color-sidebar-bg-strong: #0a1511; }
 
-.app-shell .accent-control { display: inline-flex; align-items: center; gap: var(--space-2); }
-.app-shell .accent-control button { width: 28px; height: 28px; min-height: 28px; padding: 0; border: 2px solid transparent; border-radius: 50%; background: var(--swatch); cursor: pointer; }
-.app-shell .accent-control button.is-active { border-color: var(--color-text); box-shadow: 0 0 0 2px var(--color-surface) inset; }
+:is(.app-shell, .mobile-utility-panel) .accent-control { display: inline-flex; align-items: center; gap: var(--space-2); }
+:is(.app-shell, .mobile-utility-panel) .accent-control button { width: 28px; height: 28px; min-height: 28px; padding: 0; border: 2px solid transparent; border-radius: 50%; background: var(--swatch); cursor: pointer; }
+:is(.app-shell, .mobile-utility-panel) .accent-control button.is-active { border-color: var(--color-text); box-shadow: 0 0 0 2px var(--color-surface) inset; }
 @media (max-width: 1023px) { .app-shell .topbar-actions .accent-control { display: none; } }

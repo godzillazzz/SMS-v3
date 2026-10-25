@@ -34,7 +34,7 @@ for(const [path,title] of pages)for(const theme of ['light','dark'])for(const wi
  }
  const root=page.locator('.layout-roster-page');await expect(root).toHaveCount(1);
  await expect(root.locator('.layout-section-card:visible').first()).toBeVisible();
- await expect.poll(()=>root.locator('h1,h2').evaluateAll(els=>els.every(el=>getComputedStyle(el).fontFamily.includes('Kanit')))).toBe(true);
+ await expect.poll(()=>root.locator('h1,h2').evaluateAll(els=>els.every(el=>getComputedStyle(el).fontFamily.includes('IBM Plex Sans Thai')))).toBe(true);
  expect(await root.evaluate(el=>getComputedStyle(el).backgroundColor)).toBe('rgba(0, 0, 0, 0)');
  const audit=await root.evaluate(el=>[...el.querySelectorAll<HTMLElement>('section,article,div,header')].flatMap(node=>{
   const rect=node.getBoundingClientRect(),s=getComputedStyle(node);if(rect.width<240||rect.height<24)return[];
@@ -46,13 +46,13 @@ for(const [path,title] of pages)for(const theme of ['light','dark'])for(const wi
   return [{backgroundLum,class:node.className,radius:parseFloat(s.borderTopLeftRadius),paddingLeft:parseFloat(s.paddingLeft),paddingTop:parseFloat(s.paddingTop),inset}];
  }));
  await info.attach('large-box-layout-audit',{body:JSON.stringify(audit,null,2),contentType:'application/json'});
- expect(audit.filter(box=>![16,10].includes(box.radius)),JSON.stringify(audit)).toEqual([]);
+ expect(audit.filter(box=>![14,10].includes(box.radius)),JSON.stringify(audit)).toEqual([]);
  if(theme==='light')expect(audit.filter(box=>box.backgroundLum!==null && box.backgroundLum<.15),JSON.stringify(audit)).toEqual([]);
  expect(audit.filter(box=>box.inset && (box.inset.left<16||box.inset.top<12)),JSON.stringify(audit)).toEqual([]);
  for(const card of await root.locator('.layout-section-card,.layout-metric-card,.layout-step-flow').all()){
   if(!(await card.isVisible()))continue;
   const spacing=await card.evaluate(el=>{const r=el.getBoundingClientRect(),title=el.querySelector('h2')!.getBoundingClientRect();return{left:title.left-r.left,top:title.top-r.top,radius:getComputedStyle(el).borderTopLeftRadius}});
-  expect(spacing.radius).toBe('16px');expect(spacing.left).toBeGreaterThanOrEqual(16);expect(spacing.top).toBeGreaterThanOrEqual(12);
+  expect(spacing.radius).toBe('14px');expect(spacing.left).toBeGreaterThanOrEqual(16);expect(spacing.top).toBeGreaterThanOrEqual(12);
  }
  if(path==='roster'){const steps=root.locator('.layout-step-flow li');await expect(steps).toHaveCount(4);await expect(steps.nth(0)).toContainText('เสร็จแล้ว');await expect(steps.nth(1)).toContainText('เสร็จแล้ว');expect(await steps.nth(2).innerText()).not.toContain('เสร็จแล้ว');expect(await steps.nth(3).innerText()).not.toContain('เสร็จแล้ว');}
  expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);expect(writes).toEqual([]);expect(errors).toEqual([]);

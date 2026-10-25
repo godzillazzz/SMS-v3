@@ -8,13 +8,13 @@ for (const theme of ['light','dark'] as const) for (const width of [1366,375]) {
     await page.goto('/e2e/layout/fixture.html');
     await expect(page.locator('html')).toHaveAttribute('data-theme',theme);
     await expect(page.getByRole('heading',{level:1})).toHaveText('รายการของหน่วยงาน');
-    const fonts=await page.evaluate(async()=>{const heading=await document.fonts.load("600 16px Kanit","ข้อมูล");const body=await document.fonts.load("400 16px 'Noto Sans Thai'","ข้อมูล");await document.fonts.ready;return {heading:heading.length,body:body.length};});
+    const fonts=await page.evaluate(async()=>{const heading=await document.fonts.load("600 16px 'IBM Plex Sans Thai'","ข้อมูล");const body=await document.fonts.load("400 16px 'IBM Plex Sans Thai'","ข้อมูล");await document.fonts.ready;return {heading:heading.length,body:body.length};});
     expect(fonts.heading).toBeGreaterThan(0);expect(fonts.body).toBeGreaterThan(0);
     const styles=await page.evaluate(()=>{
       const card=getComputedStyle(document.querySelector('.layout-section-card')!);const nested=getComputedStyle(document.querySelector('.layout-step-flow__steps button')!);const header=getComputedStyle(document.querySelector('.layout-page-header h1')!);const pane=getComputedStyle(document.querySelector('.view-pane')!);
       return {radius:card.borderRadius,padding:card.padding,nestedRadius:nested.borderRadius,headingFont:header.fontFamily,bodyFont:card.fontFamily,paneBackground:pane.backgroundColor,overflow:document.documentElement.scrollWidth>innerWidth};
     });
-    expect(styles.radius).toBe('16px');expect(styles.padding).toBe(width===375?'16px':'24px');expect(styles.nestedRadius).toBe('10px');expect(styles.headingFont).toContain('Kanit');expect(styles.bodyFont).toContain('Noto Sans Thai');expect(styles.paneBackground).toBe('rgba(0, 0, 0, 0)');expect(styles.overflow).toBe(false);
+    expect(styles.radius).toBe('14px');expect(styles.padding).toBe(width===375?'16px':'24px');expect(styles.nestedRadius).toBe('10px');expect(styles.headingFont).toContain('IBM Plex Sans Thai');expect(styles.bodyFont).toContain('IBM Plex Sans Thai');expect(styles.paneBackground).toBe('rgba(0, 0, 0, 0)');expect(styles.overflow).toBe(false);
     const contrasts=await page.locator('.view-pane').evaluate(root=>{
       const parse=(v:string)=>v.match(/[0-9.]+/g)!.map(Number);
       const luminance=(v:number[])=>{const c=v.slice(0,3).map(n=>{n/=255;return n<=.04045?n/12.92:((n+.055)/1.055)**2.4;});return .2126*c[0]+.7152*c[1]+.0722*c[2];};

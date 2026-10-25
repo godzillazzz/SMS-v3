@@ -37,8 +37,8 @@ for(const [path,title,simple] of views)for(const theme of ['light','dark'])for(c
   rootBackground:getComputedStyle(el).backgroundColor,
   darkLargeSurfaces:[...el.querySelectorAll<HTMLElement>('section,article,div')].filter(node=>{const rect=node.getBoundingClientRect(),s=getComputedStyle(node);if(rect.width<240||rect.height<48||s.backgroundColor==='transparent'||s.backgroundColor==='rgba(0, 0, 0, 0)')return false;const color=s.backgroundColor.match(/\d+/g)?.slice(0,3).map(Number)||[255,255,255];return Math.max(...color)<55}).map(node=>String(node.className))
  }));
- expect(metrics.headingFonts.every(font=>font.includes('Kanit')),JSON.stringify(metrics)).toBe(true);
- expect(metrics.cardRadii.every(radius=>simple ? radius==='16px' : radius==='12px'),JSON.stringify(metrics)).toBe(true);
+ expect(metrics.headingFonts.every(font=>font.includes('IBM Plex Sans Thai')),JSON.stringify(metrics)).toBe(true);
+ expect(metrics.cardRadii.every(radius=>radius==='14px'),JSON.stringify(metrics)).toBe(true);
  expect(metrics.rootBackground).toBe('rgba(0, 0, 0, 0)');
  if(theme==='light')expect(metrics.darkLargeSurfaces,JSON.stringify(metrics)).toEqual([]);
  if(simple)await expect(root.locator('.attendance-simple__clock')).toBeVisible();
