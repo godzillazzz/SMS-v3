@@ -8,7 +8,7 @@ const css = fs.readFileSync(path.join(__dirname, 'styles/ui-primitives.css'), 'u
 
 describe('SMSv3 UI foundation on the corporate tokens', () => {
   it('keeps every primitives selector inside the authenticated app shell', () => {
-    const selectors = css.replace(/\/\*[\s\S]*?\*\//g, '').split('}').map((rule) => rule.split('{')[0].trim()).filter(Boolean);
+    const selectors = css.replace(/\/\*[\s\S]*?\*\//g, '').split('}').map((rule) => rule.split('{').slice(-2)[0].trim()).filter(Boolean);
     for (const selector of selectors) expect(selector, selector).toMatch(/\.app-shell/);
     expect(css).not.toMatch(/(^|[\s,]):root|(^|[\s,])body\b|login|nexus-public/);
   });
