@@ -49,9 +49,9 @@ export function Field({ label, htmlFor, hint, error, required = false, labelClas
   </div>;
 }
 
-export function TextInput({ className, ...props }: InputHTMLAttributes<HTMLInputElement>) {
-  return <input {...props} className={cx('ui-input', className)} />;
-}
+export const TextInput = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement>>(function TextInput({ className, ...props }, ref) {
+  return <input {...props} ref={ref} className={cx('ui-input', className)} />;
+});
 
 export function SelectInput({ className, children, ...props }: SelectHTMLAttributes<HTMLSelectElement>) {
   return <select {...props} className={cx('ui-select', className)}>{children}</select>;

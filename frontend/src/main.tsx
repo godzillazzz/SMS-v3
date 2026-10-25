@@ -18,7 +18,15 @@ import { PersonnelDirectoryPage } from './pages/personnel/PersonnelDirectoryPage
 import { AuditCompliancePage } from './pages/audit/AuditCompliancePage';
 import { AccessManagementPage } from './pages/access-management/AccessManagementPage';
 import { canLoadAccessManagement } from './components/access-management/access-management-utils';
+import { Button } from './components/ui/primitives';
+import { AppearancePanel } from './components/shell/AppearancePanel';
+import { CommandPalette, type PaletteCommand } from './components/shell/CommandPalette';
+import { UserMenu } from './components/shell/UserMenu';
+import { applyAppearancePreferences, readAppearancePreferences, saveAppearancePreferences, type AppearancePreferences } from './components/shell/appearance-preferences';
 import './styles/responsive-shell.css';
+import './styles/shell-controls.css';
+
+applyAppearancePreferences(readAppearancePreferences());
 
 type User = { id: string; email: string; displayName: string; role: string; department?: string };
 type Employee = { id: string; employeeCode: string; firstName: string; lastName: string; department?: string; jobTitle?: string; isActive: boolean };
@@ -998,6 +1006,40 @@ function Dashboard() {
   const [auditPageSize, setAuditPageSize] = useState(100);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const mobileMenuTriggerRef = useRef<HTMLButtonElement>(null);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [appearance, setAppearance] = useState<AppearancePreferences>(readAppearancePreferences);
+  const [appearanceOpen, setAppearanceOpen] = useState(false);
+  const appearanceReturnFocusRef = useRef<HTMLElement | null>(null);
+  const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
+  const commandPaletteTriggerRef = useRef<HTMLButtonElement>(null);
+  const commandPaletteReturnFocusRef = useRef<HTMLElement | null>(null);
+  const closeAppearance = React.useCallback(() => setAppearanceOpen(false), []);
+  const closeCommandPalette = React.useCallback(() => setCommandPaletteOpen(false), []);
+  const openAppearanceFromUserMenu = React.useCallback((restoreTo: HTMLElement | null) => {
+    appearanceReturnFocusRef.current = restoreTo;
+    setAppearanceOpen(true);
+  }, []);
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (!(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== 'k') return;
+      if (document.querySelector('.appearance-panel')) return;
+      event.preventDefault();
+      if (!document.querySelector('.command-palette')) {
+        commandPaletteReturnFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+      }
+      setMobileMenuOpen(false);
+      setCommandPaletteOpen(true);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, []);
+
+  const changeAppearance = (next: AppearancePreferences) => {
+    setAppearance(next);
+    applyAppearancePreferences(next);
+    saveAppearancePreferences(next);
+  };
   useEffect(() => {
     if (!mobileMenuOpen) return;
     const previousBodyOverflow = document.body.style.overflow;
@@ -1221,6 +1263,30 @@ function Dashboard() {
   const visibleNavigation = navigation
     .map((section) => ({ ...section, items: section.items.filter((item) => canViewPage(item.id)) }))
     .filter((section) => section.items.length > 0);
+  const breadcrumbSection = navigation.find((section) => section.items.some((item) => item.id === navigationPage))?.label || 'ภาพรวม';
+  const paletteCommands: PaletteCommand[] = [
+    ...visibleNavigation.flatMap((section) => section.items.map((item) => ({
+      id: item.id,
+      label: item.label,
+      group: section.label,
+      icon: item.icon,
+      keywords: item.id,
+      current: navigationPage === item.id,
+      action: () => { setActivePage(item.id); setMobileMenuOpen(false); setCommandPaletteOpen(false); }
+    }))),
+    {
+      id: 'appearance',
+      label: 'การแสดงผล',
+      group: 'การตั้งค่า',
+      icon: '◐',
+      keywords: 'appearance theme mode light dark navy teal emerald',
+      action: () => {
+        appearanceReturnFocusRef.current = commandPaletteReturnFocusRef.current;
+        setCommandPaletteOpen(false);
+        setAppearanceOpen(true);
+      }
+    }
+  ];
   const employeeOptions = employees.map((employee) => ({ value: employee.id, label: `${employee.employeeCode} · ${employee.firstName} ${employee.lastName}` }));
   const shiftTypeOptions = shiftTypes.map((shiftType) => ({ value: String(shiftType.id), label: `${text(shiftType.code)} · ${text(shiftType.name)}` }));
 
@@ -1947,39 +2013,46 @@ function Dashboard() {
       {editor && <EditDialog editor={editor} busy={editorBusy} error={editorError} onClose={() => { setEditor(undefined); setEditorError(undefined); }} />}
       {auth.isViewingAs && <div className="view-as-banner" role="status"><span>🐞 กำลังดูระบบในมุมมอง <strong>{auth.user?.displayName}</strong> ({auth.user?.role}) · อ่านอย่างเดียว</span><button onClick={() => { auth.endViewAs(); setActivePage('users'); }}>กลับสู่บัญชี Admin</button></div>}
       {mobileMenuOpen && <button className="sidebar-overlay" aria-label="ปิดเมนู" onClick={() => setMobileMenuOpen(false)} />}
-      <aside className={`sidebar ${mobileMenuOpen ? 'open' : ''}`}>
-        <div className="sidebar-brand"><Logo /><div><strong>SMS v3</strong><span>Security Management System</span></div></div>
-        <nav className="nav-menu" aria-label="เมนูหลัก">{visibleNavigation.map((section) => (
-          <div className="nav-section" key={section.label}><p>{section.label}</p>{section.items.map((item) => <button type="button" key={item.id} className={`nav-item ${navigationPage === item.id ? 'active' : ''}`} onClick={() => { setActivePage(item.id); setMobileMenuOpen(false); }}><span className="nav-icon">{item.icon}</span><span>{item.label}{item.id === 'leavePending' && pendingLeaveCount > 0 && <b className="nav-count-badge">{pendingLeaveCount}</b>}</span></button>)}</div>
+      <aside className={`sidebar ${mobileMenuOpen ? 'open' : ''} ${sidebarCollapsed ? 'sidebar--collapsed' : ''}`} aria-label="เมนูด้านข้าง">
+        <div className="sidebar-brand"><Logo /><div><strong>SMS v3</strong><span>Security Management System</span></div><Button type="button" className="sidebar-collapse-toggle" title={sidebarCollapsed ? 'ขยายเมนูด้านข้าง' : 'ย่อเมนูด้านข้าง'} aria-label={sidebarCollapsed ? 'ขยายเมนูด้านข้าง' : 'ย่อเมนูด้านข้าง'} aria-controls="primary-navigation" aria-expanded={!sidebarCollapsed} onClick={() => setSidebarCollapsed((value) => !value)}>{sidebarCollapsed ? '›' : '‹'}</Button></div>
+        <nav className="nav-menu" id="primary-navigation" aria-label="เมนูหลัก">{visibleNavigation.map((section) => (
+          <div className="nav-section" key={section.label}><p>{section.label}</p>{section.items.map((item) => <Button type="button" key={item.id} title={sidebarCollapsed ? item.label : undefined} aria-label={`${item.label}${item.id === 'leavePending' && pendingLeaveCount > 0 ? ` (${pendingLeaveCount} รายการรออนุมัติ)` : ''}`} aria-current={navigationPage === item.id ? 'page' : undefined} className={`nav-item ${navigationPage === item.id ? 'active' : ''}`} onClick={() => { setActivePage(item.id); setMobileMenuOpen(false); }}><span className="nav-icon" aria-hidden="true">{item.icon}</span><span>{item.label}{item.id === 'leavePending' && pendingLeaveCount > 0 && <b className="nav-count-badge">{pendingLeaveCount}</b>}</span></Button>)}</div>
         ))}</nav>
-        <button className="sidebar-user" onClick={() => auth.logout()} title="ออกจากระบบ"><span className="avatar">{initials}</span><span><b>{auth.user?.displayName || 'ผู้ใช้งาน'}</b><small>{auth.user?.role || 'VIEWER'} · ออกจากระบบ</small></span><i>↗</i></button>
+        <div className="sidebar-utility-actions">
+          <Button type="button" className="shell-sidebar-action" title="การแสดงผล" aria-label="การแสดงผล" onClick={(event) => { appearanceReturnFocusRef.current = mobileMenuOpen ? mobileMenuTriggerRef.current : event.currentTarget; setMobileMenuOpen(false); setAppearanceOpen(true); }}><span aria-hidden="true">◐</span><span>การแสดงผล</span></Button>
+          <Button type="button" className="shell-sidebar-action" title="ค้นหาหน้าจอ" aria-label="ค้นหาหน้าจอ" onClick={() => { commandPaletteReturnFocusRef.current = mobileMenuOpen ? mobileMenuTriggerRef.current : commandPaletteTriggerRef.current; setMobileMenuOpen(false); setCommandPaletteOpen(true); }}><span aria-hidden="true">⌕</span><span>ค้นหาหน้าจอ</span><kbd>Ctrl K</kbd></Button>
+        </div>
+        <Button type="button" className="sidebar-user" onClick={() => auth.logout()} title="ออกจากระบบ" aria-label={`ออกจากระบบ (${auth.user?.displayName || 'ผู้ใช้งาน'})`}><span className="avatar">{initials}</span><span><b>{auth.user?.displayName || 'ผู้ใช้งาน'}</b><small>{auth.user?.role || 'VIEWER'} · ออกจากระบบ</small></span><i aria-hidden="true">↗</i></Button>
       </aside>
       <main className="main-area">
         <header className="topbar">
           <div className="topbar-left">
-            <button ref={mobileMenuTriggerRef} className="mobile-menu-button" aria-label="เปิดเมนู" onClick={() => setMobileMenuOpen(true)}>☰</button>
+            <Button ref={mobileMenuTriggerRef} type="button" className="mobile-menu-button" aria-label="เปิดเมนู" aria-expanded={mobileMenuOpen} aria-controls="primary-navigation" onClick={() => setMobileMenuOpen(true)}>☰</Button>
             <span className="mobile-brand"><Logo /> SMS v3</span>
-            <span className="topbar-copy"><strong>{pageTitle}</strong><small>{pageSubtitle[navigationPage]}</small></span>
+            <div className="topbar-copy"><nav className="topbar-breadcrumb" aria-label="ตำแหน่งปัจจุบัน"><span>SMS v3</span><span aria-hidden="true">/</span><span>{breadcrumbSection}</span></nav><strong>{pageTitle}</strong><small>{pageSubtitle[navigationPage]}</small></div>
           </div>
           <div className="topbar-actions">
             <label className="topbar-search"><span aria-hidden="true">⌕</span><input aria-label="ค้นหาพนักงาน" placeholder="ค้นหา..." value={search} onChange={(event) => { setSearch(event.target.value); if (event.target.value && activePage !== 'employees') setActivePage('employees'); }} /></label>
-            <button className="topbar-icon" type="button" title="การแจ้งเตือน" aria-label="การแจ้งเตือน">♢</button>
+            <Button className="topbar-icon shell-palette-trigger" type="button" title="ค้นหาหน้าจอ (Ctrl+K)" aria-label="ค้นหาหน้าจอ" aria-keyshortcuts="Control+K Meta+K" onClick={(event) => { commandPaletteReturnFocusRef.current = event.currentTarget; setCommandPaletteOpen(true); }}>⌘K</Button>
+            <Button className="topbar-icon" type="button" title="การแจ้งเตือน" aria-label="การแจ้งเตือน">♢</Button>
             <span className="environment-pill">{import.meta.env.PROD ? 'DEPLOYED' : 'LOCAL'}</span>
-            <span className="topbar-profile" title="บัญชีผู้ใช้งาน"><span className="avatar">{initials}</span><span><b>{auth.user?.displayName || 'ผู้ใช้งาน'}</b><small>{auth.user?.role || 'VIEWER'}</small></span></span>
-            <button className="signout-button" onClick={() => auth.logout()}>ออกจากระบบ</button>
+            <UserMenu displayName={auth.user?.displayName || 'ผู้ใช้งาน'} role={auth.user?.role || 'VIEWER'} initials={initials} onAppearance={openAppearanceFromUserMenu} />
+            <Button className="signout-button" type="button" onClick={() => auth.logout()}>ออกจากระบบ</Button>
           </div>
         </header>
         <nav className="mobile-nav-strip" aria-label="เมนูหลักสำหรับมือถือและแท็บเล็ต">
           {visibleNavigation.map((section) => (
             <div className="mobile-nav-group" key={section.label}>
               <span className="mobile-nav-section">{section.label}</span>
-              {section.items.map((item) => <button type="button" key={item.id} className={`mobile-nav-item ${navigationPage === item.id ? 'active' : ''}`} onClick={() => { setActivePage(item.id); setMobileMenuOpen(false); }}><span>{item.icon}</span>{item.label}{item.id === 'leavePending' && pendingLeaveCount > 0 && <b className="nav-count-badge">{pendingLeaveCount}</b>}</button>)}
+              {section.items.map((item) => <Button type="button" key={item.id} className={`mobile-nav-item ${navigationPage === item.id ? 'active' : ''}`} aria-current={navigationPage === item.id ? 'page' : undefined} onClick={() => { setActivePage(item.id); setMobileMenuOpen(false); }}><span aria-hidden="true">{item.icon}</span>{item.label}{item.id === 'leavePending' && pendingLeaveCount > 0 && <b className="nav-count-badge">{pendingLeaveCount}</b>}</Button>)}
             </div>
           ))}
         </nav>
         <div className="content-area">{content()}</div>
       </main>
     </div>
+    {commandPaletteOpen && <CommandPalette commands={paletteCommands} onClose={closeCommandPalette} restoreFocusRef={commandPaletteReturnFocusRef} />}
+    {appearanceOpen && <AppearancePanel preferences={appearance} onChange={changeAppearance} onClose={closeAppearance} restoreFocusRef={appearanceReturnFocusRef} />}
     {printData && (
       <div className="print-only">
         {printData.printDepartments.map((dept) => {
