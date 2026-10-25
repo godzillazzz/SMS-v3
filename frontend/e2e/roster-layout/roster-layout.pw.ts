@@ -47,7 +47,8 @@ for(const [path,title] of pages)for(const theme of ['light','dark'])for(const wi
  }));
  await info.attach('large-box-layout-audit',{body:JSON.stringify(audit,null,2),contentType:'application/json'});
  expect(audit.filter(box=>![14,10].includes(box.radius)),JSON.stringify(audit)).toEqual([]);
- if(theme==='light')expect(audit.filter(box=>box.backgroundLum!==null && box.backgroundLum<.15),JSON.stringify(audit)).toEqual([]);
+ // UI Redesign 07 #11: the unsaved-changes bar is ink in both themes by design; every other large box stays light.
+ if(theme==='light')expect(audit.filter(box=>box.backgroundLum!==null && box.backgroundLum<.15 && !String(box.class).includes('schedule-draft-actions')),JSON.stringify(audit)).toEqual([]);
  expect(audit.filter(box=>box.inset && (box.inset.left<16||box.inset.top<12)),JSON.stringify(audit)).toEqual([]);
  for(const card of await root.locator('.layout-section-card,.layout-metric-card,.layout-step-flow').all()){
   if(!(await card.isVisible()))continue;

@@ -128,7 +128,7 @@ async function openAdminRoster(page: Page, testInfo: TestInfo) {
   await page.goto(target);
   await expect(page.getByRole('heading', { name: 'ตารางกะรายเดือน' })).toBeVisible();
   await expect(page).toHaveURL(target);
-  await expect(page.locator('.schedule-grid tbody tr')).toHaveCount(20);
+  await expect(page.locator('.schedule-grid tbody tr:not(.schedule-group-row)')).toHaveCount(20);
   await page.screenshot({ path: testInfo.outputPath('t11-roster.png'), fullPage: true });
 
   return { fixture, apiMethods };
@@ -147,7 +147,7 @@ test(`monthly roster keeps classic visible shift times, natural department order
 
   const grid = page.locator('.schedule-grid');
   await expect(grid).not.toHaveClass(/schedule-grid--compact/);
-  await expect(grid.locator('tbody tr')).toHaveCount(20);
+  await expect(grid.locator('tbody tr:not(.schedule-group-row)')).toHaveCount(20);
   await expect(grid.locator('.schedule-department-group-row')).toHaveCount(0);
   await expect(grid.locator('tbody .employee-sticky small')).toHaveText([
     'E1 · AN1', 'E2 · AN1', 'E2 · AN1', 'E10 · AN1', 'E005 · AN1,AN2,AN3',
@@ -155,8 +155,8 @@ test(`monthly roster keeps classic visible shift times, natural department order
     'E011 · AN3', 'E012 · AN3', 'E013 · AN3', 'E014 · AN3', 'E015 · AN3',
     'E016 · AN10', 'E017 · AN10', 'E018 · AN10', 'E019 · AN10', 'E020 · AN10'
   ]);
-  await expect(grid.locator('tbody tr').nth(1)).toContainText('พนักงาน2 ทดสอบ');
-  await expect(grid.locator('tbody tr').nth(2)).toContainText('พนักงาน3 ทดสอบ');
+  await expect(grid.locator('tbody tr:not(.schedule-group-row)').nth(1)).toContainText('พนักงาน2 ทดสอบ');
+  await expect(grid.locator('tbody tr:not(.schedule-group-row)').nth(2)).toContainText('พนักงาน3 ทดสอบ');
   await expect(grid.locator('.calendar-shift b').first()).toHaveText('D');
   await expect(grid.locator('.schedule-time').first()).toBeVisible();
   await expect(grid.locator('.schedule-shift-kind')).toHaveCount(2);
