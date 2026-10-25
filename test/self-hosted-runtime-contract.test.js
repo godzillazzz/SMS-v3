@@ -26,4 +26,5 @@ test('cutover contract requires both targets to be symlinks to one shared pointe
 test('deployment templates do not retain the split legacy runtime layout', () => {
   assert.doesNotMatch(service, /\/opt\/sms-v3\/app\/src\/server\.js/);
   assert.doesNotMatch(nginx, /^    root \/var\/www\/sms;$/m);
+  assert.match(releaseTool, /args\.pointer \|\| '\/srv\/sms-v3\/.current'/);
 });

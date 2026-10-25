@@ -37,25 +37,24 @@ If `/opt/sms-v3/app` is a real directory, do not overwrite it. During a maintena
 
 ```text
 set -euo pipefail
-mkdir -p /opt/sms-v3/releases /opt/sms-v3/shared
+mkdir -p /srv/sms-v3/releases /opt/sms-v3/shared
 old=/opt/sms-v3/app
 [ -d "$old" ] && [ ! -L "$old" ] || { echo 'already migrated or invalid'; exit 1; }
-legacy="/opt/sms-v3/releases/legacy-$(date -u +%Y%m%dT%H%M%SZ)"
+legacy="/srv/sms-v3/releases/legacy-$(date -u +%Y%m%dT%H%M%SZ)"
 mv -- "$old" "$legacy"
-mkdir -p /opt/sms-v3/releases
-ln -s -- /opt/sms-v3/.sms-v3-current "$old"
-readlink "$old" | grep -Fx -- /opt/sms-v3/.sms-v3-current
+ln -s -- /srv/sms-v3/.current "$old"
+readlink "$old" | grep -Fx -- /srv/sms-v3/.current
 ```
 
 This is an operator migration procedure, not executed by CI. Abort if the directory is absent, already a symlink, or the assertion fails. The frontend target must also be a symlink to the same pointer:
 
 ```text
-test "$(readlink /var/www/sms)" = /opt/sms-v3/.sms-v3-current
+test "$(readlink /var/www/sms)" = /srv/sms-v3/.current
 ```
 
 ### Release cutover
 
-Each build is copied to `/opt/sms-v3/releases/<full-git-sha>` and contains the paired `backend/` and `frontend/dist/` artifacts. The release permission contract is explicit: release directories and all parent traversal directories are readable/executable by the `smsv3` runtime (directory mode `0755`); release files are readable by the runtime (file mode `0644`); group/other write is forbidden. Ownership is an operator/build-staging responsibility (`smsv3:smsv3` for runtime artifacts), not an implicit live-host repair. The release verifier fails closed on missing traversal, unreadable files, symlinks inside the release, or unsafe write bits; it never runs `chmod`/`chown` against Production. `/opt/sms-v3/.sms-v3-current` is the one shared release pointer. Both `/opt/sms-v3/app` and `/var/www/sms` must be symlinks to that pointer; systemd then executes `/opt/sms-v3/app/backend/src/server.js` and nginx serves `/var/www/sms/frontend/dist`. Keep the prior release for rollback. A cutover rehearsal must run in a scratch filesystem first; it must assert both runtime targets are symlinks to the shared pointer and that the pointer resolves to the same full SHA for both artifacts. No green result may be claimed without those assertions.
+Each build is copied to `/srv/sms-v3/releases/<full-git-sha>` and contains the paired `backend/` and `frontend/dist/` artifacts. The release permission contract is explicit: the neutral root, releases, and all parent traversal directories are readable/executable by both `smsv3` and `www-data` (directory mode `0755`); frontend files are `root:www-data` mode `0644` so nginx/www-data can read them; backend files are `root:smsv3` mode `0640` and backend directories are `0750`, so only the smsv3 service identity can read private backend artifacts. Neutral root, release, and frontend traversal directories are `0755` for systemd/nginx traversal; group/other write is forbidden. The build requires the `smsv3` and `www-data` groups and applies root ownership explicitly; it never adds www-data to smsv3 or exposes backend secrets. The release verifier fails closed on missing traversal, unreadable files, symlinks inside the release, or unsafe write bits; it never runs `chmod`/`chown` against Production. `/srv/sms-v3/.current` is the one shared release pointer. Both `/opt/sms-v3/app` and `/var/www/sms` must be symlinks to that pointer; systemd then executes `/opt/sms-v3/app/backend/src/server.js` and nginx serves `/var/www/sms/frontend/dist`. Keep the prior release for rollback. A cutover rehearsal must run in a scratch filesystem first; it must assert both runtime targets are symlinks to the shared pointer and that the pointer resolves to the same full SHA for both artifacts. No green result may be claimed without those assertions.
 
 ## Environment and migration gate
 
@@ -71,7 +70,7 @@ Never use `prisma migrate dev` or `prisma migrate reset`. Application rollback d
 
 ## Cutover, rollback, and rehearsal
 
-Before production cutover, record `readlink /opt/sms-v3/app`, `readlink /var/www/sms`, `readlink -f /opt/sms-v3/.sms-v3-current`, expected full SHA, backup ID, and prior release. The cutover tool fails closed unless both runtime targets are symlinks to the shared pointer, then atomically switches that pointer, restarts the service, and verifies local `/api/v1/health`, `/api/v1/ready`, and static asset HTTP 200. Rollback atomically switches the same pointer to the prior release and repeats all checks. Preserve logs; never retry a failed migration blindly. A rollback rehearsal on a disposable scratch tree is required evidence, but it does not authorize a remote cutover.
+Before production cutover, record `readlink /opt/sms-v3/app`, `readlink /var/www/sms`, `readlink -f /srv/sms-v3/.current`, expected full SHA, backup ID, and prior release. The cutover tool fails closed unless both runtime targets are symlinks to the shared pointer, then atomically switches that pointer, restarts the service, and verifies local `/api/v1/health`, `/api/v1/ready`, and static asset HTTP 200. Rollback atomically switches the same pointer to the prior release and repeats all checks. Preserve logs; never retry a failed migration blindly. A rollback rehearsal on a disposable scratch tree is required evidence, but it does not authorize a remote cutover.
 
 ## Proxy identity and security
 
