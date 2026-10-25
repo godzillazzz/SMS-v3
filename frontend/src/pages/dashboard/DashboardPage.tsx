@@ -1,21 +1,25 @@
 import { SmsIcon } from '../../components/SmsIcon';
 import { DashboardFilterBar } from '../../components/dashboard/DashboardFilterBar';
-import { WorkforceOverviewCard } from '../../components/dashboard/WorkforceOverviewCard';
-import { TodayOperationsCard } from '../../components/dashboard/TodayOperationsCard';
-import { AttentionNeededCard } from '../../components/dashboard/AttentionNeededCard';
-import { RecentActivityCard } from '../../components/dashboard/RecentActivityCard';
 import { QuickActionsCard } from '../../components/dashboard/QuickActionsCard';
-import { MyWorkQueueCard } from '../../components/dashboard/MyWorkQueueCard';
 import type { ApprovalCountSummary, ApprovalCountType } from '../../components/approval-count-badge';
 import { WorkQueueJourney } from '../../components/dashboard/WorkQueueJourney';
-import { DataSyncStatusCard } from '../../components/dashboard/DataSyncStatusCard';
-import { LeaveSummaryCard } from '../../components/dashboard/LeaveSummaryCard';
-import { LicenseSummaryCard } from '../../components/dashboard/LicenseSummaryCard';
 import { RequestErrorReference, type RequestErrorInput } from '../../request-error';
 import { asNumber, type DashboardAction, type DashboardActivity, type DashboardExpiringLicense, type DashboardFilters, type DashboardNavigate, type DashboardSummary, type DashboardUser } from '../../components/dashboard/types';
 import { PageHeader, SectionCard } from '../../components/layout';
 import './dashboard-redesign.css';
 import { dashboardDetailQuery, type DashboardDetailMetric } from '../../components/dashboard/deep-links';
+import { lazy, Suspense } from 'react';
+
+/* Loaded on demand to keep the main bundle within its budget; the placeholder keeps the layout steady. */
+/* Detail cards live inside the collapsed 'รายละเอียด' section, so they load as their own chunk. */
+const WorkforceOverviewCard = lazy(() => import('../../components/dashboard/WorkforceOverviewCard').then((module) => ({ default: module.WorkforceOverviewCard })));
+const TodayOperationsCard = lazy(() => import('../../components/dashboard/TodayOperationsCard').then((module) => ({ default: module.TodayOperationsCard })));
+const AttentionNeededCard = lazy(() => import('../../components/dashboard/AttentionNeededCard').then((module) => ({ default: module.AttentionNeededCard })));
+const RecentActivityCard = lazy(() => import('../../components/dashboard/RecentActivityCard').then((module) => ({ default: module.RecentActivityCard })));
+const LeaveSummaryCard = lazy(() => import('../../components/dashboard/LeaveSummaryCard').then((module) => ({ default: module.LeaveSummaryCard })));
+const LicenseSummaryCard = lazy(() => import('../../components/dashboard/LicenseSummaryCard').then((module) => ({ default: module.LicenseSummaryCard })));
+const DataSyncStatusCard = lazy(() => import('../../components/dashboard/DataSyncStatusCard').then((module) => ({ default: module.DataSyncStatusCard })));
+const MyWorkQueueCard = lazy(() => import('../../components/dashboard/MyWorkQueueCard').then((module) => ({ default: module.MyWorkQueueCard })));
 
 type DashboardPageProps = { summary: DashboardSummary; loading: boolean; error?: RequestErrorInput; user?: DashboardUser; canManage: boolean; filters: DashboardFilters; pendingApprovalCount?: number | null; approvalSummary?: ApprovalCountSummary | null; approvalCountStatus?: 'idle' | 'loading' | 'ready' | 'error'; onOpenApprovalCenter?(type?: ApprovalCountType): void; onFiltersChange: (filters: Partial<DashboardFilters>) => void; onNavigate: DashboardNavigate };
 
@@ -73,7 +77,7 @@ export function DashboardPage({ summary, loading, error, user, canManage, filter
     {error ? <div className="nexus-command__alert dashboard-data-error" role="alert"><strong>ข้อมูลไม่พร้อมใช้งาน</strong><span>โหลดภาพรวมไม่สำเร็จ ระบบไม่สร้างข้อมูลแทน</span><RequestErrorReference requestId={typeof error === 'string' ? undefined : error?.requestId} /></div> : partialErrors.length > 0 ? <div className="nexus-command__alert dashboard-data-warning" role="status"><strong>ข้อมูลบางส่วนไม่พร้อม</strong><span>ข้อมูลพร้อมแสดงตามสิทธิ์</span></div> : null}
 
     <div className="dashboard-redesign__top">
-    {canManage && <MyWorkQueueCard summary={approvalSummary} status={approvalCountStatus === 'error' ? 'error' : approvalSummary ? 'ready' : 'loading'} onOpen={(type) => onOpenApprovalCenter?.(type)} />}
+    {canManage && <Suspense fallback={<section className="my-work-queue" aria-label="งานของฉัน" aria-busy="true" />}><MyWorkQueueCard summary={approvalSummary} status={approvalCountStatus === 'error' ? 'error' : approvalSummary ? 'ready' : 'loading'} onOpen={(type) => onOpenApprovalCenter?.(type)} /></Suspense>}
 
 
     <section className="nexus-command__grid dashboard-command-grid">
@@ -99,6 +103,7 @@ export function DashboardPage({ summary, loading, error, user, canManage, filter
     <details className="dashboard-redesign__details">
     <summary><span>รายละเอียด</span><small>กำลังพลตามกะ · การลาและใบอนุญาต · กิจกรรมล่าสุด · สถานะข้อมูล</small></summary>
     <WorkQueueJourney canManage={canManage} pendingApprovalCount={pendingApprovalCount} onOpenApprovalCenter={() => onOpenApprovalCenter?.()} onNavigate={onNavigate} />
+    <Suspense fallback={<p className="nexus-loading">กำลังโหลดรายละเอียด…</p>}>
     <section className="nexus-legacy-data" aria-label="รายละเอียด">
       <div className="nexus-section-heading"><div><p className="nexus-kicker">ข้อมูลที่ตรวจสอบแล้ว</p><h2>ข้อมูลปฏิบัติการ</h2></div><span>ข้อมูลจากระบบ</span></div>
       <div className="dashboard-command-grid dashboard-primary-grid"><AttentionNeededCard rows={actions} expiringLicenses={expiringLicenseDetails} expiringCount={expiring} loading={loading} onNavigate={deepLinkNavigate} /><TodayOperationsCard operations={todayOperations} totalEmployees={total} activeEmployees={active} loading={loading} onNavigate={deepLinkNavigate} /></div>
@@ -110,6 +115,7 @@ export function DashboardPage({ summary, loading, error, user, canManage, filter
       <article className="nexus-panel nexus-readiness"><header><div><p className="nexus-kicker">ความพร้อมกำลังพล</p><h2>พนักงานและตารางกะ</h2></div><button onClick={() => onNavigate('schedule')}>ดูตารางกะ ↗</button></header><div className="nexus-readiness__meter"><span style={{width:`${total ? Math.min(100,active/total*100) : 0}%`}}/></div><div className="nexus-readiness__stats"><span><b>{numberText(total)}</b>ทั้งหมด</span><span><b>{numberText(active)}</b>ปฏิบัติงาน</span><span><b>{numberText(onDuty)}</b>ทำงานวันนี้</span></div></article>
       <article className="nexus-panel nexus-activity"><header><div><p className="nexus-kicker">กิจกรรมที่บันทึก</p><h2>กิจกรรมล่าสุด</h2></div><span className="nexus-state">อ่านอย่างเดียว</span></header><div>{activities.length ? activities.slice(0,4).map((row,index)=><p key={String((row as any).id||index)}><i/><span><strong>{String((row as any).title || (row as any).action || 'กิจกรรมในระบบ')}</strong><small>{String((row as any).description || (row as any).detail || '')}</small></span></p>) : <p className="nexus-activity__empty"><span><strong>ไม่มีกิจกรรมล่าสุด</strong><small>ไม่มีกิจกรรมจากข้อมูลปัจจุบัน</small></span></p>}</div></article>
     </section>
+    </Suspense>
     </details>
   </section>;
 }

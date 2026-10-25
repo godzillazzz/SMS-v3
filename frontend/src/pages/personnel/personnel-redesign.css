@@ -12,11 +12,6 @@
 #sms-app .personnel-directory-page .personnel-record-row.is-selected td { background: var(--color-primary-soft) !important; }
 #sms-app .personnel-directory-page .personnel-record-row.is-selected td:first-child { box-shadow: inset 3px 0 0 var(--color-primary); }
 #sms-app .personnel-identity { display: inline-flex; align-items: center; gap: 12px; }
-#sms-app .personnel-avatar { display: inline-grid; place-items: center; flex: 0 0 auto; width: 36px; height: 36px; border-radius: 50%; background: #1d4ed8; color: #ffffff; font-size: 13px; font-weight: 700; }
-#sms-app .personnel-avatar[data-tone="1"] { background: #0b7a74; }
-#sms-app .personnel-avatar[data-tone="2"] { background: #7c3aed; }
-#sms-app .personnel-avatar[data-tone="3"] { background: #047857; }
-#sms-app .personnel-avatar[data-tone="4"] { background: #0a68a0; }
 #sms-app .personnel-name-button { color: var(--color-text) !important; font-weight: 600 !important; }
 #sms-app .personnel-directory-page code { padding: 2px 8px; border-radius: 6px; background: var(--color-surface-muted) !important; color: var(--color-text-secondary) !important; font-size: 12px; }
 #sms-app .personnel-directory-page .personnel-search-input { display: flex; align-items: center; gap: 8px; padding: 0 12px; border: 1px solid var(--color-border) !important; border-radius: 10px; background: var(--color-surface) !important; }
