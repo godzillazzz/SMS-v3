@@ -1689,6 +1689,7 @@ function Dashboard() {
       const previewRows = Array.isArray(autoSchedulePreview?.rows) ? autoSchedulePreview.rows as DataRow[] : [];
       const previewWarnings = Array.isArray(autoSchedulePreview?.warnings) ? autoSchedulePreview.warnings : [];
       const previewSummary = nested(autoSchedulePreview?.summary);
+      const hasUnsavedScheduleDrafts = Object.keys(scheduleDrafts).length > 0;
 
       const applyPreviewToDrafts = (previewRowsParam: DataRow[], replaceEmployeeId?: string) => {
         const newDrafts = { ...scheduleDrafts };
@@ -1761,7 +1762,7 @@ function Dashboard() {
         } catch (reason) { setOperationError(reason instanceof Error ? reason.message : 'ส่งออก Excel ไม่สำเร็จ'); }
         finally { setScheduleExportBusy(false); }
       };
-      return <section className="view-pane schedule-calendar-page">
+      return <section className={`view-pane schedule-calendar-page${hasUnsavedScheduleDrafts ? ' has-schedule-drafts' : ''}`}>
         <div className="page-heading">
           <div><p className="eyebrow">ตารางและกฎการทำงาน</p><h1>Schedule Calendar</h1><p>จัดกะรายเดือน (โหมดบันทึกด้วยตนเอง: แก้ไขกะหรือลบกะในตารางได้ต่อเนื่อง แล้วกด 💾 บันทึกการเปลี่ยนแปลง เพื่อบันทึกทีเดียว)</p></div>
           <div className="heading-actions">

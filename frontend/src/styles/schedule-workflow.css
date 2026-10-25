@@ -232,12 +232,18 @@
   .schedule-calendar-page .schedule-workbench { padding: var(--ds-space-4); }
   .schedule-calendar-page .month-grid-picker { width: 100%; }
   .schedule-calendar-page .month-grid-trigger { width: 100%; }
-  .schedule-calendar-page .schedule-draft-actions { position: sticky; bottom: var(--ds-space-2); z-index: 12; padding: var(--ds-space-3); border: 1px solid var(--ds-color-border); border-radius: var(--ds-radius-control); background: color-mix(in srgb, var(--ds-color-surface) 94%, transparent); box-shadow: var(--ds-shadow-md); backdrop-filter: blur(12px); }
+  .schedule-calendar-page .schedule-draft-actions { position: sticky; bottom: max(var(--ds-space-2), env(safe-area-inset-bottom, 0px)); z-index: 12; padding: var(--ds-space-3); border: 1px solid var(--ds-color-border); border-radius: var(--ds-radius-control); background: color-mix(in srgb, var(--ds-color-surface) 94%, transparent); box-shadow: var(--ds-shadow-md); backdrop-filter: blur(12px); }
   .schedule-draft-actions > .ui-button { flex: 1 1 100%; min-height: var(--ds-size-touch); }
   .schedule-draft-actions > span { width: 100%; text-align: center; }
   .schedule-calendar-page .schedule-grid .employee-sticky { min-width: 176px; max-width: 176px; }
   .schedule-calendar-page .schedule-grid th,
   .schedule-calendar-page .schedule-grid td { min-width: 78px; }
+  .schedule-calendar-page .schedule-grid .calendar-shift,
+  .schedule-calendar-page .schedule-grid .empty-shift { min-height: 64px; }
+  .schedule-calendar-page .schedule-grid .empty-shift { width: 64px; }
+  .schedule-calendar-page .schedule-grid .calendar-delete { width: 64px; min-width: 64px; min-height: 64px; }
+  .schedule-calendar-page.has-schedule-drafts { padding-bottom: calc(180px + env(safe-area-inset-bottom, 0px)); }
+  .schedule-calendar-page.has-schedule-drafts .schedule-draft-actions { position: fixed; inset-inline: 12px; bottom: max(var(--ds-space-2), env(safe-area-inset-bottom, 0px)); z-index: 24; margin: 0; box-sizing: border-box; }
   .schedule-workflow-dialog { max-height: calc(100vh - 16px); padding: var(--ds-space-4); }
   .schedule-shift-fields { grid-template-columns: 1fr; }
   .schedule-dialog-actions > .ui-button { flex: 1 1 auto; min-height: var(--ds-size-touch); }
