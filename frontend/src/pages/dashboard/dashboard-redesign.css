@@ -1,0 +1,58 @@
+/* Dashboard per UI Redesign 03 (visual) + W-01 (structure). Scoped to the dashboard page only. */
+:root[data-theme] .app-shell.app-shell .dashboard-redesign { display: grid; gap: 16px; }
+:root[data-theme] .app-shell.app-shell .dashboard-redesign > * { margin: 0 !important; }
+:root[data-theme] .app-shell.app-shell .dashboard-redesign .layout-page-header p, :root[data-theme] .app-shell.app-shell .dashboard-redesign .nexus-command__hero p { color: var(--color-text-secondary) !important; }
+:root[data-theme] .app-shell.app-shell .dashboard-redesign .nexus-hero-status { display: none !important; }
+:root[data-theme] .app-shell.app-shell .dashboard-redesign__top { display: grid; grid-template-columns: minmax(0, 1.65fr) minmax(300px, 1fr); gap: 16px; align-items: start; }
+:root[data-theme] .app-shell.app-shell .dashboard-redesign__top > .dashboard-command-grid { display: block !important; margin: 0 !important; }
+:root[data-theme] .app-shell.app-shell .dashboard-redesign__top > :only-child { grid-column: 1 / -1; }
+@media (max-width: 1100px) { :root[data-theme] .app-shell.app-shell .dashboard-redesign__top { grid-template-columns: 1fr; } }
+
+/* "ต้องดูวันนี้" list */
+:root[data-theme] .app-shell.app-shell .dashboard-redesign .nexus-stream { padding: 0 !important; overflow: hidden; }
+:root[data-theme] .app-shell.app-shell .dashboard-redesign .nexus-stream > header { padding: 16px 18px !important; border-bottom: 1px solid var(--color-border) !important; background: transparent !important; }
+:root[data-theme] .app-shell.app-shell .dashboard-redesign .nexus-stream > header b { min-width: 28px; padding: 2px 9px; border-radius: 999px; background: var(--color-primary-soft) !important; color: var(--color-primary) !important; text-align: center; font-size: 13px; }
+:root[data-theme] .app-shell.app-shell .dashboard-redesign .nexus-stream__list { display: grid; padding: 4px 18px; }
+:root[data-theme] .app-shell.app-shell .dashboard-redesign .nexus-stream__item { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 12px; padding: 12px 0; border-bottom: 1px solid var(--color-border); background: transparent !important; }
+:root[data-theme] .app-shell.app-shell .dashboard-redesign .nexus-stream__item:last-child { border-bottom: 0; }
+:root[data-theme] .app-shell.app-shell .dashboard-redesign .nexus-stream__pulse { display: none !important; }
+:root[data-theme] .app-shell.app-shell .dashboard-redesign .nexus-stream__item strong { color: var(--color-text) !important; font-size: 14px; }
+:root[data-theme] .app-shell.app-shell .dashboard-redesign .nexus-stream__item small { display: block; color: var(--color-text-muted) !important; font-size: 12px; }
+:root[data-theme] .app-shell.app-shell .dashboard-redesign .nexus-stream__item em { align-self: center; color: var(--color-text) !important; font-style: normal; font-size: 20px; font-weight: 700; }
+:root[data-theme] .app-shell.app-shell .dashboard-redesign .nexus-stream__cta { margin: 0 18px 16px; }
+:root[data-theme] .app-shell.app-shell .dashboard-redesign .nexus-clear { display: flex; align-items: center; gap: 8px; padding: 16px 0; color: var(--color-success) !important; }
+:root[data-theme] .app-shell.app-shell .dashboard-redesign .nexus-clear span { color: var(--color-text-muted) !important; }
+
+/* KPI cards (03 #3) */
+:root[data-theme] .app-shell.app-shell .dashboard-redesign .nexus-kpis-card { padding: 0 !important; border: 0 !important; background: transparent !important; box-shadow: none !important; }
+:root[data-theme] .app-shell.app-shell .dashboard-redesign .nexus-kpis-card > header, :root[data-theme] .app-shell.app-shell .dashboard-redesign .nexus-kpis-card .layout-section-card__header { display: none !important; }
+:root[data-theme] .app-shell.app-shell .dashboard-redesign .nexus-kpis { display: grid !important; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; padding: 0 !important; background: transparent !important; border: 0 !important; }
+:root[data-theme] .app-shell.app-shell .dashboard-redesign .nexus-kpis > button { display: grid !important; grid-template-columns: auto 1fr; grid-template-areas: "icon label" "value value" "note note"; align-items: center; gap: 10px 12px; min-height: 0; padding: 18px !important; border: 1px solid var(--color-border) !important; border-radius: 14px !important; background: var(--color-surface) !important; box-shadow: var(--shadow-sm) !important; color: var(--color-text) !important; text-align: left; cursor: pointer; }
+:root[data-theme] .app-shell.app-shell .dashboard-redesign .nexus-kpis > button:hover { border-color: color-mix(in srgb, var(--color-primary) 40%, var(--color-border)) !important; }
+:root[data-theme] .app-shell.app-shell .dashboard-redesign .dashboard-kpi-icon { grid-area: icon; display: grid; place-items: center; width: 40px; height: 40px; border-radius: 10px; background: var(--color-primary-soft); color: var(--color-primary); }
+:root[data-theme] .app-shell.app-shell .dashboard-redesign .nexus-kpis > button:nth-child(2) .dashboard-kpi-icon { background: var(--color-success-soft); color: var(--color-success); }
+:root[data-theme] .app-shell.app-shell .dashboard-redesign .nexus-kpis > button:nth-child(3) .dashboard-kpi-icon { background: var(--color-info-soft); color: var(--color-info); }
+:root[data-theme] .app-shell.app-shell .dashboard-redesign .nexus-kpis > button:nth-child(4) .dashboard-kpi-icon { background: var(--color-warning-soft); color: var(--color-warning); }
+:root[data-theme] .app-shell.app-shell .dashboard-redesign .nexus-kpis > button > span { grid-area: label; color: var(--color-text-secondary) !important; font-size: 14px !important; font-weight: 500; letter-spacing: 0 !important; text-transform: none !important; }
+:root[data-theme] .app-shell.app-shell .dashboard-redesign .nexus-kpis > button > strong { grid-area: value; color: var(--color-text) !important; font-size: 30px !important; font-weight: 700; line-height: 1.1; }
+:root[data-theme] .app-shell.app-shell .dashboard-redesign .nexus-kpis > button > strong small { color: var(--color-text-muted) !important; font-size: 15px; font-weight: 500; }
+:root[data-theme] .app-shell.app-shell .dashboard-redesign .nexus-kpis > button > em { grid-area: note; color: var(--color-text-muted) !important; font-size: 12px; font-style: normal; }
+@media (max-width: 1100px) { :root[data-theme] .app-shell.app-shell .dashboard-redesign .nexus-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+/* Details (W-01 #5): collapsed by default */
+:root[data-theme] .app-shell.app-shell .dashboard-redesign__details { border: 1px solid var(--color-border); border-radius: 14px; background: var(--color-surface); box-shadow: var(--shadow-sm); }
+:root[data-theme] .app-shell.app-shell .dashboard-redesign__details > summary { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; padding: 16px 18px; cursor: pointer; list-style: none; }
+:root[data-theme] .app-shell.app-shell .dashboard-redesign__details > summary::-webkit-details-marker { display: none; }
+:root[data-theme] .app-shell.app-shell .dashboard-redesign__details > summary::before { content: "▸"; color: var(--color-text-muted); transition: transform .15s; }
+:root[data-theme] .app-shell.app-shell .dashboard-redesign__details[open] > summary::before { transform: rotate(90deg); }
+:root[data-theme] .app-shell.app-shell .dashboard-redesign__details > summary span { color: var(--color-text); font-size: 16px; font-weight: 700; }
+:root[data-theme] .app-shell.app-shell .dashboard-redesign__details > summary small { color: var(--color-text-muted); font-size: 12px; }
+:root[data-theme] .app-shell.app-shell .dashboard-redesign__details[open] { display: grid; gap: 16px; padding-bottom: 16px; }
+:root[data-theme] .app-shell.app-shell .dashboard-redesign__details[open] > :not(summary) { margin: 0 16px !important; }
+
+/* Filters sit quietly under the greeting (W-01 header right), not in their own card. */
+:root[data-theme] .app-shell.app-shell .dashboard-redesign .dashboard-filter-bar { display: flex !important; justify-content: flex-end; min-height: 0 !important; margin-top: -8px !important; padding: 0 !important; border: 0 !important; background: transparent !important; box-shadow: none !important; }
+:root[data-theme] .app-shell.app-shell .dashboard-redesign .dashboard-filter-bar__icon { display: none !important; }
+:root[data-theme] .app-shell.app-shell .dashboard-redesign .dashboard-filter-bar__controls { display: flex !important; flex-wrap: wrap; gap: 8px; }
+:root[data-theme] .app-shell.app-shell .dashboard-redesign .dashboard-filter-bar :is(input, select) { min-height: 38px !important; height: 38px !important; border: 1px solid var(--color-border) !important; border-radius: 10px !important; background: var(--color-surface) !important; color: var(--color-text) !important; box-shadow: none !important; }
+:root[data-theme] .app-shell.app-shell .dashboard-redesign .dashboard-filter-bar label > span, :root[data-theme] .app-shell.app-shell .dashboard-redesign .dashboard-filter-bar label { color: var(--color-text-muted) !important; font-size: 12px; }

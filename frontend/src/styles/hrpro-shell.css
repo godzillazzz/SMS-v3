@@ -45,3 +45,4 @@
 :root[data-theme] .app-shell.app-shell:not(.pwa-shell) { --layout-card-radius: 14px; --layout-heading-font: "IBM Plex Sans Thai", sans-serif; --layout-body-font: "IBM Plex Sans Thai", sans-serif; }
 :root[data-theme] .app-shell.app-shell:not(.pwa-shell) .content-area .layout-page-surface :is(.layout-section-card, .layout-metric-card, .layout-step-flow) { border-radius: 14px !important; }
 :root[data-theme] .app-shell.app-shell:not(.pwa-shell) .attendance-device-security-note { padding-top: 12px !important; padding-bottom: 12px !important; }
+:root[data-theme] .app-shell.app-shell:not(.pwa-shell) .data-table-scroll { padding-top: 1px !important; }

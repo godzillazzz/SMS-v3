@@ -113,16 +113,9 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   padding: 16px 16px 14px;
   border-bottom: 1px solid var(--signature-border);
 }
-.sidebar-brand .brand-mark {
-  width: 34px;
-  height: 34px;
-  border-radius: 10px;
-  box-shadow: none;
-}
 .sidebar-brand span strong { font-size: 12px; font-weight: 500; color: var(--signature-text-secondary); }
 .sidebar-brand span b { font-size: 15px; letter-spacing: -.01em; }
-.sidebar-nav { padding: 12px 10px 20px; gap: 12px; }
-.nav-section > span, .nav-section-label {
+.nav-section > span {
   margin: 0 8px 5px;
   color: var(--signature-text-muted);
   font-size: 10px;
@@ -225,8 +218,7 @@ input, select, textarea {
 }
 input::placeholder, textarea::placeholder { color: var(--signature-text-muted); }
 
-/* ---- Unified filter / result bars ------------------------------------ */
-.data-toolbar, .signature-filter-bar, .personnel-search-toolbar, .audit-toolbar, .dashboard-filter-bar, .leave-history-filter {
+.data-toolbar,.signature-filter-bar,.audit-toolbar,.dashboard-filter-bar,.leave-history-filter {
   gap: 10px;
   margin: 0 0 14px;
   padding: 10px 12px;
@@ -484,8 +476,7 @@ input::placeholder, textarea::placeholder { color: var(--signature-text-muted); 
 .leave-days-note { background: var(--signature-brand-soft) !important; color: var(--signature-text-secondary) !important; }
 .leave-pending-card > header > b { font-size: 11px; color: var(--signature-text-muted); background: transparent !important; border: 0 !important; }
 
-/* ---- Schedule / quota / settings ------------------------------------ */
-.schedule-page, .schedule-calendar, .settings-card, .rules-panel { color: var(--signature-text); }
+.schedule-page,.schedule-calendar,.settings-card { color: var(--signature-text); }
 .schedule-toolbar, .schedule-controls, .schedule-filter-bar { border-color: var(--signature-border) !important; background: var(--signature-surface) !important; box-shadow: none !important; }
 .schedule-grid, .schedule-table { border-color: var(--table-border) !important; background: var(--table-bg) !important; }
 .schedule-grid th, .schedule-table th { background: var(--table-header-bg) !important; color: var(--table-text-secondary) !important; }
@@ -493,13 +484,11 @@ input::placeholder, textarea::placeholder { color: var(--signature-text-muted); 
 .approval-banner { border: 1px solid var(--signature-border) !important; border-radius: 12px !important; background: var(--signature-surface) !important; box-shadow: none !important; }
 .settings-card { border: 1px solid var(--signature-border) !important; background: var(--signature-surface) !important; box-shadow: none !important; }
 
-/* ---- Audit / quality / reports -------------------------------------- */
-.audit-summary-card, .data-quality-summary-card, .report-card, .executive-report-card {
+.audit-summary-card,.data-quality-summary-card,.executive-report-card {
   border: 1px solid var(--signature-border) !important;
   background: var(--signature-surface) !important;
   box-shadow: none !important;
 }
-.audit-event-preview, .data-quality-detail { background: var(--drawer-bg) !important; }
 
 /* ---- Login flagship -------------------------------------------------- */
 .login-page {
@@ -540,7 +529,7 @@ input::placeholder, textarea::placeholder { color: var(--signature-text-muted); 
   .heading-actions, .signature-page-actions { width: 100%; justify-content: flex-start; }
   .signature-page-actions > .btn-primary { order: -1; }
   .signature-page-utilities { margin-left: auto; }
-  .data-toolbar, .signature-filter-bar, .personnel-search-toolbar, .audit-toolbar, .dashboard-filter-bar { padding: 9px; }
+  .data-toolbar,.signature-filter-bar,.audit-toolbar,.dashboard-filter-bar { padding: 9px; }
   .signature-data-surface .data-table-scroll { display: none; }
   .signature-mobile-records { display: grid; gap: 8px; padding: 8px; background: var(--table-bg); }
   .signature-mobile-record {

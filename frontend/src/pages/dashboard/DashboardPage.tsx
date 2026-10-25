@@ -14,6 +14,7 @@ import { LicenseSummaryCard } from '../../components/dashboard/LicenseSummaryCar
 import { RequestErrorReference, type RequestErrorInput } from '../../request-error';
 import { asNumber, type DashboardAction, type DashboardActivity, type DashboardExpiringLicense, type DashboardFilters, type DashboardNavigate, type DashboardSummary, type DashboardUser } from '../../components/dashboard/types';
 import { PageHeader, SectionCard } from '../../components/layout';
+import './dashboard-redesign.css';
 import { dashboardDetailQuery, type DashboardDetailMetric } from '../../components/dashboard/deep-links';
 
 type DashboardPageProps = { summary: DashboardSummary; loading: boolean; error?: RequestErrorInput; user?: DashboardUser; canManage: boolean; filters: DashboardFilters; pendingApprovalCount?: number | null; approvalSummary?: ApprovalCountSummary | null; approvalCountStatus?: 'idle' | 'loading' | 'ready' | 'error'; onOpenApprovalCenter?(type?: ApprovalCountType): void; onFiltersChange: (filters: Partial<DashboardFilters>) => void; onNavigate: DashboardNavigate };
@@ -44,6 +45,9 @@ export function DashboardPage({ summary, loading, error, user, canManage, filter
   const generatedAt = typeof summary.generatedAt === 'string' ? summary.generatedAt : undefined;
   const syncTime = generatedAt ? new Intl.DateTimeFormat('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit' }).format(new Date(generatedAt)) : '—';
   const firstName = user?.displayName?.trim().split(/\s+/)[0] || 'ผู้ใช้งาน';
+  const hour = Number(new Intl.DateTimeFormat('en-GB', { hour: 'numeric', hour12: false, timeZone: 'Asia/Bangkok' }).format(new Date()));
+  const greeting = hour < 12 ? 'สวัสดีตอนเช้า' : hour < 17 ? 'สวัสดีตอนบ่าย' : 'สวัสดีตอนเย็น';
+  const todayLabel = new Intl.DateTimeFormat('th-TH', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Bangkok' }).format(new Date());
   const partialErrors = Array.isArray(summary.partialErrors) ? summary.partialErrors : [];
   const navigateMetric = (metric: DashboardDetailMetric, selector: Record<string, string | undefined> = {}) =>
     onNavigate('dashboardDetails', dashboardDetailQuery(metric, filters, user?.role, selector));
@@ -56,38 +60,43 @@ export function DashboardPage({ summary, loading, error, user, canManage, filter
     onNavigate(page);
   };
 
-  return <section className="nexus-command layout-page-surface" aria-label="ภาพรวม">
-    <PageHeader kicker="ภาพรวม" title="ภาพรวมระบบ" description="กำลังพล งานค้าง และข้อมูลตามสิทธิ์" actions={<div className="nexus-hero-status"><span><i /> เข้าสู่ระบบ</span><strong>{firstName}</strong><small>อัปเดตล่าสุด {syncTime}</small></div>} className="nexus-command__hero" />
+  return <section className="nexus-command layout-page-surface dashboard-redesign" aria-label="ภาพรวม">
+    <PageHeader kicker="ภาพรวม" title="ภาพรวมระบบ" description={`${greeting}, ${firstName} · ${todayLabel}`} actions={<div className="nexus-hero-status"><span><i /> เข้าสู่ระบบ</span><strong>{firstName}</strong><small>อัปเดตล่าสุด {syncTime}</small></div>} className="nexus-command__hero" />
 
     <DashboardFilterBar filters={filters} departments={departments} role={user?.role} loading={loading} onChange={onFiltersChange} />
 
-    {canManage && <MyWorkQueueCard summary={approvalSummary} status={approvalCountStatus === 'error' ? 'error' : approvalSummary ? 'ready' : 'loading'} onOpen={(type) => onOpenApprovalCenter?.(type)} />}
-
-    <WorkQueueJourney canManage={canManage} pendingApprovalCount={pendingApprovalCount} onOpenApprovalCenter={() => onOpenApprovalCenter?.()} onNavigate={onNavigate} />
-
     {error ? <div className="nexus-command__alert dashboard-data-error" role="alert"><strong>ข้อมูลไม่พร้อมใช้งาน</strong><span>โหลดภาพรวมไม่สำเร็จ ระบบไม่สร้างข้อมูลแทน</span><RequestErrorReference requestId={typeof error === 'string' ? undefined : error?.requestId} /></div> : partialErrors.length > 0 ? <div className="nexus-command__alert dashboard-data-warning" role="status"><strong>ข้อมูลบางส่วนไม่พร้อม</strong><span>ข้อมูลพร้อมแสดงตามสิทธิ์</span></div> : null}
 
+    <div className="dashboard-redesign__top">
+    {canManage && <MyWorkQueueCard summary={approvalSummary} status={approvalCountStatus === 'error' ? 'error' : approvalSummary ? 'ready' : 'loading'} onOpen={(type) => onOpenApprovalCenter?.(type)} />}
+
+
     <section className="nexus-command__grid dashboard-command-grid">
-      <article className="nexus-stream nexus-panel">
-        <header><div><p className="nexus-kicker">รายการสำคัญ</p><h2>รายการที่ต้องดำเนินการ</h2></div><b>{actions.length}</b></header>
+      <article className="nexus-stream nexus-panel" aria-label="รายการที่ต้องดำเนินการ">
+        <header><div><p className="nexus-kicker">จากข้อมูลภาพรวม</p><h2>ต้องดูวันนี้</h2></div><b>{actions.length}</b></header>
         <div className="nexus-stream__list">{loading ? <div className="nexus-loading">กำลังอ่านข้อมูล…</div> : actions.length ? actions.slice(0,5).map((row, index) => <div className="nexus-stream__item" key={String((row as any).id || index)}><span className="nexus-stream__pulse"/><div><strong>{String((row as any).title || (row as any).label || (row as any).type || 'รายการที่ต้องตรวจสอบ')}</strong><small>{String((row as any).description || (row as any).detail || 'เปิดดูรายละเอียด')}</small></div><em>{String((row as any).count || '')}</em></div>) : <div className="nexus-clear"><SmsIcon name="check" size={28}/><strong>ไม่มีรายการค้าง</strong><span>ไม่มีงานเร่งด่วน</span></div>}</div>
         {canManage && <button className="nexus-stream__cta dashboard-approval-alert" type="button" onClick={() => onOpenApprovalCenter?.()}>เปิดศูนย์อนุมัติ {pendingApprovalCount != null && pendingApprovalCount > 0 && <span>{pendingApprovalCount > 99 ? '99+' : pendingApprovalCount}</span>}</button>}
       </article>
     </section>
+    </div>
 
     <SectionCard kicker="ตัวชี้วัด" title="ภาพรวมการปฏิบัติงาน" description="สรุปกำลังพลและรายการตามวันที่กับสิทธิ์ที่เลือก" className="nexus-kpis-card" aria-label="ตัวชี้วัด">
     <div className="nexus-kpis">
-      <button type="button" onClick={() => navigateMetric('activeEmployees')}><span>พนักงานปฏิบัติงาน</span><strong>{numberText(active)}<small> / {numberText(total)}</small></strong><em>{total ? Math.round(active/total*100) : 0}% พร้อมทำงาน</em></button>
-      <button type="button" onClick={() => navigateMetric('schedule', { workforce: 'ON_DUTY' })}><span>ทำงานวันนี้</span><strong>{numberText(onDuty)}</strong><em>ตามตารางกะ</em></button>
-      <button type="button" onClick={() => navigateMetric('leaveToday')}><span>ลาวันนี้</span><strong>{numberText(leave)}</strong><em>บุคลากรที่ลาในวันที่เลือก</em></button>
-      <button type="button" onClick={() => navigateMetric('licenseExpiry', { expiryBucket: 'EXPIRING_0_30' })}><span>ใบอนุญาตใกล้หมดอายุ</span><strong>{numberText(expiring)}</strong><em>{expiring ? 'ควรตรวจสอบ' : 'ไม่มีรายการใกล้หมดอายุ'}</em></button>
+      <button type="button" onClick={() => navigateMetric('activeEmployees')}><i className="dashboard-kpi-icon" aria-hidden="true"><SmsIcon name="employees" size={18} /></i><span>พนักงานปฏิบัติงาน</span><strong>{numberText(active)}<small> / {numberText(total)}</small></strong><em>{total ? Math.round(active/total*100) : 0}% พร้อมทำงาน</em></button>
+      <button type="button" onClick={() => navigateMetric('schedule', { workforce: 'ON_DUTY' })}><i className="dashboard-kpi-icon" aria-hidden="true"><SmsIcon name="calendar" size={18} /></i><span>ทำงานวันนี้</span><strong>{numberText(onDuty)}</strong><em>ตามตารางกะ</em></button>
+      <button type="button" onClick={() => navigateMetric('leaveToday')}><i className="dashboard-kpi-icon" aria-hidden="true"><SmsIcon name="leave" size={18} /></i><span>ลาวันนี้</span><strong>{numberText(leave)}</strong><em>บุคลากรที่ลาในวันที่เลือก</em></button>
+      <button type="button" onClick={() => navigateMetric('licenseExpiry', { expiryBucket: 'EXPIRING_0_30' })}><i className="dashboard-kpi-icon" aria-hidden="true"><SmsIcon name="license" size={18} /></i><span>ใบอนุญาตใกล้หมดอายุ</span><strong>{numberText(expiring)}</strong><em>{expiring ? 'ควรตรวจสอบ' : 'ไม่มีรายการใกล้หมดอายุ'}</em></button>
     </div>
     </SectionCard>
 
+    <QuickActionsCard canManage={canManage} onNavigate={onNavigate} />
+
+    <details className="dashboard-redesign__details">
+    <summary><span>รายละเอียด</span><small>กำลังพลตามกะ · การลาและใบอนุญาต · กิจกรรมล่าสุด · สถานะข้อมูล</small></summary>
+    <WorkQueueJourney canManage={canManage} pendingApprovalCount={pendingApprovalCount} onOpenApprovalCenter={() => onOpenApprovalCenter?.()} onNavigate={onNavigate} />
     <section className="nexus-legacy-data" aria-label="รายละเอียด">
       <div className="nexus-section-heading"><div><p className="nexus-kicker">ข้อมูลที่ตรวจสอบแล้ว</p><h2>ข้อมูลปฏิบัติการ</h2></div><span>ข้อมูลจากระบบ</span></div>
       <div className="dashboard-command-grid dashboard-primary-grid"><AttentionNeededCard rows={actions} expiringLicenses={expiringLicenseDetails} expiringCount={expiring} loading={loading} onNavigate={deepLinkNavigate} /><TodayOperationsCard operations={todayOperations} totalEmployees={total} activeEmployees={active} loading={loading} onNavigate={deepLinkNavigate} /></div>
-      <QuickActionsCard canManage={canManage} onNavigate={onNavigate} />
       <div className="dashboard-secondary-grid"><WorkforceOverviewCard totalEmployees={total} activeEmployees={active} workingToday={asNumber(summary.workingToday)} notScheduledToday={notScheduledToday} monthShifts={monthShifts} loading={loading} onNavigate={deepLinkNavigate} /><LeaveSummaryCard summary={leaveOverview} loading={loading} canManage={canManage} canAdmin={canAdmin} onNavigate={deepLinkNavigate} /><LicenseSummaryCard summary={licenseSummary} overview={licenseOverview} expiring={expiring} loading={loading} onNavigate={deepLinkNavigate} /></div>
       <div className="dashboard-tertiary-grid"><RecentActivityCard activities={activities} /><DataSyncStatusCard generatedAt={generatedAt} /></div>
     </section>
@@ -96,5 +105,6 @@ export function DashboardPage({ summary, loading, error, user, canManage, filter
       <article className="nexus-panel nexus-readiness"><header><div><p className="nexus-kicker">ความพร้อมกำลังพล</p><h2>พนักงานและตารางกะ</h2></div><button onClick={() => onNavigate('schedule')}>ดูตารางกะ ↗</button></header><div className="nexus-readiness__meter"><span style={{width:`${total ? Math.min(100,active/total*100) : 0}%`}}/></div><div className="nexus-readiness__stats"><span><b>{numberText(total)}</b>ทั้งหมด</span><span><b>{numberText(active)}</b>ปฏิบัติงาน</span><span><b>{numberText(onDuty)}</b>ทำงานวันนี้</span></div></article>
       <article className="nexus-panel nexus-activity"><header><div><p className="nexus-kicker">กิจกรรมที่บันทึก</p><h2>กิจกรรมล่าสุด</h2></div><span className="nexus-state">อ่านอย่างเดียว</span></header><div>{activities.length ? activities.slice(0,4).map((row,index)=><p key={String((row as any).id||index)}><i/><span><strong>{String((row as any).title || (row as any).action || 'กิจกรรมในระบบ')}</strong><small>{String((row as any).description || (row as any).detail || '')}</small></span></p>) : <p className="nexus-activity__empty"><span><strong>ไม่มีกิจกรรมล่าสุด</strong><small>ไม่มีกิจกรรมจากข้อมูลปัจจุบัน</small></span></p>}</div></article>
     </section>
+    </details>
   </section>;
 }

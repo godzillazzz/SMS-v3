@@ -107,11 +107,7 @@ code, .audit-entity-id, .personnel-table code { font-family: var(--font-mono) !i
 .dashboard-panel__header p {
   color: var(--text-secondary) !important;
 }
-[data-theme="dark"] .nav-section > span,
-[data-theme="dark"] .nav-section-label,
-[data-theme="dark"] .eyebrow,
-[data-theme="dark"] .signature-mobile-record > em,
-[data-theme="dark"] .signature-mobile-record > div small {
+[data-theme="dark"] .nav-section > span,[data-theme="dark"] .eyebrow,[data-theme="dark"] .signature-mobile-record > em,[data-theme="dark"] .signature-mobile-record > div small {
   color: var(--text-muted) !important;
 }
 
@@ -344,7 +340,6 @@ code, .audit-entity-id, .personnel-table code { font-family: var(--font-mono) !i
   .personnel-filter-chips button { min-height: 36px !important; }
   .personnel-summary-grid { gap: 7px !important; }
   .personnel-metric { min-height: 64px !important; padding: 9px 10px !important; gap: 8px !important; }
-  .personnel-metric__icon { width: 30px; height: 30px; flex-basis: 30px; border-radius: 8px; }
   .personnel-metric p { font-size: 10px; }
   .personnel-metric strong { font-size: 20px; }
   .personnel-metric small { font-size: 10px; }

@@ -57,25 +57,6 @@
   padding: 18px;
 }
 
-.system-health-card-title {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 14px;
-  margin-bottom: 14px;
-}
-
-.system-health-card-title h2 {
-  margin: 2px 0 0;
-  font-size: 17px;
-}
-
-.system-health-card-title p {
-  margin: 5px 0 0;
-  color: var(--color-text-muted);
-  font-size: 12px;
-}
-
 .system-health-details {
   display: grid;
   gap: 0;
