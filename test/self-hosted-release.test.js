@@ -5,7 +5,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { execFileSync, spawnSync } = require('node:child_process');
-const { canonicalizeTree, inventory, manifestDigest, validateParentTraversal, validateRoleOwnership, validateRuntimePermissions, verifyRelease, COMPATIBILITY } = require('../scripts/self-hosted-release');
+const { canonicalizeTree, finalizeReleaseModes, inventory, manifestDigest, validateParentTraversal, validateRoleOwnership, validateRuntimePermissions, verifyRelease, COMPATIBILITY } = require('../scripts/self-hosted-release');
 
 const temporaryGroups = [];
 for (const group of ['smsv3']) {
@@ -226,3 +226,32 @@ test('resists concurrent replacement of a parent directory during inventory read
 });
 
 test('restores an absent pointer after post-cutover mandatory-check failure', () => { const f = fixture(); const pointer = path.join(f.root, 'current'); const bad = path.join(f.root, 'bad'); fs.cpSync(f.release, bad, { recursive: true }); fs.writeFileSync(path.join(bad, 'backend', 'src', 'server.js'), 'not runnable'); const m = JSON.parse(fs.readFileSync(path.join(bad, 'release-manifest.json'))); m.backend_inventory_digest = inventory(path.join(bad, 'backend')).digest; m.manifest_sha256 = manifestDigest(m); fs.writeFileSync(path.join(bad, 'release-manifest.json'), JSON.stringify(m)); try { const result = cli(f, ['cutover', '--release', bad, '--pointer', pointer, '--repo', f.repo, '--trusted-manifest-sha256', m.manifest_sha256, '--apply', '--operator-gate', 'I_UNDERSTAND_ATOMIC_SELF_HOSTED_CUTOVER']); assert.notEqual(result.status, 0); assert.equal(fs.existsSync(pointer), false); } finally { fs.rmSync(f.root, { recursive: true, force: true }); } });
+
+function distinctRelease(f, label) {
+  const r = fixture(f.repo); const moved = path.join(f.root, `release-${label}`); fs.cpSync(r.release, moved, { recursive: true }); fs.rmSync(r.root, { recursive: true, force: true });
+  const app = path.join(moved, 'frontend', 'dist', 'app.js'); fs.chmodSync(app, 0o644); fs.writeFileSync(app, `window.__RELEASE__ = ${JSON.stringify(label)};\n`);
+  const file = path.join(moved, 'release-manifest.json'); const m = JSON.parse(fs.readFileSync(file)); const fi = inventory(path.join(moved, 'frontend', 'dist')); m.frontend_inventory_digest = fi.digest; m.asset_hashes = fi.entries; m.manifest_sha256 = manifestDigest(m); fs.writeFileSync(file, JSON.stringify(m, null, 2) + '\n');
+  chmodTree(moved); establishFixtureOwnership(moved); return { release: moved, manifest: m };
+}
+
+test('apply cutover verifies the rollback release with its own trust anchor when releases differ', () => {
+  const f = fixture(); const next = distinctRelease(f, 'next'); const pointer = path.join(f.root, 'current'); const app = path.join(f.root, 'app'); const web = path.join(f.root, 'webroot');
+  try {
+    assert.notEqual(f.manifest.manifest_sha256, next.manifest.manifest_sha256);
+    fs.symlinkSync(f.release, pointer, 'dir'); fs.symlinkSync(pointer, app, 'dir'); fs.symlinkSync(pointer, web, 'dir');
+    const result = cli(f, ['cutover', '--release', next.release, '--rollback-target', f.release, '--trusted-rollback-manifest-sha256', f.manifest.manifest_sha256, '--pointer', pointer, '--app', app, '--webroot', web, '--repo', f.repo, '--trusted-manifest-sha256', next.manifest.manifest_sha256, '--runtime-port', '18080', '--apply', '--operator-gate', 'I_UNDERSTAND_ATOMIC_SELF_HOSTED_CUTOVER']);
+    assert.equal(result.status, 0, result.stderr); assert.match(result.stdout, /CUTOVER=PASS/); assert.equal(fs.realpathSync(pointer), next.release);
+  } finally { fs.rmSync(f.root, { recursive: true, force: true }); }
+});
+
+test('build finalizes release root, frontend and manifest modes independent of the host umask', () => {
+  const previous = process.umask(0o077); const root = fs.mkdtempSync(path.join('/tmp', 'sms-v3-umask-'));
+  try {
+    const release = path.join(root, 'release'); fs.mkdirSync(path.join(release, 'frontend', 'dist'), { recursive: true }); fs.writeFileSync(path.join(release, 'release-manifest.json'), '{}', { mode: 0o644 });
+    assert.equal(fs.statSync(release).mode & 0o777, 0o700);
+    finalizeReleaseModes(release);
+    assert.equal(fs.statSync(release).mode & 0o777, 0o755);
+    assert.equal(fs.statSync(path.join(release, 'frontend')).mode & 0o777, 0o755);
+    assert.equal(fs.statSync(path.join(release, 'release-manifest.json')).mode & 0o777, 0o644);
+  } finally { process.umask(previous); fs.rmSync(root, { recursive: true, force: true }); }
+});
