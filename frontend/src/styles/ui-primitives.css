@@ -1,0 +1,56 @@
+/* SMSv3 shared UI primitives (components/ui/primitives.tsx).
+   Internal app only: every selector is scoped to .app-shell and resolves through styles/tokens.css. */
+.app-shell .ui-button { display: inline-flex; min-height: var(--control-height); align-items: center; justify-content: center; gap: var(--space-2); border-radius: var(--radius-sm); font: inherit; font-weight: var(--font-weight-semibold); cursor: pointer; }
+.app-shell .ui-button:disabled { cursor: not-allowed; }
+.app-shell .ui-button.ui-button--small, .app-shell .ui-button--compact { min-height: 34px; }
+.app-shell .ui-button--icon { min-width: var(--control-height); padding: 0; }
+.app-shell .ui-icon { display: inline-grid; flex: 0 0 auto; place-items: center; line-height: 1; }
+
+.app-shell .ui-field { display: grid; min-width: 0; gap: var(--space-2); }
+.app-shell .ui-field__label { color: var(--color-text-secondary); font-size: var(--font-size-body); font-weight: var(--font-weight-semibold); }
+.app-shell .ui-field__required, .app-shell .ui-field__error { color: var(--status-danger-text); }
+.app-shell .ui-field__hint, .app-shell .ui-field__error { font-size: var(--font-size-helper); }
+.app-shell .ui-field__hint { color: var(--color-text-muted); }
+.app-shell :is(.ui-input, .ui-select, .ui-textarea) { box-sizing: border-box; width: 100%; min-height: var(--control-height); border: 1px solid var(--color-border-strong); border-radius: var(--radius-sm); padding: 0 var(--space-3); color: var(--color-text); background: var(--surface-control); font: inherit; }
+.app-shell .ui-textarea { min-height: 96px; padding-block: var(--space-3); resize: vertical; }
+
+.app-shell .ui-badge { display: inline-flex; min-height: 24px; align-items: center; gap: var(--space-1); border: 1px solid var(--status-neutral-border); border-radius: var(--radius-pill); padding: 2px var(--space-2); background: var(--color-surface); color: var(--status-neutral-text); font-size: var(--font-size-metadata); font-weight: var(--font-weight-semibold); line-height: 1.25; }
+.app-shell .ui-badge--success { color: var(--status-success-text); border-color: var(--status-success-border); background: var(--color-success-soft); }
+.app-shell .ui-badge--warning { color: var(--status-warning-text); border-color: var(--status-warning-border); background: var(--color-warning-soft); }
+.app-shell .ui-badge--danger { color: var(--status-danger-text); border-color: var(--status-danger-border); background: var(--color-danger-soft); }
+.app-shell .ui-badge--info { color: var(--status-info-text); border-color: var(--status-info-border); background: var(--color-info-soft); }
+.app-shell .ui-badge--violet { color: var(--color-primary); border-color: var(--color-border-strong); background: var(--color-primary-soft); }
+.app-shell .ui-badge__icon { font-size: 1em; }
+.app-shell .ui-shift-badge { font-family: var(--font-mono); }
+
+.app-shell .ui-card { min-width: 0; border: 1px solid var(--border-card); border-radius: var(--radius-md); background: var(--surface-card); box-shadow: var(--shadow-sm); }
+.app-shell :is(.ui-alert, .ui-toast) { display: flex; min-width: 0; align-items: flex-start; gap: var(--space-3); border: 1px solid var(--border-card); border-left-width: 3px; border-radius: var(--radius-sm); padding: var(--space-3) var(--space-4); color: var(--color-text); background: var(--surface-card); }
+.app-shell .ui-alert--success { border-left-color: var(--color-success); }
+.app-shell .ui-alert--warning { border-left-color: var(--color-warning); }
+.app-shell .ui-alert--danger { border-left-color: var(--color-danger); }
+.app-shell .ui-alert--info { border-left-color: var(--color-info); }
+.app-shell .ui-alert--neutral { border-left-color: var(--color-neutral); }
+.app-shell .ui-alert--violet { border-left-color: var(--color-primary); }
+
+.app-shell .ui-empty-state { display: grid; justify-items: center; gap: var(--space-2); padding: var(--space-8) var(--space-6); border: 1px dashed var(--color-border-strong); border-radius: var(--radius-md); background: var(--surface-card); text-align: center; }
+.app-shell .ui-empty-state > .ui-icon { color: var(--color-text-muted); font-size: 24px; }
+.app-shell .ui-empty-state > :is(h2, p) { margin: 0; }
+.app-shell .ui-empty-state > h2 { color: var(--color-text); font-size: var(--font-size-section-title); }
+.app-shell .ui-empty-state > p { color: var(--color-text-secondary); font-size: var(--font-size-body); }
+.app-shell .ui-table-scroll { min-width: 0; overflow-x: auto; overscroll-behavior-inline: contain; }
+.app-shell .ui-table { width: 100%; border-collapse: collapse; }
+.app-shell .ui-pagination { display: flex; align-items: center; justify-content: center; gap: var(--space-3); color: var(--color-text-secondary); }
+.app-shell .ui-dialog-surface { min-width: 0; color: var(--color-text); background: var(--surface-overlay); }
+.app-shell .ui-visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; clip-path: inset(50%); }
+
+/* Accent themes (multi-colour). Navy is the corporate default from tokens.css; the others only swap the brand hue. */
+.app-shell[data-accent="teal"] { --color-primary: #0f6b75; --color-primary-hover: #0c5a63; --color-primary-active: #094850; --color-primary-soft: #e3f3f4; --color-sidebar-bg: #0d3f45; --color-sidebar-bg-strong: #0a3237; }
+.app-shell[data-accent="emerald"] { --color-primary: #1f6b4a; --color-primary-hover: #185a3e; --color-primary-active: #124831; --color-primary-soft: #e4f2ea; --color-sidebar-bg: #163f2d; --color-sidebar-bg-strong: #113324; }
+.app-shell[data-accent="plum"] { --color-primary: #5b3d8a; --color-primary-hover: #4d3375; --color-primary-active: #3f2961; --color-primary-soft: #efe9f8; --color-sidebar-bg: #34234f; --color-sidebar-bg-strong: #2a1c40; }
+[data-theme="dark"] .app-shell[data-accent="teal"] { --color-primary: #4fc3cf; --color-primary-hover: #6fd0da; --color-primary-active: #36aab6; --color-primary-soft: #133a3e; }
+[data-theme="dark"] .app-shell[data-accent="emerald"] { --color-primary: #5ccf98; --color-primary-hover: #7bdaad; --color-primary-active: #43b680; --color-primary-soft: #153a29; }
+[data-theme="dark"] .app-shell[data-accent="plum"] { --color-primary: #b39af0; --color-primary-hover: #c4b0f5; --color-primary-active: #9c80e3; --color-primary-soft: #2c2347; }
+
+.app-shell .accent-control { display: inline-flex; align-items: center; gap: var(--space-2); }
+.app-shell .accent-control button { width: 28px; height: 28px; min-height: 28px; padding: 0; border: 2px solid transparent; border-radius: 50%; background: var(--swatch); cursor: pointer; }
+.app-shell .accent-control button.is-active { border-color: var(--color-text); box-shadow: 0 0 0 2px var(--color-surface) inset; }
