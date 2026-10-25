@@ -1,4 +1,5 @@
 import { forwardRef, type ButtonHTMLAttributes, type HTMLAttributes, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes, type TextareaHTMLAttributes } from 'react';
+import '../../styles/ui-primitives.css';
 
 type ClassValue = string | false | undefined;
 const cx = (...values: ClassValue[]) => values.filter(Boolean).join(' ');

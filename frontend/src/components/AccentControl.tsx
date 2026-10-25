@@ -1,3 +1,4 @@
+import '../styles/ui-accent.css';
 import { useEffect, useState } from 'react';
 import { ACCENT_OPTIONS, applyAccent, persistAccent, readAccent, type AccentTheme } from '../accent';
 

@@ -57,7 +57,7 @@ import { bangkokDateInput as formatBangkokDateInput, currentBangkokMonth, format
 import { MonthGridPicker, normalizeMonthValue, parseMonthValue, shiftMonthValue } from './components/MonthGridPicker';
 import { PageHeader, SectionCard, StepFlow, MetricCard } from './components/layout';
 import { BrandLogo } from './components/BrandLogo';
-import { AccentControl } from './components/AccentControl';
+const AccentControl = React.lazy(() => import('./components/AccentControl').then((module) => ({ default: module.AccentControl })));
 import { AppLoader, loadingMessages } from './components/AppLoader';
 import './styles.css';
 import './design-system.css';
@@ -90,7 +90,6 @@ import './styles/license-table.css';
 import './styles/responsive-shell.css';
 import './styles/action-system.css';
 import './styles/tokens.css';
-import './styles/ui-primitives.css';
 import './styles/theme-foundation.css';
 import './styles/app-shell.css';
 import './styles/data-surfaces.css';
@@ -3424,7 +3423,7 @@ function Dashboard() {
             <span className="environment-pill">{import.meta.env.PROD ? 'DEPLOYED' : 'LOCAL'}</span>
             {['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(auth.user?.role || '') && !auth.isViewingAs && <ApprovalCenterNotificationButton count={approvalMenuCount('approvalCenter', approvalSummary)} onClick={() => setActivePage('approvalCenter')} />}
             <ThemeControl compact />
-            {!pwaShell && <AccentControl />}
+            {!pwaShell && <React.Suspense fallback={null}><AccentControl /></React.Suspense>}
             <button type="button" className="display-mode-toggle" aria-pressed={desktopView} title={desktopView ? 'กลับมุมมองมือถือ' : 'แสดงแบบเดสก์ท็อป'} onClick={toggleDesktopView}><SmsIcon name={desktopView ? 'device' : 'system'} size={16} /><span>{desktopView ? 'Mobile' : 'Desktop'}</span></button>
             <button type="button" className="topbar-profile topbar-profile-button" title="การเข้าสู่ระบบและ Passkey" onClick={() => setPasskeyPanelOpen(true)}><span className="avatar">{initials}</span><span><b>{auth.user?.displayName || 'ผู้ใช้งาน'}</b><small>{roleDisplayName(auth.user?.role || 'VIEWER')}</small></span></button>
             <button ref={mobileUtilityTriggerRef} type="button" className="mobile-utility-button" aria-label="เปิดเมนูบัญชีและธีม" aria-expanded={mobileUtilityOpen} aria-controls="mobile-utility-panel" onClick={() => setMobileUtilityOpen((value) => !value)}><SmsIcon name="more" size={20} /></button>
@@ -3436,7 +3435,7 @@ function Dashboard() {
               <label className="mobile-utility-search"><span aria-hidden="true"><SmsIcon name="search" size={17} /></span><input aria-label="ค้นหาพนักงานบนมือถือ" placeholder="ค้นหาพนักงาน..." value={search} onChange={(event) => { setSearch(event.target.value); if (event.target.value && activePage !== 'employees') setActivePage('employees'); }} /></label>
               <button type="button" className="mobile-utility-security" onClick={() => { setMobileUtilityOpen(false); setCommandPaletteOpen(true); }}><SmsIcon name="search" size={18} />ไปยังงานหรือหน้าอื่น</button>
               <div className="mobile-utility-theme"><span>โหมดสี</span><ThemeControl /></div>
-              <div className="mobile-utility-theme"><span>สีหลัก</span><AccentControl /></div>
+              <div className="mobile-utility-theme"><span>สีหลัก</span><React.Suspense fallback={null}><AccentControl /></React.Suspense></div>
               <button type="button" className="mobile-utility-display-mode" aria-pressed={desktopView} onClick={toggleDesktopView}><SmsIcon name={desktopView ? 'device' : 'system'} size={16} />{desktopView ? 'กลับมุมมองมือถือ' : 'แสดงแบบเดสก์ท็อป'}</button>
               <button type="button" className="mobile-utility-security" onClick={() => { setMobileUtilityOpen(false); setPasskeyPanelOpen(true); }}><SmsIcon name="key" size={18} />การเข้าสู่ระบบและ Passkey</button>
               <button type="button" className="mobile-utility-logout" onClick={() => auth.logout()}><SmsIcon name="logout" size={18} />ออกจากระบบ</button>

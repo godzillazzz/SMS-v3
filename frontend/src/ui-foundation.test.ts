@@ -4,7 +4,7 @@ import path from 'node:path';
 import { ACCENT_OPTIONS, applyAccent, normalizeAccent, persistAccent, readAccent } from './accent';
 import { statusBadgeTone } from './components/ui/primitives';
 
-const css = fs.readFileSync(path.join(__dirname, 'styles/ui-primitives.css'), 'utf8');
+const css = ['styles/ui-primitives.css', 'styles/ui-accent.css'].map((file) => fs.readFileSync(path.join(__dirname, file), 'utf8')).join('\n');
 
 describe('SMSv3 UI foundation on the corporate tokens', () => {
   it('keeps every primitives selector inside the authenticated app shell', () => {
