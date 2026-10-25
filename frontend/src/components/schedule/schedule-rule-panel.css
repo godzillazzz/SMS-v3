@@ -1,0 +1,26 @@
+.schedule-rule-panel{margin:0 0 14px;border:1px solid var(--color-border);border-radius:12px;background:var(--color-surface);color:var(--color-text)}
+.schedule-rule-panel>summary{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px 16px;padding:12px 16px;cursor:pointer;list-style:none}
+.schedule-rule-panel>summary::-webkit-details-marker{display:none}
+.schedule-rule-panel>summary::before{content:"▸";margin-right:-8px;color:var(--color-text-muted,var(--color-text));transition:transform .15s}
+.schedule-rule-panel[open]>summary::before{transform:rotate(90deg)}
+.schedule-rule-panel__title{flex:1;font-weight:700;font-size:15px}
+.schedule-rule-panel__counts{display:flex;gap:8px;font-size:13px}
+.schedule-rule-panel__counts b,.schedule-rule-panel__chip{padding:2px 9px;border:1px solid transparent;border-radius:999px;font-size:12px;font-weight:700;white-space:nowrap}
+.schedule-rule-panel .is-error{color:var(--color-danger);border-color:color-mix(in srgb,var(--color-danger) 30%,var(--color-border));background:var(--color-danger-soft)}
+.schedule-rule-panel .is-warning{color:var(--color-warning);border-color:color-mix(in srgb,var(--color-warning) 30%,var(--color-border));background:var(--color-warning-soft)}
+.schedule-rule-panel .is-ok{color:var(--color-success);border-color:color-mix(in srgb,var(--color-success) 30%,var(--color-border));background:var(--color-success-soft)}
+.schedule-rule-panel__body{display:grid;gap:10px;padding:0 16px 14px}
+.schedule-rule-panel__meta{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px;color:var(--color-text-muted,var(--color-text));font-size:12px}
+.schedule-rule-panel button{min-height:32px;padding:0 12px;border:1px solid var(--color-border);border-radius:8px;background:transparent;color:var(--color-primary);font:inherit;font-size:12px;font-weight:600;cursor:pointer}
+.schedule-rule-panel button:disabled{opacity:.55;cursor:wait}
+.schedule-rule-panel__list{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:8px;max-height:280px;margin:0;padding:0;overflow-y:auto;list-style:none}
+.schedule-rule-panel__list li{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:10px;padding:8px 10px;border:1px solid var(--color-border);border-radius:9px}
+.schedule-rule-panel__list li.is-focused{border-color:var(--color-primary);box-shadow:0 0 0 2px color-mix(in srgb,var(--color-primary) 22%,transparent)}
+.schedule-rule-panel__copy{display:grid;min-width:0}
+.schedule-rule-panel__copy strong{font-size:13px;overflow-wrap:anywhere}
+.schedule-rule-panel__copy small{color:var(--color-text-muted,var(--color-text));font-size:12px}
+.schedule-rule-panel__error{margin:0;color:var(--color-danger);font-size:13px}
+.schedule-rule-panel__more{justify-self:start}
+.schedule-grid .rule-focus-col{box-shadow:inset 2px 0 0 var(--color-primary),inset -2px 0 0 var(--color-primary);background-color:color-mix(in srgb,var(--color-primary) 8%,transparent)}
+@media (max-width:640px){.schedule-rule-panel__list{grid-template-columns:1fr}}
+.schedule-draft-reapproval-hint{flex-basis:100%;margin:0;color:var(--color-text);font-size:13px;font-weight:600}
