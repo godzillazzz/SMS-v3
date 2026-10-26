@@ -41,8 +41,15 @@ function createS3ContractWrappers({ environment = process.env, backend = createS
       // reads `mimetype` and reports `sha256`. Return the same shape as the Supabase
       // selfie storage so AttendanceDeviceSelfie rows get checksum/mimeType/sizeBytes.
       const mimeType = file?.mimeType || file?.mimetype;
-      const stored = await put('selfie', `attendance-selfie/${identity}/${captureId}`, { buffer: file?.buffer, mimetype: mimeType });
-      if (file?.checksum && stored.sha256 !== file.checksum) fail('STORAGE_CHECKSUM_UNCONFIRMED', 'Object storage checksum could not be confirmed.');
+      const objectKey = `attendance-selfie/${identity}/${captureId}`;
+      const stored = await put('selfie', objectKey, { buffer: file?.buffer, mimetype: mimeType });
+      if (typeof file?.checksum !== 'string' || !file.checksum || stored?.sha256 !== file.checksum) {
+        // The upload succeeded, but cannot be used as attendance evidence. Best-effort
+        // remove only the exact key passed to this upload; cleanup must not mask the
+        // fail-closed checksum error.
+        try { await remove('selfie', objectKey); } catch {}
+        fail('STORAGE_CHECKSUM_UNCONFIRMED', 'Object storage checksum could not be confirmed.');
+      }
       return { ...stored, mimeType: mimeType || stored.mimeType, sizeBytes: stored.sizeBytes ?? file?.buffer?.length, checksum: stored.sha256 };
     },
     async remove({ objectKey }) { return remove('selfie', objectKey); },
