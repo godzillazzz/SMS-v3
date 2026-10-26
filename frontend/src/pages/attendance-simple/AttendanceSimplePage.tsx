@@ -123,12 +123,22 @@ const SAFE_ATTENDANCE_ERROR_CODES = new Set([
   'ATTENDANCE_LOCATION_ASSURANCE_INSUFFICIENT', 'ATTENDANCE_DEVICE_PROOF_INVALID', 'ATTENDANCE_DEVICE_SIGNATURE_INVALID',
   'ATTENDANCE_FOREIGN_DEVICE_SELFIE_REQUIRED', 'ATTENDANCE_SELFIE_CHECKSUM_MISMATCH', 'ATTENDANCE_FOREIGN_DEVICE_SELFIE_LIVE_REQUIRED',
   'ATTENDANCE_SELFIE_NONCE_INVALID', 'ATTENDANCE_SELFIE_NONCE_EXPIRED', 'ATTENDANCE_SELFIE_OVERLAY_STALE',
-  'ATTENDANCE_OFFLINE_BUNDLE_STALE', 'ATTENDANCE_OFFLINE_SITE_NOT_AUTHORIZED', 'ATTENDANCE_OFFLINE_SITE_INACTIVE'
+  'ATTENDANCE_OFFLINE_BUNDLE_STALE', 'ATTENDANCE_OFFLINE_SITE_NOT_AUTHORIZED', 'ATTENDANCE_OFFLINE_SITE_INACTIVE',
+  'ATTENDANCE_SELFIE_REQUIRED', 'ATTENDANCE_SELFIE_CAMERA_REQUIRED', 'ATTENDANCE_SELFIE_TOO_LARGE', 'ATTENDANCE_SIMPLE_PAYLOAD_INVALID',
+  'ATTENDANCE_DEVICE_PRIMARY_MISSING', 'ATTENDANCE_CAPTURED_AT_INVALID', 'ATTENDANCE_SHIFT_ASSIGNMENT_INVALID', 'ATTENDANCE_EVENT_INTENT_INVALID',
+  'ATTENDANCE_DEVICE_PUBLIC_KEY_INVALID', 'ATTENDANCE_DEVICE_ALGORITHM_UNSUPPORTED', 'ATTENDANCE_SESSION_VOIDED'
 ]);
 
 export function attendanceErrorMessage(code: string | undefined, fallback: string): string {
   if (!code || !SAFE_ATTENDANCE_ERROR_CODES.has(code)) return fallback;
   if (code === 'ATTENDANCE_OUTSIDE_SITE_GEOFENCE') return 'ตำแหน่ง GPS อยู่นอกขอบเขต Site ตามกะ แม้ชื่อสถานที่อาจแสดงตรงกัน กรุณาเปิด Precise Location แล้วลองใหม่';
+  if (code === 'ATTENDANCE_SELFIE_REQUIRED') return 'ระบบยังไม่ได้รับภาพเซลฟี่ที่ยืนยันแล้ว กรุณากดลงเวลาแล้วถ่ายเซลฟี่ใหม่';
+  if (code === 'ATTENDANCE_SELFIE_CAMERA_REQUIRED') return 'ต้องถ่ายภาพสดจากกล้องหน้า กรุณาถ่ายใหม่';
+  if (code === 'ATTENDANCE_SELFIE_TOO_LARGE') return 'ภาพเซลฟี่มีขนาดใหญ่เกินไป กรุณาถ่ายใหม่';
+  if (code === 'ATTENDANCE_SIMPLE_PAYLOAD_INVALID' || code === 'ATTENDANCE_CAPTURED_AT_INVALID') return 'ข้อมูลที่ส่งไม่ครบหรือเวลาเครื่องไม่ถูกต้อง กรุณาตั้งเวลาเครื่องอัตโนมัติแล้วลองใหม่';
+  if (code === 'ATTENDANCE_DEVICE_PRIMARY_MISSING') return 'ยังไม่มีเครื่องหลักในระบบ กรุณาแจ้ง Admin';
+  if (code === 'ATTENDANCE_DEVICE_PUBLIC_KEY_INVALID' || code === 'ATTENDANCE_DEVICE_ALGORITHM_UNSUPPORTED') return 'อุปกรณ์นี้ยังไม่รองรับการยืนยันตัวตน กรุณาเปิดผ่าน Safari/Chrome เวอร์ชันล่าสุด';
+  if (code === 'ATTENDANCE_SHIFT_ASSIGNMENT_INVALID' || code === 'ATTENDANCE_EVENT_INTENT_INVALID' || code === 'ATTENDANCE_SESSION_VOIDED') return 'ข้อมูลกะไม่ตรงกับสถานะล่าสุด กรุณาดึงหน้าลงเพื่อโหลดใหม่แล้วลองอีกครั้ง';
   if (code === 'ATTENDANCE_SITE_REQUIRED') return 'ไม่พบ Site สำหรับกะนี้ กรุณาติดต่อหัวหน้างาน';
   if (code === 'ATTENDANCE_CHECK_IN_REQUIRED') return 'ต้องลงเวลาเข้าก่อนจึงจะลงเวลาออกได้';
   if (code === 'ATTENDANCE_LOCATION_CAPTURED_AT_INVALID') return 'เวลาที่จับตำแหน่ง GPS ไม่ถูกต้อง กรุณาเปิด Location แล้วลองใหม่';
@@ -1031,6 +1041,7 @@ export function AttendanceSimplePage({
         <li>ออกมาที่โล่ง ห่างจากอาคารสูงหรือที่จอดรถใต้ดิน</li>
       </ol>}
       {!clockDisabled && <button type="button" onClick={() => void recordAttendance()} disabled={busy}><SmsIcon name="refresh" size={16} />ลองอีกครั้ง</button>}
+      {(requestErrorCode || requestErrorId) && <p className="attendance-simple__fail-ref">{requestErrorCode && <>รหัส <code>{requestErrorCode}</code></>}{requestErrorCode && requestErrorId ? ' · ' : ''}{requestErrorId && <>Request ID <code>{requestErrorId}</code></>}</p>}
     </section>}
     <div className={`attendance-simple__status is-${tone}`} role="status">
       <strong>{message}</strong>
@@ -1058,7 +1069,7 @@ export function AttendanceSimplePage({
           onClick={() => void recordAttendance()}
         >
           <span>{busy ? 'กำลังตรวจ…' : pendingSiteCapture ? `ยืนยัน${selectedActionLabel}ที่ ${siteDisplayName(pendingSiteCapture.context)}` : selectedActionLabel}</span>
-          <small>{busy && pwaMode ? 'อย่าปิดหน้านี้' : pwaMode && !online ? 'เก็บไว้ส่งทีหลัง' : online ? 'กดครั้งเดียว · บันทึกกับ Server' : 'กดครั้งเดียว · เก็บไว้และส่งเมื่อออนไลน์'}</small>
+          <small>{busy && pwaMode ? 'อย่าปิดหน้านี้' : pwaMode && !online ? 'เก็บไว้ส่งทีหลัง' : pwaMode && selfieRequired ? 'กดครั้งเดียว · ถ่ายเซลฟี่แล้วบันทึก' : online ? 'กดครั้งเดียว · บันทึกกับ Server' : 'กดครั้งเดียว · เก็บไว้และส่งเมื่อออนไลน์'}</small>
         </button>
         {clockDisabled && disabledGuidance && <div className="attendance-simple__disabled-guidance">
           <p id="attendance-simple-clock-disabled-reason">{disabledGuidance.message}</p>
