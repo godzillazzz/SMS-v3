@@ -112,3 +112,28 @@
   .attendance-device-enroll-action,
   .attendance-device-request > .btn-primary { width: 100%; justify-content: center; }
 }
+
+/* Compact employee device list: one row per employee, history behind a disclosure. */
+.attendance-device-admin-search { width: 100%; max-width: 360px; min-height: 40px; margin-bottom: 12px; padding: 0 12px; border: 1px solid var(--color-border); border-radius: 10px; background: var(--color-surface); color: var(--color-text); font: inherit; }
+.attendance-device-admin-list { display: grid; gap: 10px; }
+.attendance-device-admin-row { gap: 8px; padding: 14px 16px; }
+.attendance-device-admin-row > header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.attendance-device-admin-row > header > div { display: grid; gap: 2px; min-width: 0; }
+.attendance-device-admin-row > header strong { color: var(--color-text); font-size: 15px; }
+.attendance-device-admin-row > header span:not(.status-badge) { color: var(--color-text-muted); font-size: 12px; }
+.attendance-device-admin-primary, .attendance-device-admin-note { margin: 0; color: var(--color-text-secondary); font-size: 13px; }
+.attendance-device-admin-primary b { color: inherit; font-weight: 600; }
+.attendance-device-admin-note { color: var(--color-warning); }
+.attendance-device-admin-candidates { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.attendance-device-admin-candidates li { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 10px; border: 1px dashed color-mix(in srgb, var(--color-warning) 55%, transparent); border-radius: 10px; }
+.attendance-device-admin-candidates li > div { display: grid; gap: 2px; min-width: 0; }
+.attendance-device-admin-candidates li > button { flex: 0 0 auto; width: auto; }
+.attendance-device-admin-candidates li span { color: var(--color-text-muted); font-size: 12px; }
+.attendance-device-admin-row > footer { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.attendance-device-admin-history summary { color: var(--color-text-secondary); font-size: 13px; cursor: pointer; min-height: 32px; display: flex; align-items: center; }
+.attendance-device-admin-history ul { display: grid; gap: 4px; margin: 6px 0 0; padding-left: 18px; color: var(--color-text-secondary); font-size: 12.5px; }
+.attendance-device-admin-events { border-top: 1px solid var(--color-border); padding-top: 6px; }
+@media (max-width: 640px) {
+  .attendance-device-admin-candidates li { flex-direction: column; align-items: stretch; }
+  .attendance-device-admin-candidates li > button { width: 100%; min-height: 44px; }
+}

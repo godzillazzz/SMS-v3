@@ -380,6 +380,20 @@ export async function revokeAttendanceDeviceCurrent(token: string, employeeId: s
   return payload.data;
 }
 
+export async function promoteAttendanceDevice(token: string, employeeId: string, deviceId: string, reason: string) {
+  const path = `/attendance/devices/admin/employees/${encodeURIComponent(employeeId)}/devices/${encodeURIComponent(deviceId)}/promote`;
+  const response = await attendanceAuthenticatedRequest(path, token, {
+    method: 'POST',
+    credentials: 'include',
+    headers: authHeaders(token, true),
+    body: JSON.stringify({ reason })
+  });
+  const requestId = safeRequestId(response.headers.get('x-request-id'));
+  const payload = await jsonPayload(response);
+  if (!response.ok) throw new AttendanceFlowError(publicError(payload, response.status, 'ไม่สามารถตั้งเครื่องหลักได้'), response.status, requestId, publicCode(payload));
+  return payload.data;
+}
+
 export async function verifyAttendanceDeviceProof(token: string, sessionId: string, input: {
   challengeId: string;
   challenge: string;

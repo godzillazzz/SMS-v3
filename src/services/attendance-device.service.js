@@ -233,6 +233,42 @@ function createAttendanceDeviceService({ prisma = prismaDefault, audit = auditDe
     } catch (error) { throw mapConflict(error); }
   }
 
+  // ADMIN shortcut for the same transfer an employee can request: make a device the
+  // employee has already used (key proof verified at clock-in or enrollment) the
+  // primary device. It records a normal change request and approves it, so the
+  // approval path, revocation of the previous device and audit trail stay identical.
+  async function promoteDevice({ actor, employeeId, deviceEnrollmentId, reason }) {
+    assertAdmin(actor);
+    const text = cleanText(reason);
+    if (!text || text.length < 3) throw http(400, 'ATTENDANCE_DEVICE_PROMOTE_REASON_REQUIRED', 'A reason of at least 3 characters is required.');
+    const now = clock();
+    let requestId;
+    try {
+      requestId = await prisma.$transaction(async (tx) => {
+        const candidate = await tx.attendanceDeviceEnrollment.findUnique({ where: { id: deviceEnrollmentId } });
+        if (!candidate || candidate.employeeId !== employeeId) throw http(404, 'ATTENDANCE_DEVICE_NOT_FOUND', 'Attendance device not found.');
+        if (candidate.status === 'ACTIVE') throw http(409, 'ATTENDANCE_DEVICE_ALREADY_PRIMARY', 'This device is already the primary Attendance device.');
+        if (candidate.status !== 'PENDING_APPROVAL' || !candidate.proofVerifiedAt) throw http(409, 'ATTENDANCE_DEVICE_NOT_ACTIONABLE', 'Only a device with a verified key that is not revoked can become primary.');
+        const active = await tx.attendanceDeviceEnrollment.findFirst({ where: { employeeId, status: 'ACTIVE' }, orderBy: { activatedAt: 'desc' } });
+        const open = await tx.attendanceDeviceChangeRequest.findFirst({ where: { employeeId, status: { in: ACTIVE_REQUEST_STATUSES } } });
+        if (open && open.candidateDeviceEnrollmentId === candidate.id && open.status === 'PENDING_APPROVAL') return open.id;
+        if (open) {
+          const cancelled = await tx.attendanceDeviceChangeRequest.updateMany({ where: { id: open.id, status: { in: ACTIVE_REQUEST_STATUSES } }, data: { status: 'CANCELLED', cancelledAt: now, reviewerComment: text, reviewedByUserId: actor.sub, reviewedAt: now } });
+          if (cancelled.count !== 1) throw http(409, 'ATTENDANCE_DEVICE_STATE_CONFLICT', 'Attendance device state changed. Please refresh and try again.');
+          await audit.log({ actorUserId: actor.sub, action: 'UPDATE', entityType: 'AttendanceDeviceChangeRequest', entityId: open.id, metadata: deviceRequestAuditMetadata({ event: 'CANCELLED_BY_ADMIN_PROMOTE', requestId: open.id, employeeId, reason: text, adminUserId: actor.sub }) }, tx);
+        }
+        if (candidate.observationOnly === true) await tx.attendanceDeviceEnrollment.update({ where: { id: candidate.id }, data: { observationOnly: false } });
+        const request = await tx.attendanceDeviceChangeRequest.create({
+          data: { employeeId, requestType: active ? 'REPLACEMENT' : 'INITIAL', requestedByUserId: actor.sub,
+            candidateDeviceEnrollmentId: candidate.id, currentDeviceEnrollmentId: active?.id || null, reason: text }
+        });
+        await audit.log({ actorUserId: actor.sub, action: 'CREATE', entityType: 'AttendanceDeviceChangeRequest', entityId: request.id, metadata: deviceRequestAuditMetadata({ event: 'ADMIN_PROMOTE_PRIMARY_DEVICE', requestId: request.id, employeeId, requestType: request.requestType, candidateEnrollmentId: candidate.id, currentEnrollmentId: active?.id || null, adminUserId: actor.sub, reason: text }) }, tx);
+        return request.id;
+      });
+    } catch (error) { throw mapConflict(error); }
+    return approve({ actor, requestId, comment: text });
+  }
+
   async function approve({ actor, requestId, comment = null }) {
     assertAdmin(actor);
     const now = clock();
@@ -341,7 +377,7 @@ function createAttendanceDeviceService({ prisma = prismaDefault, audit = auditDe
     });
   }
 
-  return { getMyState, createRequest, createProofChallenge, createSelfieChallenge, verifyProof, listRequests, listAdminOverview, revokeCurrent, approve, returnForCorrection, resubmit, reject, cancel };
+  return { getMyState, createRequest, createProofChallenge, createSelfieChallenge, verifyProof, listRequests, listAdminOverview, revokeCurrent, promoteDevice, approve, returnForCorrection, resubmit, reject, cancel };
 }
 
 module.exports = { ACTIVE_REQUEST_STATUSES, SUPPORTED_KEY_ALGORITHMS, CHALLENGE_TTL_MS, DEVICE_REQUEST_AUDIT_FIELDS, challengeHash, fingerprint, safeAudit, createAttendanceDeviceService };

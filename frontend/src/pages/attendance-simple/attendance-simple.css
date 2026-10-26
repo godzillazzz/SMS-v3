@@ -494,6 +494,8 @@
 .attendance-simple__offline-card strong{font-size:15px;color:var(--color-text)}
 .attendance-simple__offline-card small{font-size:12px;color:var(--color-text-secondary)}
 .attendance-simple__offline-card b{font-size:12px;color:#FBBF24}
+.attendance-simple__device-move{justify-self:start;margin-top:8px;min-height:44px;padding:0 16px;border:1px solid color-mix(in srgb,#F59E0B 60%,transparent);border-radius:10px;background:var(--color-surface);color:var(--color-text);font:inherit;font-weight:600;cursor:pointer}
+.attendance-simple__device-move:disabled{opacity:.6;cursor:not-allowed}
 [data-theme="light"] .attendance-simple__offline-card,[data-theme="light"] .attendance-simple__offline-card b{color:#B45309}
 /* A-04 checking · A-07 working · A-10 complete · A-17 blocked (pwa) */
 .pwa-shell .attendance-simple.is-busy .attendance-simple__clock{position:relative}
