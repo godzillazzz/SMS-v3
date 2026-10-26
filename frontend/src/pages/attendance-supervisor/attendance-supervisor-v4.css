@@ -1555,3 +1555,16 @@ html[data-theme] .app-shell:not(.pwa-shell) .content-area .attendance-supervisor
   .attendance-supervisor-v4.layout-page-surface :is(.attendance-supervisor-v4__table-card,.attendance-supervisor-v4__requests) { padding:16px; }
   .attendance-supervisor-v4__request-status-filter { min-width:0; width:100%; }
 }
+/* W-10: status as quick filter chips with counts */
+#sms-app .attendance-supervisor-v4__kpis{display:flex!important;flex-wrap:wrap;gap:8px;grid-template-columns:none!important}
+#sms-app .attendance-supervisor-v4__kpi{display:inline-flex!important;align-items:center;gap:8px;min-height:40px;padding:6px 14px!important;border:1px solid var(--color-border)!important;border-radius:999px!important;background:var(--color-surface)!important;box-shadow:none!important}
+#sms-app .attendance-supervisor-v4__kpi>span{display:none!important}
+#sms-app .attendance-supervisor-v4__kpi>div{display:flex!important;flex-direction:row-reverse;align-items:center;gap:6px}
+#sms-app .attendance-supervisor-v4__kpi strong{font-size:14px!important;line-height:1}
+#sms-app .attendance-supervisor-v4__kpi small{font-size:13px!important;color:var(--color-text)!important;font-weight:600}
+#sms-app .attendance-supervisor-v4__kpi.is-danger strong{color:var(--color-danger,#B91C1C)!important}
+#sms-app .attendance-supervisor-v4__kpi.is-warning strong{color:var(--color-warning-strong,#B45309)!important}
+#sms-app .attendance-supervisor-v4__kpi.is-active{background:var(--color-primary)!important;border-color:var(--color-primary)!important}
+#sms-app .attendance-supervisor-v4__kpi.is-active strong,#sms-app .attendance-supervisor-v4__kpi.is-active small{color:#fff!important}
+.attendance-supervisor-v4__reason-label{display:flex;justify-content:space-between;gap:8px}
+.attendance-supervisor-v4__reason-label small{font-weight:400;color:var(--color-text-secondary)}

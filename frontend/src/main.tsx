@@ -2324,7 +2324,7 @@ function Dashboard() {
 
   const parentPage: Partial<Record<Page, Page>> = { executiveReport: 'reportCenter', reports: 'reportCenter', attendanceReport: 'reportCenter' };
   const navigationPage = parentPage[activePage] || activePage;
-  const pageTitle = activePage === 'dashboardDetails' ? 'รายละเอียดตัวชี้วัด' : activePage === 'profile' ? 'โปรไฟล์' : activePage === 'attendanceHistory' ? 'ประวัติการลงเวลา' : activePage === 'employeeSchedule' ? 'ตารางงาน' : navigation.flatMap((section) => section.items).find((item) => item.id === navigationPage)?.label || tablePages[activePage as keyof typeof tablePages]?.title || 'ภาพรวม';
+  const pageTitle = activePage === 'dashboardDetails' ? 'รายละเอียดตัวชี้วัด' : activePage === 'attendanceDevice' ? 'อุปกรณ์ลงเวลา' : activePage === 'profile' ? 'โปรไฟล์' : activePage === 'attendanceHistory' ? 'ประวัติการลงเวลา' : activePage === 'employeeSchedule' ? 'ตารางงาน' : navigation.flatMap((section) => section.items).find((item) => item.id === navigationPage)?.label || tablePages[activePage as keyof typeof tablePages]?.title || 'ภาพรวม';
   const pageSubtitle: Record<Page, string> = {
     dashboard: 'ภาพรวมตัวชี้วัดและสถานะการปฏิบัติงาน',
     dashboardDetails: 'รายการจากตัวชี้วัดที่กรองและนับบนเซิร์ฟเวอร์',
