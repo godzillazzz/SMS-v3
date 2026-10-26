@@ -23,7 +23,9 @@ describe('Attendance P0 clarity contract', () => {
 
   it('uses human-first device and offline copy while preserving the security controls', () => {
     expect(page).toContain('ใช้ได้หลายอุปกรณ์ · ระบบเก็บข้อมูลเบราว์เซอร์เป็น telemetry');
-    expect(page).not.toContain('เครื่องหลักของคุณ');
+    // Owner decision 2026-10-26 (A-18): warn on a non-primary device; the event is flagged for Admin review.
+    expect(page).toContain('อุปกรณ์นี้ไม่ใช่เครื่องหลักของคุณ');
+    expect(page).toContain('ส่งให้ Admin ตรวจ');
     expect(page).toContain('bindingState');
     expect(page).not.toContain('DEVICE_MOVE_PENDING');
     expect(page).toContain('ออฟไลน์พร้อมใช้งาน');

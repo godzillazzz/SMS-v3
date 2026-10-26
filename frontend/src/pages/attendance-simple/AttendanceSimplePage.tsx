@@ -245,6 +245,7 @@ export function AttendanceSimplePage({
   const [identity, setIdentity] = useState<DeviceIdentity | null>(null);
   const [fingerprint, setFingerprint] = useState<string | null>(null);
   const [queueCount, setQueueCount] = useState(0);
+  const [syncPhase, setSyncPhase] = useState<'idle' | 'sending' | 'done' | 'late'>('idle');
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('กำลังเตรียมระบบลงเวลา…');
   const [tone, setTone] = useState<StatusTone>('neutral');
@@ -271,6 +272,7 @@ export function AttendanceSimplePage({
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const queueSyncInFlight = useRef(false);
+  const [lastFix, setLastFix] = useState<{ latitude: number; longitude: number; accuracyMeters: number } | null>(null);
   const cameraOpeningRef = useRef(false);
   const cameraRequestRef = useRef(0);
 
@@ -300,6 +302,7 @@ export function AttendanceSimplePage({
     queueSyncInFlight.current = true;
     try {
       const rows = await listEncryptedQueue<SimpleEventInput>();
+      if (rows.length) setSyncPhase('sending');
       for (const row of rows) {
         let acknowledged = false;
         try {
@@ -315,6 +318,7 @@ export function AttendanceSimplePage({
             setLastResult(result);
             const evidence = result.event?.locationEvidence || result.pendingEvent?.locationEvidence;
             if (evidence?.assignedSite) setSiteContext({ assignedSite: evidence.assignedSite, actualSite: evidence.actualSite || null, workSiteContext: evidence.workSiteContext || 'ASSIGNED_SITE' });
+            setSyncPhase(result.status === 'PENDING_CONFIRMATION' ? 'late' : 'done');
             if (result.status === 'PENDING_CONFIRMATION') {
               setTone('warning');
               const details = reviewContextDetails(result, evidence);
@@ -480,6 +484,7 @@ export function AttendanceSimplePage({
       const pendingAgeMs = pendingSiteCapture ? Date.now() - new Date(pendingSiteCapture.location.capturedAt).getTime() : Infinity;
       const reusePending = pendingSiteCapture !== null && pendingAgeMs >= 0 && pendingAgeMs <= 180000;
       const location = reusePending ? pendingSiteCapture.location : await getLocation();
+      setLastFix({ latitude: location.latitude, longitude: location.longitude, accuracyMeters: location.accuracyMeters });
       const localDecision = gpsGeofenceDecision(bootstrap.assignment.site, location, bootstrap.eligibleSites || []);
       if (!online && localDecision.classification === 'CONFIDENT_OUTSIDE') {
         throw new Error('อยู่นอก GEOFENCE ของทุก Site ที่อนุญาต · ไม่บันทึกเวลา');
@@ -726,6 +731,17 @@ export function AttendanceSimplePage({
                 : null;
 
   const blockedByServer = clockBlockedByServer && !busy;
+  const outsideGap = (() => {
+    const site = bootstrap?.assignment.site;
+    if (!lastFix || !site || !Number.isFinite(site.latitude) || !Number.isFinite(site.longitude)) return null;
+    const rad = Math.PI / 180;
+    const dLat = (lastFix.latitude - site.latitude) * rad;
+    const dLng = (lastFix.longitude - site.longitude) * rad;
+    const h = Math.sin(dLat / 2) ** 2 + Math.cos(site.latitude * rad) * Math.cos(lastFix.latitude * rad) * Math.sin(dLng / 2) ** 2;
+    const meters = 2 * 6371000 * Math.asin(Math.min(1, Math.sqrt(h)));
+    const gap = meters - (Number(site.geofenceRadiusMeters) || 0);
+    return gap > 0 ? Math.round(gap / 10) * 10 : null;
+  })();
   const locationDenied = tone === 'danger' && message.startsWith('กรุณาอนุญาต Location');
   const scheduleBlocked = scheduleBlockCodes.includes(requestErrorCode || '');
   const shiftWindow = (() => {
@@ -787,6 +803,22 @@ export function AttendanceSimplePage({
           {offlineValid && offlineUntil && <b>สิทธิ์ออฟไลน์ใช้ได้ถึง {offlineUntil}</b>}
         </div>
       </article>}
+      {bindingState === 'FOREIGN' && <article className="attendance-simple__offline-card is-device">
+        <SmsIcon name="device" size={18} />
+        <div>
+          <strong>อุปกรณ์นี้ไม่ใช่เครื่องหลักของคุณ</strong>
+          <small>ลงเวลาได้ แต่รายการจะถูกติดธงส่งให้ Admin ตรวจ ถ้าเปลี่ยนเครื่องถาวร ให้แจ้ง Admin ย้ายเครื่องหลักให้</small>
+        </div>
+      </article>}
+      {(queueCount > 0 || syncPhase !== 'idle') && <article className="attendance-simple__sync" aria-label="รายการที่บันทึกตอนออฟไลน์">
+        <strong>รายการที่บันทึกตอนออฟไลน์</strong>
+        <small>ส่งให้อัตโนมัติเมื่อกลับมาออนไลน์หรือเปิดแอป</small>
+        <ol>
+          <li className="is-done"><b /><div><strong>เก็บในเครื่องแล้ว</strong><small>เข้ารหัสในเครื่องนี้ · {queueCount} รายการรอส่ง</small></div></li>
+          <li className={syncPhase === 'sending' ? 'is-current' : syncPhase === 'done' || syncPhase === 'late' ? 'is-done' : ''}><b /><div><strong>กำลังส่ง</strong><small>{online ? (syncPhase === 'sending' ? 'ออนไลน์แล้ว · กำลังส่ง' : syncPhase === 'idle' ? 'รอส่ง' : 'ส่งแล้ว') : 'รอสัญญาณอินเทอร์เน็ต'}</small></div></li>
+          <li className={syncPhase === 'done' ? 'is-done' : syncPhase === 'late' ? 'is-warn' : ''}><b /><div><strong>เซิร์ฟเวอร์รับแล้ว</strong><small>{syncPhase === 'done' ? 'นับเวลาแล้ว' : syncPhase === 'late' ? 'ส่งช้าเกินกำหนด · รอ ADMIN ยืนยันก่อนนับ' : 'นับเวลาแล้ว · หรือ “รอผู้ดูแลยืนยัน” ถ้าส่งช้าเกินกำหนด'}</small></div></li>
+        </ol>
+      </article>}
       {bootstrap && <article className="attendance-simple__shift-card">
         <b className="attendance-simple__shift-code" data-shift-code={String(bootstrap.assignment.shift.code || '').toUpperCase()}>{bootstrap.assignment.shift.code || '—'}</b>
         <div>
@@ -821,6 +853,15 @@ export function AttendanceSimplePage({
         <span className="attendance-simple__sheet-pill is-warn">ช่วยปฏิบัติงานต่าง Site</span>
         <h2 id="attendance-support-title">คุณอยู่ Site อื่นจากตาราง</h2>
         <p>ลงเวลาได้ ระบบจะเก็บทั้งสอง Site ไว้และส่งให้หัวหน้าตรวจ</p>
+        <svg className="attendance-simple__site-map" viewBox="0 0 340 130" role="img" aria-label={`ภาพประกอบ: ตำแหน่งของคุณอยู่ที่ ${siteDisplayName(pendingSiteCapture.context)} ไม่ใช่ Site ตามตาราง`}>
+          <defs><pattern id="sms-grid" width="34" height="26" patternUnits="userSpaceOnUse"><path d="M34 0H0V26" fill="none" stroke="currentColor" strokeOpacity=".12" /></pattern></defs>
+          <rect width="340" height="130" rx="12" fill="url(#sms-grid)" />
+          <circle cx="92" cy="58" r="34" className="is-assigned" /><circle cx="92" cy="58" r="4" className="is-dot" />
+          <text x="92" y="116" textAnchor="middle" className="is-label">{(siteContext?.assignedSite || bootstrap?.assignment.site)?.code || 'ตามตาราง'}</text>
+          <circle cx="250" cy="58" r="34" className="is-actual" /><circle cx="250" cy="58" r="8" className="is-you" />
+          <text x="250" y="18" textAnchor="middle" className="is-you-label">คุณ</text>
+          <text x="250" y="116" textAnchor="middle" className="is-label is-warn">{pendingSiteCapture.context.code || 'Site ที่ตรวจพบ'}</text>
+        </svg>
         <dl>
           <div><dt>Site ตามตาราง</dt><dd>{siteDisplayName(siteContext?.assignedSite || bootstrap?.assignment.site)}</dd></div>
           <div><dt>Site ที่ตรวจพบ</dt><dd className="is-warn">{siteDisplayName(pendingSiteCapture.context)}</dd></div>
@@ -936,6 +977,14 @@ export function AttendanceSimplePage({
           ? ['เปิด การตั้งค่า › ความเป็นส่วนตัว › บริการหาตำแหน่ง', 'เลือก Safari เว็บไซต์ (หรือแอป SMS)', 'ตั้งเป็น “ขณะใช้แอป” และเปิด “ตำแหน่งที่แม่นยำ”', 'กลับมาที่หน้านี้แล้วกด “ลองอีกครั้ง”']
           : ['เปิด การตั้งค่า › ตำแหน่ง แล้วเปิดใช้ตำแหน่ง', 'เลือก Chrome (หรือแอป SMS) › สิทธิ์ › ตำแหน่ง', 'เลือก “อนุญาตขณะใช้แอป” และเปิด “ใช้ตำแหน่งที่แม่นยำ”', 'กลับมาที่หน้านี้แล้วกด “ลองอีกครั้ง”']).map((step) => <li key={step}>{step}</li>)}</ol>
       </div>}
+      {requestErrorCode === 'ATTENDANCE_OUTSIDE_SITE_GEOFENCE' && outsideGap !== null && <svg className="attendance-simple__site-map" viewBox="0 0 340 130" role="img" aria-label={`ภาพประกอบ: ห่างขอบ Site ประมาณ ${outsideGap} เมตร`}>
+        <rect width="340" height="130" rx="12" fill="none" />
+        <circle cx="96" cy="62" r="40" className="is-assigned" /><circle cx="96" cy="62" r="4" className="is-dot" />
+        <text x="96" y="122" textAnchor="middle" className="is-label">{bootstrap?.assignment.site.code || 'Site'}</text>
+        <line x1="136" y1="62" x2="252" y2="62" stroke="#F87171" strokeDasharray="4 4" />
+        <text x="194" y="52" textAnchor="middle" className="is-gap">ห่างขอบ ~{outsideGap} ม.</text>
+        <circle cx="262" cy="62" r="12" className="is-you" /><text x="262" y="34" textAnchor="middle" className="is-you-label">คุณ</text>
+      </svg>}
       {requestErrorCode === 'ATTENDANCE_OUTSIDE_SITE_GEOFENCE' && <ol>
         <li>เดินเข้าไปในพื้นที่ Site ให้ใกล้จุดกลางมากขึ้น</li>
         <li>เปิด “ตำแหน่งที่แม่นยำ” (Precise Location) ของแอป</li>

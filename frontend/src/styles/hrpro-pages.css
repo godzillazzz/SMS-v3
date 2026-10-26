@@ -87,15 +87,6 @@ body>.workflow-command-layer .workflow-command footer kbd:first-child{margin-lef
 .leave-print-date{display:block;margin-top:1mm;font-size:10pt;color:#475569}
 .leave-print-watermark{position:absolute;top:45%;left:50%;transform:translate(-50%,-50%) rotate(-28deg);font-size:72pt;font-weight:700;color:rgba(220,38,38,.16)!important;pointer-events:none;white-space:nowrap}
 }
-@media print{
-.print-doc-title{display:flex;align-items:center;gap:3mm;padding-bottom:2mm;margin-bottom:2mm;border-bottom:1.5px solid #0F172A}
-.print-doc-title h2{margin:0;font-size:15pt;color:#0F172A}
-.print-doc-title small{font-size:8pt;font-weight:700;color:#1E3A8A}
-.print-doc-mark{display:inline-grid;place-items:center;width:11mm;height:11mm;border-radius:2mm;background:#0F172A!important;color:#fff!important;font-size:8pt;font-weight:700;-webkit-print-color-adjust:exact;print-color-adjust:exact}
-.print-page .print-header{background:none!important;color:#475569!important;border:0!important;box-shadow:none!important;padding:0!important;margin:0 0 2mm!important;font-size:8pt!important;font-weight:400!important;text-align:left!important}
-.print-table thead th{background:#F1F5F9!important;color:#0F172A!important}
-.print-table .print-department-group-row th{background:#E2E8F0!important;color:#0F172A!important;text-align:left!important}
-}
 /* M3 · mobile leave request inside the Employee PWA shell */
 .pwa-shell .leave-page .layout-page-header .eyebrow,.pwa-shell .leave-page .layout-page-header p{display:none}
 .pwa-shell .leave-page .layout-page-header{padding:0!important}

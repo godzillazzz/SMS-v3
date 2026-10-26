@@ -11,9 +11,10 @@ const keys = read('./lib/attendance-device-key.ts');
 const css = read('./styles/attendance-device.css');
 
 describe('G06 Personal Device Enrollment V1 Phase 2 UI contract', () => {
-  it('keeps device history/admin APIs without exposing an employee navigation surface', () => {
-    expect(main).not.toContain("{ id: 'attendanceDevice'");
-    expect(main).not.toContain('data-navigation-id="attendanceDevice"');
+  it('exposes the Admin-only device menu (owner decision 2026-10-26) while keeping device APIs', () => {
+    // Owner restored the menu so Admin can verify foreign-device check-ins and move a primary device.
+    expect(main).toContain("{ id: 'attendanceDevice', icon: 'device', label: 'อุปกรณ์ลงเวลา' }");
+    expect(main).toContain("attendanceDevice: ['ADMIN']");
     expect(main).toContain('<G06DeviceContextDiagnostic');
     expect(page).toContain('บัญชีหรือรหัสผ่านยืนยันตัวตนเพียงอย่างเดียวไม่ยืนยันว่าอุปกรณ์นี้เป็นเครื่องที่ใช้ลงเวลา');
   });

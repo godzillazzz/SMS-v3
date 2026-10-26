@@ -206,7 +206,8 @@ const navigation: Array<{ label: string; items: Array<{ id: Page; icon: SmsIconN
   ] },
   { label: 'ลงเวลา', items: [
     { id: 'attendance', icon: 'attendance', label: 'ลงเวลา' },
-    { id: 'attendanceSupervisor', icon: 'dashboard', label: 'ศูนย์ควบคุมการลงเวลา' }
+    { id: 'attendanceSupervisor', icon: 'dashboard', label: 'ศูนย์ควบคุมการลงเวลา' },
+    { id: 'attendanceDevice', icon: 'device', label: 'อุปกรณ์ลงเวลา' }
   ] },
   { label: 'ตารางกะ', items: [
     { id: 'schedule', icon: 'calendar', label: 'ตารางกะรายเดือน' },
@@ -3532,7 +3533,6 @@ function Dashboard() {
           const deptEmployees = printData.calendarEmployees.filter((e) => String(e.department ?? '').trim() === dept);
           return (
             <div className="print-page" key={dept}>
-              <div className="print-doc-title"><span className="print-doc-mark">SMS</span><div><h2>ตารางปฏิบัติงานประจำเดือน {printData.printMonthLabel}</h2><small>MONTHLY DUTY ROSTER · {dept || 'ทั่วไป'}</small></div></div>
               <div className="print-header">
                 Security Management System - ตารางกะที่อนุมัติแล้ว - {printData.printMonthLabel}
               </div>
