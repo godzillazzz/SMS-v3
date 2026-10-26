@@ -46,3 +46,25 @@ test('selfie cleanup executes bounded lifecycle operations', async () => {
   const { wrappers } = harness();
   assert.deepEqual(await wrappers.selfie.purgeExpiredSelfies(), { inspected: 0, purged: 0, failed: 0 });
 });
+
+test('S3 selfie put returns the Supabase-compatible shape used for AttendanceDeviceSelfie rows', async () => {
+  const { calls, wrappers } = harness();
+  const buffer = Buffer.from('jpeg-bytes');
+  const checksum = require('node:crypto').createHash('sha256').update(buffer).digest('hex');
+  const stored = await wrappers.selfie.put({ employeeId: 'e1', captureId: 'c1', selfie: { buffer, mimeType: 'image/jpeg', sizeBytes: buffer.length, checksum } });
+  // The attendance service writes these into required AttendanceDeviceSelfie columns.
+  for (const field of ['provider', 'bucket', 'objectKey', 'mimeType', 'sizeBytes', 'checksum']) assert.ok(stored[field] !== undefined && stored[field] !== null, field);
+  assert.equal(stored.checksum, checksum);
+  assert.equal(stored.mimeType, 'image/jpeg');
+  assert.equal(stored.sizeBytes, buffer.length);
+  // normalizeSelfie() uses camelCase mimeType; the S3 backend must still receive a content type.
+  assert.equal(calls[0][3].mimetype, 'image/jpeg');
+});
+
+test('S3 selfie put rejects an upload whose stored checksum differs from the signed selfie', async () => {
+  const { wrappers } = harness();
+  await assert.rejects(
+    wrappers.selfie.put({ employeeId: 'e1', captureId: 'c1', selfie: { buffer: Buffer.from('a'), mimeType: 'image/jpeg', checksum: '0'.repeat(64) } }),
+    (error) => error?.details?.code === 'STORAGE_CHECKSUM_UNCONFIRMED'
+  );
+});
