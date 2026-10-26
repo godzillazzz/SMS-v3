@@ -815,6 +815,24 @@ export function AttendanceSimplePage({
         {disabledGuidance?.actionLabel && disabledGuidance.action && <button type="button" onClick={disabledGuidance.action}>{disabledGuidance.actionLabel}</button>}
       </article>}
     </section>}
+    {pwaMode && pendingSiteCapture && !busy && <div className="attendance-simple__sheet-backdrop" role="presentation">
+      <section className="attendance-simple__sheet is-support" role="dialog" aria-modal="true" aria-labelledby="attendance-support-title">
+        <span className="attendance-simple__sheet-handle" aria-hidden="true" />
+        <span className="attendance-simple__sheet-pill is-warn">ช่วยปฏิบัติงานต่าง Site</span>
+        <h2 id="attendance-support-title">คุณอยู่ Site อื่นจากตาราง</h2>
+        <p>ลงเวลาได้ ระบบจะเก็บทั้งสอง Site ไว้และส่งให้หัวหน้าตรวจ</p>
+        <dl>
+          <div><dt>Site ตามตาราง</dt><dd>{siteDisplayName(siteContext?.assignedSite || bootstrap?.assignment.site)}</dd></div>
+          <div><dt>Site ที่ตรวจพบ</dt><dd className="is-warn">{siteDisplayName(pendingSiteCapture.context)}</dd></div>
+          <div><dt>ความแม่นยำ GPS</dt><dd>±{Math.round(Number(pendingSiteCapture.location.accuracyMeters) || 0)} ม.</dd></div>
+        </dl>
+        <footer>
+          <button type="button" onClick={() => { setPendingSiteCapture(null); setSiteContext(null); setTone('neutral'); setMessage('ยกเลิกแล้ว · กดลงเวลาอีกครั้งเมื่อพร้อม'); }}>ยกเลิก</button>
+          <button type="button" className="is-primary" onClick={() => void recordAttendance()}>ยืนยัน{selectedActionLabel}</button>
+        </footer>
+        <p className="attendance-simple__sheet-note">ตำแหน่งที่จับไว้ใช้ได้ 3 นาที</p>
+      </section>
+    </div>}
     {showReceiptSheet && <div className="attendance-simple__sheet-backdrop" role="presentation">
       <section className="attendance-simple__sheet" role="dialog" aria-modal="true" aria-labelledby="attendance-receipt-title">
         <span className="attendance-simple__sheet-handle" aria-hidden="true" />
@@ -960,7 +978,7 @@ export function AttendanceSimplePage({
       </div>
       {pwaMode && <div className="attendance-simple__ready-tiles" aria-label="ความพร้อมก่อนลงเวลา">
         <article><SmsIcon name="location" size={18} /><div><b>ตำแหน่ง</b><span>{siteContext ? 'ตรวจแล้ว' : !online && bootstrap?.offline?.maxAccuracyMeters ? `ต้อง ≤ ${bootstrap.offline.maxAccuracyMeters} ม.` : 'ตรวจเมื่อกด'}</span></div></article>
-        <article><SmsIcon name="shield" size={18} /><div><b>เครื่องหลัก</b><span>{bootstrap?.activeDevice ? 'ยืนยันแล้ว' : bootstrap?.pendingDeviceRequest ? 'รออนุมัติ' : 'ยังไม่ยืนยัน'}</span></div></article>
+        <article><SmsIcon name="shield" size={18} /><div><b>เครื่องหลัก</b><span>{bindingState === 'PRIMARY' ? 'ยืนยันแล้ว' : bindingState === 'FOREIGN' ? 'เครื่องอื่น' : bindingState === 'AUTO_BIND' ? 'ผูกเมื่อลงเวลา' : bootstrap?.pendingDeviceRequest ? 'รออนุมัติ' : 'กำลังตรวจ'}</span></div></article>
         <article><SmsIcon name="check" size={18} /><div><b>{online ? 'ออนไลน์' : 'รอส่ง'}</b><span>{online ? (queueCount > 0 ? `รอส่ง ${queueCount} รายการ` : 'ส่งทันที') : `${queueCount} รายการ`}</span></div></article>
       </div>}
       <div className="attendance-simple__assurance">
