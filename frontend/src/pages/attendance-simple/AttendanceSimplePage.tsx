@@ -150,6 +150,15 @@ export function attendanceErrorMessage(code: string | undefined, fallback: strin
   return fallback;
 }
 
+// Server codes are fixed identifiers, never user data. Any code with this shape is
+// shown as a reference so an unmapped server rule is diagnosable instead of
+// collapsing into the generic fallback with only a Request ID.
+const DISPLAYABLE_ATTENDANCE_CODE = /^(?:ATTENDANCE_[A-Z0-9_]{2,80}|HTTP_[45]\d\d)$/;
+
+export function isDisplayableAttendanceCode(value: string): boolean {
+  return SAFE_ATTENDANCE_ERROR_CODES.has(value) || DISPLAYABLE_ATTENDANCE_CODE.test(value);
+}
+
 export function attendanceFailure(reason: unknown, fallback: string): AttendanceSimpleErrorDetails {
   const normalized = toRequestErrorState(reason, fallback);
   const readRecord = (value: unknown): Record<string, unknown> => value && typeof value === 'object' ? value as Record<string, unknown> : {};
@@ -160,7 +169,7 @@ export function attendanceFailure(reason: unknown, fallback: string): Attendance
   const body = readRecord(source.body);
   const nested = [source.error, responseData.error, data.error, body.error].map(readRecord);
   const code = [source.code, responseData.code, data.code, body.code, ...nested.map((item) => item.code)]
-    .find((value): value is string => typeof value === 'string' && SAFE_ATTENDANCE_ERROR_CODES.has(value));
+    .find((value): value is string => typeof value === 'string' && isDisplayableAttendanceCode(value));
   const requestId = [normalized.requestId, source.requestId, responseData.requestId, data.requestId, body.requestId, ...nested.map((item) => item.requestId)]
     .map((value) => normalizeRequestId(value))
     .find((value): value is string => Boolean(value));
