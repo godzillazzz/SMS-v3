@@ -65,3 +65,34 @@ body>.workflow-command-layer .workflow-command footer kbd:first-child{margin-lef
 #sms-app .edit-dialog .dialog-actions .btn-primary{background:var(--color-primary);border-color:var(--color-primary);color:#fff}
 .edit-dialog.personnel-editor .dialog-actions .btn-primary{background:var(--color-primary,#1E3A8A)!important;border-color:var(--color-primary,#1E3A8A)!important;color:#fff!important;box-shadow:none!important}
 .edit-dialog.personnel-editor .dialog-heading{border-bottom:1px solid var(--color-border)}
+@media print{
+.leave-print-document{position:relative!important}
+.leave-print-letterhead{display:flex;justify-content:space-between;align-items:flex-start;gap:8mm;margin-top:5mm;padding-bottom:4mm;border-bottom:1.5px solid #0F172A}
+.leave-print-brand{display:flex;gap:3mm;align-items:center}
+.leave-print-brand strong{display:block;font-size:13pt}.leave-print-brand small{font-size:9pt;color:#475569}
+.leave-print-mark{display:inline-grid;place-items:center;width:13mm;height:13mm;border-radius:2.5mm;background:#0F172A!important;color:#fff!important;font-weight:700;font-size:10pt;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.leave-print-letterhead .leave-print-heading{margin:0;text-align:right}
+.leave-print-letterhead .leave-print-heading h1{font-size:18pt}
+.leave-print-letterhead .leave-print-heading p{margin:1mm 0 0;font-size:10pt;color:#1E3A8A}
+.leave-print-letterhead .leave-print-heading small{display:block;margin-top:1mm;font-size:10pt}
+.leave-print-person{border-bottom:0!important}
+.leave-print-info{display:flex;gap:10mm;margin:1mm 0 0;font-size:12pt}.leave-print-info div{display:flex;gap:3mm}.leave-print-info dt{color:#475569}.leave-print-info dd{margin:0;font-weight:700}
+.leave-print-decision{display:flex;flex-wrap:wrap;align-items:center;gap:3mm 8mm;margin-top:6mm;padding:3mm 4mm;border:1px solid #94A3B8;border-radius:2mm;font-size:12pt}
+.leave-print-decision i{display:inline-block;width:4mm;height:4mm;border:1px solid #0F172A;vertical-align:-0.6mm;margin-right:1.5mm}
+.leave-print-decision i.is-checked{background:#0F172A!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.leave-print-decision small{flex-basis:100%;font-size:10pt;color:#475569}
+.leave-print-attachment{margin:4mm 0 0;font-size:12pt}
+.leave-print-signatures{display:grid!important;grid-template-columns:1fr 1fr;gap:10mm;width:100%!important;margin:14mm 0 0!important}
+.leave-print-signature-block+.leave-print-signature-block{margin-top:0!important}
+.leave-print-date{display:block;margin-top:1mm;font-size:10pt;color:#475569}
+.leave-print-watermark{position:absolute;top:45%;left:50%;transform:translate(-50%,-50%) rotate(-28deg);font-size:72pt;font-weight:700;color:rgba(220,38,38,.16)!important;pointer-events:none;white-space:nowrap}
+}
+@media print{
+.print-doc-title{display:flex;align-items:center;gap:3mm;padding-bottom:2mm;margin-bottom:2mm;border-bottom:1.5px solid #0F172A}
+.print-doc-title h2{margin:0;font-size:15pt;color:#0F172A}
+.print-doc-title small{font-size:8pt;font-weight:700;color:#1E3A8A}
+.print-doc-mark{display:inline-grid;place-items:center;width:11mm;height:11mm;border-radius:2mm;background:#0F172A!important;color:#fff!important;font-size:8pt;font-weight:700;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.print-page .print-header{background:none!important;color:#475569!important;border:0!important;box-shadow:none!important;padding:0!important;margin:0 0 2mm!important;font-size:8pt!important;font-weight:400!important;text-align:left!important}
+.print-table thead th{background:#F1F5F9!important;color:#0F172A!important}
+.print-table .print-department-group-row th{background:#E2E8F0!important;color:#0F172A!important;text-align:left!important}
+}

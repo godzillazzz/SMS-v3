@@ -1665,11 +1665,21 @@ function LeaveManagementPage({ rows, loading, error, linked, remaining, quotaSum
 
 function LeavePrintDocument({ row }: { row: DataRow }) {
   const leaveDates = inputDate(row.startDate) === inputDate(row.endDate) ? date(row.startDate) : `${date(row.startDate)} – ${date(row.endDate)}`;
+  const status = String(row.status || '');
+  const statusText = ({ APPROVED: 'อนุมัติแล้ว', REJECTED: 'ไม่อนุมัติ', PENDING: 'รอพิจารณา', CANCELLED: 'ยกเลิก', RETURNED: 'ส่งกลับแก้ไข' } as Record<string, string>)[status] || text(row.status);
+  const decided = status === 'APPROVED' || status === 'REJECTED';
   return <section className="leave-print-document" aria-hidden="true">
+    {status === 'REJECTED' && <div className="leave-print-watermark">ไม่อนุมัติ</div>}
     <div className="leave-print-topline"><span>{formatApprovalDateTime(new Date())}</span><span>Security Management System — แบบบันทึกการลาพนักงานรักษาความปลอดภัย</span></div>
-    <div className="leave-print-heading"><h1>ใบขออนุมัติลางาน</h1><p>พนักงานรักษาความปลอดภัย</p></div>
+    <header className="leave-print-letterhead">
+      <div className="leave-print-brand"><span className="leave-print-mark">SMS</span><div><strong>Security Management System</strong><small>ระบบบริหารงานรักษาความปลอดภัย</small></div></div>
+      <div className="leave-print-heading"><h1>ใบขออนุมัติลางาน</h1><p>พนักงานรักษาความปลอดภัย</p><small>สถานะ: {statusText}{row.createdAt ? <> · วันที่ยื่น: {date(row.createdAt)}</> : null}</small></div>
+    </header>
     <div className="leave-print-person"><strong>ชื่อพนักงาน: {text(row.employeeNameSnapshot)}</strong><strong>วันที่พิมพ์: {date(new Date())}</strong></div>
+    <dl className="leave-print-info">{row.employeeCodeSnapshot || row.employeeCode ? <div><dt>รหัสพนักงาน</dt><dd>{text(row.employeeCodeSnapshot || row.employeeCode)}</dd></div> : null}{row.departmentSnapshot || row.department ? <div><dt>หน่วยงาน</dt><dd>{text(row.departmentSnapshot || row.department)}</dd></div> : null}</dl>
     <table className="leave-print-table"><thead><tr><th>วันที่ลางาน</th><th>ประเภทการลา</th><th>จำนวนวัน</th><th>ผู้ปฏิบัติงานแทน / รายละเอียด</th></tr></thead><tbody><tr><td>{leaveDates}</td><td>{leaveTypeDisplayText(row)}</td><td>{text(row.dayCount)} วัน</td><td><div className="leave-print-detail-lines"><strong>ผู้ปฏิบัติงานแทน:</strong> {text(row.substitute || row.substituteName)}<br /><strong>รายละเอียด:</strong> {text(row.reasonDetail || row.reason)}</div></td></tr></tbody></table>
+    <div className="leave-print-decision"><strong>ผลการพิจารณา</strong><span><i className={status === 'APPROVED' ? 'is-checked' : undefined} /> อนุมัติ</span><span><i className={status === 'REJECTED' ? 'is-checked' : undefined} /> ไม่อนุมัติ</span>{decided && row.approvedByDisplayName ? <small>ดำเนินการในระบบโดย {text(row.approvedByDisplayName)}{row.approvedAt ? ` · ${formatApprovalDateTime(new Date(String(row.approvedAt)))}` : ''}</small> : null}</div>
+    <p className="leave-print-attachment"><strong>เอกสารแนบในระบบ:</strong> {row.attachmentUrl ? 'มี' : 'ไม่มี'}</p>
     <div className="leave-print-signatures">
       <div className="leave-print-signature-block">
         <div className="leave-print-signature-line">
@@ -1678,6 +1688,7 @@ function LeavePrintDocument({ row }: { row: DataRow }) {
         </div>
         <div className="leave-print-name">(........................................................)</div>
         <strong className="leave-print-title">หัวหน้าพนักงานรักษาความปลอดภัย</strong>
+        <small className="leave-print-date">วันที่ ........ / ........ / ........</small>
       </div>
       <div className="leave-print-signature-block">
         <div className="leave-print-signature-line">
@@ -1687,6 +1698,7 @@ function LeavePrintDocument({ row }: { row: DataRow }) {
         </div>
         <div className="leave-print-name">(........................................................)</div>
         <strong className="leave-print-title">ผู้จัดการเขต (ผู้อนุมัติ)</strong>
+        <small className="leave-print-date">วันที่ ........ / ........ / ........</small>
       </div>
     </div>
     <footer className="leave-print-footer"><span>Security Management System</span><span>1/1</span></footer>
@@ -3519,6 +3531,7 @@ function Dashboard() {
           const deptEmployees = printData.calendarEmployees.filter((e) => String(e.department ?? '').trim() === dept);
           return (
             <div className="print-page" key={dept}>
+              <div className="print-doc-title"><span className="print-doc-mark">SMS</span><div><h2>ตารางปฏิบัติงานประจำเดือน {printData.printMonthLabel}</h2><small>MONTHLY DUTY ROSTER · {dept || 'ทั่วไป'}</small></div></div>
               <div className="print-header">
                 Security Management System - ตารางกะที่อนุมัติแล้ว - {printData.printMonthLabel}
               </div>

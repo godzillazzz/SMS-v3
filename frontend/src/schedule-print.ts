@@ -48,15 +48,17 @@ function preparePrintLayout(frameDocument: Document, orientation: PrintOrientati
     html, body { margin: 0 !important; min-height: 0 !important; height: auto !important; overflow: visible !important; background: #fff !important; color: #000 !important; }
     body { padding: 0 !important; }
     .print-only, .leave-print-document, .attendance-official-report-print { display: block !important; position: static !important; width: 100% !important; min-height: 0 !important; height: auto !important; max-height: none !important; overflow: visible !important; background: #fff !important; }
-    .t29-table-print { box-sizing: border-box; width: 100%; color: #000; background: #fff; font-family: 'Noto Sans Thai', 'IBM Plex Sans Thai', sans-serif; font-size: 10pt; }
-    .t29-table-print h1 { margin: 0 0 4mm; font-size: 18pt; }
+    .t29-table-print { box-sizing: border-box; width: 100%; color: #0f172a; background: #fff; font-family: 'IBM Plex Sans Thai', 'Noto Sans Thai', sans-serif; font-size: 10pt; }
+    .t29-table-print h1 { margin: 0 0 3mm; padding-bottom: 3mm; border-bottom: 1.5px solid #0f172a; font-size: 18pt; }
+    .t29-table-print h1::before { content: 'SMS'; display: inline-block; margin-right: 3mm; padding: 1mm 2mm; border-radius: 1.5mm; background: #0f172a; color: #fff; font-size: 9pt; vertical-align: 3pt; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     .t29-table-print__filters { display: flex; flex-wrap: wrap; gap: 2mm 6mm; margin: 0 0 3mm; font-size: 9pt; }
-    .t29-table-print__meta { display: flex; justify-content: space-between; gap: 6mm; margin: 0 0 4mm; font-size: 9pt; }
+    .t29-table-print__meta { display: flex; justify-content: space-between; gap: 6mm; margin: 0 0 4mm; font-size: 9pt; color: #475569; }
     .t29-table-print table { width: 100% !important; min-width: 0 !important; border-collapse: collapse !important; table-layout: auto; }
     .t29-table-print thead { display: table-header-group !important; }
     .t29-table-print tfoot { display: table-footer-group !important; }
     .t29-table-print tr { break-inside: avoid !important; page-break-inside: avoid !important; }
-    .t29-table-print th, .t29-table-print td { border: 1px solid #596273 !important; padding: 2mm !important; color: #000 !important; background: #fff !important; vertical-align: top; overflow-wrap: anywhere; }
+    .t29-table-print th, .t29-table-print td { border: 0 !important; border-bottom: 1px solid #cbd5e1 !important; padding: 2mm !important; color: #0f172a !important; background: #fff !important; vertical-align: top; overflow-wrap: anywhere; text-align: left; }
+    .t29-table-print thead th { background: #f1f5f9 !important; border-top: 1px solid #0f172a !important; border-bottom: 1px solid #0f172a !important; font-weight: 700; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     .t29-table-print button, .t29-table-print input, .t29-table-print select, .t29-table-print textarea { display: none !important; }
     .leave-print-document { box-sizing: border-box; margin: 0 !important; padding: 0 !important; color: #000 !important; background: #fff !important; font-family: 'Noto Sans Thai', 'IBM Plex Sans Thai', sans-serif !important; font-size: 13pt !important; line-height: 1.25 !important; break-before: auto !important; page-break-before: auto !important; }
     .leave-print-document, .leave-print-document * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
