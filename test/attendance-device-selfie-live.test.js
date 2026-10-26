@@ -11,6 +11,7 @@ const { createAttendanceSiteEvidenceService } = require('../src/services/attenda
 const { createAttendanceRoutes } = require('../src/routes/attendance.routes');
 const { errorHandler } = require('../src/middlewares/error-handler');
 const requestContext = require('../src/middlewares/request-context');
+const { createS3ContractWrappers } = require('../src/services/storage-contract-wrappers');
 
 const ids = { user: '11111111-1111-4111-8111-111111111111', employee: '22222222-2222-4222-8222-222222222222', assignment: '33333333-3333-4333-8333-333333333333', shift: '44444444-4444-4444-8444-444444444444', site: '55555555-5555-4555-8555-555555555555', admin: '66666666-6666-4666-8666-666666666666' };
 const NOW = new Date('2026-10-02T01:00:00.000Z');
@@ -67,6 +68,29 @@ test('forged and replayed selfie nonces never earn SELFIE_LIVE_VERIFIED', async 
 
 test('foreign enrollment is audit-only and never becomes actor event or selfie FK', async () => { const h = harness({ selfiePolicy: true }); const key = keyMaterial(); const fingerprint = crypto.createHash('sha256').update(Buffer.from(key.publicKeySpkiBase64, 'base64')).digest('hex'); const foreign = { id: 'foreign-enrollment', employeeId: 'other-employee', credentialFingerprint: fingerprint, status: 'ACTIVE', activatedAt: NOW }; h.state.devices.push(foreign); const issued = await challenge(h); const result = await h.service.submit({ actor: { sub: ids.user }, input: inputFor({ ...key, selfie: selfie(), selfieNonce: issued.nonce }) }); assert.equal(result.event.deviceEnrollmentId, null); assert.equal(h.state.selfies.length, 0); assert.deepEqual(h.state.devices.find(row => row.id === foreign.id), foreign); });
 test('DB failure after upload removes object and preserves error for captureId retry', async () => { let fail = true; const removed = []; const storage = { put: async ({ captureId, selfie: photo }) => ({ provider: 'test', bucket: 'private', objectKey: captureId, mimeType: photo.mimeType, sizeBytes: photo.buffer.length, checksum: 'a'.repeat(64) }), remove: async ({ objectKey }) => removed.push(objectKey) }; const h = harness({ selfiePolicy: true, selfieStorage: storage }); const original = h.prisma.$transaction; h.prisma.$transaction = async fn => { if (fail) { fail = false; throw new Error('transaction failure'); } return original(fn); }; const k = keyMaterial(); await assert.rejects(() => h.service.submit({ actor: { sub: ids.user }, input: inputFor({ ...k, selfie: selfie() }) }), /transaction failure/); assert.deepEqual(removed.length, 1); const retry = await h.service.submit({ actor: { sub: ids.user }, input: inputFor({ ...k, selfie: selfie() }) }); assert.equal(retry.counted, true); });
+test('S3 selfie checksum mismatch cleans only the uploaded key and persists no attendance rows', async () => {
+  const calls = [];
+  const environment = { ATTENDANCE_DEVICE_SELFIE_BUCKET: 'selfie', ATTENDANCE_FACE_EVIDENCE_BUCKET: 'evidence', EMPLOYEE_REFERENCE_PHOTOS_BUCKET: 'reference', LICENSE_DOCUMENTS_BUCKET: 'license' };
+  const backend = {
+    async put(bucket, key, file) { calls.push(['put', bucket, key, file]); return { provider: 's3', bucket, objectKey: key, sha256: '0'.repeat(64) }; },
+    async remove(bucket, key) { calls.push(['remove', bucket, key]); },
+    async get() { return Buffer.alloc(0); },
+    async createSignedUrl() { return 'signed://unused'; }
+  };
+  const selfieStorage = createS3ContractWrappers({ environment, backend }).selfie;
+  const h = harness({ selfiePolicy: true, selfieStorage });
+  const captureId = crypto.randomUUID();
+  const k = keyMaterial();
+  await assert.rejects(
+    h.service.submit({ actor: { sub: ids.user }, input: inputFor({ ...k, captureId, selfie: selfie() }) }),
+    error => error.details?.code === 'ATTENDANCE_SELFIE_STORAGE_UNAVAILABLE'
+  );
+  const uploadedKey = `attendance-selfie/${ids.employee}/${captureId}`;
+  assert.deepEqual(calls.filter(call => call[0] === 'remove'), [['remove', 'selfie', uploadedKey]]);
+  assert.equal(h.state.events.length, 0);
+  assert.equal(h.state.sessions.length, 0);
+  assert.equal(h.state.selfies.length, 0);
+});
 test('storage provider errors expose allowlisted safe contract only', async () => { const h = harness({ selfiePolicy: true, selfieStorage: { put: async () => { throw new Error('provider secret must not escape'); } } }); const k = keyMaterial(); await assert.rejects(() => h.service.submit({ actor: { sub: ids.user }, input: inputFor({ ...k, selfie: selfie() }) }), error => error.details?.code === 'ATTENDANCE_SELFIE_STORAGE_UNAVAILABLE' && !/provider secret/.test(error.message)); });
 test('same captureId retry is idempotent and final JPEG stamp remains bounded/decodable', async () => { const h = harness({ selfiePolicy: true }); const k = keyMaterial(); const captureId = crypto.randomUUID(); const input = inputFor({ ...k, captureId, selfie: selfie() }); const first = await h.service.submit({ actor: { sub: ids.user }, input }); const second = await h.service.submit({ actor: { sub: ids.user }, input }); assert.equal(first.counted, true); assert.equal(second.idempotent, true); assert.equal(h.state.events.length, 1); assert.equal(h.state.selfies.length, 1); assert.ok(h.state.selfies[0].sizeBytes <= 1048576); });
 test('concurrent same captureId produces one event/evidence and compensates loser upload', async () => { let entered = 0; let release; const barrier = new Promise(resolve => { release = resolve; }); const storage = { put: async ({ captureId, selfie: photo }) => { entered++; if (entered === 2) release(); await barrier; return { provider: 'test', bucket: 'private', objectKey: `${captureId}-${entered}`, mimeType: photo.mimeType, sizeBytes: photo.buffer.length, checksum: 'a'.repeat(64) }; }, remove: async ({ objectKey }) => storage.removed.push(objectKey), removed: [] }; const h = harness({ selfiePolicy: true, selfieStorage: storage }); const k1 = keyMaterial(); const k2 = keyMaterial(); const captureId = crypto.randomUUID(); const first = h.service.submit({ actor: { sub: ids.user }, input: inputFor({ ...k1, captureId, selfie: selfie() }) }); const second = h.service.submit({ actor: { sub: ids.user }, input: inputFor({ ...k2, captureId, selfie: selfie() }) }); await new Promise(resolve => setImmediate(resolve)); release(); const results = await Promise.allSettled([first, second]); assert.equal(results.filter(result => result.status === 'fulfilled').length, 2); assert.equal(h.state.events.length, 1); assert.equal(h.state.selfies.length, 1); assert.equal(storage.removed.length, 1); });
