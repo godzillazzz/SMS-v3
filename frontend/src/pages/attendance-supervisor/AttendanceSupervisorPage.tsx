@@ -180,6 +180,12 @@ type ManualConfirmationDialog = {
   reason: string;
 };
 
+const APPROVAL_CHAIN = [
+  { role: 'SUPERVISOR', label: 'หัวหน้างาน', note: 'สร้างคำขอ' },
+  { role: 'MANAGER', label: 'ผู้จัดการ', note: 'ตรวจและส่งต่อ' },
+  { role: 'ADMIN', label: 'ผู้ดูแลระบบ', note: 'อนุมัติ · มีผล' }
+] as const;
+
 const STATUS_OPTIONS = [
   ['', 'ทุกสถานะ'],
   ['REQUIRES_ATTENTION', 'ต้องตรวจสอบ'],
@@ -448,6 +454,7 @@ function AttendanceMobileCard({
 }
 
 export function AttendanceSupervisorPage({ token, role, department, employeeAuthorityId, userId, onOpenAttendanceReport, desktopWeb = false, initialRequestId, onInitialRequestHandled, onApprovalQueueChanged }: Props) {
+  const chainStart = Math.max(0, APPROVAL_CHAIN.findIndex((step) => step.role === role));
   const today = bangkokDateText();
   const manager = ['MANAGER', 'SUPERVISOR'].includes(role);
   const viewer = role === 'VIEWER';
@@ -1593,6 +1600,12 @@ export function AttendanceSupervisorPage({ token, role, department, employeeAuth
             </div>
           )}
 
+          <ol className="attendance-supervisor-v4__chain" aria-label="ลำดับการอนุมัติ">
+            {APPROVAL_CHAIN.map((step, index) => {
+              const state = index < chainStart ? 'is-skipped' : index === chainStart ? 'is-current' : 'is-next';
+              return <li key={step.role} className={state} aria-current={index === chainStart ? 'step' : undefined}><b>{index + 1}</b><strong>{step.label}</strong><small>{index === chainStart ? 'คุณ · สร้างคำขอ' : index < chainStart ? 'ข้าม' : step.note}</small></li>;
+            })}
+          </ol>
           <div className="attendance-supervisor-v4__workflow-principle">
             <SmsIcon name="shield" size={19} />
             <div>
@@ -1635,7 +1648,7 @@ export function AttendanceSupervisorPage({ token, role, department, employeeAuth
           <footer>
             <button type="button" className="is-secondary" disabled={workflowBusy} onClick={() => setAdjustmentDialog(undefined)}>ยกเลิก</button>
             <button type="button" className="is-primary" disabled={workflowBusy} onClick={() => void saveAdjustment()}>
-              {workflowBusy ? 'กำลังส่ง…' : adjustmentDialog.requestId ? 'บันทึก Revision และส่งใหม่' : 'ส่งคำขอให้ ADMIN พิจารณา'}
+              {workflowBusy ? 'กำลังส่ง…' : adjustmentDialog.requestId ? 'บันทึก Revision และส่งใหม่' : role === 'SUPERVISOR' ? 'ส่งให้ผู้จัดการตรวจ' : 'ส่งคำขอให้ ADMIN พิจารณา'}
             </button>
           </footer>
         </section>

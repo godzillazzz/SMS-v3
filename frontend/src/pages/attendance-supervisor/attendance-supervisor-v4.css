@@ -1578,3 +1578,12 @@ html[data-theme] .app-shell:not(.pwa-shell) .content-area .attendance-supervisor
 #sms-app .attendance-supervisor-v4__kpis{flex-wrap:nowrap!important;overflow-x:auto;padding-bottom:4px}
 #sms-app .attendance-supervisor-v4__kpi{flex:0 0 auto}
 }
+/* W-11 · approval chain before sending */
+.attendance-supervisor-v4__chain{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:0 0 12px;padding:12px;list-style:none;border:1px solid var(--color-border);border-radius:12px}
+.attendance-supervisor-v4__chain li{position:relative;display:grid;gap:2px;justify-items:start}
+.attendance-supervisor-v4__chain li:not(:last-child)::after{content:"";position:absolute;top:13px;left:34px;right:4px;height:1px;background:var(--color-border)}
+.attendance-supervisor-v4__chain b{display:inline-grid;place-items:center;width:26px;height:26px;border-radius:50%;border:1px solid var(--color-border);font-size:12px;background:var(--color-surface)}
+.attendance-supervisor-v4__chain li.is-current b{background:var(--color-primary);border-color:var(--color-primary);color:#fff}
+.attendance-supervisor-v4__chain li.is-skipped{opacity:.55}
+.attendance-supervisor-v4__chain strong{font-size:13px}
+.attendance-supervisor-v4__chain small{font-size:12px;color:var(--color-text-secondary)}

@@ -687,3 +687,29 @@
 .pwa-profile-theme__options{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .pwa-profile-theme__options button{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:44px;border-radius:10px;border:1px solid var(--color-border);background:transparent;color:var(--color-text);font:inherit;font-weight:600}
 .pwa-profile-theme__options button.is-active{border-color:var(--nexus-cyan);background:color-mix(in srgb,var(--nexus-cyan) 14%,transparent);color:var(--color-text)}
+.employee-v4-chain{display:grid;gap:8px}
+.employee-v4-chain>strong{font-size:13px}
+.employee-v4-chain ol{display:grid;grid-template-columns:repeat(3,1fr);margin:0;padding:0;list-style:none}
+.employee-v4-chain li{position:relative;display:grid;justify-items:center;gap:4px;font-size:12px;color:var(--color-text-secondary)}
+.employee-v4-chain li:not(:last-child)::after{content:"";position:absolute;top:12px;left:calc(50% + 16px);right:calc(-50% + 16px);height:1px;background:var(--color-border)}
+.employee-v4-chain b{display:inline-grid;place-items:center;width:24px;height:24px;border-radius:50%;border:1px solid var(--color-border);font-size:11px}
+.employee-v4-chain li.is-current{color:var(--color-text);font-weight:700}
+.employee-v4-chain li.is-current b{background:#A5B4FC;border-color:#A5B4FC;color:#0B1220}
+.employee-v4-chain small{font-size:12px;color:var(--color-text-secondary)}
+/* A-20 · self-confirm as a bottom sheet */
+.pwa-shell .employee-v4-overlay{position:fixed!important;inset:0!important;z-index:1200!important;display:flex!important;align-items:flex-end!important;background:rgba(2,6,15,.6)!important;padding:0!important}
+.pwa-shell .employee-v4-dialog{width:100%!important;max-width:none!important;max-height:92dvh;overflow:auto;margin:0!important;padding:20px 20px calc(20px + env(safe-area-inset-bottom))!important;border-radius:22px 22px 0 0!important;display:grid;gap:12px}
+.pwa-shell .employee-v4-dialog__actions{display:grid!important;grid-template-columns:1fr 2fr;gap:10px}
+.pwa-shell .employee-v4-dialog__actions button{min-height:48px;border-radius:12px!important}
+.app-shell.pwa-shell .employee-v4-dialog{background:var(--color-surface-elevated,#111925)!important;color:var(--color-text)!important;border:1px solid var(--color-border)!important;box-shadow:0 -12px 40px rgba(0,0,0,.4)!important}
+.pwa-shell .employee-v4-dialog header{display:flex;justify-content:space-between;align-items:center}
+.pwa-shell .employee-v4-dialog header h2{margin:0;font-size:20px}
+.pwa-shell .employee-v4-dialog header button{width:36px;height:36px;border-radius:50%;border:0;background:transparent;color:var(--color-text-secondary)}
+.pwa-shell .employee-v4-dialog>p{margin:0;font-size:13px;color:var(--color-text-secondary)}
+.pwa-shell .employee-v4-dialog>label:not(.employee-v4-checkbox){display:grid!important;gap:6px;font-size:13px;font-weight:600}
+.pwa-shell .employee-v4-dialog>label :is(input,textarea){width:100%;min-height:48px;border-radius:10px;border:1px solid var(--color-border);background:var(--color-surface);color:var(--color-text);padding:0 12px;font:inherit}
+.pwa-shell .employee-v4-dialog>label textarea{min-height:88px;padding:10px 12px}
+.pwa-shell .employee-v4-dialog .employee-v4-checkbox{display:flex!important;align-items:center;gap:10px;font-size:13px}
+.pwa-shell .employee-v4-dialog .employee-v4-checkbox input{width:20px!important;height:20px!important;min-height:0!important;flex:0 0 20px;padding:0!important}
+.pwa-shell .employee-v4-dialog .employee-v4-checkbox span{flex:1}
+.app-shell.pwa-shell .employee-v4-dialog__actions .employee-v4-primary{background:#A5B4FC!important;color:#0B1220!important;border:0!important}

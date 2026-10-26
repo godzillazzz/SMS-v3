@@ -396,6 +396,11 @@ export function AttendanceHistoryPwaPage({ token, online }: Props) {
           <span>เหตุผล (อย่างน้อย 5 ตัวอักษร)</span>
           <textarea value={confirmReason} onChange={(event) => setConfirmReason(event.target.value)} rows={3} />
         </label>
+        <div className="employee-v4-chain" aria-label="ลำดับการอนุมัติ">
+          <strong>ลำดับการอนุมัติ</strong>
+          <ol>{['หัวหน้างาน', 'ผู้จัดการ', 'ADMIN'].map((label, index) => <li key={label} className={index === 0 ? 'is-current' : ''}><b>{index + 1}</b><span>{label}</span></li>)}</ol>
+          <small>คำขอนี้ยังไม่เปลี่ยนเวลาจนกว่า ADMIN อนุมัติ</small>
+        </div>
         {confirmError && <div className="employee-v4-message is-danger">{confirmError}</div>}
         <div className="employee-v4-dialog__actions">
           <button type="button" onClick={() => setConfirmRow(undefined)} disabled={confirmBusy}>ยกเลิก</button>
