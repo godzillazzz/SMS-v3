@@ -132,6 +132,7 @@ import './styles/r71-theme-contrast.css';
 import './styles/hrpro-shell.css';
 // Page-level redesign styles load as a separate chunk (main CSS budget).
 void import('./styles/hrpro-pages.css');
+if (isSmsPwaShellMode()) void import('./styles/employee-pwa-light.css');
 
 const DashboardDetailsPage = React.lazy(() => import('./pages/dashboard/DashboardDetailsPage').then((module) => ({ default: module.DashboardDetailsPage })));
 const LicenseTableDocumentColumns = React.lazy(() => import('./components/LicenseDocuments').then((module) => ({ default: module.LicenseTableDocumentColumns })));

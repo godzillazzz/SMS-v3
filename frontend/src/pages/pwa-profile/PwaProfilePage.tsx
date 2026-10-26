@@ -42,6 +42,18 @@ export function PwaProfilePage({ user, online, readOnly = false, onOpenPasskeys,
       ? 'รองรับ · รอควบคุม/รีโหลด'
       : 'ไม่รองรับ';
 
+  const [pwaTheme, setPwaTheme] = useState<'dark' | 'light'>(() => (typeof document !== 'undefined' && document.documentElement.dataset.theme === 'light' ? 'light' : 'dark'));
+  const changePwaTheme = (value: 'dark' | 'light') => {
+    setPwaTheme(value);
+    try { window.localStorage.setItem('sms-v3-pwa-theme', value); } catch { /* best effort */ }
+    const root = document.documentElement;
+    root.dataset.theme = value;
+    root.dataset.pwaTheme = value;
+    root.dataset.themePreference = value;
+    root.classList.toggle('dark', value === 'dark');
+    const meta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
+    if (meta) meta.content = value === 'light' ? '#F3F5F9' : '#020813';
+  };
   return <section className="pwa-profile-page nexus-mobile-profile" aria-label="Officer Profile">
     <div className="nexus-mobile-breadcrumb">โปรไฟล์พนักงาน</div>
     <header className="pwa-profile-hero">
@@ -59,6 +71,13 @@ export function PwaProfilePage({ user, online, readOnly = false, onOpenPasskeys,
         <div><dt>หน่วยงาน</dt><dd>{user?.department || '-'}</dd></div>
         <div><dt>การเชื่อมต่อ</dt><dd className={online ? 'is-online' : 'is-offline'}>{online ? 'ออนไลน์' : 'ออฟไลน์'}</dd></div>
       </dl>
+    </section>
+
+    <section className="pwa-profile-card pwa-profile-theme">
+      <h2>ธีม</h2>
+      <div className="pwa-profile-theme__options" role="group" aria-label="ธีมของแอปลงเวลา">
+        {(['dark', 'light'] as const).map((value) => <button key={value} type="button" aria-pressed={pwaTheme === value} className={pwaTheme === value ? 'is-active' : ''} onClick={() => changePwaTheme(value)}><SmsIcon name={value === 'dark' ? 'moon' : 'sun'} size={16} />{value === 'dark' ? 'มืด' : 'สว่าง'}</button>)}
+      </div>
     </section>
 
     <section className="pwa-profile-card">

@@ -684,3 +684,6 @@
 .pwa-profile-technical>summary::after{content:" ›"}
 .pwa-shell .pwa-profile-hero>div{display:grid;justify-items:center}
 .pwa-shell .pwa-profile-card dl>div{padding:10px 0!important}
+.pwa-profile-theme__options{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.pwa-profile-theme__options button{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:44px;border-radius:10px;border:1px solid var(--color-border);background:transparent;color:var(--color-text);font:inherit;font-weight:600}
+.pwa-profile-theme__options button.is-active{border-color:var(--nexus-cyan);background:color-mix(in srgb,var(--nexus-cyan) 14%,transparent);color:var(--color-text)}
