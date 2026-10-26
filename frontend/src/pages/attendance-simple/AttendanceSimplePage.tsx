@@ -724,7 +724,23 @@ export function AttendanceSimplePage({
                   : { message: 'กำลังโหลดข้อมูลกะงาน กรุณารอสักครู่' }
                 : null;
 
-  return <section className={`attendance-simple layout-page-surface${pwaMode && tone === 'danger' && !clockDisabled ? ' is-failed' : ''}`} aria-label="ลงเวลา">
+  const blockedByServer = clockBlockedByServer && !busy;
+  const scheduleBlocked = scheduleBlockCodes.includes(requestErrorCode || '');
+  const shiftWindow = (() => {
+    const shift = bootstrap?.assignment.shift;
+    const day = bootstrap?.assignment.workDate ? String(bootstrap.assignment.workDate).slice(0, 10) : '';
+    if (!shift?.startTime || !shift?.endTime || !day) return null;
+    const start = new Date(`${day}T${shift.startTime}:00+07:00`);
+    let end = new Date(`${day}T${shift.endTime}:00+07:00`);
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return null;
+    if (end.getTime() <= start.getTime()) end = new Date(end.getTime() + 86_400_000);
+    const ratio = Math.min(1, Math.max(0, (currentTime.getTime() - start.getTime()) / (end.getTime() - start.getTime())));
+    return { ratio, startLabel: shift.startTime, endLabel: shift.endTime };
+  })();
+  const shiftCompleted = pwaMode && receiptEvent?.eventType === 'CHECK_OUT' && !showReceiptSheet;
+  const working = pwaMode && !shiftCompleted && (selectedAction || bootstrap?.eventIntent) === 'CHECK_OUT';
+  const rootState = [pwaMode && tone === 'danger' && !clockDisabled ? 'is-failed' : '', pwaMode && blockedByServer ? 'is-blocked' : '', working ? 'is-working' : '', shiftCompleted ? 'is-complete' : '', pwaMode && busy ? 'is-busy' : ''].filter(Boolean).join(' ');
+  return <section className={`attendance-simple layout-page-surface${rootState ? ` ${rootState}` : ''}`} aria-label="ลงเวลา">
     {selfiePreview && <div role="dialog" aria-modal="true" aria-label="ตรวจสอบภาพเซลฟี่" className="attendance-simple__camera-modal">
       <div className="attendance-simple__camera-panel">
         <h2>ตรวจสอบภาพก่อนส่ง</h2>
@@ -774,6 +790,23 @@ export function AttendanceSimplePage({
       </article>}
       <div className="attendance-simple__big-clock" aria-hidden="true"><strong>{formatCurrentClock(currentTime).slice(0, 5).replace(':', ' : ')}</strong><small>:{formatCurrentClock(currentTime).slice(6, 8)}</small></div>
       <p className="attendance-simple__clock-note">เวลาบนเครื่อง · เวลาที่บันทึกใช้เวลาเซิร์ฟเวอร์</p>
+      {working && shiftWindow && <div className="attendance-simple__progress" aria-label="ความคืบหน้าของกะ">
+        <span>{workedDuration && workedDuration !== '—' ? `ทำงานมาแล้ว ${workedDuration}` : 'อยู่ระหว่างกะ'}</span>
+        <i><b style={{ width: `${Math.round(shiftWindow.ratio * 100)}%` }} /></i>
+        <small><span>{shiftWindow.startLabel}</span><span>{shiftWindow.endLabel}</span></small>
+      </div>}
+      {shiftCompleted && <article className="attendance-simple__complete">
+        <span aria-hidden="true"><SmsIcon name="check" size={26} /></span>
+        <strong>วันนี้ลงเวลาครบแล้ว</strong>
+        <small>{checkInTime !== '—' ? `เข้า ${checkInTime} · ` : ''}ออก {receiptTime}</small>
+        <button type="button" onClick={() => onTodayHistory?.()}>ดูประวัติวันนี้</button>
+      </article>}
+      {blockedByServer && <article className="attendance-simple__blocked">
+        <span aria-hidden="true"><SmsIcon name={scheduleBlocked ? 'calendar' : 'shield'} size={26} /></span>
+        <strong>{scheduleBlocked ? 'ยังไม่มีกะที่อนุมัติสำหรับวันนี้' : 'บัญชียังไม่พร้อมลงเวลา'}</strong>
+        <small>{disabledGuidance?.message || message}</small>
+        {disabledGuidance?.actionLabel && disabledGuidance.action && <button type="button" onClick={disabledGuidance.action}>{disabledGuidance.actionLabel}</button>}
+      </article>}
     </section>}
     {showReceiptSheet && <div className="attendance-simple__sheet-backdrop" role="presentation">
       <section className="attendance-simple__sheet" role="dialog" aria-modal="true" aria-labelledby="attendance-receipt-title">
@@ -870,7 +903,7 @@ export function AttendanceSimplePage({
       {selfiePreview && <div className="attendance-simple__selfie-step-actions"><button type="button" onClick={retakeSelfie} disabled={busy}>ถ่ายใหม่</button><button type="button" onClick={() => void useSelfiePreview()} disabled={busy}>ยืนยันภาพนี้</button></div>}
     </section>}
 
-    {pwaMode && tone === 'danger' && <section className="attendance-simple__fail" aria-label="ยังไม่ได้บันทึกเวลา">
+    {pwaMode && tone === 'danger' && !blockedByServer && <section className="attendance-simple__fail" aria-label="ยังไม่ได้บันทึกเวลา">
       <header><span aria-hidden="true"><SmsIcon name={requestErrorCode === 'ATTENDANCE_OUTSIDE_SITE_GEOFENCE' ? 'location' : 'close'} size={20} /></span><div><strong>ยังไม่ได้บันทึกเวลา</strong><small>{message}</small></div></header>
       {requestErrorCode === 'ATTENDANCE_OUTSIDE_SITE_GEOFENCE' && <ol>
         <li>เดินเข้าไปในพื้นที่ Site ให้ใกล้จุดกลางมากขึ้น</li>
@@ -905,7 +938,7 @@ export function AttendanceSimplePage({
           onClick={() => void recordAttendance()}
         >
           <span>{busy ? 'กำลังตรวจ…' : pendingSiteCapture ? `ยืนยัน${selectedActionLabel}ที่ ${siteDisplayName(pendingSiteCapture.context)}` : selectedActionLabel}</span>
-          <small>{online ? 'กดครั้งเดียว · บันทึกกับ Server' : 'กดครั้งเดียว · เก็บไว้และส่งเมื่อออนไลน์'}</small>
+          <small>{busy && pwaMode ? 'อย่าปิดหน้านี้' : online ? 'กดครั้งเดียว · บันทึกกับ Server' : 'กดครั้งเดียว · เก็บไว้และส่งเมื่อออนไลน์'}</small>
         </button>
         {clockDisabled && disabledGuidance && <div className="attendance-simple__disabled-guidance">
           <p id="attendance-simple-clock-disabled-reason">{disabledGuidance.message}</p>

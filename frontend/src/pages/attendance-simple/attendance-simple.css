@@ -495,3 +495,29 @@
 .attendance-simple__offline-card small{font-size:12px;color:var(--color-text-secondary)}
 .attendance-simple__offline-card b{font-size:12px;color:#FBBF24}
 [data-theme="light"] .attendance-simple__offline-card,[data-theme="light"] .attendance-simple__offline-card b{color:#B45309}
+/* A-04 checking · A-07 working · A-10 complete · A-17 blocked (pwa) */
+.pwa-shell .attendance-simple.is-busy .attendance-simple__clock{position:relative}
+.pwa-shell .attendance-simple.is-busy .attendance-simple__clock::after{content:"";position:absolute;inset:-8px;border-radius:50%;border:4px solid transparent;border-top-color:#1E293B;animation:attendance-simple-spin 1s linear infinite}
+@keyframes attendance-simple-spin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.pwa-shell .attendance-simple.is-busy .attendance-simple__clock::after{animation:none}}
+.pwa-shell .attendance-simple.is-working .attendance-simple__clock{background:radial-gradient(circle at 50% 35%,#FCD34D,#F59E0B)!important;box-shadow:0 0 0 10px rgba(245,158,11,.22),0 0 0 22px rgba(245,158,11,.10)!important}
+.attendance-simple__progress{display:grid;gap:6px;justify-items:center}
+.attendance-simple__progress>span{font-size:13px;color:var(--color-text-secondary)}
+.attendance-simple__progress i{display:block;width:100%;height:6px;border-radius:999px;background:var(--color-border)}
+.attendance-simple__progress i b{display:block;height:100%;border-radius:inherit;background:#6D8BF5}
+.attendance-simple__progress small{display:flex;justify-content:space-between;width:100%;font-size:12px;color:var(--color-text-secondary);font-variant-numeric:tabular-nums}
+.pwa-shell .attendance-simple:is(.is-complete,.is-blocked) :is(.attendance-simple__clock-stack,.attendance-simple__ready-tiles,.attendance-simple__big-clock,.attendance-simple__clock-note,.attendance-simple__status){display:none!important}
+.attendance-simple__complete,.attendance-simple__blocked{display:grid;justify-items:center;gap:8px;padding:24px 16px;text-align:center}
+.attendance-simple__complete>span,.attendance-simple__blocked>span{display:inline-grid;place-items:center;width:64px;height:64px;border-radius:50%}
+.attendance-simple__complete>span{background:color-mix(in srgb,#22C55E 18%,transparent);color:#4ADE80}
+.attendance-simple__blocked>span{background:var(--color-surface-elevated,var(--color-surface));color:var(--color-text-secondary)}
+.attendance-simple__complete strong,.attendance-simple__blocked strong{font-size:20px;color:var(--color-text)}
+.attendance-simple__complete small,.attendance-simple__blocked small{font-size:13px;color:var(--color-text-secondary)}
+.pwa-shell .attendance-simple :is(.attendance-simple__complete,.attendance-simple__blocked) button{min-height:48px;width:100%;margin-top:8px;border:0!important;border-radius:12px!important;background:#A5B4FC!important;color:#0B1220!important;font-weight:700}
+[data-theme="light"] .pwa-shell .attendance-simple__complete>span{color:#15803D}
+.pwa-shell .attendance-simple.is-busy .attendance-simple__status{display:none!important}
+.pwa-shell .attendance-simple.is-busy .attendance-simple__clock::after{border-top-color:#A5B4FC;inset:-12px}
+.pwa-shell .attendance-simple:is(.is-complete,.is-blocked) .attendance-simple__daily-summary{display:none!important}
+.pwa-shell .attendance-simple__daily-metrics>div{background:var(--color-surface-elevated,var(--color-surface))!important;border:1px solid var(--color-border)!important;color:var(--color-text)!important}
+.pwa-shell .attendance-simple__daily-metrics>div :is(span,strong){color:inherit!important}
+.pwa-shell .attendance-simple__daily-metrics>div span{color:var(--color-text-secondary)!important}
