@@ -9,6 +9,7 @@ const { MemoryRateLimitStore, PostgresRateLimitStore } = require('../src/service
 const { createRateLimitEvaluator } = require('../src/services/rate-limit.service');
 const { getRequestIpIdentity, normalizeAccountIdentity, normalizeIpIdentity } = require('../src/services/rate-limit-key');
 const { createLoginRateLimit, publicLimitMessage, publicStoreFailureMessage } = require('../src/middlewares/login-rate-limit');
+const { createPasskeyRateLimit } = require('../src/middlewares/passkey-rate-limit');
 const { createLogger } = require('../src/utils/logger');
 const { trustProxyAddress } = require('../src/security/trusted-proxy');
 
@@ -164,6 +165,29 @@ test('PostgreSQL selection fails fast when RATE_LIMIT_HASH_SECRET is missing', (
       RATE_LIMIT_STORE: 'postgres', RATE_LIMIT_HASH_SECRET: ''
     }
   }));
+});
+
+test('passkey account limiter scopes attempts by authenticated user and blocks downstream work with Retry-After', async () => {
+  const store = new MemoryRateLimitStore();
+  const middleware = createPasskeyRateLimit({
+    store, storeType: 'memory', hashSecret, userIdScoped: true, limit: 1, windowMs: 60_000,
+    clock: () => new Date('2026-07-22T00:00:10.000Z'), logger: { warn() {}, error() {} }
+  });
+  let downstreamServiceCalls = 0;
+  const runForUser = (userId) => runMiddleware(middleware, { user: { sub: userId }, ip: '192.0.2.42', path: '/passkeys', method: 'DELETE', requestId: 'safe-request' }).then((result) => {
+    if (!result.error) downstreamServiceCalls += 1;
+    return result;
+  });
+
+  assert.equal((await runForUser('user-a')).error, undefined);
+  assert.equal((await runForUser('user-b')).error, undefined);
+  const blocked = await runForUser('user-a');
+
+  assert.equal(blocked.error.statusCode, 429);
+  assert.equal(blocked.headers['Retry-After'], 50);
+  assert.equal(blocked.headers['RateLimit-Limit'], 1);
+  assert.equal(downstreamServiceCalls, 2);
+  assert.equal(JSON.stringify(store.entries()).includes('user-a'), false);
 });
 
 test('stored rate-limit records contain hashes, never raw account or IP identities', async () => {

@@ -233,6 +233,9 @@ test('revoke requires password step-up and revoked passkey no longer authenticat
   db.state.credentials.push({ id: UUID_CRED, userId: UUID_USER, credentialId: 'credential-one', publicKey: Buffer.from([1]), counter: 0n, revokedAt: null, displayName: 'Phone' });
   const server = fakeServer(); const service = serviceWith(db, server);
   await expectHttp(service.revokeCredential({ userId: UUID_USER, credentialId: UUID_CRED, currentPassword: 'wrong' }), 401);
+  assert.equal(db.state.audits.at(-1).action, 'PASSKEY_LOGIN_FAILED');
+  assert.equal(db.state.audits.at(-1).metadata.reason, 'password_step_up_failed');
+  assert.equal(db.state.audits.at(-1).actorUserId, UUID_USER);
   await service.revokeCredential({ userId: UUID_USER, credentialId: UUID_CRED, currentPassword: password });
   assert.ok(db.state.credentials[0].revokedAt);
   assert.equal(db.state.audits.at(-1).action, 'PASSKEY_REVOKED');
