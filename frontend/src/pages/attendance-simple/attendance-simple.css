@@ -521,3 +521,26 @@
 .pwa-shell .attendance-simple__daily-metrics>div{background:var(--color-surface-elevated,var(--color-surface))!important;border:1px solid var(--color-border)!important;color:var(--color-text)!important}
 .pwa-shell .attendance-simple__daily-metrics>div :is(span,strong){color:inherit!important}
 .pwa-shell .attendance-simple__daily-metrics>div span{color:var(--color-text-secondary)!important}
+/* A-11 / A-12 · selfie camera and preview (pwa) */
+.pwa-shell .attendance-simple__camera-modal{background:#000!important;padding:0!important}
+.pwa-shell .attendance-simple__camera-panel{display:grid!important;grid-template-rows:auto 1fr auto auto;gap:12px;width:100%!important;max-width:none!important;height:100dvh;padding:calc(12px + env(safe-area-inset-top)) 16px calc(20px + env(safe-area-inset-bottom))!important;border:0!important;border-radius:0!important;background:#000!important;box-shadow:none!important}
+.pwa-shell .attendance-simple__camera-panel h2{margin:0;text-align:center;font-size:18px;color:#fff}
+.attendance-simple__camera-frame{position:relative;min-height:0;overflow:hidden;border-radius:18px}
+.attendance-simple__camera-frame video{width:100%;height:100%;object-fit:cover;display:block}
+.attendance-simple__camera-oval{position:absolute;left:50%;top:46%;width:66%;aspect-ratio:3/4;transform:translate(-50%,-50%);border:3px dashed rgba(255,255,255,.9);border-radius:50%;box-shadow:0 0 0 999px rgba(0,0,0,.35);pointer-events:none}
+.attendance-simple__camera-hint{margin:0;text-align:center;font-size:13px;color:#CBD5E1}
+.pwa-shell .attendance-simple__camera-actions{display:flex!important;justify-content:center;align-items:center;gap:16px;position:relative}
+.pwa-shell .attendance-simple__camera-capture{width:78px!important;height:78px!important;border-radius:50%!important;border:5px solid #fff!important;background:#fff!important;box-shadow:inset 0 0 0 4px #000!important;color:transparent!important}
+.pwa-shell .attendance-simple__camera-cancel{position:absolute;left:0;width:44px!important;height:44px!important;border-radius:50%!important;background:rgba(255,255,255,.12)!important;border:0!important;color:#fff!important}
+.pwa-shell .attendance-simple__camera-cancel svg{stroke:#fff}
+.pwa-shell .attendance-simple__camera-preview{width:100%;height:100%;min-height:0;object-fit:contain;border-radius:18px;background:#111}
+.attendance-simple__camera-checks{display:grid;gap:6px;margin:0;padding:0;list-style:none;font-size:13px;color:#CBD5E1}
+.attendance-simple__camera-checks li::before{content:"✓ ";color:#4ADE80}
+.pwa-shell .attendance-simple__camera-panel>.attendance-simple__camera-actions:has(button:not(.attendance-simple__camera-capture):not(.attendance-simple__camera-cancel)){display:grid!important;grid-template-columns:1fr;gap:10px}
+.pwa-shell .attendance-simple__camera-actions button:not(.attendance-simple__camera-capture):not(.attendance-simple__camera-cancel){min-height:48px;border-radius:12px!important;font-weight:700}
+.pwa-shell .attendance-simple__camera-actions button:not(.attendance-simple__camera-capture):not(.attendance-simple__camera-cancel):last-child{order:-1;background:#A5B4FC!important;color:#0B1220!important;border:0!important}
+.attendance-simple__perm{display:grid;gap:10px}
+.attendance-simple__perm [role=tablist]{display:inline-flex;justify-self:start;gap:2px;padding:3px;border-radius:10px;background:var(--color-surface-elevated,rgba(148,163,184,.12))}
+.pwa-shell .attendance-simple .attendance-simple__perm [role=tab]{min-height:34px!important;padding:0 14px!important;border:0!important;border-radius:8px!important;background:transparent!important;color:var(--color-text-secondary)!important;box-shadow:none!important;font-weight:600}
+.pwa-shell .attendance-simple .attendance-simple__perm [role=tab].is-active{background:var(--color-surface)!important;color:var(--color-text)!important}
+.attendance-simple__perm ol{display:grid;gap:8px;margin:0;padding-left:20px;font-size:13px;color:var(--color-text)}

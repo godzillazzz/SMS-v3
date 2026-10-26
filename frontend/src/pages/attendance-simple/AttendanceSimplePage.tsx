@@ -684,6 +684,7 @@ export function AttendanceSimplePage({
     : '—';
   const receiptDevice = 'Telemetry บันทึกแล้ว';
   const [dismissedReceiptId, setDismissedReceiptId] = useState<string>();
+  const [permTab, setPermTab] = useState<'ios' | 'android'>(() => (typeof navigator !== 'undefined' && /android/i.test(navigator.userAgent) ? 'android' : 'ios'));
   const offlineExpiry = bootstrap?.offline?.expiresAt ? new Date(bootstrap.offline.expiresAt) : null;
   const offlineValid = Boolean(offlineExpiry && !Number.isNaN(offlineExpiry.getTime()) && offlineExpiry.getTime() > currentTime.getTime());
   const offlineUntil = offlineExpiry && offlineValid ? formatThaiDateTime(offlineExpiry, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
@@ -725,6 +726,7 @@ export function AttendanceSimplePage({
                 : null;
 
   const blockedByServer = clockBlockedByServer && !busy;
+  const locationDenied = tone === 'danger' && message.startsWith('กรุณาอนุญาต Location');
   const scheduleBlocked = scheduleBlockCodes.includes(requestErrorCode || '');
   const shiftWindow = (() => {
     const shift = bootstrap?.assignment.shift;
@@ -745,6 +747,7 @@ export function AttendanceSimplePage({
       <div className="attendance-simple__camera-panel">
         <h2>ตรวจสอบภาพก่อนส่ง</h2>
         <img className="attendance-simple__camera-preview" src={`data:image/jpeg;base64,${selfiePreview.base64}`} alt="ภาพตัวอย่างพร้อมข้อมูลกำกับ" />
+        <ul className="attendance-simple__camera-checks"><li>เห็นใบหน้าชัด ไม่ถูกบัง</li><li>ภาพนี้ใช้ได้ช่วงเวลาสั้น ๆ หลังจากนั้นต้องถ่ายใหม่</li></ul>
         <div className="attendance-simple__camera-actions">
           <button type="button" onClick={retakeSelfie} disabled={busy}>ถ่ายใหม่</button>
           <button type="button" onClick={() => void useSelfiePreview()} disabled={busy}>ใช้ภาพนี้</button>
@@ -754,7 +757,11 @@ export function AttendanceSimplePage({
     {cameraOpen && <div role="dialog" aria-modal="true" aria-label="ถ่ายภาพยืนยันตัวตน" className="attendance-simple__camera-modal">
       <div className="attendance-simple__camera-panel">
         <h2>ยืนยันตัวตนด้วยเซลฟี่สด</h2>
-        <video ref={videoRef} autoPlay playsInline muted aria-label="กล้องหน้า" />
+        <div className="attendance-simple__camera-frame">
+          <video ref={videoRef} autoPlay playsInline muted aria-label="กล้องหน้า" />
+          <span className="attendance-simple__camera-oval" aria-hidden="true" />
+        </div>
+        <p className="attendance-simple__camera-hint">จัดหน้าให้อยู่ในกรอบ · แสงพอ · ไม่สวมแว่นดำ</p>
         <canvas ref={canvasRef} hidden />
         <div className="attendance-simple__camera-actions">
           <button type="button" className="attendance-simple__camera-capture" onClick={() => void captureSelfie()} disabled={busy} aria-label="ถ่ายภาพยืนยันตัวตน" title="ถ่ายภาพยืนยันตัวตน">
@@ -904,7 +911,13 @@ export function AttendanceSimplePage({
     </section>}
 
     {pwaMode && tone === 'danger' && !blockedByServer && <section className="attendance-simple__fail" aria-label="ยังไม่ได้บันทึกเวลา">
-      <header><span aria-hidden="true"><SmsIcon name={requestErrorCode === 'ATTENDANCE_OUTSIDE_SITE_GEOFENCE' ? 'location' : 'close'} size={20} /></span><div><strong>ยังไม่ได้บันทึกเวลา</strong><small>{message}</small></div></header>
+      <header><span aria-hidden="true"><SmsIcon name={requestErrorCode === 'ATTENDANCE_OUTSIDE_SITE_GEOFENCE' || locationDenied ? 'location' : 'close'} size={20} /></span><div><strong>{locationDenied ? 'ต้องใช้ตำแหน่งเพื่อลงเวลา' : 'ยังไม่ได้บันทึกเวลา'}</strong><small>{locationDenied ? 'แอปยังไม่ได้รับอนุญาตให้อ่านตำแหน่ง' : message}</small></div></header>
+      {locationDenied && <div className="attendance-simple__perm">
+        <div role="tablist" aria-label="วิธีเปิดตำแหน่ง">{(['ios', 'android'] as const).map((key) => <button key={key} type="button" role="tab" aria-selected={permTab === key} className={permTab === key ? 'is-active' : ''} onClick={() => setPermTab(key)}>{key === 'ios' ? 'iPhone' : 'Android'}</button>)}</div>
+        <ol>{(permTab === 'ios'
+          ? ['เปิด การตั้งค่า › ความเป็นส่วนตัว › บริการหาตำแหน่ง', 'เลือก Safari เว็บไซต์ (หรือแอป SMS)', 'ตั้งเป็น “ขณะใช้แอป” และเปิด “ตำแหน่งที่แม่นยำ”', 'กลับมาที่หน้านี้แล้วกด “ลองอีกครั้ง”']
+          : ['เปิด การตั้งค่า › ตำแหน่ง แล้วเปิดใช้ตำแหน่ง', 'เลือก Chrome (หรือแอป SMS) › สิทธิ์ › ตำแหน่ง', 'เลือก “อนุญาตขณะใช้แอป” และเปิด “ใช้ตำแหน่งที่แม่นยำ”', 'กลับมาที่หน้านี้แล้วกด “ลองอีกครั้ง”']).map((step) => <li key={step}>{step}</li>)}</ol>
+      </div>}
       {requestErrorCode === 'ATTENDANCE_OUTSIDE_SITE_GEOFENCE' && <ol>
         <li>เดินเข้าไปในพื้นที่ Site ให้ใกล้จุดกลางมากขึ้น</li>
         <li>เปิด “ตำแหน่งที่แม่นยำ” (Precise Location) ของแอป</li>
