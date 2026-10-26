@@ -195,3 +195,11 @@
   .th-map__aura, .th-map__orbits, .th-map__scan, .th-map__route { animation: none !important; }
   .th-map__pulses { display: none; }
 }
+.nexus-auth-shell .auth-progress__step{color:#94A3B8}
+.nexus-auth-shell .auth-progress__step:not(:last-child)::after{background:rgba(148,163,184,.3)}
+.nexus-auth-shell .auth-progress__number{border:1px solid rgba(148,163,184,.45);background:#0B1622;color:#CBD5E1}
+.nexus-auth-shell .auth-progress__step.is-active{color:#E2F7FB}
+.nexus-auth-shell .auth-progress__step.is-active .auth-progress__number{border-color:#22D3EE;background:#22D3EE;color:#04121A;box-shadow:0 0 0 4px rgba(34,211,238,.18)}
+.nexus-auth-shell .auth-progress__step.is-complete .auth-progress__number{border-color:#34D399;background:rgba(52,211,153,.14);color:#6EE7B7}
+.nexus-auth-shell .auth-form input:not([type=checkbox]):not([type=radio]){border:1px solid rgba(148,163,184,.35)!important;border-radius:10px!important;background:rgba(2,8,19,.55)!important}
+.nexus-auth-shell .auth-form input:focus-visible{border-color:#22D3EE!important;box-shadow:0 0 0 3px rgba(34,211,238,.2)!important}
