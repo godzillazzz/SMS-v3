@@ -1,0 +1,135 @@
+/* Generated light-mode overrides for the Employee PWA (A-23). Source: dark rules in PWA layers. */
+html[data-sms-shell="employee"][data-theme="light"] .pwa-shell{background:#ffffff!important;color:#0f172a!important}
+html[data-sms-shell="employee"][data-theme="light"] .pwa-shell :is(.employee-v4-page,.pwa-profile-page){background:#ffffff!important;color:#0f172a!important}
+html[data-sms-shell="employee"][data-theme="light"] .pwa-shell :is(.employee-v4-section-header,.employee-v4-card,.pwa-profile-hero,.settings-card,.data-mobile-card){background:#ffffff!important;color:#0f172a!important}
+html[data-sms-shell="employee"][data-theme="light"] .pwa-shell :is(input,select,textarea,button:not(.btn-primary)){background-color:#ffffff!important;color:#0f172a!important}
+html[data-sms-shell="employee"][data-theme="light"] .pwa-shell :is(h1,h2,h3,strong){color:#0f172a!important}
+html[data-sms-shell="employee"][data-theme="light"] .nexus-page-breadcrumb,html[data-sms-shell="employee"][data-theme="light"] .nexus-mobile-breadcrumb{color:#0f172a!important}
+html[data-sms-shell="employee"][data-theme="light"] .nexus-attendance-ops,html[data-sms-shell="employee"][data-theme="light"] .nexus-device-registry,html[data-sms-shell="employee"][data-theme="light"] .nexus-site-command,html[data-sms-shell="employee"][data-theme="light"] .nexus-report-intelligence,html[data-sms-shell="employee"][data-theme="light"] .nexus-executive-intelligence{background:#ffffff!important;color:#0f172a!important}
+html[data-sms-shell="employee"][data-theme="light"] .nexus-attendance-ops>header,html[data-sms-shell="employee"][data-theme="light"] .nexus-device-registry>.attendance-device-heading,html[data-sms-shell="employee"][data-theme="light"] .nexus-site-command>.security-site-admin__header,html[data-sms-shell="employee"][data-theme="light"] .nexus-report-intelligence>.report-center-heading,html[data-sms-shell="employee"][data-theme="light"] .nexus-executive-intelligence>.executive-report-heading{background:#ffffff!important}
+html[data-sms-shell="employee"][data-theme="light"] .nexus-mobile-history,html[data-sms-shell="employee"][data-theme="light"] .nexus-mobile-duty,html[data-sms-shell="employee"][data-theme="light"] .nexus-mobile-profile{background:#ffffff!important;color:#0f172a!important}
+html[data-sms-shell="employee"][data-theme="light"] .nexus-mobile-history :is(.employee-v4-history-card,.employee-v4-segmented,.employee-v4-empty),html[data-sms-shell="employee"][data-theme="light"] .nexus-mobile-duty :is(.employee-v4-month-control,.employee-v4-shift-highlights article,.employee-v4-schedule-card,.employee-v4-approved,.employee-v4-empty),html[data-sms-shell="employee"][data-theme="light"] .nexus-mobile-profile :is(.pwa-profile-hero,.pwa-profile-card){background:#ffffff!important;color:#0f172a!important}
+html[data-sms-shell="employee"][data-theme="light"] .nexus-mobile-history :is(.employee-v4-history-times,.employee-v4-history-sites),html[data-sms-shell="employee"][data-theme="light"] .nexus-mobile-duty .employee-v4-schedule-date{background:#ffffff!important}
+html[data-sms-shell="employee"][data-theme="light"] .nexus-attendance-ops :is(input,select,textarea),html[data-sms-shell="employee"][data-theme="light"] .nexus-device-registry :is(input,select,textarea),html[data-sms-shell="employee"][data-theme="light"] .nexus-site-command :is(input,select,textarea),html[data-sms-shell="employee"][data-theme="light"] .nexus-report-intelligence :is(input,select,textarea),html[data-sms-shell="employee"][data-theme="light"] .nexus-executive-intelligence :is(input,select,textarea){background:#ffffff!important;background-color:#ffffff!important;color:#0f172a!important}
+html[data-sms-shell="employee"][data-theme="light"] .nexus-attendance-ops :is(.attendance-supervisor-v4__kpi,.attendance-supervisor-v4__filters,.attendance-supervisor-v4__mobile-card,.attendance-supervisor-v4__table-wrap,.attendance-supervisor-v4__detail,.attendance-supervisor-v4__dialog,.data-table-state),html[data-sms-shell="employee"][data-theme="light"] .nexus-device-registry :is(.attendance-device-card,.attendance-device-table-wrap,.attendance-device-admin-section,.edit-dialog),html[data-sms-shell="employee"][data-theme="light"] .nexus-site-command :is(.security-site-authority-rule span,.security-site-overlap-warning,.security-site-qr-history__row,.security-site-confirm-dialog,.security-site-confirm-dialog__impact,.security-site-qr-once,.security-site-map-empty),html[data-sms-shell="employee"][data-theme="light"] .nexus-mobile-history :is(.employee-v4-message,.employee-v4-history-card,.employee-v4-history-correction,.employee-v4-empty),html[data-sms-shell="employee"][data-theme="light"] .nexus-mobile-duty :is(.employee-v4-message,.employee-v4-schedule-card,.employee-v4-empty),html[data-sms-shell="employee"][data-theme="light"] .nexus-mobile-profile :is(.settings-notice,.pwa-profile-card){background:#ffffff!important;background-color:#ffffff!important;color:#0f172a!important}
+html[data-sms-shell="employee"][data-theme="light"] .nexus-attendance-ops .is-warning,html[data-sms-shell="employee"][data-theme="light"] .nexus-mobile-history .is-warning,html[data-sms-shell="employee"][data-theme="light"] .nexus-mobile-duty .is-warning{background:#fef3c7!important;color:#b45309!important}
+html[data-sms-shell="employee"][data-theme="light"] .nexus-attendance-ops .is-danger,html[data-sms-shell="employee"][data-theme="light"] .nexus-mobile-history .is-danger,html[data-sms-shell="employee"][data-theme="light"] .nexus-mobile-duty .is-danger{background:#fee2e2!important;color:#b91c1c!important}
+html[data-sms-shell="employee"][data-theme="light"] .nexus-mobile-history .employee-v4-status.is-warning{background:#fef3c7!important;color:#b45309!important}
+html[data-sms-shell="employee"][data-theme="light"] .employee-v4-segmented button[role="tab"]:focus-visible,html[data-sms-shell="employee"][data-theme="light"] .report-center-tabs button[role="tab"]:focus-visible,html[data-sms-shell="employee"][data-theme="light"] .license-edit-tabs button[role="tab"]:focus-visible{box-shadow:none!important}
+html[data-sms-shell="employee"][data-theme="light"] .attendance-simple{background:#ffffff!important;color:#0f172a!important}
+html[data-sms-shell="employee"][data-theme="light"] .attendance-simple__header span{color:#0f172a!important}
+html[data-sms-shell="employee"][data-theme="light"] .attendance-simple__header h1{color:#0f172a!important}
+html[data-sms-shell="employee"][data-theme="light"] .attendance-simple__header button{background:#ffffff!important;color:#0f172a!important}
+html[data-sms-shell="employee"][data-theme="light"] .attendance-simple__hero{color:#0f172a!important;background:var(--nexus-surface)!important;box-shadow:none!important}
+html[data-sms-shell="employee"][data-theme="light"] .attendance-simple__hero::after{box-shadow:none!important}
+html[data-sms-shell="employee"][data-theme="light"] .attendance-simple__hero-status{color:#0f172a!important}
+html[data-sms-shell="employee"][data-theme="light"] .attendance-simple__hero-user > span{color:#0f172a!important}
+html[data-sms-shell="employee"][data-theme="light"] .attendance-simple__hero-user small{color:#0f172a!important}
+html[data-sms-shell="employee"][data-theme="light"] .attendance-simple__daily-metrics span,html[data-sms-shell="employee"][data-theme="light"] .attendance-simple__daily-meta{color:#475569!important}
+html[data-sms-shell="employee"][data-theme="light"] .attendance-simple__journey article{background:#ffffff!important}
+html[data-sms-shell="employee"][data-theme="light"] .attendance-simple__journey span{color:#0f172a!important}
+html[data-sms-shell="employee"][data-theme="light"] .attendance-simple__journey strong{color:#0f172a!important}
+html[data-sms-shell="employee"][data-theme="light"] .attendance-simple__exception{background:#fef3c7!important}
+html[data-sms-shell="employee"][data-theme="light"] .attendance-simple__exception > span{color:#b45309!important}
+html[data-sms-shell="employee"][data-theme="light"] .attendance-simple__exception strong{color:#b45309!important}
+html[data-sms-shell="employee"][data-theme="light"] .attendance-simple__exception p{color:#b45309!important}
+html[data-sms-shell="employee"][data-theme="light"] .attendance-simple__exception small{color:#b45309!important}
+html[data-sms-shell="employee"][data-theme="light"] .attendance-simple__status{background:#ffffff!important}
+html[data-sms-shell="employee"][data-theme="light"] .attendance-simple__status strong{color:#0f172a!important}
+html[data-sms-shell="employee"][data-theme="light"] .attendance-simple__status.is-success{background:#dcfce7!important}
+html[data-sms-shell="employee"][data-theme="light"] .attendance-simple__status.is-success strong{color:#15803d!important}
+html[data-sms-shell="employee"][data-theme="light"] .attendance-simple__status.is-warning{background:#fef3c7!important}
+html[data-sms-shell="employee"][data-theme="light"] .attendance-simple__status.is-warning strong{color:#b45309!important}
+html[data-sms-shell="employee"][data-theme="light"] .attendance-simple__status.is-danger{background:#fee2e2!important}
+html[data-sms-shell="employee"][data-theme="light"] .attendance-simple__status.is-danger strong{color:#b91c1c!important}
+html[data-sms-shell="employee"][data-theme="light"] .attendance-simple__site-summary > div{background:#ffffff!important}
+html[data-sms-shell="employee"][data-theme="light"] .attendance-simple__site-summary span{color:#0f172a!important}
+html[data-sms-shell="employee"][data-theme="light"] .attendance-simple__site-summary strong{color:#0f172a!important}
+html[data-sms-shell="employee"][data-theme="light"] .attendance-simple__selfie-step{background:#ffffff!important}
+html[data-sms-shell="employee"][data-theme="light"] .attendance-simple__selfie-step-heading span{color:#0f172a!important}
+html[data-sms-shell="employee"][data-theme="light"] .attendance-simple__selfie-step-heading strong{color:#0f172a!important}
+html[data-sms-shell="employee"][data-theme="light"] .attendance-simple__selfie-step p{color:#0f172a!important}
+html[data-sms-shell="employee"][data-theme="light"] .attendance-simple__selfie-step li{color:#0f172a!important}
+html[data-sms-shell="employee"][data-theme="light"] .attendance-simple__selfie-step li::before{background:#eef2f7!important;color:#0f172a!important}
+html[data-sms-shell="employee"][data-theme="light"] .attendance-simple__selfie-step li.is-current{color:#0f172a!important}
+html[data-sms-shell="employee"][data-theme="light"] .attendance-simple__selfie-step li.is-current::before{color:#0f172a!important}
+html[data-sms-shell="employee"][data-theme="light"] .attendance-simple__selfie-step li.is-done{color:#15803d!important}
+html[data-sms-shell="employee"][data-theme="light"] .attendance-simple__selfie-step li.is-done::before{color:#0f172a!important}
+html[data-sms-shell="employee"][data-theme="light"] .attendance-simple__selfie-step button{color:#0f172a!important}
+html[data-sms-shell="employee"][data-theme="light"] .attendance-simple__selfie-step-actions button:first-child{color:#0f172a!important}
+html[data-sms-shell="employee"][data-theme="light"] .attendance-simple__action-choice button{background:#ffffff!important;color:#0f172a!important}
+html[data-sms-shell="employee"][data-theme="light"] .attendance-simple__action-choice button[aria-pressed="true"]{background:#eef2f7!important;color:#0f172a!important;box-shadow:none!important}
+html[data-sms-shell="employee"][data-theme="light"] .attendance-simple__action-choice button.is-recommended:not([aria-pressed="true"]){border-color:rgba(15,23,42,.12)!important;box-shadow:none!important}
+html[data-sms-shell="employee"][data-theme="light"] .attendance-simple__assurance article{background:#ffffff!important}
+html[data-sms-shell="employee"][data-theme="light"] .attendance-simple__assurance b{color:#0f172a!important}
+html[data-sms-shell="employee"][data-theme="light"] .attendance-simple__disabled-guidance{background:#ffffff!important}
+html[data-sms-shell="employee"][data-theme="light"] .attendance-simple__disabled-guidance p{color:#0f172a!important}
+html[data-sms-shell="employee"][data-theme="light"] .attendance-simple__disabled-guidance button{background:#eef2f7!important;color:#0f172a!important}
+html[data-sms-shell="employee"][data-theme="light"] .attendance-simple__receipt{background:#dcfce7!important}
+html[data-sms-shell="employee"][data-theme="light"] .attendance-simple__receipt-heading strong{color:#0f172a!important}
+html[data-sms-shell="employee"][data-theme="light"] .attendance-simple__receipt-heading small{color:#15803d!important}
+html[data-sms-shell="employee"][data-theme="light"] .attendance-simple__receipt-grid > div{background:#dcfce7!important}
+html[data-sms-shell="employee"][data-theme="light"] .attendance-simple__receipt-grid span{color:#15803d!important}
+html[data-sms-shell="employee"][data-theme="light"] .attendance-simple__receipt p{color:#b45309!important}
+html[data-sms-shell="employee"][data-theme="light"] .attendance-simple__receipt button{background:#eef2f7!important}
+html[data-sms-shell="employee"][data-theme="light"] .attendance-simple__move{background:#fef3c7!important}
+html[data-sms-shell="employee"][data-theme="light"] .attendance-simple__move p{color:#b45309!important}
+html[data-sms-shell="employee"][data-theme="light"] .attendance-simple__move button,html[data-sms-shell="employee"][data-theme="light"] .attendance-simple__footer button{background:#eef2f7!important}
+html[data-sms-shell="employee"][data-theme="light"] .attendance-simple__camera-modal{background:rgba(15,23,42,.04)!important}
+html[data-sms-shell="employee"][data-theme="light"] .attendance-simple__camera-panel{background:#ffffff!important;box-shadow:none!important}
+html[data-sms-shell="employee"][data-theme="light"] .attendance-simple__camera-panel h2{color:#0f172a!important}
+html[data-sms-shell="employee"][data-theme="light"] .attendance-simple__camera-panel video,html[data-sms-shell="employee"][data-theme="light"] .attendance-simple__camera-preview{background:#f3f5f9!important}
+html[data-sms-shell="employee"][data-theme="light"] .attendance-simple__camera-panel button{background:#eef2f7!important;color:#0f172a!important}
+html[data-sms-shell="employee"][data-theme="light"] .attendance-simple__camera-cancel{color:#0f172a!important;background:#fee2e2!important}
+html[data-sms-shell="employee"][data-theme="light"] .attendance-simple__technical code{color:#0f172a!important}
+html[data-sms-shell="employee"][data-theme="light"] .attendance-simple__profile{background:#ffffff!important;color:#0f172a!important}
+html[data-sms-shell="employee"][data-theme="light"] .attendance-simple__receipt-heading > svg{color:#0f172a!important}
+html[data-sms-shell="employee"][data-theme="light"] .app-shell.pwa-shell .attendance-simple__disabled-guidance button{background:#eef2f7!important;color:#0f172a!important}
+html[data-sms-shell="employee"][data-theme="light"] .attendance-simple__profile{box-shadow:none!important}
+html[data-sms-shell="employee"][data-theme="light"] .attendance-simple__hero{background:var(--nexus-surface)!important}
+html[data-sms-shell="employee"][data-theme="light"] .attendance-simple__main-card,html[data-sms-shell="employee"][data-theme="light"] .attendance-simple__daily-summary,html[data-sms-shell="employee"][data-theme="light"] .attendance-simple__receipt{box-shadow:none!important}
+html[data-sms-shell="employee"][data-theme="light"] .attendance-simple__site-summary > div{border-color:rgba(15,23,42,.12)!important}
+html[data-sms-shell="employee"][data-theme="light"] .attendance-simple__action-choice button{border:1px solid rgba(15,23,42,.12)!important;box-shadow:none!important}
+html[data-sms-shell="employee"][data-theme="light"] .attendance-simple__action-choice button[aria-pressed="true"]{box-shadow:none!important}
+html[data-sms-shell="employee"][data-theme="light"] .attendance-simple__action-choice button[aria-pressed="true"]:last-child{background:var(--nexus-surface)!important;color:#0f172a!important}
+html[data-sms-shell="employee"][data-theme="light"] .attendance-simple__assurance article{border-color:rgba(15,23,42,.12)!important}
+html[data-sms-shell="employee"][data-theme="light"] .attendance-simple__daily-metrics > div{border-color:rgba(15,23,42,.12)!important;box-shadow:none!important}
+html[data-sms-shell="employee"][data-theme="light"] .employee-v4-section-header .employee-v4-header-icon{background:var(--nexus-surface)!important;box-shadow:none!important}
+html[data-sms-shell="employee"][data-theme="light"] .employee-v4-segmented button.active{color:#0f172a!important;background:var(--nexus-surface)!important;box-shadow:none!important}
+html[data-sms-shell="employee"][data-theme="light"] .employee-v4-empty{background:var(--nexus-surface)!important;box-shadow:none!important}
+html[data-sms-shell="employee"][data-theme="light"] .employee-v4-history-card{box-shadow:none!important}
+html[data-sms-shell="employee"][data-theme="light"] .employee-v4-history-correction > div:first-of-type{color:#475569!important}
+html[data-sms-shell="employee"][data-theme="light"] .employee-v4-history-correction > div span{color:#475569!important}
+html[data-sms-shell="employee"][data-theme="light"] .employee-v4-history-correction > small{color:#475569!important}
+html[data-sms-shell="employee"][data-theme="light"] .employee-v4-month-control{box-shadow:none!important}
+html[data-sms-shell="employee"][data-theme="light"] .employee-v4-shift-highlights article{background:var(--nexus-surface)!important;box-shadow:none!important}
+html[data-sms-shell="employee"][data-theme="light"] .employee-v4-shift-highlights article.is-today{background:var(--nexus-surface)!important}
+html[data-sms-shell="employee"][data-theme="light"] .employee-v4-schedule-card{box-shadow:none!important}
+html[data-sms-shell="employee"][data-theme="light"] .employee-v4-schedule-date{color:#0f172a!important;background:var(--nexus-surface)!important}
+html[data-sms-shell="employee"][data-theme="light"] .employee-v4-page.nexus-mobile-history .employee-v4-header-icon{background:#ffffff!important}
+html[data-sms-shell="employee"][data-theme="light"] .employee-v4-page.nexus-mobile-history .employee-v4-segmented{background:#ffffff!important}
+html[data-sms-shell="employee"][data-theme="light"] .employee-v4-page.nexus-mobile-history .employee-v4-history-times i{background:#eef2f7!important}
+html[data-sms-shell="employee"][data-theme="light"] .employee-v4-page.nexus-mobile-history .employee-v4-history-sites > div{border-color:rgba(15,23,42,.12)!important}
+html[data-sms-shell="employee"][data-theme="light"] .employee-v4-page.nexus-mobile-history .employee-v4-history-correction[open] summary{border-color:rgba(15,23,42,.12)!important}
+html[data-sms-shell="employee"][data-theme="light"] .employee-v4-page.nexus-mobile-history .employee-v4-history-correction > div{border-color:rgba(15,23,42,.12)!important}
+html[data-sms-shell="employee"][data-theme="light"] .employee-v4-page.nexus-mobile-history .employee-v4-history-correction > div:first-of-type{color:#0f172a!important}
+html[data-sms-shell="employee"][data-theme="light"] .employee-v4-page.nexus-mobile-history .employee-v4-history-correction > div span{color:#0f172a!important}
+html[data-sms-shell="employee"][data-theme="light"] .employee-v4-page.nexus-mobile-history .employee-v4-history-correction > div strong{color:#0f172a!important}
+html[data-sms-shell="employee"][data-theme="light"] .employee-v4-page.nexus-mobile-history .employee-v4-history-correction > small{border-color:rgba(15,23,42,.12)!important;color:#0f172a!important}
+html[data-sms-shell="employee"][data-theme="light"] .pwa-shell .employee-v4-shift-highlights strong,html[data-sms-shell="employee"][data-theme="light"] .pwa-shell .employee-v4-schedule-main strong{color:#0f172a!important}
+/* Hand-tuned light-mode details */
+html[data-sms-shell="employee"][data-theme="light"] .sms-brand-logo[data-tone="dark-surface"] .sms-brand-logo__dark{display:none!important}
+html[data-sms-shell="employee"][data-theme="light"] .sms-brand-logo[data-tone="dark-surface"] .sms-brand-logo__light{display:block!important}
+html[data-sms-shell="employee"][data-theme="light"] .app-shell.pwa-shell .employee-v4-status{background:#f1f5f9!important;color:#334155!important}
+html[data-sms-shell="employee"][data-theme="light"] .app-shell.pwa-shell .employee-v4-status.is-success{background:#dcfce7!important;color:#15803d!important}
+html[data-sms-shell="employee"][data-theme="light"] .app-shell.pwa-shell .employee-v4-status.is-warning{background:#fef3c7!important;color:#b45309!important}
+html[data-sms-shell="employee"][data-theme="light"] .app-shell.pwa-shell .employee-v4-status.is-danger{background:#fee2e2!important;color:#b91c1c!important}
+html[data-sms-shell="employee"][data-theme="light"] .app-shell.pwa-shell .employee-v4-history-flags :is(span,b,em,small){background:#fef3c7!important;color:#92400e!important;border-color:transparent!important}
+html[data-sms-shell="employee"][data-theme="light"] .app-shell.pwa-shell .employee-v4-segmented{background:#e2e8f0!important}
+html[data-sms-shell="employee"][data-theme="light"] .app-shell.pwa-shell .employee-v4-segmented button.active{background:#ffffff!important;color:#0f172a!important;box-shadow:0 1px 2px rgba(15,23,42,.12)!important}
+html[data-sms-shell="employee"][data-theme="light"] .app-shell.pwa-shell .pwa-bottom-nav button.active{background:#e0e7ff!important;color:#1d4ed8!important}
+html[data-sms-shell="employee"][data-theme="light"] .app-shell.pwa-shell .pwa-profile-avatar{background:#7c3aed!important;color:#fff!important;border:0!important;box-shadow:none!important}
+html[data-sms-shell="employee"][data-theme="light"] .app-shell.pwa-shell .attendance-simple__clock{background:radial-gradient(circle at 50% 35%,#3b82f6,#1d4ed8)!important;color:#fff!important;box-shadow:0 0 0 10px rgba(29,78,216,.14),0 0 0 22px rgba(29,78,216,.06)!important}
+html[data-sms-shell="employee"][data-theme="light"] .app-shell.pwa-shell .attendance-simple__clock :is(span,small){color:#fff!important}
+html[data-sms-shell="employee"][data-theme="light"] .app-shell.pwa-shell .attendance-simple__sheet footer button.is-primary,html[data-sms-shell="employee"][data-theme="light"] .app-shell.pwa-shell .attendance-simple__fail button{background:#1d4ed8!important;color:#fff!important}
+html[data-sms-shell="employee"][data-theme="light"] .app-shell.pwa-shell .attendance-simple__sheet-icon{color:#15803d}

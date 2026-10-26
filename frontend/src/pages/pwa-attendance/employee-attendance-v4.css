@@ -622,3 +622,94 @@
   color: var(--employee-v4-history-warning);
   background: var(--employee-v4-history-warning-soft);
 }
+
+/* PWA A-19/A-21/A-22 · shared employee mobile list restyle (pwa shell) */
+.pwa-shell .employee-v4-page,.pwa-shell .employee-v4-page *{font-family:'IBM Plex Sans Thai',sans-serif}
+.pwa-shell .employee-v4-page .nexus-mobile-breadcrumb{display:none}
+.pwa-shell .employee-v4-page .employee-v4-section-header{padding:4px 0 0!important;border:0!important;background:none!important;box-shadow:none!important}
+.pwa-shell .employee-v4-page .employee-v4-section-header .employee-v4-header-icon{display:none}
+.pwa-shell .employee-v4-page .employee-v4-section-header h1{font-size:24px!important;letter-spacing:0!important}
+.pwa-shell .employee-v4-page .employee-v4-section-header p:first-child{display:none}
+.pwa-shell .employee-v4-segmented{display:inline-flex!important;width:auto!important;gap:2px!important;padding:3px!important;border-radius:10px!important;background:var(--color-surface-muted,rgba(148,163,184,.12))!important;border:0!important;justify-self:start}
+.pwa-shell .employee-v4-segmented button{min-height:34px!important;padding:0 14px!important;border-radius:8px!important;border:0!important;background:transparent!important;color:var(--color-text-secondary)!important;font-size:13px!important;box-shadow:none!important}
+.pwa-shell .employee-v4-segmented button.active{background:var(--color-surface)!important;color:var(--color-text)!important;font-weight:700}
+.pwa-shell .employee-v4-history-card{padding:14px 16px!important;border-radius:14px!important;gap:10px!important}
+.pwa-shell .employee-v4-history-card__top strong{font-size:16px!important;letter-spacing:0!important}
+.pwa-shell .employee-v4-history-card__top>div:first-child{display:flex!important;align-items:baseline;gap:8px;flex-wrap:wrap}
+.pwa-shell .employee-v4-history-card__top>div:first-child span{font-size:12px;color:var(--color-text-secondary)}
+.pwa-shell .employee-v4-status{display:inline-flex!important;align-items:center;gap:6px;min-height:0!important;padding:3px 10px!important;border-radius:999px!important;font-size:12px!important}
+.pwa-shell .employee-v4-status::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}
+.pwa-shell .employee-v4-history-times{display:flex!important;gap:18px!important;padding:0!important;border:0!important;background:none!important}
+.pwa-shell .employee-v4-history-times>i{display:none}
+.pwa-shell .employee-v4-history-times>div{display:flex!important;align-items:baseline;gap:8px}
+.pwa-shell .employee-v4-history-times span{font-size:12px;color:var(--color-text-secondary)}
+.pwa-shell .employee-v4-history-times strong{font-size:17px!important;font-variant-numeric:tabular-nums}
+.pwa-shell .employee-v4-history-sites{display:none!important}
+.pwa-shell .employee-v4-history-flags{display:flex;flex-wrap:wrap;gap:6px}
+.pwa-shell .employee-v4-history-flags .employee-v4-primary{display:inline-flex;align-items:center;gap:6px;min-height:40px;padding:0 14px;border-radius:10px;border:1px solid var(--color-border)!important;background:transparent!important;color:var(--color-text)!important}
+.pwa-shell .employee-v4-month-control{display:grid!important;grid-template-columns:44px 1fr 44px;gap:8px;padding:0!important;border:0!important;background:none!important}
+.pwa-shell .employee-v4-month-control>*{min-height:44px;border-radius:10px!important}
+.pwa-shell .employee-v4-month-control span,.pwa-shell .employee-v4-month-control small{display:none}
+.pwa-shell .employee-v4-approved{display:inline-flex!important;justify-self:start;align-items:center;gap:6px;width:auto!important;padding:4px 12px!important;border-radius:999px!important;border:0!important;background:color-mix(in srgb,#22C55E 16%,transparent)!important;color:#15803D!important;font-size:13px;font-weight:700}
+:root[data-theme="dark"] .pwa-shell .employee-v4-approved{color:#4ADE80!important}
+.pwa-shell .employee-v4-approved b{font-weight:700;color:inherit!important}
+.pwa-shell .employee-v4-approved b::before{content:"· "}
+.pwa-shell .employee-v4-shift-highlights{display:grid!important;grid-template-columns:1fr 1fr;gap:10px}
+.pwa-shell .employee-v4-shift-highlights article{display:grid;gap:4px;padding:12px!important;border-radius:14px!important}
+.pwa-shell .employee-v4-shift-highlights article.is-today{border-color:var(--color-primary)!important;background:color-mix(in srgb,var(--color-primary) 14%,var(--color-surface))!important}
+.pwa-shell .employee-v4-shift-highlights span{font-size:12px;font-weight:700}
+.pwa-shell .employee-v4-shift-highlights strong,.pwa-shell .employee-v4-schedule-main strong{display:inline-grid;place-items:center;justify-self:start;min-width:38px;height:28px;padding:0 8px;border-radius:7px;font-size:13px!important;background:color-mix(in srgb,#2563EB 16%,transparent);color:#93C5FD;border:1px solid color-mix(in srgb,#2563EB 35%,transparent)}
+[data-theme="light"] .pwa-shell .employee-v4-shift-highlights strong,[data-theme="light"] .pwa-shell .employee-v4-schedule-main strong{color:#1D4ED8}
+.pwa-shell .employee-v4-shift-highlights small{font-size:15px;font-weight:700;color:var(--color-text)}
+.pwa-shell .employee-v4-shift-highlights p{margin:0;font-size:12px;color:var(--color-text-secondary)}
+.pwa-shell .employee-v4-schedule-card{display:grid!important;grid-template-columns:40px 1fr;align-items:center;gap:12px;padding:10px 14px!important;border-radius:12px!important}
+.pwa-shell .employee-v4-schedule-date{display:grid;justify-items:center;padding:0!important;background:none!important;border:0!important}
+.pwa-shell .employee-v4-schedule-date strong{font-size:20px}
+.pwa-shell .employee-v4-schedule-date span{font-size:11px;color:var(--color-text-secondary)}
+.pwa-shell .employee-v4-schedule-main{display:grid!important;grid-template-columns:auto 1fr;column-gap:12px;align-items:center}
+.pwa-shell .employee-v4-schedule-main strong{grid-row:span 2}
+.pwa-shell .employee-v4-schedule-main span{font-size:15px;font-weight:700;color:var(--color-text);font-variant-numeric:tabular-nums}
+.pwa-shell .employee-v4-schedule-main small{font-size:12px;color:var(--color-text-secondary)}
+.pwa-shell .employee-v4-schedule-main small svg{display:none}
+.pwa-shell .pwa-profile-page .nexus-mobile-breadcrumb{display:none}
+.pwa-shell .pwa-profile-hero{display:grid!important;justify-items:center;text-align:center;gap:8px;padding:12px 0 4px!important;border:0!important;background:none!important;box-shadow:none!important}
+.pwa-shell .pwa-profile-hero p{display:none}
+.pwa-shell .pwa-profile-hero h1{font-size:20px!important}
+.pwa-shell .pwa-profile-avatar{width:72px!important;height:72px!important;border-radius:50%!important;background:#7C3AED!important;color:#fff!important;font-size:24px!important;border:0!important}
+.pwa-shell .pwa-profile-card{border-radius:14px!important}
+.pwa-shell .pwa-profile-card h2{font-size:13px!important;font-weight:700;color:var(--color-text-secondary)!important}
+.pwa-shell .pwa-profile-action{justify-content:flex-start!important;width:100%;min-height:48px;border-radius:10px!important}
+.pwa-profile-technical{display:grid;gap:10px}
+.pwa-profile-technical>summary{justify-self:center;cursor:pointer;color:var(--color-primary);font-size:13px;font-weight:700;list-style:none;padding:8px}
+.pwa-profile-technical>summary::after{content:" ›"}
+.pwa-shell .pwa-profile-hero>div{display:grid;justify-items:center}
+.pwa-shell .pwa-profile-card dl>div{padding:10px 0!important}
+.pwa-profile-theme__options{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.pwa-profile-theme__options button{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:44px;border-radius:10px;border:1px solid var(--color-border);background:transparent;color:var(--color-text);font:inherit;font-weight:600}
+.pwa-profile-theme__options button.is-active{border-color:var(--nexus-cyan);background:color-mix(in srgb,var(--nexus-cyan) 14%,transparent);color:var(--color-text)}
+.employee-v4-chain{display:grid;gap:8px}
+.employee-v4-chain>strong{font-size:13px}
+.employee-v4-chain ol{display:grid;grid-template-columns:repeat(3,1fr);margin:0;padding:0;list-style:none}
+.employee-v4-chain li{position:relative;display:grid;justify-items:center;gap:4px;font-size:12px;color:var(--color-text-secondary)}
+.employee-v4-chain li:not(:last-child)::after{content:"";position:absolute;top:12px;left:calc(50% + 16px);right:calc(-50% + 16px);height:1px;background:var(--color-border)}
+.employee-v4-chain b{display:inline-grid;place-items:center;width:24px;height:24px;border-radius:50%;border:1px solid var(--color-border);font-size:11px}
+.employee-v4-chain li.is-current{color:var(--color-text);font-weight:700}
+.employee-v4-chain li.is-current b{background:#A5B4FC;border-color:#A5B4FC;color:#0B1220}
+.employee-v4-chain small{font-size:12px;color:var(--color-text-secondary)}
+/* A-20 · self-confirm as a bottom sheet */
+.pwa-shell .employee-v4-overlay{position:fixed!important;inset:0!important;z-index:1200!important;display:flex!important;align-items:flex-end!important;background:rgba(2,6,15,.6)!important;padding:0!important}
+.pwa-shell .employee-v4-dialog{width:100%!important;max-width:none!important;max-height:92dvh;overflow:auto;margin:0!important;padding:20px 20px calc(20px + env(safe-area-inset-bottom))!important;border-radius:22px 22px 0 0!important;display:grid;gap:12px}
+.pwa-shell .employee-v4-dialog__actions{display:grid!important;grid-template-columns:1fr 2fr;gap:10px}
+.pwa-shell .employee-v4-dialog__actions button{min-height:48px;border-radius:12px!important}
+.app-shell.pwa-shell .employee-v4-dialog{background:var(--color-surface-elevated,#111925)!important;color:var(--color-text)!important;border:1px solid var(--color-border)!important;box-shadow:0 -12px 40px rgba(0,0,0,.4)!important}
+.pwa-shell .employee-v4-dialog header{display:flex;justify-content:space-between;align-items:center}
+.pwa-shell .employee-v4-dialog header h2{margin:0;font-size:20px}
+.pwa-shell .employee-v4-dialog header button{width:36px;height:36px;border-radius:50%;border:0;background:transparent;color:var(--color-text-secondary)}
+.pwa-shell .employee-v4-dialog>p{margin:0;font-size:13px;color:var(--color-text-secondary)}
+.pwa-shell .employee-v4-dialog>label:not(.employee-v4-checkbox){display:grid!important;gap:6px;font-size:13px;font-weight:600}
+.pwa-shell .employee-v4-dialog>label :is(input,textarea){width:100%;min-height:48px;border-radius:10px;border:1px solid var(--color-border);background:var(--color-surface);color:var(--color-text);padding:0 12px;font:inherit}
+.pwa-shell .employee-v4-dialog>label textarea{min-height:88px;padding:10px 12px}
+.pwa-shell .employee-v4-dialog .employee-v4-checkbox{display:flex!important;align-items:center;gap:10px;font-size:13px}
+.pwa-shell .employee-v4-dialog .employee-v4-checkbox input{width:20px!important;height:20px!important;min-height:0!important;flex:0 0 20px;padding:0!important}
+.pwa-shell .employee-v4-dialog .employee-v4-checkbox span{flex:1}
+.app-shell.pwa-shell .employee-v4-dialog__actions .employee-v4-primary{background:#A5B4FC!important;color:#0B1220!important;border:0!important}

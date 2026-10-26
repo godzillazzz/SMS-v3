@@ -180,6 +180,12 @@ type ManualConfirmationDialog = {
   reason: string;
 };
 
+const APPROVAL_CHAIN = [
+  { role: 'SUPERVISOR', label: 'หัวหน้างาน', note: 'สร้างคำขอ' },
+  { role: 'MANAGER', label: 'ผู้จัดการ', note: 'ตรวจและส่งต่อ' },
+  { role: 'ADMIN', label: 'ผู้ดูแลระบบ', note: 'อนุมัติ · มีผล' }
+] as const;
+
 const STATUS_OPTIONS = [
   ['', 'ทุกสถานะ'],
   ['REQUIRES_ATTENTION', 'ต้องตรวจสอบ'],
@@ -366,15 +372,17 @@ function KPI({
   value,
   icon,
   tone = 'neutral',
-  onClick
+  onClick,
+  active
 }: {
   label: string;
   value: number;
   icon: SmsIconName;
   tone?: string;
   onClick?: () => void;
+  active?: boolean;
 }) {
-  return <article className={`attendance-supervisor-v4__kpi is-${tone}${onClick ? ' is-actionable' : ''}`} role={onClick ? 'button' : undefined} tabIndex={onClick ? 0 : undefined} onClick={onClick} onKeyDown={onClick ? (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onClick(); } } : undefined}>
+  return <article className={`attendance-supervisor-v4__kpi is-${tone}${onClick ? ' is-actionable' : ''}${active ? ' is-active' : ''}`} aria-pressed={onClick ? Boolean(active) : undefined} role={onClick ? 'button' : undefined} tabIndex={onClick ? 0 : undefined} onClick={onClick} onKeyDown={onClick ? (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onClick(); } } : undefined}>
     <span><SmsIcon name={icon} size={20} /></span>
     <div><strong>{value}</strong><small>{label}</small></div>
   </article>;
@@ -446,6 +454,7 @@ function AttendanceMobileCard({
 }
 
 export function AttendanceSupervisorPage({ token, role, department, employeeAuthorityId, userId, onOpenAttendanceReport, desktopWeb = false, initialRequestId, onInitialRequestHandled, onApprovalQueueChanged }: Props) {
+  const chainStart = Math.max(0, APPROVAL_CHAIN.findIndex((step) => step.role === role));
   const today = bangkokDateText();
   const manager = ['MANAGER', 'SUPERVISOR'].includes(role);
   const viewer = role === 'VIEWER';
@@ -1127,19 +1136,19 @@ export function AttendanceSupervisorPage({ token, role, department, employeeAuth
 
       {summary && <SectionCard className="attendance-supervisor-v4__kpi-card" kicker="ภาพรวมข้อมูล" title="สรุปสถานะการลงเวลา" description="ตัวเลขจากข้อมูลในช่วงและขอบเขตที่เลือก">
       <section className="attendance-supervisor-v4__kpis">
-        <KPI label="ต้องตรวจสอบ" value={summary.requiresAttention} icon="quality" tone="danger" onClick={() => setStatus('REQUIRES_ATTENTION')} />
-        <KPI label="มีตาราง" value={summary.scheduledToday} icon="calendar" />
+        <KPI label="ต้องตรวจสอบ" value={summary.requiresAttention} icon="quality" tone="danger" onClick={() => setStatus('REQUIRES_ATTENTION')} active={status === 'REQUIRES_ATTENTION'} />
+        <KPI label="มีตาราง" value={summary.scheduledToday} icon="calendar" onClick={() => setStatus('')} active={status === ''} />
         <KPI label="ลงเวลาแล้ว" value={summary.checkedIn} icon="check" tone="good" />
         <KPI label="กำลังปฏิบัติงาน" value={summary.currentlyWorking} icon="attendance" tone="good" />
-        <KPI label="ยังไม่ลงเวลา" value={summary.notCheckedInYet} icon="clock" onClick={() => setStatus('NOT_CHECKED_IN_YET')} />
-        <KPI label="มาสาย" value={summary.late} icon="clock" tone="warning" onClick={() => setStatus('LATE')} />
-        <KPI label="ออกก่อนเวลา" value={summary.earlyOut} icon="history" tone="warning" onClick={() => setStatus('EARLY_OUT')} />
-        <KPI label="ผิดกะ" value={summary.wrongShift} icon="quality" tone="warning" onClick={() => setStatus('WRONG_SHIFT')} />
-        <KPI label="ช่วยจุดอื่น" value={summary.assistingOtherSite} icon="location" onClick={() => setStatus('ASSIST_OTHER_SITE')} />
-        <KPI label="นอกพื้นที่" value={summary.outsideAllSites} icon="location" tone="danger" onClick={() => setStatus('OUTSIDE_ALL_SITES')} />
-        <KPI label="ลา" value={summary.leave} icon="leave" onClick={() => setStatus('LEAVE')} />
-        <KPI label="ขาด" value={summary.absent} icon="quality" tone="danger" onClick={() => setStatus('ABSENT')} />
-        <KPI label="เวลาผิดปกติ" value={summary.timeAbnormal} icon="quality" tone="danger" onClick={() => setStatus('TIME_ABNORMAL')} />
+        <KPI label="ยังไม่ลงเวลา" value={summary.notCheckedInYet} icon="clock" onClick={() => setStatus('NOT_CHECKED_IN_YET')} active={status === 'NOT_CHECKED_IN_YET'} />
+        <KPI label="มาสาย" value={summary.late} icon="clock" tone="warning" onClick={() => setStatus('LATE')} active={status === 'LATE'} />
+        <KPI label="ออกก่อนเวลา" value={summary.earlyOut} icon="history" tone="warning" onClick={() => setStatus('EARLY_OUT')} active={status === 'EARLY_OUT'} />
+        <KPI label="ผิดกะ" value={summary.wrongShift} icon="quality" tone="warning" onClick={() => setStatus('WRONG_SHIFT')} active={status === 'WRONG_SHIFT'} />
+        <KPI label="ช่วยจุดอื่น" value={summary.assistingOtherSite} icon="location" onClick={() => setStatus('ASSIST_OTHER_SITE')} active={status === 'ASSIST_OTHER_SITE'} />
+        <KPI label="นอกพื้นที่" value={summary.outsideAllSites} icon="location" tone="danger" onClick={() => setStatus('OUTSIDE_ALL_SITES')} active={status === 'OUTSIDE_ALL_SITES'} />
+        <KPI label="ลา" value={summary.leave} icon="leave" onClick={() => setStatus('LEAVE')} active={status === 'LEAVE'} />
+        <KPI label="ขาด" value={summary.absent} icon="quality" tone="danger" onClick={() => setStatus('ABSENT')} active={status === 'ABSENT'} />
+        <KPI label="เวลาผิดปกติ" value={summary.timeAbnormal} icon="quality" tone="danger" onClick={() => setStatus('TIME_ABNORMAL')} active={status === 'TIME_ABNORMAL'} />
       </section>
       </SectionCard>}
 
@@ -1405,14 +1414,14 @@ export function AttendanceSupervisorPage({ token, role, department, employeeAuth
             </section>
 
             <section className="attendance-supervisor-v4__compare">
-              <h4>Original → Effective</h4>
+              <h4>เวลาเดิม → เวลาที่มีผล <small className="sr-only">Original → Effective</small></h4>
               <div><span>Check in</span><strong>{time(detail.originalCheckInAt)}</strong><i>→</i><strong>{time(detail.checkInAt)}</strong></div>
               <div><span>Check out</span><strong>{time(detail.originalCheckOutAt)}</strong><i>→</i><strong>{time(detail.checkOutAt)}</strong></div>
               <div><span>Worked</span><strong>—</strong><i>→</i><strong>{duration(detail.workedMinutes)}</strong></div>
             </section>
 
             <section className="attendance-supervisor-v4__raw-events">
-              <h4>Immutable Attendance Events</h4>
+              <h4>เหตุการณ์ลงเวลา (แก้ไขไม่ได้) <small className="sr-only">Immutable Attendance Events</small></h4>
               {detail.rawEvents.length === 0 ? <p>ยังไม่มี AttendanceEvent</p> : detail.rawEvents.map((event) => (
                 <article key={event.id}>
                   <div>
@@ -1591,6 +1600,12 @@ export function AttendanceSupervisorPage({ token, role, department, employeeAuth
             </div>
           )}
 
+          <ol className="attendance-supervisor-v4__chain" aria-label="ลำดับการอนุมัติ">
+            {APPROVAL_CHAIN.map((step, index) => {
+              const state = index < chainStart ? 'is-skipped' : index === chainStart ? 'is-current' : 'is-next';
+              return <li key={step.role} className={state} aria-current={index === chainStart ? 'step' : undefined}><b>{index + 1}</b><strong>{step.label}</strong><small>{index === chainStart ? 'คุณ · สร้างคำขอ' : index < chainStart ? 'ข้าม' : step.note}</small></li>;
+            })}
+          </ol>
           <div className="attendance-supervisor-v4__workflow-principle">
             <SmsIcon name="shield" size={19} />
             <div>
@@ -1617,7 +1632,7 @@ export function AttendanceSupervisorPage({ token, role, department, employeeAuth
               />
             </label>
             <label className="is-wide">
-              <span>เหตุผล *</span>
+              <span className="attendance-supervisor-v4__reason-label">เหตุผล *<small aria-live="polite">{adjustmentDialog.reason.trim().length} / อย่างน้อย 5 ตัวอักษร</small></span>
               <textarea
                 rows={4}
                 maxLength={1000}
@@ -1633,7 +1648,7 @@ export function AttendanceSupervisorPage({ token, role, department, employeeAuth
           <footer>
             <button type="button" className="is-secondary" disabled={workflowBusy} onClick={() => setAdjustmentDialog(undefined)}>ยกเลิก</button>
             <button type="button" className="is-primary" disabled={workflowBusy} onClick={() => void saveAdjustment()}>
-              {workflowBusy ? 'กำลังส่ง…' : adjustmentDialog.requestId ? 'บันทึก Revision และส่งใหม่' : 'ส่งคำขอให้ ADMIN พิจารณา'}
+              {workflowBusy ? 'กำลังส่ง…' : adjustmentDialog.requestId ? 'บันทึก Revision และส่งใหม่' : role === 'SUPERVISOR' ? 'ส่งให้ผู้จัดการตรวจ' : 'ส่งคำขอให้ ADMIN พิจารณา'}
             </button>
           </footer>
         </section>

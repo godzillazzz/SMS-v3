@@ -1,0 +1,90 @@
+/* SMS-v3 UI Redesign (Figma F1 "สีและธีม") — values for the existing token names.
+   Loaded right after tokens.css; every surface that already consumes --color-* follows the design set.
+   Accent themes (navy default · teal · emerald) live in ui-accent.css. */
+[data-theme="light"] .app-shell,
+[data-theme="light"] body > :is(.mobile-utility-panel, .mobile-utility-backdrop, #modal-root, .workflow-command-layer) {
+  --color-bg: #f3f5f9;
+  --color-surface: #ffffff;
+  --color-surface-elevated: #ffffff;
+  --color-surface-muted: #f7f9fc;
+  --color-surface-subtle: #f7f9fc;
+  --color-surface-translucent: rgba(255, 255, 255, 0.94);
+  --color-text: #111a2c;
+  --color-text-secondary: #43506a;
+  --color-text-muted: #5d6a80;
+  --color-border: #e2e7ef;
+  --color-border-strong: #c9d2de;
+  --color-primary: #1d4ed8;
+  --color-primary-hover: #1e40af;
+  --color-primary-active: #1e3a8a;
+  --color-primary-soft: #e8eefd;
+  --color-accent: #1d4ed8;
+  --color-success: #0e7a42;
+  --color-success-soft: #e6f4ec;
+  --color-warning: #8f5300;
+  --color-warning-soft: #fdf1e1;
+  --color-attention: #8f5300;
+  --color-attention-soft: #fdf1e1;
+  --color-danger: #b42318;
+  --color-danger-soft: #fdecea;
+  --color-info: #0a68a0;
+  --color-info-soft: #e5f1f8;
+  --color-neutral: #475467;
+  --color-neutral-soft: #eef1f5;
+  --color-sidebar-bg: #0e1a31;
+  --color-sidebar-bg-strong: #0e1a31;
+  --color-sidebar-text: #e8edf5;
+  --color-sidebar-muted: #9aa8bf;
+  --color-sidebar-hover: rgba(255, 255, 255, 0.07);
+  --color-sidebar-border: rgba(255, 255, 255, 0.08);
+  --shadow-sm: 0 1px 2px rgba(17, 26, 44, 0.06);
+  --shadow-md: 0 4px 12px rgba(17, 26, 44, 0.08);
+  --shadow-lg: 0 12px 28px rgba(17, 26, 44, 0.12);
+  --focus-ring: 0 0 0 3px rgba(29, 78, 216, 0.24);
+  --radius-sm: 8px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 14px;
+}
+[data-theme="dark"] .app-shell,
+[data-theme="dark"] body > :is(.mobile-utility-panel, .mobile-utility-backdrop, #modal-root, .workflow-command-layer) {
+  --color-bg: #0a0f17;
+  --color-surface: #111925;
+  --color-surface-elevated: #111925;
+  --color-surface-muted: #0d141e;
+  --color-surface-subtle: #0d141e;
+  --color-surface-translucent: rgba(17, 25, 37, 0.94);
+  --color-text: #e8edf5;
+  --color-text-secondary: #b6c1d3;
+  --color-text-muted: #93a0b5;
+  --color-border: #212d3e;
+  --color-border-strong: #33435a;
+  --color-primary: #86a8ff;
+  --color-primary-hover: #a9c1ff;
+  --color-primary-active: #6f93f5;
+  --color-primary-soft: #18264a;
+  --color-accent: #86a8ff;
+  --color-success: #4ade80;
+  --color-success-soft: #10291c;
+  --color-warning: #fbbf24;
+  --color-warning-soft: #2a2010;
+  --color-attention: #fbbf24;
+  --color-attention-soft: #2a2010;
+  --color-danger: #f87171;
+  --color-danger-soft: #2c1517;
+  --color-info: #60a5fa;
+  --color-info-soft: #10213a;
+  --color-neutral: #b6c1d3;
+  --color-neutral-soft: #1c2635;
+  --color-sidebar-bg: #0c131f;
+  --color-sidebar-bg-strong: #0c131f;
+  --color-sidebar-text: #e8edf5;
+  --color-sidebar-muted: #93a0b5;
+  --color-sidebar-hover: rgba(255, 255, 255, 0.06);
+  --color-sidebar-border: #1c2635;
+  --focus-ring: 0 0 0 3px rgba(134, 168, 255, 0.32);
+  --radius-sm: 8px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 14px;
+}

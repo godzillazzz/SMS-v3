@@ -33,14 +33,15 @@ const resultSummary = (result: RuleResult | undefined) => display(result?.summar
 function RuleStatus({ rule, result }: { rule: RuleCheckingRow; result?: RuleResult }) {
   const enabled = Boolean(rule.enabled);
   const passed = Boolean(result?.passed);
-  const className = !enabled ? 'status-badge--neutral' : passed ? 'status-badge--success' : 'status-badge--warning';
-  return <span className={`status-badge ${className}`}>{!enabled ? 'ปิดใช้' : resultSummary(result)}</span>;
+  const className = !enabled ? 'status-badge--neutral' : !result ? 'status-badge--neutral' : passed ? 'status-badge--success' : 'status-badge--danger';
+  const label = !enabled ? 'ไม่ได้ตรวจ' : !result ? 'รอตรวจ' : passed ? 'ผ่าน' : 'ไม่ผ่าน';
+  return <span className={`status-badge rule-result-badge ${className}`} title={enabled ? resultSummary(result) : undefined}>{label}{enabled && result ? <span className="sr-only"> · {resultSummary(result)}</span> : null}</span>;
 }
 
 function RuleActions({ rule, onAction }: { rule: RuleCheckingRow; onAction(row: RuleCheckingRow, action: 'edit' | 'toggle'): void }) {
   return <div className="row-actions data-row-actions rule-checking-row-actions">
     <button type="button" className="btn-info-outline data-row-primary-action" onClick={() => onAction(rule, 'edit')}>แก้ไข</button>
-    <button type="button" className="btn-neutral" onClick={() => onAction(rule, 'toggle')}>{rule.enabled ? 'ปิดใช้' : 'เปิดใช้'}</button>
+    <button type="button" role="switch" aria-checked={Boolean(rule.enabled)} aria-label={`${display(rule.name)}: ${rule.enabled ? 'เปิดใช้อยู่ กดเพื่อปิดใช้' : 'ปิดใช้อยู่ กดเพื่อเปิดใช้'}`} className="rule-switch" onClick={() => onAction(rule, 'toggle')}><span className="rule-switch__track" aria-hidden="true" />{rule.enabled ? 'เปิดใช้' : 'ปิดใช้'}</button>
   </div>;
 }
 
@@ -50,7 +51,7 @@ function RuleCards({ rules, resultById, canManage, loading, onAction }: { rules:
   return <div className="rule-checking-mobile-list">{rules.map((rule, index) => {
     const result = resultById.get(String(rule.ruleId));
     return <article className="rule-checking-mobile-card data-mobile-card" key={`${display(rule.id, `rule-${index}`)}-mobile`}>
-      <header><div><small>Rule ID</small><code>{display(rule.ruleId)}</code></div><RuleStatus rule={rule} result={result} /></header>
+      <header><div><small>รหัส</small><code>{display(rule.ruleId)}</code></div><RuleStatus rule={rule} result={result} /></header>
       <h3>{display(rule.name)}</h3>
       <dl>
         <div><dt>ค่า</dt><dd>{display(rule.value)}</dd></div>
@@ -65,7 +66,7 @@ function ViolationCards({ violations, loading }: { violations: RuleCheckingRow[]
   if (loading) return <div className="rule-checking-mobile-list"><DataTableSkeletonCards count={3} cardClassName="rule-checking-mobile-card" /></div>;
   if (!violations.length) return <DataTableState variant="empty" title="ไม่พบรายการขัดกฎในเดือนนี้" description="ผ่านทุกกฎที่เปิดใช้งาน" />;
   return <div className="rule-checking-mobile-list">{violations.slice(0, 500).map((item, index) => <article className="rule-checking-mobile-card data-mobile-card" key={`${display(item.ruleId)}-${index}-violation`}>
-    <header><div><small>Rule</small><code>{display(item.ruleId)}</code>{item.ruleName ? <small>{display(item.ruleName)}</small> : null}</div><span className={`status-badge ${item.severity === 'error' ? 'status-badge--danger' : 'status-badge--warning'}`}>{display(item.severity)}</span></header>
+    <header><div><small>กฎ</small><code>{display(item.ruleId)}</code>{item.ruleName ? <small>{display(item.ruleName)}</small> : null}</div><span className={`status-badge ${item.severity === 'error' ? 'status-badge--danger' : 'status-badge--warning'}`}>{item.severity === 'error' ? 'ต้องแก้' : item.severity === 'warning' ? 'ควรตรวจ' : display(item.severity)}</span></header>
     <h3>{display(item.title)}</h3>
     <p>{display(item.description)}</p>
   </article>)}</div>;
@@ -73,7 +74,7 @@ function ViolationCards({ violations, loading }: { violations: RuleCheckingRow[]
 
 function RuleTable({ rules, resultById, canManage, loading, onAction }: { rules: RuleCheckingRow[]; resultById: Map<string, RuleResult>; canManage: boolean; loading: boolean; onAction(row: RuleCheckingRow, action: 'edit' | 'toggle'): void }) {
   const columnCount = canManage ? 6 : 5;
-  const desktop = <div className="table-card rule-checking-desktop-table"><div className="data-table-scroll"><table className="data-surface-table" aria-label="ผลตรวจสอบกฎการทำงาน"><thead><tr><th scope="col">Rule ID</th><th scope="col">ชื่อกฎ</th><th scope="col">ค่า</th><th scope="col">หน่วย</th><th scope="col">ผลตรวจ</th>{canManage && <th scope="col">จัดการ</th>}</tr></thead><tbody>
+  const desktop = <div className="table-card rule-checking-desktop-table"><div className="data-table-scroll"><table className="data-surface-table" aria-label="ผลตรวจสอบกฎการทำงาน"><thead><tr><th scope="col">รหัส</th><th scope="col">ชื่อกฎ</th><th scope="col">ค่า</th><th scope="col">หน่วย</th><th scope="col">ผลตรวจ</th>{canManage && <th scope="col">จัดการ</th>}</tr></thead><tbody>
     {loading ? <DataTableSkeletonRows columnCount={columnCount} rowCount={5} /> : rules.length ? rules.map((rule, index) => {
       const result = resultById.get(String(rule.ruleId));
       return <tr key={`${display(rule.id, `rule-${index}`)}-desktop`}>
@@ -91,12 +92,12 @@ function RuleTable({ rules, resultById, canManage, loading, onAction }: { rules:
 }
 
 function ViolationTable({ violations, loading }: { violations: RuleCheckingRow[]; loading: boolean }) {
-  const desktop = <div className="table-card rule-checking-desktop-table"><div className="data-table-scroll"><table className="data-surface-table" aria-label="รายการที่ขัดกฎ"><thead><tr><th scope="col">Rule</th><th scope="col">รายการ</th><th scope="col">รายละเอียด</th><th scope="col">ระดับ</th></tr></thead><tbody>
+  const desktop = <div className="table-card rule-checking-desktop-table"><div className="data-table-scroll"><table className="data-surface-table" aria-label="รายการที่ขัดกฎ"><thead><tr><th scope="col">กฎ</th><th scope="col">รายการ</th><th scope="col">รายละเอียด</th><th scope="col">ระดับ</th></tr></thead><tbody>
     {loading ? <DataTableSkeletonRows columnCount={4} rowCount={5} /> : violations.length ? violations.slice(0, 500).map((item, index) => <tr key={`${display(item.ruleId)}-${index}`}>
       <td><code>{display(item.ruleId)}</code>{item.ruleName ? <small className="cell-note">{display(item.ruleName)}</small> : null}</td>
       <td className="employee-name">{display(item.title)}</td>
       <td className="rule-checking-description">{display(item.description)}</td>
-      <td><span className={`status-badge ${item.severity === 'error' ? 'status-badge--danger' : 'status-badge--warning'}`}>{display(item.severity)}</span></td>
+      <td><span className={`status-badge ${item.severity === 'error' ? 'status-badge--danger' : 'status-badge--warning'}`}>{item.severity === 'error' ? 'ต้องแก้' : item.severity === 'warning' ? 'ควรตรวจ' : display(item.severity)}</span></td>
     </tr>) : <tr><td colSpan={4} className="data-table-empty-cell"><DataTableState variant="empty" title="ไม่พบรายการขัดกฎในเดือนนี้" description="ผ่านทุกกฎที่เปิดใช้งาน" announce={false} /></td></tr>}
   </tbody></table></div></div>;
   const mobile = <ViolationCards violations={violations} loading={loading} />;

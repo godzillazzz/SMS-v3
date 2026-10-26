@@ -1,3 +1,9 @@
+import '@fontsource/ibm-plex-sans-thai/thai-400.css';
+import '@fontsource/ibm-plex-sans-thai/thai-500.css';
+import '@fontsource/ibm-plex-sans-thai/thai-600.css';
+import '@fontsource/ibm-plex-sans-thai/thai-700.css';
+import '@fontsource/ibm-plex-sans-thai/latin-400.css';
+import '@fontsource/ibm-plex-sans-thai/latin-600.css';
 import '@fontsource/kanit/thai-400.css';
 import '@fontsource/kanit/thai-500.css';
 import '@fontsource/kanit/thai-600.css';
@@ -27,6 +33,7 @@ import '../../src/styles/license-table.css';
 import '../../src/styles/responsive-shell.css';
 import '../../src/styles/action-system.css';
 import '../../src/styles/tokens.css';
+import '../../src/styles/hrpro-tokens.css';
 import '../../src/styles/theme-foundation.css';
 import '../../src/styles/app-shell.css';
 import '../../src/styles/data-surfaces.css';
@@ -52,10 +59,11 @@ import '../../src/styles/employee-pwa-theme.css';
 import '../../src/styles/ux-t06-login-public.css';
 import '../../src/styles/schedule-roster-ux.css';
 import '../../src/styles/layout-foundation.css';
+import '../../src/styles/hrpro-shell.css';
 
 import React, {useState} from 'react';
 import {createRoot} from 'react-dom/client';
 import {PageHeader, SectionCard, StepFlow, MetricCard} from '../../src/components/layout';
 import {ThemeControl} from '../../src/components/ThemeControl';
-function Fixture(){const [opened,setOpened]=useState(0);return <main className="app-shell"><div className="content-area"><div className="view-pane"><PageHeader kicker="ข้อมูลปฏิบัติการ" title="รายการของหน่วยงาน" description="ตรวจข้อมูลตามสิทธิ์ก่อนทำงาน" actions={<ThemeControl />} /><SectionCard kicker="ข้อมูลที่ตรวจสอบแล้ว" title="รายการสำคัญ" description="การ์ดหลักตามแบบที่อนุมัติ"><p>ข้อมูลทดสอบสำหรับตรวจรูปลักษณ์เท่านั้น</p><div className="table-scroll"><table><caption>รายการทดสอบ</caption><tbody><tr><th scope="row">จำนวนรายการ</th><td>{opened}</td></tr></tbody></table></div></SectionCard><MetricCard label="รายการรออนุมัติ" value={12} description="ตัวอย่างข้อมูลสังเคราะห์" icon="approval" /><StepFlow description="เลือกขั้นตอนที่พร้อม" steps={[{id:'month',icon:'calendar',label:'ขั้นที่หนึ่ง',title:'เลือกเดือน',desc:'เลือกเดือนที่ต้องการ',current:true,onClick:()=>setOpened(n=>n+1)},{id:'review',icon:'approval',label:'ขั้นที่สอง',title:'ตรวจข้อมูล',desc:'ข้อมูลผ่านการตรวจแล้ว',completed:true}]} /><output aria-label="จำนวนการเปิดรายการ">{opened}</output></div></div></main>}
+function Fixture(){const [opened,setOpened]=useState(0);return <main id="sms-app" className="app-shell"><div className="content-area"><div className="view-pane"><PageHeader kicker="ข้อมูลปฏิบัติการ" title="รายการของหน่วยงาน" description="ตรวจข้อมูลตามสิทธิ์ก่อนทำงาน" actions={<ThemeControl />} /><SectionCard kicker="ข้อมูลที่ตรวจสอบแล้ว" title="รายการสำคัญ" description="การ์ดหลักตามแบบที่อนุมัติ"><p>ข้อมูลทดสอบสำหรับตรวจรูปลักษณ์เท่านั้น</p><div className="table-scroll"><table><caption>รายการทดสอบ</caption><tbody><tr><th scope="row">จำนวนรายการ</th><td>{opened}</td></tr></tbody></table></div></SectionCard><MetricCard label="รายการรออนุมัติ" value={12} description="ตัวอย่างข้อมูลสังเคราะห์" icon="approval" /><StepFlow description="เลือกขั้นตอนที่พร้อม" steps={[{id:'month',icon:'calendar',label:'ขั้นที่หนึ่ง',title:'เลือกเดือน',desc:'เลือกเดือนที่ต้องการ',current:true,onClick:()=>setOpened(n=>n+1)},{id:'review',icon:'approval',label:'ขั้นที่สอง',title:'ตรวจข้อมูล',desc:'ข้อมูลผ่านการตรวจแล้ว',completed:true}]} /><output aria-label="จำนวนการเปิดรายการ">{opened}</output></div></div></main>}
 createRoot(document.getElementById('root')!).render(<Fixture />);

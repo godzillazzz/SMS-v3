@@ -46,7 +46,8 @@ describe('Official Attendance report presentation', () => {
     expect(attendanceReportPresentation.resultText(row({ flags: ['MISSING_CHECK_OUT', 'TIME_ABNORMAL'], checkOutAt: null, workedMinutes: null })))
       .toBe('ไม่ได้ลงเวลาออก / เวลาผิดปกติ');
     expect(attendanceReportPresentation.resultText(row({ flags: ['ASSIST_OTHER_SITE'], actualSite: { id: 'site-b', code: 'B', name: 'Site B' } })))
-      .toBe('ช่วยปฏิบัติงาน ณ Site B');
+      .toBe('ช่วยปฏิบัติงาน Site B');
+    expect(attendanceReportPresentation.resultText(row({ flags: ['ON_TIME'], workSiteContext: 'ASSIGNED_SITE' }))).toBe('');
   });
 
   it('summarizes abnormalities without inventing worked duration', () => {
@@ -131,7 +132,7 @@ describe('Official Attendance report presentation', () => {
       punctuality: 'LATE', flags: ['LATE', 'ASSIST_OTHER_SITE', 'DEVICE_MISMATCH']
     });
     const text = attendanceReportPresentation.resultText(presentation);
-    expect(text).toContain('ช่วยปฏิบัติงาน ณ Site B');
+    expect(text).toContain('ช่วยปฏิบัติงาน Site B');
     expect(text).toContain('มาสาย');
     expect(text).toContain('ใช้อุปกรณ์อื่น · ตรวจสอบ');
   });

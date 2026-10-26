@@ -1,0 +1,82 @@
+/* SMS-v3 UI Redesign — app shell + page chrome (Figma 03/F2/F3/F4). Loaded last; desktop/tablet shell only
+   (.pwa-shell keeps the Attendance-PWA set). Colours come from hrpro-tokens.css / ui-accent.css. */
+#sms-app { --sidebar-active: #1d4ed8; --sidebar-item: #c9d3e3; --sidebar-label: #8a97ad; }
+#sms-app[data-accent="teal"] { --sidebar-active: #0b7a74; }
+#sms-app[data-accent="emerald"] { --sidebar-active: #047857; }
+
+/* Type: one family across the shell (F2). Mono only where the design uses it. */
+#sms-app, #sms-app * { font-family: "IBM Plex Sans Thai", system-ui, -apple-system, "Segoe UI", sans-serif !important; }
+#sms-app .main-area :is(h1, h2, h3, h4, h5, h6, strong, b, button, input, select, textarea, th, td) { font-family: "IBM Plex Sans Thai", system-ui, -apple-system, "Segoe UI", sans-serif !important; }
+#sms-app :is(code, kbd, pre, samp) { font-family: "IBM Plex Mono", ui-monospace, monospace !important; }
+#sms-app, #sms-app .main-area { background: var(--color-bg) !important; color: var(--color-text); }
+
+/* Sidebar: ink in both modes, brand pill for the current page. */
+#sms-app .sidebar { background: var(--color-sidebar-bg) !important; background-image: none !important; color: var(--color-sidebar-text); border-right: 0 !important; box-shadow: none !important; backdrop-filter: none !important; }
+#sms-app .sidebar-brand { border-bottom: 1px solid var(--color-sidebar-border) !important; background: transparent !important; }
+#sms-app .sidebar-brand .sms-brand-logo__light { display: none !important; }
+#sms-app .sidebar-brand .sms-brand-logo__dark { display: block !important; }
+#sms-app .sidebar .nav-section > p { margin: 14px 12px 4px !important; color: var(--sidebar-label) !important; font-size: 12px !important; font-weight: 500 !important; letter-spacing: 0 !important; text-transform: none !important; }
+#sms-app .sidebar .nav-item { min-height: 40px; border: 0 !important; border-radius: 10px !important; background: transparent !important; box-shadow: none !important; color: var(--sidebar-item) !important; font-size: 14px !important; font-weight: 500 !important; }
+#sms-app .sidebar .nav-item .nav-icon { color: inherit !important; background: transparent !important; }
+#sms-app .sidebar .nav-item:hover { background: var(--color-sidebar-hover) !important; color: #ffffff !important; }
+#sms-app .sidebar .nav-item.active { background: var(--sidebar-active) !important; color: #ffffff !important; font-weight: 600 !important; }
+#sms-app .sidebar .nav-item.active::before, #sms-app .sidebar .nav-item.active::after { display: none !important; }
+#sms-app .sidebar .nav-item:focus-visible { outline: 2px solid #9fbaff !important; outline-offset: 1px; }
+#sms-app .sidebar-footer { border-top: 1px solid var(--color-sidebar-border) !important; background: transparent !important; }
+#sms-app .sidebar-user { background: rgba(255, 255, 255, 0.04) !important; border: 1px solid var(--color-sidebar-border) !important; box-shadow: none !important; }
+#sms-app .sidebar-user b { color: #ffffff !important; }
+#sms-app .sidebar-user small { color: var(--color-sidebar-muted) !important; }
+#sms-app .sidebar-logout { background: transparent !important; border: 1px solid var(--color-sidebar-border) !important; color: var(--sidebar-item) !important; box-shadow: none !important; }
+#sms-app .sidebar-logout:hover { background: var(--color-sidebar-hover) !important; color: #ffffff !important; }
+#sms-app .sidebar-close-button { color: var(--sidebar-item) !important; background: transparent !important; }
+
+/* Topbar: flat white bar under the page edge (Figma 03 #7). */
+#sms-app .topbar { margin: 0 !important; border: 0 !important; border-bottom: 1px solid var(--color-border) !important; border-radius: 0 !important; background: var(--color-surface) !important; background-image: none !important; box-shadow: none !important; backdrop-filter: none !important; color: var(--color-text); }
+#sms-app .topbar-search, #sms-app .topbar-search input { background: var(--color-surface-muted) !important; border-color: var(--color-border) !important; color: var(--color-text) !important; box-shadow: none !important; }
+#sms-app .topbar-actions > button, #sms-app .theme-control, #sms-app .workflow-command-trigger { background: var(--color-surface) !important; border-color: var(--color-border) !important; color: var(--color-text-secondary) !important; box-shadow: none !important; }
+
+/* Page chrome: plain headings, quiet kickers, flat white cards (F3). */
+#sms-app .main-area h1 { color: var(--color-text) !important; font-size: 22px !important; font-weight: 700 !important; letter-spacing: 0 !important; line-height: 1.35 !important; background: none !important; -webkit-text-fill-color: currentColor !important; }
+#sms-app .main-area :is(h2, h3) { color: var(--color-text) !important; font-weight: 700 !important; letter-spacing: 0 !important; -webkit-text-fill-color: currentColor !important; }
+#sms-app .main-area :is(.nexus-kicker, .page-header-kicker, .section-card-kicker, .layout-section-card__kicker, [class*="kicker"]) { color: var(--color-text-muted) !important; font-size: 12px !important; font-weight: 500 !important; letter-spacing: 0 !important; text-transform: none !important; }
+#sms-app .main-area :is(.layout-section-card, .section-card, .table-card, .nexus-panel, .metric-card, .workflow-journey, .my-work-queue, .schedule-rule-panel) { background: var(--color-surface) !important; background-image: none !important; border: 1px solid var(--color-border) !important; border-radius: 14px !important; box-shadow: var(--shadow-sm) !important; color: var(--color-text); }
+
+/* Layout foundation variables follow the design set (F2: radius 14 · IBM Plex Sans Thai). */
+#sms-app { --layout-card-radius: 14px; --layout-heading-font: "IBM Plex Sans Thai", sans-serif; --layout-body-font: "IBM Plex Sans Thai", sans-serif; }
+#sms-app .content-area .layout-page-surface :is(.layout-section-card, .layout-metric-card, .layout-step-flow) { border-radius: 14px !important; }
+#sms-app .attendance-device-security-note { padding-top: 12px !important; padding-bottom: 12px !important; }
+#sms-app .data-table-scroll { padding-top: 1px !important; }
+
+/* Topbar per F4/W-01: page name as breadcrumb, no environment pill, compact controls. */
+@media (min-width: 1024px) {
+  #sms-app .topbar { display: flex !important; flex-wrap: nowrap !important; align-items: center !important; gap: 16px !important; grid-template-columns: none !important; }
+  #sms-app .topbar-search { flex: 1 1 280px !important; max-width: 420px !important; margin-left: auto !important; }
+  #sms-app .topbar-actions { flex: 0 0 auto !important; flex-wrap: nowrap !important; }
+  #sms-app .topbar-left { display: flex !important; align-items: center; flex: 0 0 auto; }
+  #sms-app .topbar-left :is(.mobile-menu-button, .mobile-brand) { display: none !important; }
+  #sms-app .topbar-copy { display: flex !important; align-items: center; gap: 8px; color: var(--color-text-muted) !important; font-size: 14px; }
+  #sms-app .topbar-copy::before { content: "หน้าหลัก  ›"; white-space: pre; color: var(--color-text-muted); }
+  #sms-app .topbar-copy strong { color: var(--color-text) !important; font-size: 14px !important; font-weight: 600 !important; }
+  #sms-app .topbar-copy small { display: none !important; }
+  #sms-app .environment-pill { display: none !important; }
+  #sms-app .accent-control button { width: 20px; height: 20px; min-height: 20px; }
+}
+#sms-app .sr-only { position: absolute !important; width: 1px !important; height: 1px !important; margin: -1px !important; padding: 0 !important; overflow: hidden !important; clip: rect(0 0 0 0) !important; clip-path: inset(50%) !important; white-space: nowrap !important; border: 0 !important; }
+
+/* KPI / metric cards everywhere (F3 Kpi): icon chip + label, large value, quiet context. */
+#sms-app .layout-metric-card { display: grid !important; grid-template-columns: auto minmax(0, 1fr); grid-template-areas: "icon label" "value value" "desc desc"; align-items: center; gap: 10px 12px !important; padding: 18px !important; text-align: left; }
+#sms-app .layout-metric-card > svg { grid-area: icon; box-sizing: content-box; width: 20px; height: 20px; padding: 10px; border-radius: 10px; background: var(--color-primary-soft); color: var(--color-primary); }
+#sms-app .layout-metric-card > h2 { grid-area: label; margin: 0 !important; color: var(--color-text-secondary) !important; font-size: 14px !important; font-weight: 500 !important; }
+#sms-app .layout-metric-card > .layout-metric-card__value { grid-area: value; color: var(--color-text) !important; font-size: 30px !important; font-weight: 700 !important; line-height: 1.1; }
+#sms-app .layout-metric-card > p { grid-area: desc; margin: 0 !important; color: var(--color-text-secondary) !important; font-size: 12px !important; }
+#sms-app :is(.personnel-metric--green, .layout-metric-card--success) > svg { background: var(--color-success-soft); color: var(--color-success); }
+#sms-app :is(.personnel-metric--amber, .layout-metric-card--warning) > svg { background: var(--color-warning-soft); color: var(--color-warning); }
+#sms-app :is(.personnel-metric--blue, .layout-metric-card--info) > svg { background: var(--color-info-soft); color: var(--color-info); }
+
+/* Buttons (F3): solid brand primary, quiet outline secondary; no glow or gradient. */
+#sms-app .main-area :is(.btn-primary,.primary-button){border:1px solid var(--sidebar-active)!important;background:var(--sidebar-active)!important;background-image:none!important;color:#fff!important;box-shadow:none!important;border-radius:10px!important;font-weight:600!important}
+#sms-app .main-area :is(.btn-primary,.primary-button):hover{filter:brightness(1.08)}
+#sms-app .main-area :is(.btn-neutral,.btn-secondary,.small-action){border:1px solid var(--color-border)!important;background:var(--color-surface)!important;background-image:none!important;color:var(--color-text)!important;box-shadow:none!important;border-radius:10px!important}
+#sms-app .main-area .signature-filter-bar{padding:0!important;border:0!important;background:transparent!important;box-shadow:none!important}
+#sms-app .schedule-calendar-page{animation:none!important}
+#sms-app .sidebar-rail-toggle{display:none}

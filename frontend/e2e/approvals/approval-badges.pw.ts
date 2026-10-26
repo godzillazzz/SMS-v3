@@ -87,9 +87,10 @@ async function expectAdminMenuCounts(page: Page) {
     ['employees', 'ข้อมูลพนักงาน', 5, '5'],
     ['licenses', 'ใบอนุญาต รปภ.', 5, '5'],
     ['attendanceSupervisor', 'ศูนย์ควบคุมการลงเวลา', 13, '13'],
-    ['users', 'ผู้ใช้และสิทธิ์', 36, '36'],
-    ['leavePending', 'อนุมัติคำขอลา', 23, '23']
+    ['users', 'ผู้ใช้และสิทธิ์', 36, '36']
   ] as const;
+  // D-U2: leave approvals are decided in the Approval Center; the duplicate leave-approval menu is hidden.
+  await expect(page.locator('[data-navigation-id="leavePending"]')).toHaveCount(0);
 
   for (const [id, label, count, badge] of rows) {
     const button = page.locator(`[data-navigation-id="${id}"]`);
@@ -247,7 +248,9 @@ for (const viewport of [{ label: 'desktop', width: 1366, height: 768 }, { label:
   await expect(page.getByRole('heading', { name: 'ศูนย์อนุมัติคำขอ' })).toBeVisible();
   await openNavigation(page, viewport.width);
   if (viewport.width <= 760) await page.locator('.sidebar-close-button').click();
-  await page.getByRole('button', { name: 'อนุมัติทันที', exact: true }).first().click();
+  // W-02: rows open the decision panel; the decision happens inside it.
+  await page.locator('.approval-action-button--review:visible').first().click();
+  await page.locator('.approval-decision-panel').getByRole('button', { name: 'อนุมัติ…', exact: true }).click();
   const dialog = page.getByRole('dialog');
   await expect(dialog).toBeVisible();
   const summaryRequestsBeforeApprove = decisionSummaryRequests;
@@ -255,9 +258,11 @@ for (const viewport of [{ label: 'desktop', width: 1366, height: 768 }, { label:
   await expect(dialog).toHaveCount(0);
   await expect.poll(() => decisionSummaryRequests).toBeGreaterThan(summaryRequestsBeforeApprove);
   await expect(page.locator('[data-navigation-id="approvalCenter"] .nav-count-badge')).toHaveText('2');
-  await expect(page.locator('[data-navigation-id="leavePending"] .nav-count-badge')).toHaveText('2');
-  await expect(page.getByRole('button', { name: 'ส่งกลับไปแก้ไข', exact: true })).toHaveCount(2);
-  await page.getByRole('button', { name: 'ส่งกลับไปแก้ไข', exact: true }).first().click();
+  await expect(page.locator('[data-navigation-id="leavePending"]')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'ส่งกลับไปแก้ไข', exact: true })).toHaveCount(0);
+  await expect(page.locator('.approval-action-button--review:visible')).toHaveCount(2);
+  await page.locator('.approval-action-button--review:visible').first().click();
+  await page.locator('.approval-decision-panel').getByRole('button', { name: 'ส่งกลับไปแก้ไข', exact: true }).click();
   await expect(dialog).toBeVisible();
   await dialog.getByLabel('ระบุเหตุผลที่ส่งกลับไปแก้ไข (จำเป็น)').fill('ขอแก้ไขข้อมูล');
   const summaryRequestsBeforeReturn = decisionSummaryRequests;
@@ -268,7 +273,7 @@ for (const viewport of [{ label: 'desktop', width: 1366, height: 768 }, { label:
   await expect(page.getByRole('heading', { name: 'ศูนย์อนุมัติคำขอ' })).toBeVisible();
   await openNavigation(page, viewport.width);
   await expect(page.locator('[data-navigation-id="approvalCenter"] .nav-count-badge')).toHaveText('1');
-  await expect(page.locator('[data-navigation-id="leavePending"] .nav-count-badge')).toHaveText('1');
+  await expect(page.locator('[data-navigation-id="leavePending"]')).toHaveCount(0);
   expect(summary.total).toBe(1);
   expect(summary.byType.LEAVE_REQUEST).toBe(1);
   expect(decisions).toHaveLength(2);

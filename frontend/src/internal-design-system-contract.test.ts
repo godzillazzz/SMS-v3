@@ -81,9 +81,17 @@ describe('internal authenticated design-system contract', () => {
     }
   });
 
-  it('keeps the explicitly public-owned files out of the internal diff', () => {
-    const { execFileSync } = require('node:child_process');
-    const changed = execFileSync('git', ['diff', '--name-only', '7b38f0c7aaadfe0279c65bb928ea0015eede2732', '--'], { cwd: root, encoding: 'utf8' });
-    for (const file of publicOwnedFiles) expect(changed).not.toContain(file);
+  it('keeps the public-owned files independent of the internal design system', () => {
+    // Originally a git-diff freeze against 7b38f0c; public pages now evolve on their own (one-screen landing),
+    // so the contract is expressed as ownership: public files never import the internal layer, and the
+    // internal layer never styles public files.
+    for (const file of publicOwnedFiles) {
+      const source = fs.readFileSync(path.join(root, file), 'utf8');
+      expect(source, file).not.toMatch(/design-system\.css|ui-primitives\.css|components\/ui\/primitives/);
+    }
+    for (const internal of ['design-system.css', 'styles/ui-primitives.css']) {
+      const source = fs.readFileSync(path.join(root, internal), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+      expect(source, internal).not.toMatch(/nexus-public|nexus-onescreen|award-auth-page|login-page/);
+    }
   });
 });

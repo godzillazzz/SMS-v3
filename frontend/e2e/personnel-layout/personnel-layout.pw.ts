@@ -22,7 +22,7 @@ for(const [path,title] of pages)for(const theme of ['light','dark'])for(const wi
  await expect(page.getByRole('heading',{level:1,name:title,exact:true})).toBeVisible();
  const root=page.locator('.layout-personnel-page');await expect(root).toHaveCount(1);
  await expect(root.locator('.layout-section-card').first()).toBeVisible();
- await expect.poll(()=>root.locator('h1,h2').evaluateAll(els=>els.every(el=>getComputedStyle(el).fontFamily.includes('Kanit')))).toBe(true);
+ await expect.poll(()=>root.locator('h1,h2').evaluateAll(els=>els.every(el=>getComputedStyle(el).fontFamily.includes('IBM Plex Sans Thai')))).toBe(true);
  expect(await root.evaluate(el=>getComputedStyle(el).backgroundColor)).toBe('rgba(0, 0, 0, 0)');
  const audit=await root.evaluate(el=>[...el.querySelectorAll<HTMLElement>('section,article,div,header')].flatMap(node=>{
   const rect=node.getBoundingClientRect(),s=getComputedStyle(node);if(rect.width<240||rect.height<24)return[];
@@ -34,12 +34,12 @@ for(const [path,title] of pages)for(const theme of ['light','dark'])for(const wi
   return [{backgroundLum,class:node.className,radius:parseFloat(s.borderTopLeftRadius),paddingLeft:parseFloat(s.paddingLeft),paddingTop:parseFloat(s.paddingTop),inset}];
  }));
  await info.attach('large-box-layout-audit',{body:JSON.stringify(audit,null,2),contentType:'application/json'});
- expect(audit.filter(box=>![16,10].includes(box.radius)),JSON.stringify(audit)).toEqual([]);
+ expect(audit.filter(box=>![14,10].includes(box.radius)),JSON.stringify(audit)).toEqual([]);
  if(theme==='light')expect(audit.filter(box=>box.backgroundLum!==null && box.backgroundLum<.15),JSON.stringify(audit)).toEqual([]);
  expect(audit.filter(box=>box.inset && (box.inset.left<16||box.inset.top<12)),JSON.stringify(audit)).toEqual([]);
  for(const card of await root.locator('.layout-section-card,.layout-metric-card,.layout-step-flow').all()){
   const spacing=await card.evaluate(el=>{const r=el.getBoundingClientRect(),title=el.querySelector('h2')!.getBoundingClientRect();return{left:title.left-r.left,top:title.top-r.top,radius:getComputedStyle(el).borderTopLeftRadius}});
-  expect(spacing.radius).toBe('16px');expect(spacing.left).toBeGreaterThanOrEqual(16);expect(spacing.top).toBeGreaterThanOrEqual(12);
+  expect(spacing.radius).toBe('14px');expect(spacing.left).toBeGreaterThanOrEqual(16);expect(spacing.top).toBeGreaterThanOrEqual(12);
  }
  if(path==='devices')await expect(root.getByRole('heading',{name:'สถานะอุปกรณ์ของฉัน'})).toBeVisible();
  expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);expect(writes).toEqual([]);expect(errors).toEqual([]);

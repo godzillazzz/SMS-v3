@@ -555,18 +555,14 @@
   overflow-wrap: anywhere;
 }
 
-.configuration-registry-mobile-skeleton,
-.leave-type-mobile-skeleton,
-.retention-run-mobile-skeleton {
+.leave-type-mobile-skeleton,.retention-run-mobile-skeleton {
   display: grid;
   min-height: 120px;
   gap: 9px;
   padding: 14px;
 }
 
-.configuration-registry-mobile-skeleton .data-table-skeleton-bar,
-.leave-type-mobile-skeleton .data-table-skeleton-bar,
-.retention-run-mobile-skeleton .data-table-skeleton-bar {
+.leave-type-mobile-skeleton .data-table-skeleton-bar,.retention-run-mobile-skeleton .data-table-skeleton-bar {
   min-height: 13px;
 }
 

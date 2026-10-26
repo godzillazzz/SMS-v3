@@ -167,7 +167,7 @@ describe('ApprovalCenterPage unified approval inbox', () => {
     fireEvent.click(screen.getAllByRole('button', { name: 'ดูรายละเอียดตารางกะ' })[0]);
     await waitFor(() => expect(onNavigate).toHaveBeenCalled());
     expect(onNavigate.mock.calls[0][0].type).toBe('SCHEDULE_APPROVAL');
-    expect(screen.queryByRole('button', { name: 'อนุมัติทันที' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'อนุมัติ…' })).toBeNull();
     expect(mocks.updateScheduleApproval).not.toHaveBeenCalled();
   });
 });

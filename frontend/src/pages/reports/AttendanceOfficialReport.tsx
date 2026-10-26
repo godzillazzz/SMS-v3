@@ -62,16 +62,15 @@ function resultText(row: AttendanceReportRow) {
   if (flags.has('OUTSIDE_ALL_SITES')) labels.push('อยู่นอกพื้นที่ Site');
   if (flags.has('WRONG_SHIFT')) labels.push('ผิดกะ');
   if (flags.has('DEVICE_MISMATCH')) labels.push('ใช้อุปกรณ์อื่น · ตรวจสอบ');
-  if (row.workSiteContext === 'SUPPORT_SITE' || flags.has('ASSIST_OTHER_SITE')) labels.push(`ช่วยปฏิบัติงาน ณ ${row.actualSite?.name || row.actualSite?.code || '-'}`);
+  if (row.workSiteContext === 'SUPPORT_SITE' || flags.has('ASSIST_OTHER_SITE')) labels.push(`ช่วยปฏิบัติงาน Site ${row.actualSite?.code || row.actualSite?.name || '-'}`);
   const punctuality = row.punctuality || (flags.has('LATE') ? 'LATE' : flags.has('ON_TIME') ? 'ON_TIME' : null);
   if (punctuality === 'LATE') labels.push('มาสาย');
-  else if (punctuality === 'ON_TIME') labels.push('ตรงเวลา');
   const checkout = row.checkoutCondition || (flags.has('MISSING_CHECK_OUT') ? 'MISSING_CHECK_OUT' : flags.has('EARLY_OUT') ? 'EARLY_LEAVE' : null);
   if (checkout === 'EARLY_LEAVE') labels.push('ออกก่อนเวลา');
   if (checkout === 'MISSING_CHECK_OUT' || flags.has('MISSING_CHECK_OUT')) labels.push('ไม่ได้ลงเวลาออก');
   if (row.abnormalTime || flags.has('TIME_ABNORMAL')) labels.push(abnormalReasonText(row.abnormalReasons));
-  if (labels.length) return [...new Set(labels)].join(' / ');
-  return row.status || '-';
+  // Owner rule 2026-10-26: a normal day at the employee's own Site leaves หมายเหตุ blank.
+  return [...new Set(labels)].join(' / ');
 }
 
 function monthDayRows(rows: AttendanceReportRow[], period: string) {
@@ -100,6 +99,7 @@ function monthDayRows(rows: AttendanceReportRow[], period: string) {
       const flags = new Set(row.flags || []);
       if (flags.has('LEAVE')) notes.add('ลา (ประเภทไม่อยู่ใน Snapshot)');
       if (flags.has('ABSENT')) notes.add('ขาด');
+      if (row.workSiteContext === 'SUPPORT_SITE' || flags.has('ASSIST_OTHER_SITE')) notes.add(`ช่วยปฏิบัติงาน Site ${row.actualSite?.code || row.actualSite?.name || '-'}`);
       if (flags.has('LATE')) notes.add('มาสาย');
       if (row.checkoutCondition === 'EARLY_LEAVE' || flags.has('EARLY_OUT')) notes.add('ออกก่อนเวลา');
       if (row.abnormalTime || flags.has('TIME_ABNORMAL') || flags.has('MISSING_CHECK_OUT')) notes.add(abnormalReasonText(row.abnormalReasons));

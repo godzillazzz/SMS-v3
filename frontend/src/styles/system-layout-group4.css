@@ -91,7 +91,6 @@ html[data-theme] .app-shell .content-area .layout-page-surface :is(.audit-metric
   color: var(--color-text) !important;
   box-shadow: var(--shadow-sm) !important;
 }
-html[data-theme] .app-shell .content-area .layout-page-surface :is(.audit-metric p,.audit-metric small,.data-quality-kpi p,.data-quality-kpi small,.system-health-kpi span,.system-health-kpi small,.settings-section-nav small,.security-site-admin__card-title small) { color: var(--color-text-secondary) !important; }
 html[data-theme] .app-shell .content-area .layout-page-surface :is(.audit-metric strong,.data-quality-kpi strong,.system-health-kpi strong,.settings-section-nav strong,.security-site-admin__card h3) { color: var(--color-text) !important; font-family: var(--layout-heading-font); }
 html[data-theme] .app-shell .content-area .layout-page-surface :is(.audit-toolbar,.data-quality-filter-bar,.report-center-tabs,.report-center-tabs button,.report-center-state,.audit-table-card,.data-quality-desktop-table,.data-quality-mobile-card,.system-health-scope,.security-site-authority-rule) {
   border-color: var(--color-border) !important;
@@ -131,8 +130,4 @@ html[data-theme] .app-shell .content-area .security-site-admin--layout .gis-inte
 }
 @media(max-width:430px) {
   html[data-theme] .app-shell .content-area .security-site-admin--layout .nexus-gis-status-strip { grid-template-columns: 1fr; }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .layout-page-surface :is(.data-quality-loading-row,.audit-metric-skeleton,.gis-status-skeleton) { animation: none !important; }
 }

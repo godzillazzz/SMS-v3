@@ -15,7 +15,6 @@
 }
 .auth-skip-link:focus-visible { transform: translateY(0); box-shadow: var(--focus-ring); }
 .auth-form input::placeholder { color: var(--color-text-muted); opacity: 1; }
-.auth-or-separator { color: var(--color-text-muted); }
 
 .auth-experience-page {
   min-height: 100dvh;
@@ -121,19 +120,6 @@
   display: flex;
   align-items: center;
   gap: 13px;
-}
-
-.auth-brand .brand-mark {
-  width: 44px;
-  height: 44px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 5px;
-  border-radius: 13px;
-  color: #fff;
-  background: linear-gradient(135deg, var(--color-primary), var(--color-primary-hover));
-  box-shadow: 0 10px 22px color-mix(in srgb, var(--color-primary) 28%, transparent);
 }
 
 .auth-brand > span:last-child {
@@ -816,12 +802,6 @@
   .auth-brand-panel {
     min-height: 140px;
     padding: 18px 20px;
-  }
-
-  .auth-brand .brand-mark {
-    width: 40px;
-    height: 40px;
-    border-radius: 12px;
   }
 
   .auth-brand-copy {

@@ -20,6 +20,16 @@
           document.querySelector('meta[name="theme-color"]').content = '#020813';
         }
         try {
+          if (employeePwa) {
+            // Employee PWA keeps its own preference (default dark); the desktop preference is untouched.
+            const pwaStored = localStorage.getItem('sms-v3-pwa-theme');
+            const pwaTheme = pwaStored === 'light' ? 'light' : 'dark';
+            document.documentElement.dataset.theme = pwaTheme;
+            document.documentElement.dataset.pwaTheme = pwaTheme;
+            document.documentElement.dataset.themePreference = pwaTheme;
+            if (pwaTheme === 'light') document.querySelector('meta[name="theme-color"]').content = '#F3F5F9';
+            return;
+          }
           const stored = localStorage.getItem('sms-v3-theme');
           const preference = stored === 'light' || stored === 'dark' || stored === 'system' ? stored : 'system';
           const dark = preference === 'dark' || (preference === 'system' && matchMedia('(prefers-color-scheme: dark)').matches);

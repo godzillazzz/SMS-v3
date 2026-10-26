@@ -1,0 +1,105 @@
+/* Thai wording for backend 4xx messages that are still English (audit X-01).
+   Frontend-only mapping: the API and its English messages are unchanged. Unknown messages pass through. */
+
+const EXACT: Record<string, string> = {
+  'Invalid email or password.': 'เข้าสู่ระบบไม่สำเร็จ ตรวจอีเมลและรหัสผ่าน · ถ้าเพิ่งลงทะเบียน บัญชีต้องได้รับอนุมัติก่อน',
+  'Authentication required.': 'กรุณาเข้าสู่ระบบอีกครั้ง',
+  'Unauthorized.': 'กรุณาเข้าสู่ระบบอีกครั้ง',
+  'Invalid or expired access token.': 'เซสชันหมดอายุ กรุณาเข้าสู่ระบบอีกครั้ง',
+  'You do not have permission for this action.': 'บัญชีของคุณไม่มีสิทธิ์ทำรายการนี้',
+  'View As mode is read-only.': 'โหมดดูแทนใช้ดูข้อมูลได้อย่างเดียว ออกจากโหมดดูแทนก่อนทำรายการ',
+  'CSRF validation failed.': 'หน้าเว็บหมดอายุ กรุณารีเฟรชแล้วลองใหม่',
+  'Update body cannot be empty.': 'ยังไม่มีข้อมูลที่แก้ไข',
+  'Month must use YYYY-MM.': 'รูปแบบเดือนไม่ถูกต้อง',
+  'Invalid or expired verification code.': 'รหัสยืนยันไม่ถูกต้องหรือหมดอายุ กรุณาขอรหัสใหม่',
+  'An overlapping leave request already exists.': 'มีคำขอลาในช่วงวันที่ทับกันอยู่แล้ว',
+  'Leave quota state changed. Refresh and try again.': 'โควตาวันลาเปลี่ยนระหว่างทำรายการ กรุณารีเฟรชแล้วลองใหม่',
+  'Unsupported leave type.': 'ไม่พบประเภทการลานี้ หรือถูกปิดใช้งาน',
+  'Leave type not found.': 'ไม่พบประเภทการลานี้ หรือถูกปิดใช้งาน',
+  'Leave type name is required.': 'กรุณาระบุชื่อประเภทการลา',
+  'Selected employee already has a leave quota for this year.': 'พนักงานคนนี้มีโควตาวันลาของปีนี้แล้ว',
+  'Employee already has a leave quota for this year.': 'พนักงานคนนี้มีโควตาวันลาของปีนี้แล้ว',
+  'A linked employee account is required.': 'บัญชีนี้ยังไม่ได้ผูกกับข้อมูลพนักงาน กรุณาติดต่อผู้ดูแลระบบ',
+  'Shift type is inactive and cannot be assigned to a new schedule.': 'รหัสกะนี้ปิดใช้งานแล้ว ใช้กับตารางใหม่ไม่ได้',
+  'Only Admin may include inactive shift types.': 'เฉพาะผู้ดูแลระบบที่ดูรหัสกะที่ปิดใช้งานได้',
+  'No schedule rows were found for export.': 'ไม่มีข้อมูลตารางกะสำหรับส่งออก',
+  'License number is required.': 'กรุณาระบุเลขที่ใบอนุญาต',
+  'License number already exists.': 'มีเลขที่ใบอนุญาตนี้ในระบบแล้ว',
+  'Inactive employees cannot receive operational license changes.': 'พนักงานที่พ้นสภาพแล้วแก้ไขใบอนุญาตไม่ได้',
+  'Only returned license documents can be resubmitted.': 'ส่งเอกสารซ้ำได้เฉพาะเอกสารที่ถูกส่งกลับให้แก้ไข',
+  'Security Site code already exists.': 'มีรหัสจุดปฏิบัติงานนี้แล้ว',
+  'Security Site not found.': 'ไม่พบจุดปฏิบัติงานนี้',
+  'Check-out time must be after check-in time.': 'เวลาออกต้องหลังเวลาเข้า',
+  'Attendance adjustment reason must contain 5-1000 characters.': 'กรุณาระบุเหตุผลอย่างน้อย 5 ตัวอักษร',
+  'Reviewer comment must contain 3-1000 characters.': 'กรุณาระบุความเห็นอย่างน้อย 3 ตัวอักษร',
+  'Confirm-work request requires both check-in and check-out times.': 'การยืนยันการปฏิบัติงานต้องมีทั้งเวลาเข้าและเวลาออก',
+  'Adjust-work-time request requires at least one proposed time.': 'กรุณาระบุเวลาที่ขอแก้อย่างน้อยหนึ่งช่อง',
+  'ATTENDANCE_ADJUSTMENT_WINDOW_INVALID': 'เวลาที่ขออยู่นอกช่วงที่กะนี้อนุญาต',
+  'ATTENDANCE_ADJUSTMENT_DURATION_INVALID': 'ช่วงเวลาที่ขอยาวเกิน 16 ชั่วโมง',
+  'ATTENDANCE_ADJUSTMENT_BACKDATE_FORBIDDEN': 'ขอแก้ย้อนหลังได้ไม่เกิน 3 วัน (ผู้ดูแลระบบไม่จำกัด)',
+  'A linked employee account may adjust only its own shift.': 'พนักงานขอแก้ได้เฉพาะกะของตนเอง',
+  'CHECK_IN is required before CHECK_OUT.': 'ต้องลงเวลาเข้าก่อนลงเวลาออก',
+  'Attendance session is already closed.': 'กะนี้ลงเวลาออกแล้ว',
+  'The current shift is not eligible for Attendance.': 'ยังไม่ถึงช่วงเวลาลงเวลาของกะนี้ หรือกะนี้ลงเวลาไม่ได้',
+  'A selfie is required for this Attendance action.': 'ต้องถ่ายเซลฟี่ก่อนลงเวลา',
+  'A validated live selfie is required for this Attendance action.': 'ต้องถ่ายเซลฟี่ใหม่ก่อนลงเวลา',
+  'Attendance selfie must be a valid JPEG or PNG image.': 'รูปเซลฟี่ต้องเป็นไฟล์ JPEG หรือ PNG',
+  'Inactive employees cannot enroll an Attendance device.': 'พนักงานที่พ้นสภาพแล้วลงทะเบียนอุปกรณ์ไม่ได้',
+  'Attendance device state changed. Please refresh and try again.': 'สถานะอุปกรณ์เปลี่ยนไป กรุณารีเฟรชแล้วลองใหม่',
+  'Official Attendance reports require Admin or Supervisor authority.': 'รายงานลงเวลาประจำเดือนดูได้เฉพาะผู้ดูแลระบบและหัวหน้างาน',
+  'Approval Center requires Supervisor, Manager, or Admin authority.': 'ศูนย์อนุมัติใช้ได้เฉพาะหัวหน้างาน ผู้จัดการ และผู้ดูแลระบบ',
+  'Administrator access is required.': 'ต้องเป็นผู้ดูแลระบบจึงทำรายการนี้ได้',
+  'Admin role is required.': 'ต้องเป็นผู้ดูแลระบบจึงทำรายการนี้ได้',
+  'Admin approval is required for this action.': 'รายการนี้ต้องให้ผู้ดูแลระบบอนุมัติ',
+  'Managers may approve pending accounts only.': 'ผู้จัดการอนุมัติได้เฉพาะบัญชีที่รออนุมัติ',
+  'Selected employee is unavailable.': 'พนักงานที่เลือกไม่พร้อมใช้งาน อาจพ้นสภาพแล้ว',
+  'Attendance session is voided.': 'รายการลงเวลานี้ถูกยกเลิกแล้ว',
+  'The Shift Assignment does not have an authoritative Security Site.': 'กะนี้ยังไม่ได้กำหนดจุดปฏิบัติงาน กรุณาติดต่อหัวหน้างาน',
+  'The employee Department has no authoritative Default Security Site.': 'หน่วยงานของพนักงานยังไม่มีจุดปฏิบัติงานหลัก กรุณาติดต่อผู้ดูแลระบบ',
+  'The authoritative Security Site is inactive.': 'จุดปฏิบัติงานนี้ปิดใช้งานแล้ว กรุณาติดต่อผู้ดูแลระบบ',
+  'The Department Default Security Site is inactive.': 'จุดปฏิบัติงานหลักของหน่วยงานปิดใช้งานแล้ว กรุณาติดต่อผู้ดูแลระบบ',
+  'The employee Department has more than one Default Security Site.': 'หน่วยงานนี้มีจุดปฏิบัติงานหลักมากกว่าหนึ่งแห่ง กรุณาติดต่อผู้ดูแลระบบ',
+  'This Employee already has a pending Reference Photo.': 'พนักงานคนนี้มีรูปอ้างอิงที่รออนุมัติอยู่แล้ว',
+  'Returned Attendance adjustment request must be revised before it can be submitted again.': 'คำขอที่ถูกส่งกลับต้องแก้ไขก่อนส่งอีกครั้ง',
+  'Certified Attendance month must be unlocked before approving an adjustment.': 'เดือนนี้รับรองแล้ว ต้องปลดล็อกเดือนก่อนอนุมัติคำขอแก้เวลา',
+  'Effective check-out time must be after check-in time.': 'เวลาออกต้องหลังเวลาเข้า',
+  'Submitted adjustment proposal has no effective time changes.': 'เวลาที่ขอเหมือนเวลาเดิม ยังไม่มีอะไรเปลี่ยน',
+  'Attendance month is certified and cannot be voided.': 'เดือนนี้รับรองแล้ว ยกเลิกรายการลงเวลาไม่ได้',
+  'Inactive employees cannot receive a Reference Photo change.': 'พนักงานที่พ้นสภาพแล้วเปลี่ยนรูปอ้างอิงไม่ได้',
+  'No active eligible employees were found.': 'ไม่พบพนักงานที่ใช้งานอยู่และเข้าเงื่อนไข',
+  'Legacy leave quota must be classified before annual provisioning.': 'ต้องจัดการโควตาข้อมูลเดิมก่อนสร้างโควตาประจำปี',
+  'Search requires at least 2 characters.': 'พิมพ์คำค้นหาอย่างน้อย 2 ตัวอักษร',
+  'Check-in is earlier than the configured attendance window.': 'ยังเร็วเกินไปสำหรับการลงเวลาเข้าของกะนี้',
+  'Check-in is later than the configured attendance window.': 'เลยช่วงเวลาที่ลงเวลาเข้าได้ของกะนี้แล้ว',
+  'Check-out is earlier than the configured attendance window.': 'ยังเร็วเกินไปสำหรับการลงเวลาออกของกะนี้',
+  'Check-out is later than the configured attendance window.': 'เลยช่วงเวลาที่ลงเวลาออกได้ของกะนี้แล้ว',
+  'Attendance time policies support COMPANY scope only.': 'นโยบายเวลาลงงานตั้งได้เฉพาะระดับบริษัท',
+  'Attendance time policy cannot be made effective in the past.': 'วันที่เริ่มใช้นโยบายต้องไม่ย้อนหลัง',
+  'Effective time cannot be more than one year in the future.': 'วันที่เริ่มใช้ต้องไม่เกินหนึ่งปีจากวันนี้',
+  'Leave type code must use A-Z, 0-9, underscore, or hyphen.': 'รหัสประเภทการลาใช้ได้เฉพาะ A-Z, 0-9, _ และ -',
+  'This leave type is inactive and cannot be used for a new request.': 'ประเภทการลานี้ปิดใช้งานแล้ว ใช้ยื่นคำขอใหม่ไม่ได้',
+  'Inactive employees cannot record Attendance.': 'พนักงานที่พ้นสภาพแล้วลงเวลาไม่ได้',
+  'The monthly schedule is not currently approved.': 'ตารางกะเดือนนี้ยังไม่ได้รับอนุมัติ',
+  'Mandatory notification event cannot be disabled.': 'การแจ้งเตือนนี้จำเป็น ปิดไม่ได้',
+  'Reference photo access requires Admin or Manager.': 'ดูรูปอ้างอิงได้เฉพาะผู้ดูแลระบบและผู้จัดการ'
+};
+
+const RULES: Array<[RegExp, string]> = [
+  [/\b(?:not found|was not found|no longer viewable)\b/i, 'ไม่พบข้อมูลที่ต้องการ อาจถูกลบหรือเปลี่ยนแปลงแล้ว กรุณารีเฟรชหน้า'],
+  [/\b(?:changed|stale)\b.*|refresh and try again/i, 'ข้อมูลเปลี่ยนแปลงระหว่างทำรายการ กรุณารีเฟรชแล้วลองใหม่'],
+  [/\b(?:only\b.*\b(?:may|can)\b|requires? .*authority|access denied|permission|is required for this action|outside the actor scope|cannot access)\b/i, 'บัญชีของคุณไม่มีสิทธิ์ทำรายการนี้'],
+  [/\b(?:expired|already been consumed|already consumed)\b/i, 'รายการนี้หมดอายุหรือถูกใช้ไปแล้ว กรุณาเริ่มใหม่'],
+  [/\balready exists\b/i, 'มีข้อมูลนี้อยู่ในระบบแล้ว'],
+  [/\bis required\b|\bmust not exceed\b|\bmust contain\b/i, 'กรุณากรอกข้อมูลให้ครบและถูกต้อง'],
+  [/\b(?:invalid|unsupported|incomplete|malformed)\b/i, 'ข้อมูลไม่ถูกต้อง กรุณาตรวจสอบแล้วลองใหม่']
+];
+
+const THAI = /[฀-๿]/;
+
+export function thaiErrorMessage(message: string): string {
+  if (!message || THAI.test(message)) return message;
+  const exact = EXACT[message.trim()];
+  if (exact) return exact;
+  for (const [pattern, thai] of RULES) if (pattern.test(message)) return thai;
+  return message;
+}

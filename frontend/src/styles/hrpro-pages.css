@@ -1,0 +1,114 @@
+/* Page-level UI Redesign styles (licenses 06, leave 13-16). Loaded as its own chunk right after start-up
+   so the main CSS stays within budget. */
+/* Shared avatar + licenses (06 / W-08) */
+#sms-app .personnel-avatar{display:inline-grid;place-items:center;flex:0 0 auto;width:36px;height:36px;border-radius:50%;background:#1d4ed8;color:#fff;font-size:13px;font-weight:700}#sms-app .personnel-avatar[data-tone="1"]{background:#0b7a74}#sms-app .personnel-avatar[data-tone="2"]{background:#7c3aed}#sms-app .personnel-avatar[data-tone="3"]{background:#047857}#sms-app .personnel-avatar[data-tone="4"]{background:#0a68a0}
+#sms-app .license-person{display:inline-flex;align-items:center;gap:12px}#sms-app .license-person>span:last-child{display:grid}#sms-app .license-person strong{color:var(--color-text);font-weight:600}#sms-app .license-person small{color:var(--color-text-secondary);font-size:12px}
+#sms-app .license-expiry.is-expired{color:var(--color-danger);font-weight:700}#sms-app .license-expiry.is-soon{color:var(--color-warning);font-weight:700}
+#sms-app .license-bucket-chips{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 4px}#sms-app .license-bucket-chips button{display:inline-flex;align-items:center;gap:8px;min-height:36px;padding:0 14px;border:1px solid var(--color-border);border-radius:999px;background:var(--color-surface);color:var(--color-text);font-size:14px;font-weight:500;cursor:pointer}#sms-app .license-bucket-chips button b{padding:1px 8px;border-radius:999px;background:var(--color-surface-muted);color:var(--color-text-secondary);font-size:12px}#sms-app .license-bucket-chips button.is-active{border-color:var(--sidebar-active);background:var(--sidebar-active);color:#fff}#sms-app .license-bucket-chips button.is-active b{background:rgba(255,255,255,.2);color:#fff}
+/* Leave request per 13 / W-06: form left, balances + my requests right. */
+#sms-app .leave-page.leave-mode-all .leave-main-grid{display:grid!important;grid-template-columns:minmax(0,1.25fr) minmax(320px,1fr);gap:16px;align-items:start}
+#sms-app .leave-side{display:grid;gap:16px;min-width:0}
+#sms-app .leave-side .leave-quota-grid{display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px!important;margin:0!important}
+#sms-app .leave-side .layout-metric-card{grid-template-columns:1fr;grid-template-areas:"label" "value" "desc";padding:14px 16px!important}
+#sms-app .leave-side .layout-metric-card>svg{display:none}
+@media(max-width:1100px){#sms-app .leave-page.leave-mode-all .leave-main-grid{grid-template-columns:1fr}}
+#sms-app .leave-mode-all .leave-side .data-table-desktop{display:none!important}
+#sms-app .leave-mode-all .leave-side .data-table-mobile{display:block!important}
+#sms-app .leave-side .leave-history-mobile-list{display:grid;gap:10px}
+#sms-app .leave-side .leave-history-mobile-card{padding:14px 16px;border:0!important;border-radius:12px;background:var(--color-surface-muted)!important;box-shadow:none!important}
+#sms-app .leave-submit-card label>svg{display:none}
+#sms-app .leave-mode-history .leave-main-grid{display:block!important}#sms-app .leave-mode-history .leave-side .leave-quota-grid{display:none!important}
+#sms-app .leave-print-button{border:1px solid var(--color-border)!important;background:var(--color-surface)!important;color:var(--color-text)!important;box-shadow:none!important;border-radius:10px!important}
+#sms-app .quota-balance{display:grid;gap:6px;min-width:150px}#sms-app .quota-balance>span{color:var(--color-text-secondary);font-size:12px}#sms-app .quota-balance b{color:var(--color-text);font-size:15px}#sms-app .quota-balance>i{display:block;height:5px;border-radius:999px;background:var(--color-surface-muted)}#sms-app .quota-balance>i>i{display:block;height:100%;border-radius:inherit;background:#0e7a42}#sms-app .quota-balance--personal>i>i{background:#0a68a0}#sms-app .quota-balance--vacation>i>i{background:#985304}
+#sms-app .shift-code-chip{display:inline-grid;place-items:center;min-width:38px;height:26px;padding:0 8px;border-radius:7px;font:700 13px/1 'IBM Plex Sans Thai',sans-serif;color:color-mix(in srgb,var(--shift) 62%,#000);background:color-mix(in srgb,var(--shift) 13%,transparent);border:1px solid color-mix(in srgb,var(--shift) 35%,transparent)}
+#sms-app .shift-setup-desktop-table .shift-color{width:16px;height:16px;border-radius:5px;vertical-align:-3px;margin-right:6px}
+.shift-editor-code-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(112px,1fr));gap:8px;margin:4px 0 14px}
+.shift-editor-code-card{display:grid;gap:2px;justify-items:start;padding:10px 12px;border:1.5px solid var(--color-border,#E2E8F0);border-radius:10px;background:var(--color-surface,#fff);color:var(--color-text,#0F172A);font:inherit;text-align:left;cursor:pointer}
+.shift-editor-code-card b{display:inline-grid;place-items:center;min-width:34px;height:24px;padding:0 7px;border-radius:6px;font-size:13px;color:color-mix(in srgb,var(--shift) 62%,#000);background:color-mix(in srgb,var(--shift) 14%,transparent)}
+.shift-editor-code-card span{font-weight:600;font-size:13px}
+.shift-editor-code-card small{font-size:12px;color:var(--color-text-secondary,#475569)}
+.shift-editor-code-card[aria-pressed="true"]{border-color:var(--shift);box-shadow:0 0 0 3px color-mix(in srgb,var(--shift) 22%,transparent)}
+.shift-editor-code-card:focus-visible{outline:2px solid var(--color-primary,#1E3A8A);outline-offset:2px}
+.shift-editor-code-card{--shift:#2563EB}
+.shift-editor-code-card[data-shift-code="N"]{--shift:#7C3AED}
+.shift-editor-code-card[data-shift-code="S"]{--shift:#0D9488}
+.shift-editor-code-card[data-shift-code="OFF"]{--shift:#64748B}
+.shift-editor-code-card[data-shift-code="AL"]{--shift:#D97706}
+:root[data-theme="dark"] .shift-editor-code-card b{color:color-mix(in srgb,var(--shift) 55%,#fff)}
+.rule-switch{display:inline-flex;align-items:center;gap:8px;min-height:40px;padding:0 6px;border:0;background:none;color:var(--color-text);font:inherit;font-size:13px;cursor:pointer}
+.rule-switch__track{position:relative;width:36px;height:20px;border-radius:999px;background:var(--color-border-strong,#CBD5E1);transition:background .15s}
+.rule-switch__track::after{content:"";position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(15,23,42,.3);transition:transform .15s}
+.rule-switch[aria-checked="true"] .rule-switch__track{background:var(--color-primary,#1E3A8A)}
+.rule-switch[aria-checked="true"] .rule-switch__track::after{transform:translateX(16px)}
+.rule-switch:focus-visible{outline:2px solid var(--color-primary);outline-offset:2px;border-radius:8px}
+#sms-app .rule-result-badge::before{content:"";display:inline-block;width:6px;height:6px;border-radius:50%;background:currentColor;margin-right:6px;vertical-align:1px}
+#sms-app .rule-switch{border:0!important;background:none!important;box-shadow:none!important;min-width:0;padding:0 6px;color:var(--color-text)}
+#sms-app .users-access-workspace>.access-management-page{width:100%;max-width:none;margin-inline:0;justify-self:stretch}
+#sms-app .access-name-cell{display:flex;align-items:center;gap:10px}
+#sms-app .access-name-cell>span:last-child{display:grid}
+#sms-app .access-avatar{display:inline-grid;place-items:center;flex:0 0 32px;width:32px;height:32px;border-radius:50%;background:var(--color-primary);color:#fff;font-size:12px;font-weight:700}
+body>.workflow-command-layer .workflow-command{font-family:'IBM Plex Sans Thai',sans-serif;border-radius:16px;background:var(--color-surface);color:var(--color-text)}
+body>.workflow-command-layer .workflow-command header input{border:0!important;box-shadow:none!important;outline:0;background:transparent!important;font-size:16px;color:var(--color-text)}
+body>.workflow-command-layer .workflow-command__meta span{text-transform:none;letter-spacing:0;font-size:12px;font-weight:600;color:var(--color-text-secondary)}
+body>.workflow-command-layer .workflow-command__results button{border-radius:10px}
+body>.workflow-command-layer .workflow-command__results button:first-child,body>.workflow-command-layer .workflow-command__results button:hover,body>.workflow-command-layer .workflow-command__results button:focus-visible{background:color-mix(in srgb,var(--color-primary) 9%,transparent)}
+body>.workflow-command-layer .workflow-command__go{margin-left:auto;color:var(--color-primary);font-weight:700}
+body>.workflow-command-layer .workflow-command footer kbd{margin:0 2px 0 8px}
+body>.workflow-command-layer .workflow-command footer kbd:first-child{margin-left:0}
+.edit-dialog .dialog-section-title{grid-column:1/-1;margin:6px 0 -4px;font-size:13px;font-weight:700;color:var(--color-text-secondary)}
+.edit-dialog .dialog-section-title:not(:first-child){padding-top:10px;border-top:1px solid var(--color-border)}
+.edit-dialog .field-required{color:var(--color-danger,#DC2626)}
+.edit-dialog.personnel-editor .dialog-heading{justify-content:flex-start;align-items:flex-start;gap:14px;background:var(--color-surface)}
+.edit-dialog.personnel-editor .dialog-heading>button{margin-left:auto}
+.edit-dialog .edit-dialog-icon{display:inline-grid;place-items:center;flex:0 0 40px;width:40px;height:40px;border-radius:10px;background:color-mix(in srgb,var(--color-primary) 10%,transparent);color:var(--color-primary)}
+.edit-dialog .edit-dialog-lead{margin:2px 0 0;font-size:13px;color:var(--color-text-secondary)}
+#sms-app .edit-dialog .dialog-actions .btn-primary{background:var(--color-primary);border-color:var(--color-primary);color:#fff}
+.edit-dialog.personnel-editor .dialog-actions .btn-primary{background:var(--color-primary,#1E3A8A)!important;border-color:var(--color-primary,#1E3A8A)!important;color:#fff!important;box-shadow:none!important}
+.edit-dialog.personnel-editor .dialog-heading{border-bottom:1px solid var(--color-border)}
+@media print{
+.leave-print-document{position:relative!important}
+.leave-print-letterhead{display:flex;justify-content:space-between;align-items:flex-start;gap:8mm;margin-top:5mm;padding-bottom:4mm;border-bottom:1.5px solid #0F172A}
+.leave-print-brand{display:flex;gap:3mm;align-items:center}
+.leave-print-brand strong{display:block;font-size:13pt}.leave-print-brand small{font-size:9pt;color:#475569}
+.leave-print-mark{display:inline-grid;place-items:center;width:13mm;height:13mm;border-radius:2.5mm;background:#0F172A!important;color:#fff!important;font-weight:700;font-size:10pt;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.leave-print-letterhead .leave-print-heading{margin:0;text-align:right}
+.leave-print-letterhead .leave-print-heading h1{font-size:18pt}
+.leave-print-letterhead .leave-print-heading p{margin:1mm 0 0;font-size:10pt;color:#1E3A8A}
+.leave-print-letterhead .leave-print-heading small{display:block;margin-top:1mm;font-size:10pt}
+.leave-print-person{border-bottom:0!important}
+.leave-print-info{display:flex;gap:10mm;margin:1mm 0 0;font-size:12pt}.leave-print-info div{display:flex;gap:3mm}.leave-print-info dt{color:#475569}.leave-print-info dd{margin:0;font-weight:700}
+.leave-print-decision{display:flex;flex-wrap:wrap;align-items:center;gap:3mm 8mm;margin-top:6mm;padding:3mm 4mm;border:1px solid #94A3B8;border-radius:2mm;font-size:12pt}
+.leave-print-decision i{display:inline-block;width:4mm;height:4mm;border:1px solid #0F172A;vertical-align:-0.6mm;margin-right:1.5mm}
+.leave-print-decision i.is-checked{background:#0F172A!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.leave-print-decision small{flex-basis:100%;font-size:10pt;color:#475569}
+.leave-print-attachment{margin:4mm 0 0;font-size:12pt}
+.leave-print-signatures{display:grid!important;grid-template-columns:1fr 1fr;gap:10mm;width:100%!important;margin:14mm 0 0!important}
+.leave-print-signature-block+.leave-print-signature-block{margin-top:0!important}
+.leave-print-date{display:block;margin-top:1mm;font-size:10pt;color:#475569}
+.leave-print-watermark{position:absolute;top:45%;left:50%;transform:translate(-50%,-50%) rotate(-28deg);font-size:72pt;font-weight:700;color:rgba(220,38,38,.16)!important;pointer-events:none;white-space:nowrap}
+}
+/* M3 · mobile leave request inside the Employee PWA shell */
+.pwa-shell .leave-page .layout-page-header .eyebrow,.pwa-shell .leave-page .layout-page-header p{display:none}
+.pwa-shell .leave-page .layout-page-header{padding:0!important}
+.pwa-shell .leave-page .leave-main-grid{display:flex!important;flex-direction:column;gap:14px}
+.pwa-shell .leave-page .leave-side{display:contents!important}
+.pwa-shell .leave-page .leave-side>.leave-quota-grid{order:-1;display:flex!important;gap:10px;overflow-x:auto;scroll-snap-type:x mandatory;padding-bottom:4px;margin:0!important}
+.pwa-shell .leave-page .leave-side>.leave-quota-grid>*{flex:0 0 42%;scroll-snap-align:start;min-height:0!important;padding:12px!important}
+.pwa-shell .leave-page .leave-side>.leave-history-card{order:2}
+.pwa-shell .leave-page .leave-submit-card{order:1;border:0!important;background:transparent!important;box-shadow:none!important;padding:0!important}
+.pwa-shell .leave-page .leave-submit-card>header{display:none}
+.pwa-shell .leave-page .leave-submit-card :is(input,select,textarea){min-height:48px;border-radius:10px!important}
+.pwa-shell .leave-page .leave-submit-card form{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.pwa-shell .leave-page .leave-submit-card form>*{grid-column:1/-1}
+.pwa-shell .leave-page .leave-submit-card form>label:has(input[type=date]){grid-column:auto}
+.pwa-shell .leave-page .leave-submit-card label>span svg{display:none}
+.pwa-shell .leave-page .leave-date-grid{display:grid!important;grid-template-columns:1fr 1fr!important;gap:10px}
+html[data-theme] .app-shell.pwa-shell .content-area .layout-page-surface.leave-page section.leave-submit-card.layout-section-card{border:0!important;background:transparent!important;box-shadow:none!important;padding:0!important}
+.pwa-shell .leave-page .leave-quota-metric :is(.metric-icon,p,small,[class*=icon]){display:none!important}
+.pwa-shell .leave-page .leave-quota-metric{gap:4px!important}
+.pwa-shell .leave-page .leave-quota-metric strong{font-size:26px!important}
+.pwa-shell .leave-page .layout-page-header button{min-height:36px;padding:0 10px;font-size:12px}
+.pwa-shell .leave-page .leave-date-grid>label{min-width:0}
+.pwa-shell .leave-page .leave-date-grid input{width:100%;min-width:0;padding-inline:10px}
+.pwa-shell .leave-page .leave-quota-metric svg{display:none}
+.pwa-shell .leave-page .leave-quota-metric :is(h2,h3,span){font-size:13px!important}

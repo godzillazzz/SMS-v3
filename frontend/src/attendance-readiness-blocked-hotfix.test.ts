@@ -19,7 +19,8 @@ describe('Attendance readiness blocked hotfix', () => {
     expect(page).toContain('onOpenAttendanceDevice?: () => void');
     expect(page).toContain('onOpenAttendanceDevice?.()');
     expect(main).not.toContain("selectPwaPage('attendanceDevice')");
-    expect(main).toContain('onOpenAttendanceDevice={() => undefined}');
+    // Audit N-02: no no-op handler, so the simple page never shows a device button that does nothing.
+    expect(main).not.toContain('onOpenAttendanceDevice={() => undefined}');
     expect(page).toContain('Attendance ต้องมีอุปกรณ์สถานะ ACTIVE ที่ผูกกับพนักงาน');
     const verificationStart = page.indexOf('const started = await attendanceVerificationStart(token');
     const deviceProofFlow = page.indexOf('await performAttendanceDeviceProof({');

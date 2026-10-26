@@ -71,18 +71,7 @@ body,
   background-image: var(--signature-page-wash);
 }
 
-[data-theme="dark"] .dashboard-panel,
-[data-theme="dark"] .personnel-search-panel,
-[data-theme="dark"] .personnel-table-card,
-[data-theme="dark"] .access-summary-card,
-[data-theme="dark"] .registration-review__requests,
-[data-theme="dark"] .registration-review__detail,
-[data-theme="dark"] .audit-toolbar,
-[data-theme="dark"] .audit-table-card,
-[data-theme="dark"] .data-quality-filter-bar,
-[data-theme="dark"] .data-quality-desktop-table,
-[data-theme="dark"] .report-center-card,
-[data-theme="dark"] .executive-report-panel {
+[data-theme="dark"] .dashboard-panel,[data-theme="dark"] .personnel-search-panel,[data-theme="dark"] .personnel-table-card,[data-theme="dark"] .access-summary-card,[data-theme="dark"] .registration-review__requests,[data-theme="dark"] .registration-review__detail,[data-theme="dark"] .audit-toolbar,[data-theme="dark"] .audit-table-card,[data-theme="dark"] .data-quality-filter-bar,[data-theme="dark"] .data-quality-desktop-table,[data-theme="dark"] .executive-report-panel {
   background: color-mix(in srgb, var(--signature-surface) 94%, transparent) !important;
   border-color: color-mix(in srgb, var(--signature-border) 82%, transparent) !important;
   box-shadow: 0 8px 24px rgba(1, 7, 18, .10) !important;
@@ -145,25 +134,6 @@ body,
   border-color: rgba(160,145,248,.16) !important;
 }
 
-/* Passkey is prominent but secondary to password recovery-compatible login. */
-.auth-passkey-zone { display:grid; gap:10px; }
-.auth-or-separator { display:flex; align-items:center; gap:10px; color:var(--text-muted); font-size:12px; }
-.auth-or-separator::before,.auth-or-separator::after { content:""; height:1px; flex:1; background:var(--signature-border); }
-.auth-passkey-action {
-  width:100%; min-height:52px; display:flex; align-items:center; justify-content:center; gap:10px;
-  border:1px solid var(--signature-border-strong); border-radius:10px;
-  color:var(--text-primary); background:var(--signature-surface-soft); cursor:pointer;
-  transition:border-color .18s ease, background .18s ease, transform .18s ease;
-}
-.auth-passkey-action:hover,.auth-passkey-action:focus-visible {
-  border-color:color-mix(in srgb,var(--signature-brand) 58%,var(--signature-border));
-  background:color-mix(in srgb,var(--signature-brand-soft) 66%,var(--signature-surface));
-  outline:3px solid color-mix(in srgb,var(--signature-brand) 22%,transparent); outline-offset:2px;
-}
-.auth-passkey-action > span { display:grid; text-align:left; }
-.auth-passkey-action b { font-size:14px; font-weight:650; }
-.auth-passkey-action small { margin-top:1px; color:var(--text-secondary); font-size:11px; font-weight:450; }
-
 /* ------------------------------------------------------------------
    Shared action-column geometry — Personnel + License/operational lists
    ------------------------------------------------------------------ */
@@ -214,46 +184,7 @@ body,
   .settings-page h2
 ) { color:var(--text-primary) !important; }
 
-[data-theme="dark"] :is(
-  .page-heading p,
-  .signature-page-header p,
-  .dashboard-hero__subtitle,
-  .dashboard-panel__header p,
-  .dashboard-filter-bar__context small,
-  .personnel-directory-header p,
-  .access-page-header p,
-  .audit-page-header p,
-  .data-quality-header p,
-  .data-quality-filter-bar label,
-  .report-center-heading p,
-  .report-center-filter-heading small,
-  .report-center-section-heading p,
-  .executive-report-heading p,
-  .executive-report-note,
-  .registration-review p,
-  .leave-page p,
-  .settings-page p
-) { color:var(--text-secondary) !important; }
-
-[data-theme="dark"] .dashboard-metric strong,
-[data-theme="dark"] .dashboard-secondary-metric strong,
-[data-theme="dark"] .dashboard-today-stat strong,
-[data-theme="dark"] .dashboard-mini-stat strong,
-[data-theme="dark"] .dashboard-legend b,
-[data-theme="dark"] .dashboard-attention-row b,
-[data-theme="dark"] .dashboard-activity-row b,
-[data-theme="dark"] .data-quality-kpi strong,
-[data-theme="dark"] .data-quality-rule,
-[data-theme="dark"] .data-quality-mobile-card h2,
-[data-theme="dark"] .audit-no-rows strong,
-[data-theme="dark"] .audit-preview-panel h2,
-[data-theme="dark"] .audit-metadata h3,
-[data-theme="dark"] .report-center-filter-heading strong,
-[data-theme="dark"] .report-center-export-card h3,
-[data-theme="dark"] .executive-report-stat-grid b,
-[data-theme="dark"] .executive-report-statuses b,
-[data-theme="dark"] .executive-report-attention-list article h3,
-[data-theme="dark"] .executive-report-attention-list article > b { color:var(--text-primary) !important; }
+[data-theme="dark"] .dashboard-metric strong,[data-theme="dark"] .dashboard-secondary-metric strong,[data-theme="dark"] .dashboard-today-stat strong,[data-theme="dark"] .dashboard-mini-stat strong,[data-theme="dark"] .dashboard-legend b,[data-theme="dark"] .dashboard-attention-row b,[data-theme="dark"] .dashboard-activity-row b,[data-theme="dark"] .data-quality-kpi strong,[data-theme="dark"] .data-quality-mobile-card h2,[data-theme="dark"] .audit-no-rows strong,[data-theme="dark"] .audit-preview-panel h2,[data-theme="dark"] .audit-metadata h3,[data-theme="dark"] .report-center-export-card h3,[data-theme="dark"] .executive-report-stat-grid b,[data-theme="dark"] .executive-report-statuses b,[data-theme="dark"] .executive-report-attention-list article h3,[data-theme="dark"] .executive-report-attention-list article > b { color:var(--text-primary) !important; }
 
 [data-theme="dark"] .dashboard-metric p,
 [data-theme="dark"] .dashboard-metric small,
@@ -413,33 +344,8 @@ body,
 [data-theme="dark"] .executive-report-stat-grid > div,
 [data-theme="dark"] .executive-report-statuses > div,
 [data-theme="dark"] .executive-report-attention-list article { border-color:var(--signature-border); background:var(--signature-surface-raised); }
-[data-theme="dark"] .report-center-heading h1,
-[data-theme="dark"] .report-center-section-heading h2,
-[data-theme="dark"] .report-center-filter-heading strong,
-[data-theme="dark"] .report-center-export-card h3,
-[data-theme="dark"] .executive-report-heading h1,
-[data-theme="dark"] .executive-report-panel h2,
-[data-theme="dark"] .executive-report-kpi strong,
-[data-theme="dark"] .executive-report-stat-grid b,
-[data-theme="dark"] .executive-report-statuses b,
-[data-theme="dark"] .executive-report-attention-list article h3,
-[data-theme="dark"] .executive-report-attention-list article > b { color:var(--text-primary); }
-[data-theme="dark"] .report-center-heading p,
-[data-theme="dark"] .report-center-section-heading p,
-[data-theme="dark"] .report-center-filter-heading small,
-[data-theme="dark"] .report-center-filter-note,
-[data-theme="dark"] .report-center-export-card p,
-[data-theme="dark"] .report-center-export-card small,
-[data-theme="dark"] .executive-report-heading p,
-[data-theme="dark"] .executive-report-context,
-[data-theme="dark"] .executive-report-note,
-[data-theme="dark"] .executive-report-kpi span,
-[data-theme="dark"] .executive-report-kpi small,
-[data-theme="dark"] .executive-report-stat-grid span,
-[data-theme="dark"] .executive-report-statuses span,
-[data-theme="dark"] .executive-report-bar,
-[data-theme="dark"] .executive-report-attention-list article p,
-[data-theme="dark"] .executive-report-empty { color:var(--text-secondary); }
+[data-theme="dark"] .report-center-heading h1,[data-theme="dark"] .report-center-section-heading h2,[data-theme="dark"] .report-center-export-card h3,[data-theme="dark"] .executive-report-heading h1,[data-theme="dark"] .executive-report-panel h2,[data-theme="dark"] .executive-report-kpi strong,[data-theme="dark"] .executive-report-stat-grid b,[data-theme="dark"] .executive-report-statuses b,[data-theme="dark"] .executive-report-attention-list article h3,[data-theme="dark"] .executive-report-attention-list article > b { color:var(--text-primary); }
+[data-theme="dark"] .report-center-heading p,[data-theme="dark"] .report-center-section-heading p,[data-theme="dark"] .report-center-filter-note,[data-theme="dark"] .report-center-export-card p,[data-theme="dark"] .report-center-export-card small,[data-theme="dark"] .executive-report-heading p,[data-theme="dark"] .executive-report-context,[data-theme="dark"] .executive-report-note,[data-theme="dark"] .executive-report-kpi span,[data-theme="dark"] .executive-report-kpi small,[data-theme="dark"] .executive-report-stat-grid span,[data-theme="dark"] .executive-report-statuses span,[data-theme="dark"] .executive-report-bar,[data-theme="dark"] .executive-report-attention-list article p,[data-theme="dark"] .executive-report-empty { color:var(--text-secondary); }
 [data-theme="dark"] .report-center-filters select,
 [data-theme="dark"] .executive-report-filters select { border-color:var(--signature-border-strong); color:var(--text-primary); background:var(--signature-surface-soft); color-scheme:dark; }
 [data-theme="dark"] .report-center-tabs { border-color:var(--signature-border); }
@@ -456,14 +362,7 @@ body,
 [data-theme="dark"] .executive-report-attention-list article.critical { background:var(--color-danger-soft); }
 [data-theme="dark"] .executive-report-attention-list article.warning { background:var(--color-warning-soft); }
 
-:is([data-theme="dark"], html[data-sms-shell="employee"]) .leave-page .leave-hero,
-:is([data-theme="dark"], html[data-sms-shell="employee"]) .leave-page .leave-submit-card,
-:is([data-theme="dark"], html[data-sms-shell="employee"]) .leave-page .leave-history-card,
-:is([data-theme="dark"], html[data-sms-shell="employee"]) .leave-page .leave-pending-card,
-:is([data-theme="dark"], html[data-sms-shell="employee"]) .leave-page .leave-quota-card,
-:is([data-theme="dark"], html[data-sms-shell="employee"]) .leave-page .leave-decision-queue,
-:is([data-theme="dark"], html[data-sms-shell="employee"]) .leave-page .leave-decision-detail,
-:is([data-theme="dark"], html[data-sms-shell="employee"]) .leave-page .leave-decision-actions { color:var(--text-primary); background:var(--signature-surface); border-color:var(--signature-border); }
+:is([data-theme="dark"], html[data-sms-shell="employee"]) .leave-page .leave-submit-card,:is([data-theme="dark"], html[data-sms-shell="employee"]) .leave-page .leave-history-card,:is([data-theme="dark"], html[data-sms-shell="employee"]) .leave-page .leave-pending-card,:is([data-theme="dark"], html[data-sms-shell="employee"]) .leave-page .leave-decision-queue,:is([data-theme="dark"], html[data-sms-shell="employee"]) .leave-page .leave-decision-detail,:is([data-theme="dark"], html[data-sms-shell="employee"]) .leave-page .leave-decision-actions { color:var(--text-primary); background:var(--signature-surface); border-color:var(--signature-border); }
 :is([data-theme="dark"], html[data-sms-shell="employee"]) .leave-page h1,
 :is([data-theme="dark"], html[data-sms-shell="employee"]) .leave-page h2,
 :is([data-theme="dark"], html[data-sms-shell="employee"]) .leave-page h3,
@@ -487,9 +386,7 @@ body,
 :is([data-theme="dark"], html[data-sms-shell="employee"]) .leave-page .leave-decision-summary > div,
 :is([data-theme="dark"], html[data-sms-shell="employee"]) .leave-page .leave-decision-item:hover,
 :is([data-theme="dark"], html[data-sms-shell="employee"]) .leave-page .leave-decision-item.is-active { color:var(--text-primary); background:var(--signature-surface-soft); border-color:var(--signature-border); }
-:is([data-theme="dark"], html[data-sms-shell="employee"]) .leave-page .leave-hero button,
-:is([data-theme="dark"], html[data-sms-shell="employee"]) .leave-page .btn-neutral,
-:is([data-theme="dark"], html[data-sms-shell="employee"]) .leave-page .leave-print-button { color:var(--text-primary); border-color:var(--signature-border-strong); background:var(--signature-surface-soft); }
+:is([data-theme="dark"], html[data-sms-shell="employee"]) .leave-page .btn-neutral,:is([data-theme="dark"], html[data-sms-shell="employee"]) .leave-page .leave-print-button { color:var(--text-primary); border-color:var(--signature-border-strong); background:var(--signature-surface-soft); }
 :is([data-theme="dark"], html[data-sms-shell="employee"]) .leave-page .leave-submit-button,
 :is([data-theme="dark"], html[data-sms-shell="employee"]) .leave-page .btn-success,
 :is([data-theme="dark"], html[data-sms-shell="employee"]) .leave-page .btn-danger-outline { color:var(--text-primary); }
@@ -511,5 +408,4 @@ body,
   .passkey-panel__header { padding:18px 16px; }
   .passkey-panel__body { padding:14px 14px 24px; }
   .passkey-item dl { grid-template-columns:1fr; }
-  .auth-passkey-action { min-height:50px; }
 }

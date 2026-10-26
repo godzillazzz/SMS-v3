@@ -10,6 +10,7 @@ import type { LeaveDecisionAction } from '../../components/LeaveDecisionConfirma
 import { approveAttendanceAdjustment, rejectAttendanceAdjustment } from '../attendance-supervisor/attendance-adjustment-client';
 import '../../styles/approval-center.css';
 import { MetricCard, PageHeader, SectionCard } from '../../components/layout';
+import { useActionDialog } from '../../components/useActionDialog';
 
 type ApprovalUrgency = 'NEW' | 'DUE_SOON' | 'OVERDUE';
 type ApprovalType =
@@ -74,6 +75,51 @@ const typeLabel: Record<ApprovalType, string> = {
   USER_ACCESS: 'เปิดสิทธิ์ผู้ใช้',
   LEAVE_REQUEST: 'คำขอลา'
 };
+
+/* What actually happens after approval, shown before the decision (audit AC-01 / AC-02). */
+const approveConsequence: Partial<Record<ApprovalType, string>> = {
+  EMPLOYEE_REFERENCE_PHOTO: 'รูปนี้จะใช้เป็นรูปอ้างอิงของพนักงานในการลงเวลา',
+  LICENSE_DOCUMENT: 'ข้อมูลใบอนุญาตตามเอกสารนี้จะมีผลกับการตรวจสิทธิ์ตอนจัดกะ',
+  ATTENDANCE_DEVICE_REQUEST: 'อุปกรณ์นี้จะใช้ลงเวลาได้ และเครื่องหลักเดิมของพนักงานจะถูกแทน',
+  ATTENDANCE_ADJUSTMENT_REQUEST: 'เวลาที่ขอจะมีผลเป็นเวลาลงงาน โดยบันทึกเดิมยังเก็บไว้ตรวจย้อนหลังได้',
+  REGISTRATION_REQUEST: 'บัญชีนี้จะเข้าสู่ระบบได้ตามบทบาทเริ่มต้น',
+  USER_ACCESS: 'บัญชีนี้จะเปลี่ยนเป็นใช้งานได้และเข้าสู่ระบบได้ทันที'
+};
+
+const panelConsequence: Partial<Record<ApprovalType, string>> = {
+  ...approveConsequence,
+  LEAVE_REQUEST: 'วันลาจะลง AL แทนกะเดิมในช่วงที่ลา และไม่ทำให้ตารางกะที่อนุมัติแล้วต้องอนุมัติใหม่'
+};
+
+/* Facts shown in the decision panel — only fields the Approval API already returns (audit AC-03 / W-02). */
+function panelFacts(item: ApprovalCenterItem): Array<[string, unknown]> {
+  const facts: Array<[string, unknown]> = [];
+  if (item.type === 'LEAVE_REQUEST') {
+    facts.push(['ประเภทการลา', meta(item, 'leaveType')]);
+    facts.push(['วันที่ลา', meta(item, 'startDate') && meta(item, 'endDate') ? `${displayLeaveDate(meta(item, 'startDate'))} – ${displayLeaveDate(meta(item, 'endDate'))}` : meta(item, 'startDate') ? displayLeaveDate(meta(item, 'startDate')) : null]);
+    facts.push(['จำนวนวัน', meta(item, 'dayCount') ? `${text(meta(item, 'dayCount'))} วัน` : null]);
+    facts.push(['ผู้ปฏิบัติแทน', meta(item, 'substitute')]);
+  } else if (item.type === 'ATTENDANCE_ADJUSTMENT_REQUEST') {
+    facts.push(['วันที่ทำงาน', meta(item, 'workDate')]);
+  } else if (item.type === 'ATTENDANCE_DEVICE_REQUEST') {
+    facts.push(['อุปกรณ์', meta(item, 'deviceName')]);
+  } else if (item.type === 'LICENSE_DOCUMENT') {
+    facts.push(['ประเภทใบอนุญาต', meta(item, 'licenseType')]);
+    facts.push(['ไฟล์', meta(item, 'fileName')]);
+  } else if (item.type === 'REGISTRATION_REQUEST') {
+    facts.push(['พนักงานที่ตรงกัน', meta(item, 'matchedEmployeeName')]);
+    facts.push(['หน่วยงานที่แจ้ง', meta(item, 'departmentHint')]);
+  } else if (item.type === 'USER_ACCESS') {
+    facts.push(['หน่วยงาน', meta(item, 'department')]);
+  } else if (item.type === 'EMPLOYEE_REFERENCE_PHOTO') {
+    facts.push(['ไฟล์', item.photo?.fileName]);
+  }
+  facts.push(['ผู้ส่ง', senderName(item)]);
+  facts.push(['ส่งเมื่อ', item.submittedAt ? fmt(item.submittedAt) : null]);
+  facts.push(['รอมาแล้ว', pendingAge(item.ageHours)]);
+  if (item.type !== 'LEAVE_REQUEST' || meta(item, 'reason')) facts.push(['เหตุผล', meta(item, 'reason')]);
+  return facts.filter(([, value]) => value !== undefined && value !== null && value !== '');
+}
 
 const approvalTypeOrder: ApprovalType[] = [
   'LEAVE_REQUEST',
@@ -213,6 +259,7 @@ export function ApprovalCenterPage({
   const [selectedId, setSelectedId] = useState('');
   const [loading, setLoading] = useState(true);
   const [busyAction, setBusyAction] = useState<{ id: string; action: 'approve' | 'reject' }>();
+  const actionDialog = useActionDialog();
   const [error, setError] = useState<RequestErrorInput>();
   const [notice, setNotice] = useState('');
   const [detailState, setDetailState] = useState<{ status: 'loading' | 'not-found' | 'forbidden' | 'error'; message: string }>();
@@ -266,6 +313,11 @@ export function ApprovalCenterPage({
   }), [items, filter, urgencyFilter]);
 
   const selected = items.find((item) => item.id === selectedId);
+  const [decisionId, setDecisionId] = useState('');
+  const decision = items.find((item) => item.id === decisionId);
+  const decisionPanelRef = useRef<HTMLElement>(null);
+  useEffect(() => { if (decisionId) decisionPanelRef.current?.focus(); }, [decisionId]);
+  const openDecision = (item: ApprovalCenterItem) => { setSelectedId(item.id); setDecisionId(item.id); };
 
   useEffect(() => {
     if (selected?.type !== 'SCHEDULE_APPROVAL') return;
@@ -381,6 +433,23 @@ export function ApprovalCenterPage({
     await executeDirectDecision(rejecting, 'reject', rejectReason.trim());
   };
 
+  const confirmApprove = async (item: ApprovalCenterItem) => {
+    if (item.type === 'LEAVE_REQUEST' || item.type === 'EMPLOYEE_MASTER_CHANGE' || item.type === 'SCHEDULE_APPROVAL') {
+      await executeDirectDecision(item, 'approve');
+      return;
+    }
+    const confirmed = await actionDialog.confirm({
+      eyebrow: typeLabel[item.type],
+      title: `อนุมัติ${typeLabel[item.type]}?`,
+      message: approveConsequence[item.type] || 'คำขอนี้จะถูกอนุมัติตามสิทธิ์ของคุณ',
+      context: employeeName(item),
+      confirmLabel: 'ยืนยันอนุมัติ',
+      cancelLabel: 'ยกเลิก',
+      tone: 'primary'
+    });
+    if (confirmed) await executeDirectDecision(item, 'approve');
+  };
+
   const renderActionButtons = (item: ApprovalCenterItem, mobile = false) => {
     const busy = busyAction?.id === item.id;
     const selfLeave = item.type === 'LEAVE_REQUEST'
@@ -408,10 +477,10 @@ export function ApprovalCenterPage({
       <button
         type="button"
         disabled={busy}
-        onClick={() => void executeDirectDecision(item, 'approve')}
+        onClick={() => void confirmApprove(item)}
         className="approval-action-button approval-action-button--approve"
       >
-        {busy && busyAction?.action === 'approve' ? 'กำลังอนุมัติ…' : 'อนุมัติทันที'}
+        {busy && busyAction?.action === 'approve' ? 'กำลังอนุมัติ…' : 'อนุมัติ…'}
       </button>
       {item.type === 'LEAVE_REQUEST' && <button
         type="button"
@@ -421,6 +490,19 @@ export function ApprovalCenterPage({
       >ส่งกลับไปแก้ไข</button>}
 
     </div>;
+  };
+
+  /* Rows never decide directly: they open the decision panel so the facts are seen first (W-02 · AC-03). */
+  const renderReviewButton = (item: ApprovalCenterItem, mobile = false) => {
+    const actions = renderActionButtons(item, mobile);
+    if (!actions) return null;
+    if (item.type === 'LEAVE_REQUEST' && Boolean(currentEmployeeId) && item.employee?.id === currentEmployeeId) return actions;
+    return <button
+      type="button"
+      className="approval-action-button approval-action-button--review"
+      aria-expanded={decisionId === item.id}
+      onClick={() => openDecision(item)}
+    >พิจารณา</button>;
   };
 
   const openDetails = async (item: ApprovalCenterItem) => {
@@ -484,6 +566,7 @@ export function ApprovalCenterPage({
     className="nexus-approval-center approval-center-page layout-page-surface"
     aria-label="ศูนย์อนุมัติคำขอ"
   >
+    {actionDialog.dialog}
     <div className="approval-center-content">
       <PageHeader kicker="งานที่รอการพิจารณา" title="ศูนย์อนุมัติคำขอ" description="ดูและดำเนินการกับคำขอที่รออนุมัติตามสิทธิ์ของคุณ" className="approval-center-header" actions={<button type="button" disabled={loading} onClick={() => void loadQueue(true)} className="btn-neutral small-action"><SmsIcon name="refresh" size={16} />รีเฟรชข้อมูล</button>} />
 
@@ -574,7 +657,7 @@ export function ApprovalCenterPage({
                         <button
                           type="button"
                           aria-pressed={selected?.id === item.id}
-                          onClick={() => setSelectedId(item.id)}
+                          onClick={() => openDecision(item)}
                           className="nexus-approval-select approval-person-select"
                         >
                           <span className="approval-person-avatar" aria-hidden="true">
@@ -606,7 +689,7 @@ export function ApprovalCenterPage({
                       <td className="approval-queue-summary">
                         {itemSummary(item)}
                       </td>
-                      <td><div className="approval-queue-row-actions">{renderDetailButton(item)}{renderActionButtons(item)}</div></td>
+                      <td><div className="approval-queue-row-actions">{renderDetailButton(item)}{renderReviewButton(item)}</div></td>
                     </tr>;
                   }) : <tr>
                     <td colSpan={5} className="approval-queue-empty">
@@ -632,7 +715,7 @@ export function ApprovalCenterPage({
               <button
                 type="button"
                 aria-pressed={selected?.id === item.id}
-                onClick={() => setSelectedId(item.id)}
+                onClick={() => openDecision(item)}
                 className="nexus-approval-select approval-mobile-card-select"
               >
                 <div className="approval-mobile-card-heading">
@@ -664,7 +747,7 @@ export function ApprovalCenterPage({
                   </div>
                 </dl>
               </button>
-              <div className="approval-mobile-card-actions">{renderDetailButton(item)}{renderActionButtons(item, true)}</div>
+              <div className="approval-mobile-card-actions">{renderDetailButton(item)}{renderReviewButton(item, true)}</div>
             </article>) : <div className="approval-queue-empty">
               <SmsIcon name="check" size={30} className="approval-queue-empty-icon" />
               <strong className="approval-queue-empty-title">ไม่มีคำขอในตัวกรองนี้</strong>
@@ -676,6 +759,38 @@ export function ApprovalCenterPage({
       {summary.truncated && <p className="approval-queue-warning">
         คิวมีรายการมากกว่าจำนวนที่โหลดจาก API (limit 100) — ระบบไม่ได้ซ่อนจำนวนรวมใน Telemetry
       </p>}
+
+      {decision && decision.type !== 'SCHEDULE_APPROVAL' && decision.type !== 'EMPLOYEE_MASTER_CHANGE' && <>
+        <div className="approval-decision-backdrop" aria-hidden="true" onClick={() => setDecisionId('')} />
+        <aside
+          className="approval-decision-panel"
+          aria-labelledby="approval-decision-title"
+          tabIndex={-1}
+          ref={decisionPanelRef}
+          onKeyDown={(event) => { if (event.key === 'Escape') setDecisionId(''); }}
+        >
+          <header className="approval-decision-panel__head">
+            <div className="approval-decision-panel__chips">
+              <span className="approval-type-label">{typeLabel[decision.type]}</span>
+              <span className={urgencyTone(decision)}>{urgencyText(decision)}</span>
+            </div>
+            <button type="button" className="approval-decision-panel__close" aria-label="ปิดแผงรายละเอียด" onClick={() => setDecisionId('')}>×</button>
+            <h2 id="approval-decision-title">{employeeName(decision)} · {typeLabel[decision.type]}</h2>
+            {(decision.employee?.department || decision.employee?.employeeCode) && <p>{[decision.employee?.employeeCode, decision.employee?.department].filter(Boolean).join(' · ')}</p>}
+          </header>
+          <dl className="approval-decision-panel__facts">
+            {panelFacts(decision).map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{text(value)}</dd></div>)}
+          </dl>
+          {panelConsequence[decision.type] && <section className="approval-decision-panel__consequence" aria-label="ผลกระทบถ้าอนุมัติ">
+            <strong>ถ้าอนุมัติ</strong>
+            <p>{panelConsequence[decision.type]}</p>
+          </section>}
+          <footer className="approval-decision-panel__actions">
+            {renderActionButtons(decision)}
+            {renderDetailButton(decision)}
+          </footer>
+        </aside>
+      </>}
 
       {selected?.type === 'SCHEDULE_APPROVAL' && <aside className="approval-schedule-detail" tabIndex={-1} aria-label="รายละเอียดตารางกะ">
         <div className="approval-schedule-detail__header">

@@ -152,3 +152,4 @@
   .dashboard-details-row { align-items: flex-start; flex-direction: column; }
   .dashboard-details-pagination { gap: .6rem; }
 }
+[data-theme="light"] .workflow-journey__index{color:#4f6475}

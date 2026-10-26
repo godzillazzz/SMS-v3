@@ -27,11 +27,12 @@ type DecisionPresentation = {
   reasonLabel?: string;
 };
 
-export const leaveDecisionPresentation = (action: LeaveDecisionAction, status = ''): DecisionPresentation => {
+export const leaveDecisionPresentation = (action: LeaveDecisionAction, status = '', target?: Pick<LeaveDecisionTarget, 'dateRange' | 'dayCount'>): DecisionPresentation => {
+  const span = target?.dateRange ? `${target.dateRange}${target.dayCount ? ` (${target.dayCount} วัน)` : ''}` : 'ช่วงวันลา';
   if (action === 'approve') return {
     title: 'ยืนยันอนุมัติคำขอลา',
     eyebrow: 'ยืนยันการอนุมัติ',
-    consequence: 'คำขอนี้จะเปลี่ยนสถานะเป็นอนุมัติ และดำเนินการตามกฎการลาและตารางกะของระบบ',
+    consequence: `คำขอนี้จะเปลี่ยนสถานะเป็นอนุมัติ ช่องตารางกะทุกวันใน${span} จะถูกลงเป็น AL แทนกะเดิมที่มีอยู่ ตารางกะเดือนที่อนุมัติแล้วไม่ต้องอนุมัติใหม่ เพราะเป็นการเปลี่ยนเฉพาะวันลา`,
     confirmLabel: 'ยืนยันอนุมัติคำขอ',
     tone: 'success',
     requiresReason: false
@@ -58,7 +59,7 @@ export const leaveDecisionPresentation = (action: LeaveDecisionAction, status = 
     title: approved ? 'ยืนยันยกเลิกใบลาที่อนุมัติแล้ว' : 'ยืนยันยกเลิกคำขอลา',
     eyebrow: approved ? 'ยกเลิกรายการที่อนุมัติแล้ว' : 'ยกเลิกคำขอ',
     consequence: approved
-      ? 'ใบลาที่อนุมัติแล้วจะถูกยกเลิกตามกฎเดิมของระบบ และการดำเนินการจะถูกบันทึกใน Audit'
+      ? `ใบลาที่อนุมัติแล้วจะถูกยกเลิก ช่อง AL ใน${span} จะถูกลบและช่องนั้นจะว่าง ต้องจัดกะใหม่เองในตารางกะ การดำเนินการจะถูกบันทึกในบันทึกการใช้งาน`
       : 'คำขอลานี้จะถูกยกเลิก และเหตุผลจะถูกบันทึกไว้ในประวัติคำขอ',
     confirmLabel: approved ? 'ยืนยันยกเลิกใบลา' : 'ยืนยันยกเลิกคำขอ',
     tone: 'danger',
@@ -82,7 +83,7 @@ export function LeaveDecisionConfirmation({
   onConfirm(reason?: string): Promise<void> | void;
   onClose(): void;
 }) {
-  const presentation = leaveDecisionPresentation(action, target.status);
+  const presentation = leaveDecisionPresentation(action, target.status, target);
   const [reason, setReason] = useState('');
   const [reasonTouched, setReasonTouched] = useState(false);
   const [submitting, setSubmitting] = useState(false);

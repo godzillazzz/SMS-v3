@@ -104,3 +104,31 @@ html[data-sms-shell="employee"] #root {
 .app-shell.pwa-shell .employee-v4-section-header h1 { color: var(--nexus-text); }
 .app-shell.pwa-shell .employee-v4-section-header p { color: var(--nexus-cyan-soft); }
 .app-shell.pwa-shell .employee-v4-section-header span { color: var(--nexus-muted); }
+
+/* Employee PWA light mode (owner-approved 2026-10-26, A-23): same components, light palette. */
+html[data-sms-shell="employee"][data-theme="light"] {
+  --nexus-bg: #f3f5f9;
+  --nexus-canvas: #f3f5f9;
+  --nexus-surface: #ffffff;
+  --nexus-card: #ffffff;
+  --nexus-panel: #ffffff;
+  --nexus-container: #eef2f7;
+  --nexus-well: #eef2f7;
+  --nexus-high: #e2e8f0;
+  --nexus-line: rgba(15, 23, 42, .10);
+  --nexus-line-strong: rgba(15, 23, 42, .22);
+  --nexus-text: #0f172a;
+  --nexus-muted: #475569;
+  --nexus-dim: #64748b;
+  --nexus-cyan: #1d4ed8;
+  --nexus-cyan-soft: #1e3a8a;
+  --nexus-cyan-dark: #1e3a8a;
+  --nexus-success: #15803d;
+  --nexus-warning: #b45309;
+  --nexus-danger: #b91c1c;
+  --signature-dark-text-secondary: #475569;
+  --signature-dark-text-muted: #64748b;
+  color-scheme: light;
+}
+html[data-sms-shell="employee"][data-theme="light"] body,
+html[data-sms-shell="employee"][data-theme="light"] #root { color-scheme: light; }

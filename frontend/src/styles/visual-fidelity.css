@@ -1070,13 +1070,6 @@ button.personnel-primary-action {
     var(--vf-surface);
 }
 
-.access-summary-icon {
-  width: 43px;
-  height: 43px;
-  flex: 0 0 43px;
-  border-radius: 13px;
-}
-
 .access-summary-card p {
   color: var(--color-text-secondary);
   font-size: 12px;
@@ -1616,9 +1609,7 @@ button.personnel-primary-action {
     display: none;
   }
 
-  .personnel-directory-header,
-  .access-page-header,
-  .registration-review__header {
+  .personnel-directory-header,.access-page-header {
     flex-direction: column;
     gap: 12px;
   }
@@ -2500,10 +2491,7 @@ button.personnel-primary-action,
   background: linear-gradient(180deg, color-mix(in srgb, var(--decorative-sky) 72%, white), color-mix(in srgb, var(--decorative-lavender) 75%, white));
   box-shadow: inset 0 0 20px rgba(255,255,255,.46), 0 10px 28px var(--pastel-halo-primary);
 }
-
-.auth-pastel-city i:nth-child(1) { height: 105px; }
 .auth-pastel-city i:nth-child(2) { height: 165px; width: 44px; background: linear-gradient(180deg, color-mix(in srgb, var(--decorative-lavender) 80%, white), color-mix(in srgb, var(--decorative-blush) 70%, white)); }
-.auth-pastel-city i:nth-child(3) { height: 138px; width: 34px; }
 .auth-pastel-city i:nth-child(4) { height: 92px; width: 30px; background: linear-gradient(180deg, color-mix(in srgb, var(--decorative-peach) 68%, white), color-mix(in srgb, var(--decorative-blush) 66%, white)); }
 
 .auth-pastel-cloud {
@@ -2527,7 +2515,6 @@ button.personnel-primary-action,
 .auth-pastel-cloud::before { width: 70px; height: 70px; left: 18px; }
 .auth-pastel-cloud::after { width: 48px; height: 48px; right: 24px; }
 .auth-pastel-cloud--one { width: 170px; left: 9%; bottom: 12%; }
-.auth-pastel-cloud--two { width: 150px; right: 7%; bottom: 8%; background: color-mix(in srgb, rgba(255,255,255,.65) 74%, var(--decorative-blush)); }
 
 .auth-pastel-shield {
   position: absolute;
@@ -2573,10 +2560,6 @@ button.personnel-primary-action,
   background: var(--pastel-sky-300);
   box-shadow: 0 7px 18px var(--pastel-halo-info);
 }
-
-.auth-pastel-gem--one { right: 11%; bottom: 31%; background: var(--pastel-peach-300); }
-.auth-pastel-gem--two { right: 42%; bottom: 11%; background: var(--pastel-mint-300); }
-.auth-pastel-gem--three { right: 5%; bottom: 11%; background: var(--pastel-blush-300); }
 
 [data-theme="light"] .auth-card-panel {
   background:

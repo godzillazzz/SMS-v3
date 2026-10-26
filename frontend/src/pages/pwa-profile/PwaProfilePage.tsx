@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { SmsIcon } from '../../components/SmsIcon';
 import { buildSmsPwaUatReport, readSmsPwaDiagnostics } from '../../pwa-diagnostics';
 import { roleDisplayName } from '../../role-display';
+import '../pwa-attendance/employee-attendance-v4.css';
 
 export type PwaProfileUser = {
   displayName?: string;
@@ -41,6 +42,18 @@ export function PwaProfilePage({ user, online, readOnly = false, onOpenPasskeys,
       ? 'รองรับ · รอควบคุม/รีโหลด'
       : 'ไม่รองรับ';
 
+  const [pwaTheme, setPwaTheme] = useState<'dark' | 'light'>(() => (typeof document !== 'undefined' && document.documentElement.dataset.theme === 'light' ? 'light' : 'dark'));
+  const changePwaTheme = (value: 'dark' | 'light') => {
+    setPwaTheme(value);
+    try { window.localStorage.setItem('sms-v3-pwa-theme', value); } catch { /* best effort */ }
+    const root = document.documentElement;
+    root.dataset.theme = value;
+    root.dataset.pwaTheme = value;
+    root.dataset.themePreference = value;
+    root.classList.toggle('dark', value === 'dark');
+    const meta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
+    if (meta) meta.content = value === 'light' ? '#F3F5F9' : '#020813';
+  };
   return <section className="pwa-profile-page nexus-mobile-profile" aria-label="Officer Profile">
     <div className="nexus-mobile-breadcrumb">โปรไฟล์พนักงาน</div>
     <header className="pwa-profile-hero">
@@ -60,6 +73,25 @@ export function PwaProfilePage({ user, online, readOnly = false, onOpenPasskeys,
       </dl>
     </section>
 
+    <section className="pwa-profile-card pwa-profile-theme">
+      <h2>ธีม</h2>
+      <div className="pwa-profile-theme__options" role="group" aria-label="ธีมของแอปลงเวลา">
+        {(['dark', 'light'] as const).map((value) => <button key={value} type="button" aria-pressed={pwaTheme === value} className={pwaTheme === value ? 'is-active' : ''} onClick={() => changePwaTheme(value)}><SmsIcon name={value === 'dark' ? 'moon' : 'sun'} size={16} />{value === 'dark' ? 'มืด' : 'สว่าง'}</button>)}
+      </div>
+    </section>
+
+    <section className="pwa-profile-card">
+      <h2>ความปลอดภัย</h2>
+      <p>จัดการ Passkey และวิธีเข้าสู่ระบบของบัญชีนี้ โดยไม่เปลี่ยน Attendance device authority</p>
+      <button type="button" className="btn-neutral pwa-profile-action" disabled={readOnly} onClick={onOpenPasskeys}><SmsIcon name="key" size={18} />การเข้าสู่ระบบและ Passkey</button>
+    </section>
+
+    <section className="pwa-profile-card pwa-profile-session">
+      <div><h2>Session</h2><p>ออกจากระบบบนอุปกรณ์นี้เมื่อใช้งานเสร็จ</p></div>
+      <button type="button" className="btn-danger-outline pwa-profile-action" onClick={onLogout}><SmsIcon name="logout" size={18} />ออกจากระบบ</button>
+    </section>
+    <details className="pwa-profile-technical">
+      <summary>รายละเอียดทางเทคนิค</summary>
     <section className="pwa-profile-card" aria-label="PWA diagnostics">
       <h2>ความพร้อม PWA บนอุปกรณ์</h2>
       <p>ตรวจเฉพาะ capability และสถานะของเบราว์เซอร์ ไม่ขอสิทธิ์กล้อง/ตำแหน่ง และไม่สร้างหลักฐาน Attendance</p>
@@ -75,15 +107,6 @@ export function PwaProfilePage({ user, online, readOnly = false, onOpenPasskeys,
       {uatCopyState === 'failed' && <small className="is-offline">ไม่สามารถคัดลอกได้ กรุณาตรวจสิทธิ์ Clipboard ของเบราว์เซอร์</small>}
     </section>
 
-    <section className="pwa-profile-card">
-      <h2>ความปลอดภัย</h2>
-      <p>จัดการ Passkey และวิธีเข้าสู่ระบบของบัญชีนี้ โดยไม่เปลี่ยน Attendance device authority</p>
-      <button type="button" className="btn-neutral pwa-profile-action" disabled={readOnly} onClick={onOpenPasskeys}><SmsIcon name="key" size={18} />การเข้าสู่ระบบและ Passkey</button>
-    </section>
-
-    <section className="pwa-profile-card pwa-profile-session">
-      <div><h2>Session</h2><p>ออกจากระบบบนอุปกรณ์นี้เมื่อใช้งานเสร็จ</p></div>
-      <button type="button" className="btn-danger-outline pwa-profile-action" onClick={onLogout}><SmsIcon name="logout" size={18} />ออกจากระบบ</button>
-    </section>
+    </details>
   </section>;
 }

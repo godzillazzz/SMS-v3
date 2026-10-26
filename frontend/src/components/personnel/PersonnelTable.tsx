@@ -3,6 +3,9 @@ import { DataTableSkeletonCards, DataTableSkeletonRows, DataTableState, Responsi
 import type { PersonnelRecord } from './types';
 import type { EmployeeReadinessStatus, EmployeeReadinessViewState } from './AttendanceReadinessCenter';
 
+/* First letter for an avatar; Thai leading vowels (เ แ โ ใ ไ) are skipped so 'ใจดี' gives 'จ'. */
+const thaiInitial = (value?: string | null) => (String(value || '').trim().replace(/^[เแโใไ]+/, '').charAt(0));
+
 type Props = {
   rows: PersonnelRecord[];
   canManage: boolean;
@@ -39,7 +42,7 @@ export function PersonnelTable({ rows, canManage, canViewReadiness, canPrintAtte
           data-personnel-id={employee.id}
           className={selectedId === employee.id ? 'is-selected personnel-record-row' : 'personnel-record-row'}
         >
-          <td><button type="button" className="personnel-name-button" onClick={(event) => { event.stopPropagation(); onSelect(employee); }}>{employee.firstName} {employee.lastName}</button></td>
+          <td><span className="personnel-identity"><span className="personnel-avatar" aria-hidden="true" data-tone={(String(employee.employeeCode || employee.id).split('').reduce((sum, ch) => sum + ch.charCodeAt(0), 0) % 5)}>{`${thaiInitial(employee.firstName)}${thaiInitial(employee.lastName)}`}</span><button type="button" className="personnel-name-button" onClick={(event) => { event.stopPropagation(); onSelect(employee); }}>{employee.firstName} {employee.lastName}</button></span></td>
           <td><code>{employee.employeeCode}</code></td>
           <td>{employee.department || '—'}</td>
           <td>{employee.jobTitle || '—'}</td>

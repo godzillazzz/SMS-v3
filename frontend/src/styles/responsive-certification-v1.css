@@ -19,21 +19,11 @@ video {
   max-width: 100%;
 }
 
-.page-heading,
-.heading-actions,
-.signature-page-header,
-.signature-page-actions,
-.security-site-admin__header,
-.security-site-admin__card-title {
+.page-heading,.heading-actions,.signature-page-header,.signature-page-actions {
   min-width: 0;
 }
 
-.page-heading h1,
-.page-heading p,
-.security-site-admin__header h2,
-.security-site-admin__header p,
-.security-site-admin__card-title h3,
-.security-site-admin__card-title small {
+.page-heading h1,.page-heading p {
   overflow-wrap: anywhere;
 }
 
@@ -137,11 +127,6 @@ video {
   .security-site-map-picker__canvas {
     height: 280px;
     min-height: 240px;
-  }
-
-  .security-site-admin__card-title {
-    flex-direction: column;
-    gap: 6px;
   }
 
   .security-site-actions > button {

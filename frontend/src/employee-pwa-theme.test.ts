@@ -13,13 +13,13 @@ const main = read('./main.tsx');
 const manifest = JSON.parse(read('../public/manifest.webmanifest'));
 const bootstrap = index.match(/<script>([\s\S]*?)<\/script>/)![1];
 
-function boot(search: string, iosStandalone = false, displayStandalone = false) {
+function boot(search: string, iosStandalone = false, displayStandalone = false, stored: Record<string, string> = { 'sms-v3-theme': 'light' }) {
   const root = { dataset: {} as Record<string, string> };
   const meta = { content: '#0B58D8' };
   runInNewContext(bootstrap, {
     URLSearchParams, location: { search }, navigator: { standalone: iosStandalone },
     matchMedia: (query: string) => ({ matches: query === '(display-mode: standalone)' && displayStandalone }),
-    localStorage: { getItem: () => 'light' },
+    localStorage: { getItem: (key: string) => stored[key] ?? null },
     document: { documentElement: root, querySelector: () => meta }
   });
   return { root, meta };
@@ -60,10 +60,19 @@ describe('Employee PWA dark chrome ownership', () => {
   ])('sets dark browser chrome before paint for %s without changing the stored desktop preference', (_, search, ios, standalone) => {
     const { root, meta } = boot(search as string, ios as boolean, standalone as boolean);
     expect(root.dataset.smsShell).toBe('employee');
-    expect(root.dataset.theme).toBe('light');
-    expect(root.dataset.themePreference).toBe('light');
+    // Employee PWA defaults to dark and ignores the desktop preference (stored desktop = light).
+    expect(root.dataset.theme).toBe('dark');
+    expect(root.dataset.pwaTheme).toBe('dark');
     expect(meta.content).toBe(manifest.theme_color);
     expect(manifest.background_color).toBe(palette.get('--nexus-bg'));
+  });
+
+  it('lets the employee opt into the owner-approved light PWA theme without touching the desktop preference', () => {
+    const { root, meta } = boot('?pwa=1', false, false, { 'sms-v3-theme': 'dark', 'sms-v3-pwa-theme': 'light' });
+    expect(root.dataset.theme).toBe('light');
+    expect(root.dataset.pwaTheme).toBe('light');
+    expect(meta.content).toBe('#F3F5F9');
+    expect(css).toContain('html[data-sms-shell="employee"][data-theme="light"] {');
   });
 
   it('leaves normal desktop/Admin browser metadata and theme untouched', () => {
