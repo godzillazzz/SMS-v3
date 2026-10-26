@@ -683,6 +683,17 @@ export function AttendanceSimplePage({
     ? formatElapsedDuration(receiptEvent.effectiveEventAt || receiptEvent.receivedAt, currentTime)
     : '—';
   const receiptDevice = 'Telemetry บันทึกแล้ว';
+  const [dismissedReceiptId, setDismissedReceiptId] = useState<string>();
+  const offlineExpiry = bootstrap?.offline?.expiresAt ? new Date(bootstrap.offline.expiresAt) : null;
+  const offlineValid = Boolean(offlineExpiry && !Number.isNaN(offlineExpiry.getTime()) && offlineExpiry.getTime() > currentTime.getTime());
+  const offlineUntil = offlineExpiry && offlineValid ? formatThaiDateTime(offlineExpiry, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
+  const receiptKey = receiptEvent ? String(receiptEvent.id || receiptEvent.effectiveEventAt || receiptEvent.receivedAt || 'receipt') : '';
+  const showReceiptSheet = pwaMode && Boolean(receiptEvent) && dismissedReceiptId !== receiptKey;
+  const receiptPunctuality = receiptEvent?.punctuality || lastResult?.timeClassification?.punctuality;
+  const receiptCheckout = receiptEvent?.checkoutCondition || lastResult?.timeClassification?.checkoutCondition;
+  const receiptTimingLabel = receiptCheckout === 'EARLY_LEAVE' ? 'ออกก่อนเวลา' : receiptPunctuality === 'LATE' ? 'มาสาย' : receiptPunctuality === 'ON_TIME' || receiptCheckout === 'NORMAL' ? 'ตรงเวลา' : '';
+  const receiptSupport = receiptEvidence?.workSiteContext === 'SUPPORT_SITE';
+  const receiptServerTime = (() => { const value = receiptEvent?.effectiveEventAt || receiptEvent?.receivedAt; if (!value) return '—'; const d = new Date(value); return Number.isNaN(d.getTime()) ? '—' : d.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23', timeZone: 'Asia/Bangkok' }); })();
   const receiptDetails = lastResult ? reviewContextDetails(lastResult) : [];
   const accountBlockCodes = ['ATTENDANCE_EMPLOYEE_LINK_REQUIRED', 'ATTENDANCE_DEVICE_EMPLOYEE_LINK_REQUIRED', 'INACTIVE_EMPLOYEE_OPERATION'];
   const scheduleBlockCodes = ['ATTENDANCE_ASSIGNMENT_REQUIRED', 'ATTENDANCE_SCHEDULE_NOT_APPROVED', 'ATTENDANCE_SHIFT_NOT_ACTIONABLE'];
@@ -713,7 +724,7 @@ export function AttendanceSimplePage({
                   : { message: 'กำลังโหลดข้อมูลกะงาน กรุณารอสักครู่' }
                 : null;
 
-  return <section className="attendance-simple layout-page-surface" aria-label="ลงเวลา">
+  return <section className={`attendance-simple layout-page-surface${pwaMode && tone === 'danger' && !clockDisabled ? ' is-failed' : ''}`} aria-label="ลงเวลา">
     {selfiePreview && <div role="dialog" aria-modal="true" aria-label="ตรวจสอบภาพเซลฟี่" className="attendance-simple__camera-modal">
       <div className="attendance-simple__camera-panel">
         <h2>ตรวจสอบภาพก่อนส่ง</h2>
@@ -745,17 +756,46 @@ export function AttendanceSimplePage({
         <div><strong>{greeting}, {firstName}</strong><small>{formatCurrentDate(currentTime)} · {department || bootstrap?.employee.department || '—'}</small></div>
         <span className={`attendance-simple__net ${online ? 'is-online' : 'is-offline'}`}>{online ? 'ออนไลน์' : 'ออฟไลน์'}</span>
       </header>
+      {!online && <article className="attendance-simple__offline-card">
+        <SmsIcon name="refresh" size={18} />
+        <div>
+          <strong>{offlineValid ? 'ไม่มีอินเทอร์เน็ต · ยังลงเวลาได้' : 'ไม่มีอินเทอร์เน็ต'}</strong>
+          <small>{offlineValid ? 'เก็บในเครื่องแบบเข้ารหัส ส่งให้อัตโนมัติเมื่อออนไลน์' : 'สิทธิ์ออฟไลน์หมดอายุ ต้องเชื่อมต่ออินเทอร์เน็ตก่อนลงเวลา'}</small>
+          {offlineValid && offlineUntil && <b>สิทธิ์ออฟไลน์ใช้ได้ถึง {offlineUntil}</b>}
+        </div>
+      </article>}
       {bootstrap && <article className="attendance-simple__shift-card">
         <b className="attendance-simple__shift-code" data-shift-code={String(bootstrap.assignment.shift.code || '').toUpperCase()}>{bootstrap.assignment.shift.code || '—'}</b>
         <div>
           <strong>{bootstrap.assignment.shift.name || 'กะ'} · {bootstrap.assignment.shift.startTime || '—'} – {bootstrap.assignment.shift.endTime || '—'}</strong>
           <small>ตามตาราง: {[bootstrap.assignment.site.code, bootstrap.assignment.site.name].filter(Boolean).join(' · ') || '—'}</small>
-          <span className="attendance-simple__shift-state">{bootstrap.eventIntent === 'CHECK_OUT' ? (checkInTime && checkInTime !== '—' ? `ลงเวลาเข้าแล้ว ${checkInTime}` : 'ลงเวลาเข้าแล้ว') : 'ยังไม่ลงเวลา'}</span>
+          <span className="attendance-simple__shift-state">{receiptEvent?.eventType === 'CHECK_OUT' ? `ลงเวลาออกแล้ว ${receiptTime}` : checkInTime !== '—' ? `ลงเวลาเข้าแล้ว ${checkInTime}` : bootstrap.eventIntent === 'CHECK_OUT' ? 'ลงเวลาเข้าแล้ว' : 'ยังไม่ลงเวลา'}</span>
         </div>
       </article>}
       <div className="attendance-simple__big-clock" aria-hidden="true"><strong>{formatCurrentClock(currentTime).slice(0, 5).replace(':', ' : ')}</strong><small>:{formatCurrentClock(currentTime).slice(6, 8)}</small></div>
       <p className="attendance-simple__clock-note">เวลาบนเครื่อง · เวลาที่บันทึกใช้เวลาเซิร์ฟเวอร์</p>
     </section>}
+    {showReceiptSheet && <div className="attendance-simple__sheet-backdrop" role="presentation">
+      <section className="attendance-simple__sheet" role="dialog" aria-modal="true" aria-labelledby="attendance-receipt-title">
+        <span className="attendance-simple__sheet-handle" aria-hidden="true" />
+        <span className="attendance-simple__sheet-icon" aria-hidden="true"><SmsIcon name="check" size={26} /></span>
+        <h2 id="attendance-receipt-title">{receiptTitle}</h2>
+        <p>{formatCurrentDate(currentTime)} · {receiptTime}</p>
+        {receiptTimingLabel && <span className={`attendance-simple__sheet-pill ${receiptTimingLabel === 'ตรงเวลา' ? 'is-ok' : 'is-warn'}`}>{receiptTimingLabel}</span>}
+        <dl>
+          <div><dt>เวลาที่ระบบบันทึก</dt><dd>{receiptServerTime}</dd></div>
+          <div><dt>สถานที่</dt><dd>{receiptSite}{receiptSupport ? ' · ช่วยต่าง Site' : ' · ตามตาราง'}</dd></div>
+          <div><dt>ตำแหน่ง</dt><dd className="is-ok">อยู่ในพื้นที่ ✓</dd></div>
+          <div><dt>อุปกรณ์</dt><dd className={lastResult?.deviceBinding === 'FOREIGN' ? 'is-warn' : 'is-ok'}>{lastResult?.deviceBinding === 'FOREIGN' ? 'อุปกรณ์อื่น · รอตรวจ' : lastResult?.deviceBinding === 'PRIMARY' ? 'เครื่องหลัก ✓' : receiptDevice}</dd></div>
+          <div><dt>การส่งข้อมูล</dt><dd className="is-ok">บันทึกกับเซิร์ฟเวอร์แล้ว</dd></div>
+        </dl>
+        {receiptDetails.length > 0 && <p className="attendance-simple__sheet-note">{receiptDetails.join(' · ')}</p>}
+        <footer>
+          <button type="button" onClick={() => { setDismissedReceiptId(receiptKey); onTodayHistory?.(); }}><SmsIcon name="history" size={16} />ดูประวัติวันนี้</button>
+          <button type="button" className="is-primary" autoFocus onClick={() => setDismissedReceiptId(receiptKey)}>เสร็จสิ้น</button>
+        </footer>
+      </section>
+    </div>}
     <PageHeader
       kicker="ลงเวลาประจำวัน"
       title="ลงเวลา"
@@ -830,6 +870,15 @@ export function AttendanceSimplePage({
       {selfiePreview && <div className="attendance-simple__selfie-step-actions"><button type="button" onClick={retakeSelfie} disabled={busy}>ถ่ายใหม่</button><button type="button" onClick={() => void useSelfiePreview()} disabled={busy}>ยืนยันภาพนี้</button></div>}
     </section>}
 
+    {pwaMode && tone === 'danger' && <section className="attendance-simple__fail" aria-label="ยังไม่ได้บันทึกเวลา">
+      <header><span aria-hidden="true"><SmsIcon name={requestErrorCode === 'ATTENDANCE_OUTSIDE_SITE_GEOFENCE' ? 'location' : 'close'} size={20} /></span><div><strong>ยังไม่ได้บันทึกเวลา</strong><small>{message}</small></div></header>
+      {requestErrorCode === 'ATTENDANCE_OUTSIDE_SITE_GEOFENCE' && <ol>
+        <li>เดินเข้าไปในพื้นที่ Site ให้ใกล้จุดกลางมากขึ้น</li>
+        <li>เปิด “ตำแหน่งที่แม่นยำ” (Precise Location) ของแอป</li>
+        <li>ออกมาที่โล่ง ห่างจากอาคารสูงหรือที่จอดรถใต้ดิน</li>
+      </ol>}
+      {!clockDisabled && <button type="button" onClick={() => void recordAttendance()} disabled={busy}><SmsIcon name="refresh" size={16} />ลองอีกครั้ง</button>}
+    </section>}
     <div className={`attendance-simple__status is-${tone}`} role="status">
       <strong>{message}</strong>
       {siteContext && tone !== 'danger' && <span>สถานที่ตามตาราง: {siteContext.assignedSite.name || siteContext.assignedSite.code || '—'}</span>}
@@ -864,9 +913,9 @@ export function AttendanceSimplePage({
         </div>}
       </div>
       {pwaMode && <div className="attendance-simple__ready-tiles" aria-label="ความพร้อมก่อนลงเวลา">
-        <article><SmsIcon name="location" size={18} /><div><b>ตำแหน่ง</b><span>{siteContext ? 'ตรวจแล้ว' : 'ตรวจเมื่อกด'}</span></div></article>
+        <article><SmsIcon name="location" size={18} /><div><b>ตำแหน่ง</b><span>{siteContext ? 'ตรวจแล้ว' : !online && bootstrap?.offline?.maxAccuracyMeters ? `ต้อง ≤ ${bootstrap.offline.maxAccuracyMeters} ม.` : 'ตรวจเมื่อกด'}</span></div></article>
         <article><SmsIcon name="shield" size={18} /><div><b>เครื่องหลัก</b><span>{bootstrap?.activeDevice ? 'ยืนยันแล้ว' : bootstrap?.pendingDeviceRequest ? 'รออนุมัติ' : 'ยังไม่ยืนยัน'}</span></div></article>
-        <article><SmsIcon name="check" size={18} /><div><b>{online ? 'ออนไลน์' : 'ออฟไลน์'}</b><span>{online ? 'ส่งทันที' : 'เก็บไว้ส่งทีหลัง'}</span></div></article>
+        <article><SmsIcon name="check" size={18} /><div><b>{online ? 'ออนไลน์' : 'รอส่ง'}</b><span>{online ? (queueCount > 0 ? `รอส่ง ${queueCount} รายการ` : 'ส่งทันที') : `${queueCount} รายการ`}</span></div></article>
       </div>}
       <div className="attendance-simple__assurance">
         <article>
