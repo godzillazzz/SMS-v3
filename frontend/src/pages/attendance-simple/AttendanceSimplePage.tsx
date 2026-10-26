@@ -14,6 +14,7 @@ import { ATTACHMENT_POLICIES, canvasToOptimizedJpeg } from '../../lib/attachment
 import { SmsIcon } from '../../components/SmsIcon';
 import { PageHeader, SectionCard } from '../../components/layout';
 import { formatThaiDateTime } from '../../thai-date-time';
+import { isSmsPwaShellMode } from '../../pwa-mode';
 import {
   deviceFingerprint,
   deviceRiskSignals,
@@ -639,6 +640,11 @@ export function AttendanceSimplePage({
   };
 
   const employeeName = bootstrap?.employee.displayName || displayName || 'พนักงาน';
+  const pwaMode = useMemo(() => isSmsPwaShellMode(), []);
+  const firstName = String(bootstrap?.employee.firstName || employeeName.split(/\s+/)[0] || employeeName);
+  const employeeInitials = employeeName.trim().split(/\s+/).slice(0, 2).map((part) => (/^[เแโใไ]/.test(part) ? part.slice(1, 2) : part.slice(0, 1))).join('');
+  const greetingHour = Number(new Intl.DateTimeFormat('en-GB', { hour: '2-digit', hourCycle: 'h23', timeZone: 'Asia/Bangkok' }).format(currentTime));
+  const greeting = greetingHour < 12 ? 'สวัสดีตอนเช้า' : greetingHour < 17 ? 'สวัสดีตอนบ่าย' : 'สวัสดีตอนเย็น';
   useEffect(() => {
     const timer = window.setInterval(() => setCurrentTime(new Date()), 1000);
     return () => window.clearInterval(timer);
@@ -733,6 +739,23 @@ export function AttendanceSimplePage({
         </div>
       </div>
     </div>}
+    {pwaMode && <section className="attendance-simple__mobile" aria-label="สรุปพร้อมลงเวลา">
+      <header className="attendance-simple__greet">
+        <span className="attendance-simple__greet-avatar" aria-hidden="true">{employeeInitials}</span>
+        <div><strong>{greeting}, {firstName}</strong><small>{formatCurrentDate(currentTime)} · {department || bootstrap?.employee.department || '—'}</small></div>
+        <span className={`attendance-simple__net ${online ? 'is-online' : 'is-offline'}`}>{online ? 'ออนไลน์' : 'ออฟไลน์'}</span>
+      </header>
+      {bootstrap && <article className="attendance-simple__shift-card">
+        <b className="attendance-simple__shift-code" data-shift-code={String(bootstrap.assignment.shift.code || '').toUpperCase()}>{bootstrap.assignment.shift.code || '—'}</b>
+        <div>
+          <strong>{bootstrap.assignment.shift.name || 'กะ'} · {bootstrap.assignment.shift.startTime || '—'} – {bootstrap.assignment.shift.endTime || '—'}</strong>
+          <small>ตามตาราง: {[bootstrap.assignment.site.code, bootstrap.assignment.site.name].filter(Boolean).join(' · ') || '—'}</small>
+          <span className="attendance-simple__shift-state">{bootstrap.eventIntent === 'CHECK_OUT' ? (checkInTime && checkInTime !== '—' ? `ลงเวลาเข้าแล้ว ${checkInTime}` : 'ลงเวลาเข้าแล้ว') : 'ยังไม่ลงเวลา'}</span>
+        </div>
+      </article>}
+      <div className="attendance-simple__big-clock" aria-hidden="true"><strong>{formatCurrentClock(currentTime).slice(0, 5).replace(':', ' : ')}</strong><small>:{formatCurrentClock(currentTime).slice(6, 8)}</small></div>
+      <p className="attendance-simple__clock-note">เวลาบนเครื่อง · เวลาที่บันทึกใช้เวลาเซิร์ฟเวอร์</p>
+    </section>}
     <PageHeader
       kicker="ลงเวลาประจำวัน"
       title="ลงเวลา"
@@ -840,6 +863,11 @@ export function AttendanceSimplePage({
           {disabledGuidance.actionLabel && disabledGuidance.action && <button type="button" onClick={disabledGuidance.action}>{disabledGuidance.actionLabel}</button>}
         </div>}
       </div>
+      {pwaMode && <div className="attendance-simple__ready-tiles" aria-label="ความพร้อมก่อนลงเวลา">
+        <article><SmsIcon name="location" size={18} /><div><b>ตำแหน่ง</b><span>{siteContext ? 'ตรวจแล้ว' : 'ตรวจเมื่อกด'}</span></div></article>
+        <article><SmsIcon name="shield" size={18} /><div><b>เครื่องหลัก</b><span>{bootstrap?.activeDevice ? 'ยืนยันแล้ว' : bootstrap?.pendingDeviceRequest ? 'รออนุมัติ' : 'ยังไม่ยืนยัน'}</span></div></article>
+        <article><SmsIcon name="check" size={18} /><div><b>{online ? 'ออนไลน์' : 'ออฟไลน์'}</b><span>{online ? 'ส่งทันที' : 'เก็บไว้ส่งทีหลัง'}</span></div></article>
+      </div>}
       <div className="attendance-simple__assurance">
         <article>
           <b>ตำแหน่ง</b>
