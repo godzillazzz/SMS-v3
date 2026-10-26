@@ -55,3 +55,13 @@ body>.workflow-command-layer .workflow-command__results button:first-child,body>
 body>.workflow-command-layer .workflow-command__go{margin-left:auto;color:var(--color-primary);font-weight:700}
 body>.workflow-command-layer .workflow-command footer kbd{margin:0 2px 0 8px}
 body>.workflow-command-layer .workflow-command footer kbd:first-child{margin-left:0}
+.edit-dialog .dialog-section-title{grid-column:1/-1;margin:6px 0 -4px;font-size:13px;font-weight:700;color:var(--color-text-secondary)}
+.edit-dialog .dialog-section-title:not(:first-child){padding-top:10px;border-top:1px solid var(--color-border)}
+.edit-dialog .field-required{color:var(--color-danger,#DC2626)}
+.edit-dialog.personnel-editor .dialog-heading{justify-content:flex-start;align-items:flex-start;gap:14px;background:var(--color-surface)}
+.edit-dialog.personnel-editor .dialog-heading>button{margin-left:auto}
+.edit-dialog .edit-dialog-icon{display:inline-grid;place-items:center;flex:0 0 40px;width:40px;height:40px;border-radius:10px;background:color-mix(in srgb,var(--color-primary) 10%,transparent);color:var(--color-primary)}
+.edit-dialog .edit-dialog-lead{margin:2px 0 0;font-size:13px;color:var(--color-text-secondary)}
+#sms-app .edit-dialog .dialog-actions .btn-primary{background:var(--color-primary);border-color:var(--color-primary);color:#fff}
+.edit-dialog.personnel-editor .dialog-actions .btn-primary{background:var(--color-primary,#1E3A8A)!important;border-color:var(--color-primary,#1E3A8A)!important;color:#fff!important;box-shadow:none!important}
+.edit-dialog.personnel-editor .dialog-heading{border-bottom:1px solid var(--color-border)}

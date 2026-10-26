@@ -186,7 +186,7 @@ type DataRow = Record<string, unknown>;
 type DataResponse = { data?: DataRow[] | DataRow; summary?: { total?: number; critical?: number; warning?: number; info?: number }; meta?: { total?: number; page?: number; pageSize?: number; totalPages?: number; statusCounts?: Record<string, number>; unmatchedLegacyCount?: number } };
 type OperationRequestState = { page: Page; key: string; loading: boolean; error?: RequestErrorInput };
 type LicenseEmployeeStatus = 'ACTIVE' | 'INACTIVE' | 'ALL';
-type FormField = { name: string; label: string; type?: 'text' | 'email' | 'password' | 'date' | 'number' | 'select' | 'textarea' | 'file'; required?: boolean; accept?: string; hint?: string; min?: number; max?: number; options?: Array<{ value: string; label: string }> };
+type FormField = { name: string; label: string; section?: string; nextSection?: string; type?: 'text' | 'email' | 'password' | 'date' | 'number' | 'select' | 'textarea' | 'file'; required?: boolean; accept?: string; hint?: string; min?: number; max?: number; options?: Array<{ value: string; label: string }> };
 type Editor = { title: string; submitLabel: string; fields: FormField[]; values: Record<string, string>; notice?: string; experience?: 'personnel'; submit(values: Record<string, string>, files: Record<string, File>): Promise<void> };
 type LeaveDecisionRequest = { row: DataRow; action: LeaveDecisionAction; target: LeaveDecisionTarget };
 
@@ -734,16 +734,16 @@ function EditDialog({ editor, busy, error, onClose }: { editor: Editor; busy: bo
   const personnelEditor = editor.experience === 'personnel';
   return <div className="dialog-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !busy) onClose(); }}>
     <section ref={dialogRef} className={`edit-dialog${personnelEditor ? ' personnel-editor' : ''}`} role="dialog" aria-modal="true" aria-labelledby="edit-dialog-title">
-      <div className="dialog-heading"><div><p className="eyebrow">{personnelEditor ? 'EMPLOYEE MASTER' : 'จัดการข้อมูล'}</p><h2 id="edit-dialog-title">{editor.title}</h2></div><button type="button" aria-label="ปิด" disabled={busy} onClick={onClose}><SmsIcon name="close" size={20} /></button></div>
+      <div className="dialog-heading">{personnelEditor && <span className="edit-dialog-icon" aria-hidden="true"><SmsIcon name="employees" size={20} /></span>}<div><p className={personnelEditor ? 'eyebrow sr-only' : 'eyebrow'}>{personnelEditor ? 'EMPLOYEE MASTER' : 'จัดการข้อมูล'}</p><h2 id="edit-dialog-title">{editor.title}</h2>{personnelEditor && <p className="edit-dialog-lead">ข้อมูลจะถูกบันทึกเข้าทะเบียนกลางและบันทึกการใช้งาน</p>}</div><button type="button" aria-label="ปิด" disabled={busy} onClick={onClose}><SmsIcon name="close" size={20} /></button></div>
       {error && <div className="alert alert-error"><RequestErrorContent error={error} /></div>}
       {editor.notice && <div className="preview-warning"><strong>ตรวจสอบข้อมูลเดิม</strong><p>{editor.notice}</p></div>}
       <form onSubmit={submit}>
-        <div className="dialog-grid">{editor.fields.map((field) => <label className={['textarea', 'file'].includes(field.type || '') ? 'field-group full' : 'field-group'} key={field.name}><span>{field.label}</span>
+        <div className="dialog-grid">{editor.fields.map((field) => <React.Fragment key={field.name}>{field.section && <h3 className="dialog-section-title">{field.section}</h3>}<label className={['textarea', 'file'].includes(field.type || '') ? 'field-group full' : 'field-group'}><span>{field.label}{field.required && <b className="field-required" aria-hidden="true"> *</b>}</span>
           {field.type === 'select' ? <select required={field.required} value={values[field.name] || ''} onChange={(event) => setValues({ ...values, [field.name]: event.target.value })}><option value="">— เลือก —</option>{field.options?.map((option) => <option value={option.value} key={option.value}>{option.label}</option>)}</select>
             : field.type === 'textarea' ? <textarea required={field.required} value={values[field.name] || ''} onChange={(event) => setValues({ ...values, [field.name]: event.target.value })} />
               : field.type === 'file' ? <><input required={field.required} type="file" accept={field.accept} onChange={(event) => { const file = event.target.files?.[0]; if (file) setFiles({ ...files, [field.name]: file }); }} />{field.hint && <small className="field-hint">{field.hint}</small>}</>
                 : <input required={field.required} type={field.type || 'text'} step={field.type === 'number' ? '0.01' : undefined} min={field.min} max={field.max} value={values[field.name] || ''} onChange={(event) => setValues({ ...values, [field.name]: event.target.value })} />}
-        </label>)}</div>
+        </label>{field.nextSection && <h3 className="dialog-section-title">{field.nextSection}</h3>}</React.Fragment>)}</div>
         <div className="dialog-actions"><button className="btn-secondary" type="button" disabled={busy} onClick={onClose}>ยกเลิก</button><button className="btn-primary compact" type="submit" disabled={busy}>{busy ? 'กำลังบันทึก…' : editor.submitLabel}</button></div>
       </form>
     </section>
@@ -2424,11 +2424,11 @@ function Dashboard() {
       const departments = Array.isArray(masters?.departments) ? masters!.departments : [];
       const positions = Array.isArray(masters?.positions) ? masters!.positions : [];
       const fields: FormField[] = [
-        { name: 'employeeCode', label: 'รหัสภายใน', required: true },
+        { name: 'employeeCode', label: 'รหัสภายใน', required: true, section: 'ข้อมูลระบุตัว' },
         { name: 'firstName', label: 'ชื่อ', required: true },
         { name: 'lastName', label: 'นามสกุล', required: true },
-        { name: 'email', label: 'อีเมล', type: 'email' },
-        { name: 'phone', label: 'โทรศัพท์' },
+        { name: 'email', label: 'อีเมล', type: 'email', section: 'ติดต่อ' },
+        { name: 'phone', label: 'โทรศัพท์', nextSection: 'งาน' },
         { name: 'department', label: 'หน่วยงาน', type: 'select', options: [{ value: '', label: 'ไม่ระบุหน่วยงาน' }, ...departments.map((item) => ({ value: item.name, label: item.name }))] },
         { name: 'jobTitle', label: 'ตำแหน่ง', type: 'select', options: [{ value: '', label: 'ไม่ระบุตำแหน่ง' }, ...positions.map((item) => ({ value: item.name, label: item.name }))] },
         { name: 'hiredAt', label: 'วันที่เริ่มงาน', type: 'date' }
