@@ -1568,3 +1568,13 @@ html[data-theme] .app-shell:not(.pwa-shell) .content-area .attendance-supervisor
 #sms-app .attendance-supervisor-v4__kpi.is-active strong,#sms-app .attendance-supervisor-v4__kpi.is-active small{color:#fff!important}
 .attendance-supervisor-v4__reason-label{display:flex;justify-content:space-between;gap:8px}
 .attendance-supervisor-v4__reason-label small{font-weight:400;color:var(--color-text-secondary)}
+/* A-24 · supervisor on a phone: queue first, filters after the list */
+@media (max-width:640px){
+#sms-app .attendance-supervisor-v4{display:flex!important;flex-direction:column}
+#sms-app .attendance-supervisor-v4>.attendance-supervisor-v4__kpi-card{order:1}
+#sms-app .attendance-supervisor-v4>.attendance-supervisor-v4__table-card{order:2}
+#sms-app .attendance-supervisor-v4>.attendance-supervisor-v4__filter-card{order:3}
+#sms-app .attendance-supervisor-v4>*:not(.attendance-supervisor-v4__kpi-card):not(.attendance-supervisor-v4__table-card):not(.attendance-supervisor-v4__filter-card){order:0}
+#sms-app .attendance-supervisor-v4__kpis{flex-wrap:nowrap!important;overflow-x:auto;padding-bottom:4px}
+#sms-app .attendance-supervisor-v4__kpi{flex:0 0 auto}
+}

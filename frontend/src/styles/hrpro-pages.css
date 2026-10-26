@@ -96,3 +96,28 @@ body>.workflow-command-layer .workflow-command footer kbd:first-child{margin-lef
 .print-table thead th{background:#F1F5F9!important;color:#0F172A!important}
 .print-table .print-department-group-row th{background:#E2E8F0!important;color:#0F172A!important;text-align:left!important}
 }
+/* M3 · mobile leave request inside the Employee PWA shell */
+.pwa-shell .leave-page .layout-page-header .eyebrow,.pwa-shell .leave-page .layout-page-header p{display:none}
+.pwa-shell .leave-page .layout-page-header{padding:0!important}
+.pwa-shell .leave-page .leave-main-grid{display:flex!important;flex-direction:column;gap:14px}
+.pwa-shell .leave-page .leave-side{display:contents!important}
+.pwa-shell .leave-page .leave-side>.leave-quota-grid{order:-1;display:flex!important;gap:10px;overflow-x:auto;scroll-snap-type:x mandatory;padding-bottom:4px;margin:0!important}
+.pwa-shell .leave-page .leave-side>.leave-quota-grid>*{flex:0 0 42%;scroll-snap-align:start;min-height:0!important;padding:12px!important}
+.pwa-shell .leave-page .leave-side>.leave-history-card{order:2}
+.pwa-shell .leave-page .leave-submit-card{order:1;border:0!important;background:transparent!important;box-shadow:none!important;padding:0!important}
+.pwa-shell .leave-page .leave-submit-card>header{display:none}
+.pwa-shell .leave-page .leave-submit-card :is(input,select,textarea){min-height:48px;border-radius:10px!important}
+.pwa-shell .leave-page .leave-submit-card form{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.pwa-shell .leave-page .leave-submit-card form>*{grid-column:1/-1}
+.pwa-shell .leave-page .leave-submit-card form>label:has(input[type=date]){grid-column:auto}
+.pwa-shell .leave-page .leave-submit-card label>span svg{display:none}
+.pwa-shell .leave-page .leave-date-grid{display:grid!important;grid-template-columns:1fr 1fr!important;gap:10px}
+html[data-theme] .app-shell.pwa-shell .content-area .layout-page-surface.leave-page section.leave-submit-card.layout-section-card{border:0!important;background:transparent!important;box-shadow:none!important;padding:0!important}
+.pwa-shell .leave-page .leave-quota-metric :is(.metric-icon,p,small,[class*=icon]){display:none!important}
+.pwa-shell .leave-page .leave-quota-metric{gap:4px!important}
+.pwa-shell .leave-page .leave-quota-metric strong{font-size:26px!important}
+.pwa-shell .leave-page .layout-page-header button{min-height:36px;padding:0 10px;font-size:12px}
+.pwa-shell .leave-page .leave-date-grid>label{min-width:0}
+.pwa-shell .leave-page .leave-date-grid input{width:100%;min-width:0;padding-inline:10px}
+.pwa-shell .leave-page .leave-quota-metric svg{display:none}
+.pwa-shell .leave-page .leave-quota-metric :is(h2,h3,span){font-size:13px!important}
