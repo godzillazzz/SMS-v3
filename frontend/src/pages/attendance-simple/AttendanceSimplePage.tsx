@@ -15,6 +15,7 @@ import { SmsIcon } from '../../components/SmsIcon';
 import { PageHeader, SectionCard } from '../../components/layout';
 import { formatThaiDateTime } from '../../thai-date-time';
 import { isSmsPwaShellMode } from '../../pwa-mode';
+import { attendanceSelfSchedule, attendanceSelfToday } from '../attendance/attendance-client';
 import {
   deviceFingerprint,
   deviceRiskSignals,
@@ -40,6 +41,7 @@ type Props = {
   readOnly?: boolean;
   online?: boolean;
   onTodayHistory?: () => void;
+  onOpenSchedule?: () => void;
   onOpenSettings?: () => void;
   employeeV4?: boolean;
   onOpenAttendanceDevice?: () => void;
@@ -236,6 +238,7 @@ export function AttendanceSimplePage({
   readOnly = false,
   online = navigator.onLine,
   onTodayHistory,
+  onOpenSchedule,
   onOpenSettings,
   onOpenAttendanceDevice,
   onOpenSupervisor
@@ -730,6 +733,32 @@ export function AttendanceSimplePage({
                   : { message: 'กำลังโหลดข้อมูลกะงาน กรุณารอสักครู่' }
                 : null;
 
+  const [todayRecord, setTodayRecord] = useState<{ checkInAt?: string | null; checkOutAt?: string | null; punctuality?: string | null; checkoutCondition?: string | null } | null>(null);
+  const [nextShift, setNextShift] = useState<{ date: string; code?: string | null; start?: string | null; end?: string | null; site?: string | null } | null>(null);
+  const wantsTodayDetail = pwaMode && Boolean(token) && online && (bootstrap?.eventIntent === 'CHECK_OUT' || receiptEvent?.eventType === 'CHECK_OUT');
+  useEffect(() => {
+    if (!wantsTodayDetail || !token) return undefined;
+    let active = true;
+    attendanceSelfToday(token).then((data) => {
+      if (!active || !data?.assignment) return;
+      const row = data.assignment;
+      setTodayRecord({ checkInAt: row.effectiveCheckInAt || row.checkInAt, checkOutAt: row.effectiveCheckOutAt || row.checkOutAt, punctuality: row.punctuality, checkoutCondition: row.checkoutCondition });
+    }).catch(() => undefined);
+    if (receiptEvent?.eventType === 'CHECK_OUT') {
+      const today = bootstrap?.assignment.workDate ? String(bootstrap.assignment.workDate).slice(0, 10) : '';
+      attendanceSelfSchedule(token, today.slice(0, 7) || undefined).then((data) => {
+        if (!active || !data?.approved) return;
+        const next = [...data.rows].filter((row) => row.date > today && String(row.shift.code || '').toUpperCase() !== 'OFF').sort((x, y) => x.date.localeCompare(y.date))[0];
+        if (next) setNextShift({ date: next.date, code: next.shift.code, start: next.shift.startTime, end: next.shift.endTime, site: [next.expectedSite?.code || next.assignedSite?.code, next.expectedSite?.name || next.assignedSite?.name].filter(Boolean).join(' · ') });
+      }).catch(() => undefined);
+    }
+    return () => { active = false; };
+  }, [wantsTodayDetail, token, receiptEvent?.eventType, bootstrap?.assignment.workDate]);
+  const bangkokClock = (value?: string | null) => { if (!value) return ''; const d = new Date(value); return Number.isNaN(d.getTime()) ? '' : d.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone: 'Asia/Bangkok' }); };
+  const todayCheckIn = bangkokClock(todayRecord?.checkInAt) || (checkInTime !== '—' ? checkInTime : '');
+  const todayCheckOut = bangkokClock(todayRecord?.checkOutAt) || (receiptEvent?.eventType === 'CHECK_OUT' ? receiptTime : '');
+  const elapsedLabel = (() => { const from = todayRecord?.checkInAt || (receiptEvent?.eventType === 'CHECK_IN' ? receiptEvent.effectiveEventAt || receiptEvent.receivedAt : null); if (!from) return ''; const d = formatElapsedDuration(from, currentTime); return d && d !== '—' ? d : ''; })();
+  const nowMarker = new Date(currentTime).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone: 'Asia/Bangkok' });
   const blockedByServer = clockBlockedByServer && !busy;
   const outsideGap = (() => {
     const site = bootstrap?.assignment.site;
@@ -830,14 +859,25 @@ export function AttendanceSimplePage({
       <div className="attendance-simple__big-clock" aria-hidden="true"><strong>{formatCurrentClock(currentTime).slice(0, 5).replace(':', ' : ')}</strong><small>:{formatCurrentClock(currentTime).slice(6, 8)}</small></div>
       <p className="attendance-simple__clock-note">เวลาบนเครื่อง · เวลาที่บันทึกใช้เวลาเซิร์ฟเวอร์</p>
       {working && shiftWindow && <div className="attendance-simple__progress" aria-label="ความคืบหน้าของกะ">
-        <span>{workedDuration && workedDuration !== '—' ? `ทำงานมาแล้ว ${workedDuration}` : 'อยู่ระหว่างกะ'}</span>
-        <i><b style={{ width: `${Math.round(shiftWindow.ratio * 100)}%` }} /></i>
+        <span>{elapsedLabel ? <>ทำงานมาแล้ว <strong>{elapsedLabel}</strong></> : 'อยู่ระหว่างกะ'}</span>
+        <i><b style={{ width: `${Math.round(shiftWindow.ratio * 100)}%` }} /><em style={{ left: `${Math.round(shiftWindow.ratio * 100)}%` }} aria-label={`ตอนนี้ ${nowMarker}`}>ตอนนี้ {nowMarker}</em></i>
         <small><span>{shiftWindow.startLabel}</span><span>{shiftWindow.endLabel}</span></small>
       </div>}
       {shiftCompleted && <article className="attendance-simple__complete">
         <span aria-hidden="true"><SmsIcon name="check" size={26} /></span>
         <strong>วันนี้ลงเวลาครบแล้ว</strong>
-        <small>{checkInTime !== '—' ? `เข้า ${checkInTime} · ` : ''}ออก {receiptTime}</small>
+        <small>{todayCheckIn ? `เข้า ${todayCheckIn} · ` : ''}ออก {todayCheckOut || receiptTime}</small>
+        {nextShift && <section className="attendance-simple__next-shift" aria-label="กะถัดไป">
+          <header><span>กะถัดไป</span>{onOpenSchedule && <button type="button" className="attendance-simple__link" onClick={onOpenSchedule}>ตารางงาน ›</button>}</header>
+          <div><b className="attendance-simple__shift-code" data-shift-code={String(nextShift.code || '').toUpperCase()}>{nextShift.code || '—'}</b><div><strong>{formatThaiDateTime(new Date(`${nextShift.date}T00:00:00+07:00`), { weekday: 'long', day: 'numeric', month: 'short' })} · {nextShift.start || '—'} – {nextShift.end || '—'}</strong>{nextShift.site && <small>{nextShift.site}</small>}</div></div>
+        </section>}
+        {(todayCheckIn || todayCheckOut) && <section className="attendance-simple__day-timeline" aria-label="วันนี้">
+          <span>วันนี้</span>
+          <ol>
+            {todayCheckIn && <li><b>{todayCheckIn}</b>ลงเวลาเข้า{todayRecord?.punctuality === 'LATE' ? ' · มาสาย' : todayRecord?.punctuality === 'ON_TIME' ? ' · ตรงเวลา' : ''}</li>}
+            {(todayCheckOut || receiptTime) && <li><b>{todayCheckOut || receiptTime}</b>ลงเวลาออก{todayRecord?.checkoutCondition === 'EARLY_LEAVE' ? ' · ออกก่อนเวลา' : todayRecord?.checkoutCondition === 'NORMAL' ? ' · ออกตามเวลา' : ''}</li>}
+          </ol>
+        </section>}
         <button type="button" onClick={() => onTodayHistory?.()}>ดูประวัติวันนี้</button>
       </article>}
       {blockedByServer && <article className="attendance-simple__blocked">
@@ -1018,7 +1058,7 @@ export function AttendanceSimplePage({
           onClick={() => void recordAttendance()}
         >
           <span>{busy ? 'กำลังตรวจ…' : pendingSiteCapture ? `ยืนยัน${selectedActionLabel}ที่ ${siteDisplayName(pendingSiteCapture.context)}` : selectedActionLabel}</span>
-          <small>{busy && pwaMode ? 'อย่าปิดหน้านี้' : online ? 'กดครั้งเดียว · บันทึกกับ Server' : 'กดครั้งเดียว · เก็บไว้และส่งเมื่อออนไลน์'}</small>
+          <small>{busy && pwaMode ? 'อย่าปิดหน้านี้' : pwaMode && !online ? 'เก็บไว้ส่งทีหลัง' : online ? 'กดครั้งเดียว · บันทึกกับ Server' : 'กดครั้งเดียว · เก็บไว้และส่งเมื่อออนไลน์'}</small>
         </button>
         {clockDisabled && disabledGuidance && <div className="attendance-simple__disabled-guidance">
           <p id="attendance-simple-clock-disabled-reason">{disabledGuidance.message}</p>

@@ -744,7 +744,7 @@ function EditDialog({ editor, busy, error, onClose }: { editor: Editor; busy: bo
           {field.type === 'select' ? <select required={field.required} value={values[field.name] || ''} onChange={(event) => setValues({ ...values, [field.name]: event.target.value })}><option value="">— เลือก —</option>{field.options?.map((option) => <option value={option.value} key={option.value}>{option.label}</option>)}</select>
             : field.type === 'textarea' ? <textarea required={field.required} value={values[field.name] || ''} onChange={(event) => setValues({ ...values, [field.name]: event.target.value })} />
               : field.type === 'file' ? <><input required={field.required} type="file" accept={field.accept} onChange={(event) => { const file = event.target.files?.[0]; if (file) setFiles({ ...files, [field.name]: file }); }} />{field.hint && <small className="field-hint">{field.hint}</small>}</>
-                : <input required={field.required} type={field.type || 'text'} step={field.type === 'number' ? '0.01' : undefined} min={field.min} max={field.max} value={values[field.name] || ''} onChange={(event) => setValues({ ...values, [field.name]: event.target.value })} />}
+                : <><input required={field.required} type={field.type || 'text'} step={field.type === 'number' ? '0.01' : undefined} min={field.min} max={field.max} value={values[field.name] || ''} onChange={(event) => setValues({ ...values, [field.name]: event.target.value })} />{field.type === 'date' && values[field.name] && <small className="field-hint field-hint--thai-date">{new Intl.DateTimeFormat('th-TH', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' }).format(new Date(`${values[field.name]}T00:00:00Z`))}</small>}</>}
         </label>{field.nextSection && <h3 className="dialog-section-title">{field.nextSection}</h3>}</React.Fragment>)}</div>
         <div className="dialog-actions"><button className="btn-secondary" type="button" disabled={busy} onClick={onClose}>ยกเลิก</button><button className="btn-primary compact" type="submit" disabled={busy}>{busy ? 'กำลังบันทึก…' : editor.submitLabel}</button></div>
       </form>
@@ -3335,6 +3335,7 @@ function Dashboard() {
         employeeV4={pwaShell}
         onTodayHistory={() => selectPwaPage('attendanceHistory', { today: true })}
         onOpenSettings={() => selectPwaPage('profile')}
+        onOpenSchedule={pwaShell ? () => selectPwaPage('employeeSchedule') : undefined}
         onOpenSupervisor={pwaShell && ['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(auth.user?.role || '') && !auth.isViewingAs ? openPwaAttendanceSupervisor : undefined}
       />;
     }
