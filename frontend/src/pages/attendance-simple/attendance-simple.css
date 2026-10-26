@@ -589,3 +589,20 @@
 .attendance-simple__day-timeline li::before{content:"";width:10px;height:10px;border-radius:50%;background:#22C55E}
 .attendance-simple__day-timeline li b{font-variant-numeric:tabular-nums;color:var(--color-text);font-size:15px}
 .attendance-simple__next-shift header>span{white-space:nowrap}
+/* Clock-first on phones: the action must be visible without scrolling */
+.pwa-shell .attendance-simple__selfie-step{display:none!important}
+.pwa-shell .attendance-simple__mobile{gap:10px}
+.pwa-shell .attendance-simple__greet strong{font-size:17px}
+.pwa-shell .attendance-simple__offline-card.is-device{padding:10px 12px}
+.pwa-shell .attendance-simple__offline-card.is-device small{display:none}
+.pwa-shell .attendance-simple__shift-card{padding:10px 14px}
+.pwa-shell .attendance-simple__shift-card>div{gap:2px}
+.pwa-shell .attendance-simple__big-clock{margin-top:0}
+.pwa-shell .attendance-simple__big-clock strong{font-size:44px}
+.pwa-shell .attendance-simple__clock-note{display:none}
+.pwa-shell .attendance-simple__status:not(.is-danger){padding:8px 12px!important;font-size:12px}
+.pwa-shell .attendance-simple__status:not(.is-danger) span{display:none}
+.pwa-shell .attendance-simple__clock{width:184px!important;height:184px!important;margin:10px auto!important}
+.attendance-simple__fail-ref{margin:0;font-size:11px;color:var(--color-text-secondary);word-break:break-all}
+.attendance-simple__fail-ref code{font-size:11px}
+@media (max-height:700px){.pwa-shell .attendance-simple__clock{width:150px!important;height:150px!important}.pwa-shell .attendance-simple__big-clock strong{font-size:36px}}
