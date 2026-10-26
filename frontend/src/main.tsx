@@ -218,7 +218,7 @@ const navigation: Array<{ label: string; items: Array<{ id: Page; icon: SmsIconN
     { id: 'leave', icon: 'leave', label: 'คำขอลา' },
     { id: 'leavePending', icon: 'approval', label: 'อนุมัติคำขอลา' },
     { id: 'leaveHistory', icon: 'history', label: 'ประวัติการลาทั้งหมด' },
-    { id: 'quota', icon: 'quota', label: 'โควตาวันลา' }
+    { id: 'quota', icon: 'quota', label: 'โควต้าวันลา' }
   ] },
   { label: 'รายงาน', items: [{ id: 'reportCenter', icon: 'report', label: 'รายงานและวิเคราะห์' }] },
   { label: 'ตั้งค่า', items: [
@@ -994,7 +994,7 @@ const tablePages: Record<OperationalPage, { title: string; eyebrow: string; desc
     { label: 'ปี', value: (row) => row.quotaYear ? thaiQuotaYearLabel(Number(row.quotaYear)) : 'ข้อมูลเดิม — ยังไม่ระบุปี' },
     { label: 'พนักงาน', value: (row) => { const name = text(row.employeeNameSnapshot); const code = text(nested(row.employee).employeeCode || row.employeeCodeSnapshot || ''); return <span className="license-person"><span className="personnel-avatar" aria-hidden="true" data-tone={String(row.employeeId || name).split('').reduce((sum, ch) => sum + ch.charCodeAt(0), 0) % 5}>{String(name).split(/\s+/).filter(Boolean).map((part) => part.replace(/^[เแโใไ]+/, '').charAt(0)).join('').slice(0, 2)}</span><span><strong>{name}</strong>{code && code !== '—' ? <small>{code}</small> : null}</span></span>; } },
     { label: 'ลาป่วย', value: (row) => quotaBalanceCell(row.sickLeave, row.sickLeaveUsed, 'sick') },
-    { label: 'ลากิจ', value: (row) => quotaBalanceCell(row.personalLeave, row.personalLeaveUsed, 'personal') },
+    { label: 'ลากิจ', value: (row) => Number.isFinite(Number(row.personalLeave)) && Number.isFinite(Number(row.personalLeaveUsed)) ? quotaBalanceCell(row.personalLeave, row.personalLeaveUsed, 'personal') : quotaBalanceText(row.personalLeave, row.personalLeaveUsed) },
     { label: 'ลาพักร้อน', value: (row) => quotaBalanceCell(row.vacationLeave, row.vacationLeaveUsed, 'vacation') },
     { label: 'การจับคู่ข้อมูล', value: (row) => quotaMatchBadge(row.matchStatus) }
   ] },
@@ -2362,9 +2362,10 @@ function Dashboard() {
   const canManage = !auth.isViewingAs && ['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(auth.user?.role || '');
   const canViewPage = (page: Page) => canViewRoutePage(page, auth);
   const visibleNavigation = navigation
-    .map((section) => ({ ...section, items: section.items.filter((item) => canViewPage(item.id)
+    .map((section) => ({ ...section, items: section.items.filter((item) => canViewPage(item.id)) }))
+    .map((section) => ({ ...section, items: section.items.filter((item) =>
       // D-U3: only accounts linked to an employee can clock in; others do not see the menu (the route and permissions are unchanged).
-      && !(item.id === 'attendance' && !auth.user?.employeeId)
+      !(item.id === 'attendance' && !auth.user?.employeeId)
       // D-U2: leave approvals live in the Approval Center; /app/leave/pending still works from links.
       && item.id !== 'leavePending') }))
     .filter((section) => section.items.length > 0);
