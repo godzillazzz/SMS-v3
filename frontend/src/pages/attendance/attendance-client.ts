@@ -394,6 +394,20 @@ export async function promoteAttendanceDevice(token: string, employeeId: string,
   return payload.data;
 }
 
+/** ADMIN review image: the latest clock-in selfie taken on this device, proxied by the API. */
+export async function attendanceDeviceSelfieBlob(token: string, employeeId: string, deviceId: string): Promise<Blob> {
+  const path = `/attendance/devices/admin/employees/${encodeURIComponent(employeeId)}/devices/${encodeURIComponent(deviceId)}/selfie`;
+  const response = await attendanceAuthenticatedRequest(path, token, { method: 'GET', credentials: 'include', headers: authHeaders(token) });
+  if (!response.ok) {
+    const requestId = safeRequestId(response.headers.get('x-request-id'));
+    const payload = await jsonPayload(response);
+    throw new AttendanceFlowError(publicError(payload, response.status, 'ไม่สามารถเปิดรูปเซลฟี่ได้'), response.status, requestId, publicCode(payload));
+  }
+  const type = response.headers.get('content-type') || '';
+  if (!/^image\/(jpeg|png)\b/.test(type)) throw new AttendanceFlowError('รูปเซลฟี่มีรูปแบบไม่ถูกต้อง', 502, undefined, undefined);
+  return response.blob();
+}
+
 export async function verifyAttendanceDeviceProof(token: string, sessionId: string, input: {
   challengeId: string;
   challenge: string;

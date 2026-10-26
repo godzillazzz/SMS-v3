@@ -50,7 +50,18 @@ function safeRequest(row, projection = {}) { return row ? { id: row.id, requestI
 function reviewReasonList(value) { return Array.isArray(value) ? value.filter((reason) => typeof reason === 'string') : []; }
 function addReviewReason(value, reason) { return [...new Set([...reviewReasonList(value), reason])]; }
 
-function createAttendanceDeviceService({ prisma = prismaDefault, audit = auditDefault, clock = () => new Date(), randomBytes = crypto.randomBytes } = {}) {
+function createAttendanceDeviceService({ prisma = prismaDefault, audit = auditDefault, clock = () => new Date(), randomBytes = crypto.randomBytes, selfieStorage = null } = {}) {
+  // Resolved on first use so the storage provider configuration is not required
+  // for device operations that never read a selfie.
+  let resolvedSelfieStorage = selfieStorage;
+  function selfieStore() {
+    if (!resolvedSelfieStorage) {
+      const { selectContractStorage } = require('./storage-contract-wrappers');
+      const { createSupabaseAttendanceDeviceSelfieStorage } = require('./attendance-device-selfie-storage.service');
+      resolvedSelfieStorage = selectContractStorage({ environment: process.env, contract: 'selfie', supabaseFactory: () => createSupabaseAttendanceDeviceSelfieStorage({ prisma, audit, clock }) });
+    }
+    return resolvedSelfieStorage;
+  }
   async function loadLinkedEmployee(client, actor) {
     if (Object.prototype.hasOwnProperty.call(actor || {}, 'employeeAuthority')) {
       const employee = actor.employeeAuthority;
@@ -190,7 +201,15 @@ function createAttendanceDeviceService({ prisma = prismaDefault, audit = auditDe
       else if (employee && !groups.get(employeeId).employee) groups.get(employeeId).employee = safeEmployee(employee);
       return groups.get(employeeId);
     };
-    for (const row of enrollments) ensure(row.employeeId, row.employee).history.push(safeEnrollment(row));
+    // Latest stored clock-in selfie per not-yet-primary device, so the admin list can
+    // offer a review before promoting. Only ids/timestamps leave this query.
+    const candidateIds = enrollments.filter((row) => row.status === 'PENDING_APPROVAL').map((row) => row.id);
+    const latestSelfieAt = new Map();
+    if (candidateIds.length && prisma.attendanceDeviceSelfie?.findMany) {
+      const selfies = await prisma.attendanceDeviceSelfie.findMany({ where: { enrollmentId: { in: candidateIds }, purgedAt: null }, select: { enrollmentId: true, capturedAt: true }, orderBy: { capturedAt: 'desc' } });
+      for (const selfie of selfies) if (!latestSelfieAt.has(selfie.enrollmentId)) latestSelfieAt.set(selfie.enrollmentId, selfie.capturedAt);
+    }
+    for (const row of enrollments) ensure(row.employeeId, row.employee).history.push({ ...safeEnrollment(row), latestSelfieAt: latestSelfieAt.get(row.id) || null });
     for (const row of requests) ensure(row.employeeId, row.employee).requests.push(safeRequest(row));
     for (const row of audits) {
       const employeeId = row.metadata && typeof row.metadata === 'object' && !Array.isArray(row.metadata) ? row.metadata.employeeId : null;
@@ -237,6 +256,20 @@ function createAttendanceDeviceService({ prisma = prismaDefault, audit = auditDe
   // employee has already used (key proof verified at clock-in or enrollment) the
   // primary device. It records a normal change request and approves it, so the
   // approval path, revocation of the previous device and audit trail stay identical.
+  // ADMIN identity check before promoting: the latest live selfie taken when the
+  // employee clocked in from this device. Every view is audited.
+  async function getDeviceSelfie({ actor, employeeId, deviceEnrollmentId }) {
+    assertAdmin(actor);
+    const device = await prisma.attendanceDeviceEnrollment.findUnique({ where: { id: deviceEnrollmentId } });
+    if (!device || device.employeeId !== employeeId) throw http(404, 'ATTENDANCE_DEVICE_NOT_FOUND', 'Attendance device not found.');
+    const selfie = await prisma.attendanceDeviceSelfie.findFirst({ where: { employeeId, enrollmentId: device.id, purgedAt: null }, orderBy: { capturedAt: 'desc' } });
+    if (!selfie) throw http(404, 'ATTENDANCE_DEVICE_SELFIE_NOT_FOUND', 'No clock-in selfie is stored for this device.');
+    const { buffer } = await selfieStore().getBytes({ objectKey: selfie.storageObjectKey });
+    await audit.log({ actorUserId: actor.sub, action: 'UPDATE', entityType: 'AttendanceDeviceEnrollment', entityId: device.id,
+      metadata: { event: 'ADMIN_VIEW_DEVICE_SELFIE', employeeId, deviceEnrollmentId: device.id, selfieId: selfie.id } });
+    return { buffer, mimeType: selfie.mimeType === 'image/png' ? 'image/png' : 'image/jpeg', capturedAt: selfie.capturedAt };
+  }
+
   async function promoteDevice({ actor, employeeId, deviceEnrollmentId, reason }) {
     assertAdmin(actor);
     const text = cleanText(reason);
@@ -377,7 +410,7 @@ function createAttendanceDeviceService({ prisma = prismaDefault, audit = auditDe
     });
   }
 
-  return { getMyState, createRequest, createProofChallenge, createSelfieChallenge, verifyProof, listRequests, listAdminOverview, revokeCurrent, promoteDevice, approve, returnForCorrection, resubmit, reject, cancel };
+  return { getMyState, createRequest, createProofChallenge, createSelfieChallenge, verifyProof, listRequests, listAdminOverview, revokeCurrent, getDeviceSelfie, promoteDevice, approve, returnForCorrection, resubmit, reject, cancel };
 }
 
 module.exports = { ACTIVE_REQUEST_STATUSES, SUPPORTED_KEY_ALGORITHMS, CHALLENGE_TTL_MS, DEVICE_REQUEST_AUDIT_FIELDS, challengeHash, fingerprint, safeAudit, createAttendanceDeviceService };

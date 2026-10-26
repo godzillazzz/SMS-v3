@@ -6,7 +6,7 @@ import '../../styles/personnel-layout.css';
 import { SmsIcon } from '../../components/SmsIcon';
 import { auditEventLabel } from '../../components/audit/audit-utils';
 import { useActionDialog } from '../../components/useActionDialog';
-import { attendanceDeviceAdminOverview, promoteAttendanceDevice, revokeAttendanceDeviceCurrent } from '../attendance/attendance-client';
+import { attendanceDeviceAdminOverview, attendanceDeviceSelfieBlob, promoteAttendanceDevice, revokeAttendanceDeviceCurrent } from '../attendance/attendance-client';
 import { formatThaiDateTime } from '../../thai-date-time';
 import {
   ATTENDANCE_DEVICE_KEY_ALGORITHM,
@@ -31,6 +31,8 @@ export type AttendanceDeviceEnrollment = {
   platformHint?: string | null;
   status: 'PENDING_APPROVAL' | 'ACTIVE' | 'REVOKED' | 'REJECTED' | 'CANCELLED';
   proofVerifiedAt?: string | null;
+  /** ADMIN overview only: latest stored clock-in selfie taken on this device. */
+  latestSelfieAt?: string | null;
   enrolledAt?: string | null;
   activatedAt?: string | null;
   revokedAt?: string | null;
@@ -208,6 +210,22 @@ export function AttendanceDevicePage({ token, role, readOnly = false, initialReq
   const [revokeReason, setRevokeReason] = useState('');
   const [promoteTarget, setPromoteTarget] = useState<{ row: AttendanceDeviceAdminEmployee; device: AttendanceDeviceEnrollment } | null>(null);
   const [promoteReason, setPromoteReason] = useState('');
+  const [promoteSelfie, setPromoteSelfie] = useState<{ url?: string; loading?: boolean; error?: string }>({});
+  // The selfie is held only as an in-memory object URL while the dialog is open.
+  useEffect(() => {
+    setPromoteSelfie({});
+  }, [promoteTarget]);
+  useEffect(() => () => { if (promoteSelfie.url) URL.revokeObjectURL(promoteSelfie.url); }, [promoteSelfie.url]);
+  const openPromoteSelfie = async () => {
+    if (!promoteTarget || promoteSelfie.loading) return;
+    setPromoteSelfie({ loading: true });
+    try {
+      const blob = await attendanceDeviceSelfieBlob(token, promoteTarget.row.employeeId, promoteTarget.device.id);
+      setPromoteSelfie({ url: URL.createObjectURL(blob) });
+    } catch (error) {
+      setPromoteSelfie({ error: formatRequestErrorMessage(error, 'ไม่สามารถเปิดรูปเซลฟี่ได้') });
+    }
+  };
   const [adminSearch, setAdminSearch] = useState('');
   // Devices an employee has already proven with a key (first clock-in on a new phone
   // or an enrollment request) can be made primary directly; rows needing action sort first.
@@ -534,7 +552,7 @@ export function AttendanceDevicePage({ token, role, readOnly = false, initialReq
             : 'ยังไม่มีเครื่องหลัก'}</p>
           {row.activeRequest && <p className="attendance-device-admin-note">คำขอที่ค้างอยู่: <b>{requestTypeLabel[row.activeRequest.requestType]} · {statusLabel[row.activeRequest.status]}</b> — อนุมัติได้ที่ศูนย์อนุมัติ หรือกด “ตั้งเป็นเครื่องหลัก”</p>}
           {candidates.length > 0 && <ul className="attendance-device-admin-candidates">{candidates.map((device) => <li key={device.id}>
-            <div><b>{device.displayName}</b><span>{device.platformHint || 'อุปกรณ์อื่น'} · ยืนยันคีย์เมื่อ {formatDate(device.proofVerifiedAt)}</span></div>
+            <div><b>{device.displayName}</b><span>{device.platformHint || 'อุปกรณ์อื่น'} · ยืนยันคีย์เมื่อ {formatDate(device.proofVerifiedAt)}{device.latestSelfieAt ? ' · มีรูปเซลฟี่ให้ตรวจ' : ''}</span></div>
             <button type="button" className="btn-primary small-action" disabled={busy || readOnly} onClick={() => { setPromoteTarget({ row, device }); setPromoteReason(''); }}>ตั้งเป็นเครื่องหลัก</button>
           </li>)}</ul>}
           <footer>
@@ -548,7 +566,12 @@ export function AttendanceDevicePage({ token, role, readOnly = false, initialReq
       </> : <div className="attendance-device-state attendance-device-state--empty"><strong>ยังไม่มีอุปกรณ์ในระบบ</strong><span>เมื่อพนักงานลงเวลาหรือลงทะเบียนอุปกรณ์ รายการจะปรากฏที่นี่</span></div>}
     </SectionCard>}
 
-    {promoteTarget && <div className="attendance-device-review-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !busy) setPromoteTarget(null); }}><div className="attendance-device-review-modal" role="dialog" aria-modal="true" aria-labelledby="attendance-device-promote-title"><header><div><p>การดูแลอุปกรณ์โดยผู้ดูแลระบบ</p><h3 id="attendance-device-promote-title">ตั้งเป็นเครื่องหลัก</h3><span>{adminEmployeeName(promoteTarget.row)} · {promoteTarget.device.displayName}</span></div><button type="button" className="drawer-close overlay-close" disabled={busy} onClick={() => setPromoteTarget(null)} aria-label="ปิด"><SmsIcon name="close" size={20} /></button></header><div className="settings-notice">{promoteTarget.row.activeDevice ? `เครื่องหลักเดิม (${promoteTarget.row.activeDevice.displayName}) จะถูกยกเลิกทันที และเครื่องนี้จะใช้ลงเวลาได้โดยไม่ติดธง` : 'เครื่องนี้จะเป็นเครื่องหลักและใช้ลงเวลาได้ทันที'} คำขอเปลี่ยนเครื่องที่ค้างอยู่ของพนักงานคนนี้จะถูกยกเลิก</div><label className="attendance-device-field"><span>เหตุผล (บังคับ)</span><textarea autoFocus value={promoteReason} maxLength={1000} onChange={(event) => setPromoteReason(event.target.value)} placeholder="เช่น พนักงานเปลี่ยนโทรศัพท์ใหม่" /></label><footer><button type="button" className="btn-neutral" disabled={busy} onClick={() => setPromoteTarget(null)}>ยกเลิก</button><button type="button" className="btn-primary" disabled={busy || promoteReason.trim().length < 3} onClick={() => void submitPromote()}>{busy ? 'กำลังบันทึก…' : 'ยืนยันตั้งเป็นเครื่องหลัก'}</button></footer></div></div>}
+    {promoteTarget && <div className="attendance-device-review-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !busy) setPromoteTarget(null); }}><div className="attendance-device-review-modal" role="dialog" aria-modal="true" aria-labelledby="attendance-device-promote-title"><header><div><p>การดูแลอุปกรณ์โดยผู้ดูแลระบบ</p><h3 id="attendance-device-promote-title">ตั้งเป็นเครื่องหลัก</h3><span>{adminEmployeeName(promoteTarget.row)} · {promoteTarget.device.displayName}</span></div><button type="button" className="drawer-close overlay-close" disabled={busy} onClick={() => setPromoteTarget(null)} aria-label="ปิด"><SmsIcon name="close" size={20} /></button></header><div className="settings-notice">{promoteTarget.row.activeDevice ? `เครื่องหลักเดิม (${promoteTarget.row.activeDevice.displayName}) จะถูกยกเลิกทันที และเครื่องนี้จะใช้ลงเวลาได้โดยไม่ติดธง` : 'เครื่องนี้จะเป็นเครื่องหลักและใช้ลงเวลาได้ทันที'} คำขอเปลี่ยนเครื่องที่ค้างอยู่ของพนักงานคนนี้จะถูกยกเลิก</div><div className="attendance-device-selfie-review">{promoteTarget.device.latestSelfieAt ? <>
+          <button type="button" className="btn-neutral attendance-device-selfie-review__toggle" aria-pressed={Boolean(promoteSelfie.url)} disabled={busy || promoteSelfie.loading} onClick={() => { if (promoteSelfie.url) setPromoteSelfie({}); else void openPromoteSelfie(); }}><SmsIcon name="eye" size={18} />{promoteSelfie.loading ? 'กำลังโหลดรูป…' : promoteSelfie.url ? 'ซ่อนรูปเซลฟี่' : 'ดูรูปเซลฟี่จากการลงเวลา'}</button>
+          <small>ถ่ายเมื่อ {formatDate(promoteTarget.device.latestSelfieAt)} · ตรวจว่าเป็นพนักงานคนนี้ก่อนยืนยัน</small>
+          {promoteSelfie.url && <img src={promoteSelfie.url} alt={`รูปเซลฟี่จากการลงเวลาของ ${adminEmployeeName(promoteTarget.row)}`} />}
+          {promoteSelfie.error && <div className="alert alert-error" role="alert">{promoteSelfie.error}</div>}
+        </> : <small>ยังไม่มีรูปเซลฟี่จากเครื่องนี้ ตรวจตัวตนพนักงานด้วยวิธีอื่นก่อนยืนยัน</small>}</div><label className="attendance-device-field"><span>เหตุผล (บังคับ)</span><textarea autoFocus value={promoteReason} maxLength={1000} onChange={(event) => setPromoteReason(event.target.value)} placeholder="เช่น พนักงานเปลี่ยนโทรศัพท์ใหม่" /></label><footer><button type="button" className="btn-neutral" disabled={busy} onClick={() => setPromoteTarget(null)}>ยกเลิก</button><button type="button" className="btn-primary" disabled={busy || promoteReason.trim().length < 3} onClick={() => void submitPromote()}>{busy ? 'กำลังบันทึก…' : 'ยืนยันตั้งเป็นเครื่องหลัก'}</button></footer></div></div>}
 
     {revokeTarget?.activeDevice && <div className="attendance-device-review-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !busy) setRevokeTarget(null); }}><div className="attendance-device-review-modal" role="dialog" aria-modal="true" aria-labelledby="attendance-device-revoke-title"><header><div><p>การดูแลอุปกรณ์โดยผู้ดูแลระบบ</p><h3 id="attendance-device-revoke-title">ยกเลิกอุปกรณ์ปัจจุบัน</h3><span>{adminEmployeeName(revokeTarget)} · {revokeTarget.activeDevice.displayName}</span></div><button type="button" className="drawer-close overlay-close" disabled={busy} onClick={() => setRevokeTarget(null)} aria-label="ปิด"><SmsIcon name="close" size={20} /></button></header><div className="settings-notice">การยกเลิกมีผลทันที ระบบจะไม่เปิดใช้อุปกรณ์อื่นอัตโนมัติ และคำขอเปลี่ยนอุปกรณ์ที่ค้างอยู่จะถูกยกเลิกเพื่อป้องกันคำขอเก่าค้างอยู่</div><label className="attendance-device-field"><span>เหตุผลการยกเลิก (บังคับ)</span><textarea autoFocus value={revokeReason} maxLength={1000} onChange={(event) => setRevokeReason(event.target.value)} placeholder="เช่น อุปกรณ์สูญหาย / เลิกใช้งาน / เปลี่ยนเครื่อง" /></label><footer><button type="button" className="btn-neutral" disabled={busy} onClick={() => setRevokeTarget(null)}>ยกเลิก</button><button type="button" className="btn-danger" disabled={busy || revokeReason.trim().length < 3} onClick={() => void submitRevoke()}>{busy ? 'กำลังบันทึก…' : 'ยืนยันยกเลิกอุปกรณ์'}</button></footer></div></div>}
 

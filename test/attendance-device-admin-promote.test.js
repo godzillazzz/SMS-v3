@@ -91,3 +91,33 @@ test('guards: admin only, reason required, own employee only, verified non-revok
   await assert.rejects(unverified.service.promoteDevice({ actor: admin, employeeId: 'employee-1', deviceEnrollmentId: 'new-phone', reason: 'abc' }), (e) => e.details?.code === 'ATTENDANCE_DEVICE_NOT_ACTIONABLE');
   assert.equal(h.enrollments.get('old-phone').status, 'ACTIVE');
 });
+
+function selfieHarness({ selfie = { id: 'selfie-1', employeeId: 'employee-1', enrollmentId: 'new-phone', storageObjectKey: 'attendance-selfie/abc/capture-1.jpg', mimeType: 'image/jpeg', capturedAt: now, purgedAt: null } } = {}) {
+  const audits = []; const reads = [];
+  const prisma = {
+    attendanceDeviceEnrollment: { findUnique: async ({ where }) => ({ 'new-phone': { id: 'new-phone', employeeId: 'employee-1', status: 'PENDING_APPROVAL' } })[where.id] || null },
+    attendanceDeviceSelfie: { findFirst: async ({ where }) => (selfie && where.enrollmentId === selfie.enrollmentId && where.employeeId === selfie.employeeId && where.purgedAt === null ? selfie : null) }
+  };
+  const selfieStorage = { getBytes: async ({ objectKey }) => { reads.push(objectKey); return { buffer: Buffer.from('jpeg') }; } };
+  const service = createAttendanceDeviceService({ prisma, audit: { log: async (entry) => { audits.push(entry); } }, clock: () => now, selfieStorage });
+  return { service, audits, reads };
+}
+
+test('ADMIN can view the latest clock-in selfie of a device; every view is audited', async () => {
+  const h = selfieHarness();
+  const result = await h.service.getDeviceSelfie({ actor: admin, employeeId: 'employee-1', deviceEnrollmentId: 'new-phone' });
+  assert.equal(result.buffer.toString(), 'jpeg');
+  assert.equal(result.mimeType, 'image/jpeg');
+  assert.deepEqual(h.reads, ['attendance-selfie/abc/capture-1.jpg']);
+  assert.ok(h.audits.some((entry) => entry.metadata?.event === 'ADMIN_VIEW_DEVICE_SELFIE' && entry.metadata.selfieId === 'selfie-1'));
+});
+
+test('selfie view is ADMIN-only, scoped to the employee, and 404s when nothing is stored', async () => {
+  const h = selfieHarness();
+  await assert.rejects(h.service.getDeviceSelfie({ actor: { sub: 's', role: 'SUPERVISOR' }, employeeId: 'employee-1', deviceEnrollmentId: 'new-phone' }), (e) => e.details?.code === 'ATTENDANCE_DEVICE_ADMIN_REQUIRED');
+  await assert.rejects(h.service.getDeviceSelfie({ actor: admin, employeeId: 'employee-2', deviceEnrollmentId: 'new-phone' }), (e) => e.details?.code === 'ATTENDANCE_DEVICE_NOT_FOUND');
+  const empty = selfieHarness({ selfie: null });
+  await assert.rejects(empty.service.getDeviceSelfie({ actor: admin, employeeId: 'employee-1', deviceEnrollmentId: 'new-phone' }), (e) => e.details?.code === 'ATTENDANCE_DEVICE_SELFIE_NOT_FOUND');
+  assert.equal(h.reads.length, 0);
+  assert.equal(h.audits.length, 0);
+});
