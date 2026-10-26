@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { SmsIcon } from '../../components/SmsIcon';
 import { buildSmsPwaUatReport, readSmsPwaDiagnostics } from '../../pwa-diagnostics';
 import { roleDisplayName } from '../../role-display';
+import '../pwa-attendance/employee-attendance-v4.css';
 
 export type PwaProfileUser = {
   displayName?: string;
@@ -60,6 +61,18 @@ export function PwaProfilePage({ user, online, readOnly = false, onOpenPasskeys,
       </dl>
     </section>
 
+    <section className="pwa-profile-card">
+      <h2>ความปลอดภัย</h2>
+      <p>จัดการ Passkey และวิธีเข้าสู่ระบบของบัญชีนี้ โดยไม่เปลี่ยน Attendance device authority</p>
+      <button type="button" className="btn-neutral pwa-profile-action" disabled={readOnly} onClick={onOpenPasskeys}><SmsIcon name="key" size={18} />การเข้าสู่ระบบและ Passkey</button>
+    </section>
+
+    <section className="pwa-profile-card pwa-profile-session">
+      <div><h2>Session</h2><p>ออกจากระบบบนอุปกรณ์นี้เมื่อใช้งานเสร็จ</p></div>
+      <button type="button" className="btn-danger-outline pwa-profile-action" onClick={onLogout}><SmsIcon name="logout" size={18} />ออกจากระบบ</button>
+    </section>
+    <details className="pwa-profile-technical">
+      <summary>รายละเอียดทางเทคนิค</summary>
     <section className="pwa-profile-card" aria-label="PWA diagnostics">
       <h2>ความพร้อม PWA บนอุปกรณ์</h2>
       <p>ตรวจเฉพาะ capability และสถานะของเบราว์เซอร์ ไม่ขอสิทธิ์กล้อง/ตำแหน่ง และไม่สร้างหลักฐาน Attendance</p>
@@ -75,15 +88,6 @@ export function PwaProfilePage({ user, online, readOnly = false, onOpenPasskeys,
       {uatCopyState === 'failed' && <small className="is-offline">ไม่สามารถคัดลอกได้ กรุณาตรวจสิทธิ์ Clipboard ของเบราว์เซอร์</small>}
     </section>
 
-    <section className="pwa-profile-card">
-      <h2>ความปลอดภัย</h2>
-      <p>จัดการ Passkey และวิธีเข้าสู่ระบบของบัญชีนี้ โดยไม่เปลี่ยน Attendance device authority</p>
-      <button type="button" className="btn-neutral pwa-profile-action" disabled={readOnly} onClick={onOpenPasskeys}><SmsIcon name="key" size={18} />การเข้าสู่ระบบและ Passkey</button>
-    </section>
-
-    <section className="pwa-profile-card pwa-profile-session">
-      <div><h2>Session</h2><p>ออกจากระบบบนอุปกรณ์นี้เมื่อใช้งานเสร็จ</p></div>
-      <button type="button" className="btn-danger-outline pwa-profile-action" onClick={onLogout}><SmsIcon name="logout" size={18} />ออกจากระบบ</button>
-    </section>
+    </details>
   </section>;
 }

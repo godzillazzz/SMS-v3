@@ -74,7 +74,7 @@ export function AttendanceSchedulePwaPage({ token, online }: Props) {
     </article>}
 
     {!loading && online && data?.approved && <div className="employee-v4-schedule-list">
-      <div className="employee-v4-approved"><SmsIcon name="check" size={17} /><span>Approved Schedule</span><b>Revision {data.revision}</b></div>
+      <div className="employee-v4-approved"><SmsIcon name="check" size={17} /><span>อนุมัติแล้ว</span><b>Revision {data.revision}</b></div>
       {month === today.slice(0, 7) && (highlights.today || highlights.next) && <section className="employee-v4-shift-highlights" aria-label="กะวันนี้และกะถัดไป">
         {highlights.today && <article className="is-today">
           <span>กะวันนี้</span>
