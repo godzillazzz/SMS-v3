@@ -852,7 +852,7 @@ export function AttendanceSimplePage({
         <span className="attendance-simple__sheet-handle" aria-hidden="true" />
         <span className="attendance-simple__sheet-pill is-warn">ช่วยปฏิบัติงานต่าง Site</span>
         <h2 id="attendance-support-title">คุณอยู่ Site อื่นจากตาราง</h2>
-        <p>ลงเวลาได้ ระบบจะเก็บทั้งสอง Site ไว้และส่งให้หัวหน้าตรวจ</p>
+        <p>ลงเวลาได้ ระบบจะบันทึก Site ที่คุณอยู่จริง ไม่ต้องส่งให้หัวหน้าตรวจ · ใบ TimeSheet ช่องหมายเหตุจะระบุ “ช่วยปฏิบัติงาน Site {pendingSiteCapture.context.code || siteDisplayName(pendingSiteCapture.context)}”</p>
         <svg className="attendance-simple__site-map" viewBox="0 0 340 130" role="img" aria-label={`ภาพประกอบ: ตำแหน่งของคุณอยู่ที่ ${siteDisplayName(pendingSiteCapture.context)} ไม่ใช่ Site ตามตาราง`}>
           <defs><pattern id="sms-grid" width="34" height="26" patternUnits="userSpaceOnUse"><path d="M34 0H0V26" fill="none" stroke="currentColor" strokeOpacity=".12" /></pattern></defs>
           <rect width="340" height="130" rx="12" fill="url(#sms-grid)" />
