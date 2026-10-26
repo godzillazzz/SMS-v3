@@ -200,7 +200,10 @@ function createWebAuthnService({
   async function revokeCredential({ userId, credentialId, currentPassword }) {
     assertEnabled(config);
     const user = await prismaClient.user.findUnique({ where: { id: userId }, select: { passwordHash: true } });
-    if (!user || !(await bcrypt.compare(currentPassword, user.passwordHash))) throw new HttpError(401, 'รหัสผ่านปัจจุบันไม่ถูกต้อง');
+    if (!user || !(await bcrypt.compare(currentPassword, user.passwordHash))) {
+      await auditService.log({ actorUserId: userId, action: 'PASSKEY_LOGIN_FAILED', entityType: 'WebAuthnCredential', entityId: credentialId, metadata: { reason: 'password_step_up_failed' } });
+      throw new HttpError(401, 'รหัสผ่านปัจจุบันไม่ถูกต้อง');
+    }
     return prismaClient.$transaction(async (tx) => {
       const result = await tx.webAuthnCredential.updateMany({ where: { id: credentialId, userId, revokedAt: null }, data: { revokedAt: clock() } });
       if (result.count !== 1) throw new HttpError(404, 'ไม่พบ Passkey');

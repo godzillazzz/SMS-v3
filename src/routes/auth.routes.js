@@ -52,7 +52,7 @@ router.post('/passkeys/login/verify', passkeyRateLimit, async (req, res, next) =
 router.get('/passkeys', authenticate, async (req, res, next) => {
   try { res.json({ data: await webAuthn.listCredentials(req.user.sub) }); } catch (error) { next(error); }
 });
-router.post('/passkeys/register/options', authenticate, async (req, res, next) => {
+router.post('/passkeys/register/options', authenticate, passkeyRateLimit.createUserScoped(), async (req, res, next) => {
   try {
     const input = passkeyRegistrationOptionsSchema.parse(req.body);
     res.json(await webAuthn.registrationOptions({ userId: req.user.sub, ...input }));
@@ -67,7 +67,7 @@ router.post('/passkeys/register/verify', authenticate, async (req, res, next) =>
 router.patch('/passkeys/:id', authenticate, async (req, res, next) => {
   try { res.json({ data: await webAuthn.renameCredential({ userId: req.user.sub, credentialId: z.string().uuid().parse(req.params.id), ...passkeyRenameSchema.parse(req.body) }) }); } catch (error) { next(error); }
 });
-router.delete('/passkeys/:id', authenticate, async (req, res, next) => {
+router.delete('/passkeys/:id', authenticate, passkeyRateLimit.createUserScoped(), async (req, res, next) => {
   try { res.json({ data: await webAuthn.revokeCredential({ userId: req.user.sub, credentialId: z.string().uuid().parse(req.params.id), ...passkeyRevokeSchema.parse(req.body) }) }); } catch (error) { next(error); }
 });
 router.post('/register/request-otp', async (req, res, next) => {
