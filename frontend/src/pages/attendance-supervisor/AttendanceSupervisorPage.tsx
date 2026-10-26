@@ -1414,14 +1414,14 @@ export function AttendanceSupervisorPage({ token, role, department, employeeAuth
             </section>
 
             <section className="attendance-supervisor-v4__compare">
-              <h4>Original → Effective</h4>
+              <h4>เวลาเดิม → เวลาที่มีผล <small className="sr-only">Original → Effective</small></h4>
               <div><span>Check in</span><strong>{time(detail.originalCheckInAt)}</strong><i>→</i><strong>{time(detail.checkInAt)}</strong></div>
               <div><span>Check out</span><strong>{time(detail.originalCheckOutAt)}</strong><i>→</i><strong>{time(detail.checkOutAt)}</strong></div>
               <div><span>Worked</span><strong>—</strong><i>→</i><strong>{duration(detail.workedMinutes)}</strong></div>
             </section>
 
             <section className="attendance-supervisor-v4__raw-events">
-              <h4>Immutable Attendance Events</h4>
+              <h4>เหตุการณ์ลงเวลา (แก้ไขไม่ได้) <small className="sr-only">Immutable Attendance Events</small></h4>
               {detail.rawEvents.length === 0 ? <p>ยังไม่มี AttendanceEvent</p> : detail.rawEvents.map((event) => (
                 <article key={event.id}>
                   <div>
