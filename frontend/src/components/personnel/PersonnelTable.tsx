@@ -1,7 +1,6 @@
 import { TableActionCell, TableActionHeader } from '../TableActionColumn';
 import { DataTableSkeletonCards, DataTableSkeletonRows, DataTableState, ResponsiveDataTable } from '../ResponsiveDataTable';
 import type { PersonnelRecord } from './types';
-import type { EmployeeReadinessStatus, EmployeeReadinessViewState } from './AttendanceReadinessCenter';
 
 /* First letter for an avatar; Thai leading vowels (เ แ โ ใ ไ) are skipped so 'ใจดี' gives 'จ'. */
 const thaiInitial = (value?: string | null) => (String(value || '').trim().replace(/^[เแโใไ]+/, '').charAt(0));
@@ -9,11 +8,8 @@ const thaiInitial = (value?: string | null) => (String(value || '').trim().repla
 type Props = {
   rows: PersonnelRecord[];
   canManage: boolean;
-  canViewReadiness: boolean;
   canPrintAttendance?: boolean;
   onPrintAttendance?(employee: PersonnelRecord): void;
-  readinessByEmployeeId: Record<string, EmployeeReadinessStatus>;
-  readinessState: EmployeeReadinessViewState;
   selectedId?: string;
   onSelect(employee: PersonnelRecord): void;
   onEdit(employee: PersonnelRecord): void;
@@ -24,19 +20,11 @@ type Props = {
   emptyAction?: { label: string; onClick(): void };
 };
 
-function readinessLabel(status: EmployeeReadinessStatus | undefined, state: EmployeeReadinessViewState) {
-  if (status === 'READY') return 'พร้อม';
-  if (status === 'NOT_READY') return 'ไม่พร้อม';
-  if (state === 'loading') return 'กำลังตรวจ';
-  if (state === 'error') return 'ตรวจสอบไม่ได้';
-  return 'ไม่มีผลตรวจ';
-}
-
-export function PersonnelTable({ rows, canManage, canViewReadiness, canPrintAttendance = false, onPrintAttendance, readinessByEmployeeId, readinessState, selectedId, onSelect, onEdit, loading = false, error = false, onRetry, hasActiveFilters = false, emptyAction }: Props) {
-  const columnCount = 5 + Number(canManage) + Number(canViewReadiness) + Number(canPrintAttendance);
+export function PersonnelTable({ rows, canManage, canPrintAttendance = false, onPrintAttendance, selectedId, onSelect, onEdit, loading = false, error = false, onRetry, hasActiveFilters = false, emptyAction }: Props) {
+  const columnCount = 5 + Number(canManage) + Number(canPrintAttendance);
   const desktop = <div className="personnel-table-scroll data-table-scroll">
       <table className="personnel-table data-surface-table" aria-label="รายการบุคลากร">
-        <thead><tr><th scope="col">พนักงาน</th><th scope="col">รหัสภายใน</th><th scope="col">หน่วยงาน</th><th scope="col">ตำแหน่ง</th><th scope="col">สถานะ</th>{canViewReadiness && <th scope="col">ความพร้อม</th>}{canPrintAttendance && <th scope="col">ใบลงเวลา</th>}{canManage && <TableActionHeader label="จัดการ" />}</tr></thead>
+        <thead><tr><th scope="col">พนักงาน</th><th scope="col">รหัสภายใน</th><th scope="col">หน่วยงาน</th><th scope="col">ตำแหน่ง</th><th scope="col">สถานะ</th>{canPrintAttendance && <th scope="col">ใบลงเวลา</th>}{canManage && <TableActionHeader label="จัดการ" />}</tr></thead>
         <tbody>{error ? <tr><td colSpan={columnCount} className="personnel-no-rows data-table-empty-cell"><DataTableState variant="error" announce={false} title="ไม่สามารถโหลดข้อมูลบุคลากร" description="ระบบไม่พร้อมใช้งานชั่วคราว กรุณาลองใหม่อีกครั้ง" action={onRetry ? { label: 'ลองใหม่', onClick: onRetry } : undefined} /></td></tr> : loading ? <DataTableSkeletonRows columnCount={columnCount} rowCount={5} rowClassName="personnel-skeleton-row" /> : rows.length ? rows.map((employee) => <tr
           key={employee.id}
           data-personnel-id={employee.id}
@@ -47,7 +35,6 @@ export function PersonnelTable({ rows, canManage, canViewReadiness, canPrintAtte
           <td>{employee.department || '—'}</td>
           <td>{employee.jobTitle || '—'}</td>
           <td><span className={`status-badge ${employee.isActive ? 'active status-badge--success' : 'inactive status-badge--neutral'}`}>{employee.isActive ? 'ใช้งาน' : 'ไม่ใช้งาน'}</span></td>
-          {canViewReadiness && <td><span className={`status-badge ${readinessByEmployeeId[employee.id] === 'READY' ? 'status-badge--success' : readinessByEmployeeId[employee.id] === 'NOT_READY' ? 'status-badge--warning' : 'status-badge--neutral'}`} data-readiness-status={readinessByEmployeeId[employee.id] || 'UNKNOWN'}>{readinessLabel(readinessByEmployeeId[employee.id], readinessState)}</span></td>}
           {canPrintAttendance && <td><button type="button" className="data-row-primary-action" aria-label={`พิมพ์ใบลงเวลาของ ${employee.firstName} ${employee.lastName}`} onClick={() => onPrintAttendance?.(employee)}>🖨️ พิมพ์ใบลงเวลา</button></td>}
           {canManage && <TableActionCell className="personnel-row-actions data-row-actions" onClick={(event) => event.stopPropagation()}>
             <button type="button" className="data-row-primary-action" aria-label={`แก้ไขข้อมูล ${employee.firstName} ${employee.lastName}`} onClick={() => onEdit(employee)}>แก้ไขข้อมูล</button>
@@ -62,7 +49,6 @@ export function PersonnelTable({ rows, canManage, canViewReadiness, canPrintAtte
         <span className="personnel-mobile-record__meta"><small>หน่วยงาน</small><b>{employee.department || 'ไม่ระบุ'}</b></span>
         <span className="personnel-mobile-record__meta personnel-mobile-record__wide"><small>ตำแหน่ง</small><b>{employee.jobTitle || 'ไม่ระบุ'}</b></span>
         {canPrintAttendance && <button type="button" className="data-row-primary-action personnel-mobile-record__wide" aria-label={`พิมพ์ใบลงเวลาของ ${employee.firstName} ${employee.lastName}`} onClick={(event) => { event.stopPropagation(); onPrintAttendance?.(employee); }}>🖨️ พิมพ์ใบลงเวลา</button>}
-        {canViewReadiness && <span className="personnel-mobile-record__meta"><small>ความพร้อม</small><b className="personnel-mobile-readiness" data-readiness-status={readinessByEmployeeId[employee.id] || 'UNKNOWN'}>{readinessLabel(readinessByEmployeeId[employee.id], readinessState)}</b></span>}
         <em>แตะเพื่อเปิดรายละเอียด</em>
       </article>) : <DataTableState variant="empty" title={hasActiveFilters ? 'ไม่พบผลการค้นหา' : 'ยังไม่พบข้อมูลบุคลากร'} description={hasActiveFilters ? 'ลองล้างตัวกรองหรือใช้คำค้นหาอื่น' : 'ระบบยังไม่พบข้อมูลที่สามารถแสดงภายใต้หน่วยงานและสิทธิ์ของบัญชีนี้'} action={emptyAction} />}
     </div>;

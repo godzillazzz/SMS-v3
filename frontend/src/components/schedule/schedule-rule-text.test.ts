@@ -21,12 +21,12 @@ describe('S-01 rule results in Thai', () => {
     expect(describeRuleViolation({ ruleId: 'RULE999', title: 'Custom rule', severity: 'warning' }).title).toBe('Custom rule');
   });
 
-  it('uses the existing /rule-checks API and warns before re-approval on an approved month', () => {
+  it('keeps the rule-check panel and API available without mounting it in the roster', () => {
     const panel = fs.readFileSync(path.join(__dirname, 'ScheduleRuleChecksPanel.tsx'), 'utf8');
     expect(panel).toContain('api.ruleChecks(token, month)');
     expect(panel).not.toMatch(/fetch\(/);
     const main = fs.readFileSync(path.join(__dirname, '../../main.tsx'), 'utf8');
-    expect(main).toContain('<ScheduleRuleChecksPanel');
+    expect(main).not.toContain('<ScheduleRuleChecksPanel');
     expect(main).toContain('บันทึกแล้วจะกลับเป็น "รออนุมัติ"');
   });
 });
