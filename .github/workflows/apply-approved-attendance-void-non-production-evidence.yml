@@ -71,6 +71,7 @@ jobs:
       - name: Enforce exact non-Production manifest and migration source guards
         run: |
           set -euo pipefail
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
           node - <<'NODE'
           const fs = require('node:fs');
           const { validateAttendanceVoidManifest } = require('./scripts/ci/attendance-void-control-plane');
