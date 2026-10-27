@@ -506,6 +506,21 @@ test('disposable evidence workflow cannot target Production/UAT or real credenti
   assert.match(EVIDENCE_WORKFLOW, /attendance-void-evidence\.js run/);
 });
 
+test('disposable evidence creates and verifies its local shadow database before P1-P12 evidence', () => {
+  const createStep = EVIDENCE_WORKFLOW.indexOf('Create and verify disposable Prisma shadow database');
+  const evidenceStep = EVIDENCE_WORKFLOW.indexOf('Run read-only P1-P12 preflight, apply only M2-M5, and verify postconditions');
+  assert.ok(createStep >= 0 && createStep < evidenceStep, 'shadow database must be created and verified before evidence runs');
+  const shadowSetup = EVIDENCE_WORKFLOW.slice(createStep, evidenceStep);
+  assert.ok(shadowSetup.includes('timeout 30s node'));
+  assert.ok(shadowSetup.includes('timeout: 15_000'));
+  assert.ok(shadowSetup.includes('CREATE DATABASE sms_v3_shadow OWNER ci_user;'));
+  assert.ok(shadowSetup.includes("['DATABASE_URL', 'sms_v3_test']"));
+  assert.ok(shadowSetup.includes("['SHADOW_DATABASE_URL', database]"));
+  assert.ok(shadowSetup.includes('SELECT current_database() AS database_name, current_user AS role_name, inet_server_port() AS server_port, inet_server_addr()::text AS server_address'));
+  assert.ok(shadowSetup.includes('ATTENDANCE_VOID_SHADOW_DATABASE=PASS'));
+  assert.ok(shadowSetup.includes("['127.0.0.1', '::1']"));
+});
+
 test('application release retains separate run_migrations=false and rejects missing migration evidence IDs', () => {
   const productionManifest = JSON.parse(fs.readFileSync(path.join(ROOT, '.github/releases/approved-production.json'), 'utf8'));
   assert.equal(productionManifest.run_migrations, false);

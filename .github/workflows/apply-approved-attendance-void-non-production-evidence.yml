@@ -202,6 +202,61 @@ jobs:
             process.exitCode = 1;
           });
           NODE
+      - name: Create and verify disposable Prisma shadow database
+        run: |
+          set -euo pipefail
+          timeout 30s node <<'NODE'
+          'use strict';
+
+          (async () => {
+          const { spawnSync } = require('node:child_process');
+          const { PrismaClient } = require('@prisma/client');
+          const host = 'postgres';
+          const port = 5432;
+          const database = 'sms_v3_shadow';
+          const role = 'ci_user';
+          const env = process.env;
+          if (env.ATTENDANCE_VOID_DISPOSABLE_DATABASE !== 'true') throw new Error('disposable database flag is missing');
+
+          const urls = {};
+          for (const [variable, expectedDatabase] of [['DATABASE_URL', 'sms_v3_test'], ['SHADOW_DATABASE_URL', database]]) {
+            const url = new URL(env[variable] || '');
+            if (!['postgres:', 'postgresql:'].includes(url.protocol) || url.hostname !== host || (url.port || '5432') !== String(port) || decodeURIComponent(url.pathname.slice(1)) !== expectedDatabase || decodeURIComponent(url.username) !== role || decodeURIComponent(url.password) !== 'ci_test_only') {
+              throw new Error(`${variable} failed the disposable PostgreSQL service contract`);
+            }
+            url.searchParams.set('connect_timeout', '5');
+            urls[variable] = url;
+          }
+
+          const create = spawnSync(process.execPath, ['node_modules/prisma/build/index.js', 'db', 'execute', '--url', urls.DATABASE_URL.toString(), '--stdin'], {
+            input: 'CREATE DATABASE sms_v3_shadow OWNER ci_user;',
+            encoding: 'utf8',
+            timeout: 15_000,
+            maxBuffer: 1024 * 1024
+          });
+          if (create.error || create.status !== 0) {
+            const reason = create.error?.code === 'ETIMEDOUT' ? 'TIMEOUT' : 'CREATE_FAILED';
+            throw new Error(`ATTENDANCE_VOID_SHADOW_DATABASE_CREATE=FAIL reason=${reason}`);
+          }
+          console.log('ATTENDANCE_VOID_SHADOW_DATABASE_CREATE=PASS');
+
+          const prisma = new PrismaClient({ datasources: { db: { url: urls.SHADOW_DATABASE_URL.toString() } } });
+          try {
+            await prisma.$connect();
+            const rows = await prisma.$queryRaw`SELECT current_database() AS database_name, current_user AS role_name, inet_server_port() AS server_port, inet_server_addr()::text AS server_address`;
+            const identity = rows[0];
+            if (!identity || identity.database_name !== database || identity.role_name !== role || Number(identity.server_port) !== port || !identity.server_address || ['127.0.0.1', '::1'].includes(identity.server_address)) {
+              throw new Error('connected PostgreSQL shadow identity does not match the disposable service');
+            }
+            console.log(`ATTENDANCE_VOID_SHADOW_DATABASE=PASS database=${database} role=${role} port=${port}`);
+          } finally {
+            await prisma.$disconnect();
+          }
+          })().catch((error) => {
+            console.error(`ATTENDANCE_VOID_SHADOW_DATABASE=FAIL reason=${error?.code === 'ETIMEDOUT' ? 'TIMEOUT' : 'VERIFY_OR_CREATE_FAILED'}`);
+            process.exitCode = 1;
+          });
+          NODE
       - name: Run read-only P1-P12 preflight, apply only M2-M5, and verify postconditions
         run: node scripts/ci/attendance-void-evidence.js run
       - name: Upload redacted P1-P12 evidence artifact
