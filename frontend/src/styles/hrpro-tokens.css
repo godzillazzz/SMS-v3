@@ -14,11 +14,12 @@
   --color-text-muted: #5d6a80;
   --color-border: #e2e7ef;
   --color-border-strong: #c9d2de;
-  --color-primary: #1d4ed8;
-  --color-primary-hover: #1e40af;
-  --color-primary-active: #1e3a8a;
-  --color-primary-soft: #e8eefd;
-  --color-accent: #1d4ed8;
+  --color-brand: #1e3a5f;
+  --color-primary: #2563eb;
+  --color-primary-hover: #1d4ed8;
+  --color-primary-active: #1e40af;
+  --color-primary-soft: #e8f0fe;
+  --color-accent: #2563eb;
   --color-success: #0e7a42;
   --color-success-soft: #e6f4ec;
   --color-warning: #8f5300;
@@ -31,8 +32,9 @@
   --color-info-soft: #e5f1f8;
   --color-neutral: #475467;
   --color-neutral-soft: #eef1f5;
-  --color-sidebar-bg: #0e1a31;
-  --color-sidebar-bg-strong: #0e1a31;
+  --color-sidebar-bg: #172e4c;
+  --color-sidebar-bg-strong: #1e3a5f;
+  --sidebar-gradient: linear-gradient(180deg, #1e3a5f 0%, #172e4c 55%, #12243d 100%);
   --color-sidebar-text: #e8edf5;
   --color-sidebar-muted: #9aa8bf;
   --color-sidebar-hover: rgba(255, 255, 255, 0.07);
@@ -41,10 +43,10 @@
   --shadow-md: 0 4px 12px rgba(17, 26, 44, 0.08);
   --shadow-lg: 0 12px 28px rgba(17, 26, 44, 0.12);
   --focus-ring: 0 0 0 3px rgba(29, 78, 216, 0.24);
-  --radius-sm: 8px;
-  --radius-md: 10px;
-  --radius-lg: 14px;
-  --radius-xl: 14px;
+  --radius-sm: 6px;
+  --radius-md: 7px;
+  --radius-lg: 10px;
+  --radius-xl: 10px;
 }
 [data-theme="dark"] .app-shell,
 [data-theme="dark"] body > :is(.mobile-utility-panel, .mobile-utility-backdrop, #modal-root, .workflow-command-layer) {
@@ -76,15 +78,17 @@
   --color-info-soft: #10213a;
   --color-neutral: #b6c1d3;
   --color-neutral-soft: #1c2635;
-  --color-sidebar-bg: #0c131f;
-  --color-sidebar-bg-strong: #0c131f;
+  --color-brand: #1e3a5f;
+  --color-sidebar-bg: #0f1d34;
+  --color-sidebar-bg-strong: #16294a;
+  --sidebar-gradient: linear-gradient(180deg, #16294a 0%, #0f1d34 55%, #0b1628 100%);
   --color-sidebar-text: #e8edf5;
   --color-sidebar-muted: #93a0b5;
   --color-sidebar-hover: rgba(255, 255, 255, 0.06);
   --color-sidebar-border: #1c2635;
   --focus-ring: 0 0 0 3px rgba(134, 168, 255, 0.32);
-  --radius-sm: 8px;
-  --radius-md: 10px;
-  --radius-lg: 14px;
-  --radius-xl: 14px;
+  --radius-sm: 6px;
+  --radius-md: 7px;
+  --radius-lg: 10px;
+  --radius-xl: 10px;
 }
