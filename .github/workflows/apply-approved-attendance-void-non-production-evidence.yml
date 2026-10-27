@@ -50,8 +50,13 @@ jobs:
       DATABASE_URL: postgresql://ci_user:ci_test_only@postgres:5432/sms_v3_test
       DIRECT_URL: postgresql://ci_user:ci_test_only@postgres:5432/sms_v3_test
       SHADOW_DATABASE_URL: postgresql://ci_user:ci_test_only@postgres:5432/sms_v3_shadow
-      ATTENDANCE_VOID_EVIDENCE_OUTPUT: ${{ runner.temp }}/attendance-void-evidence-${{ github.run_id }}-${{ github.run_attempt }}.json
     steps:
+      - name: Set redacted evidence artifact path in runner temp
+        id: evidence_path
+        run: |
+          path="$RUNNER_TEMP/attendance-void-evidence-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.json"
+          printf 'ATTENDANCE_VOID_EVIDENCE_OUTPUT=%s\n' "$path" >> "$GITHUB_ENV"
+          printf 'path=%s\n' "$path" >> "$GITHUB_OUTPUT"
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
@@ -91,6 +96,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: attendance-void-evidence-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/attendance-void-evidence-${{ github.run_id }}-${{ github.run_attempt }}.json
+          path: ${{ steps.evidence_path.outputs.path }}
           if-no-files-found: warn
           retention-days: 30
