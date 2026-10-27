@@ -1,0 +1,96 @@
+name: Attendance Void Non-Production Migration Evidence
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - .github/releases/approved-attendance-void-migration.json
+      - .github/workflows/apply-approved-attendance-void-non-production-evidence.yml
+      - scripts/ci/attendance-void-control-plane.js
+      - scripts/ci/attendance-void-evidence.js
+      - scripts/ci/attendance-void-rollback-guard.js
+      - test/attendance-void-control-plane.test.js
+      - prisma/migrations/202610200001_attendance_selfie_policy/migration.sql
+      - prisma/migrations/202610220001_attendance_void_uat_reset/migration.sql
+      - prisma/migrations/202610220002_attendance_void_schema/migration.sql
+      - prisma/migrations/202610230001_attendance_session_history/migration.sql
+      - prisma/migrations/202610230002_attendance_void_closed_state/migration.sql
+      - prisma/schema.prisma
+
+permissions:
+  contents: read
+
+concurrency:
+  group: attendance-void-disposable-evidence-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  evidence:
+    name: P1-P12 disposable database evidence only
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: ci_user
+          POSTGRES_PASSWORD: ci_test_only
+          POSTGRES_DB: sms_v3_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ci_user -d sms_v3_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      NODE_ENV: test
+      ATTENDANCE_VOID_DISPOSABLE_DATABASE: 'true'
+      ATTENDANCE_VOID_CREATE_TEST_ROLES: 'true'
+      DATABASE_URL: postgresql://ci_user:ci_test_only@postgres:5432/sms_v3_test
+      DIRECT_URL: postgresql://ci_user:ci_test_only@postgres:5432/sms_v3_test
+      SHADOW_DATABASE_URL: postgresql://ci_user:ci_test_only@postgres:5432/sms_v3_shadow
+      ATTENDANCE_VOID_EVIDENCE_OUTPUT: ${{ runner.temp }}/attendance-void-evidence-${{ github.run_id }}-${{ github.run_attempt }}.json
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Enforce exact non-Production manifest and migration source guards
+        run: |
+          set -euo pipefail
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const { validateAttendanceVoidManifest } = require('./scripts/ci/attendance-void-control-plane');
+          const manifest = JSON.parse(fs.readFileSync('.github/releases/approved-attendance-void-migration.json', 'utf8'));
+          const result = validateAttendanceVoidManifest(manifest, { root: process.cwd() });
+          if (result.preflightEvidenceRunId !== null && manifest.evidence_status !== 'PASS') throw new Error('Unverified run id is not allowed in migration manifest');
+          process.stdout.write(`ATTENDANCE_VOID_CONTROL_MANIFEST=PASS source=${result.sourceCommitSha} tree=${result.sourceTreeSha}\n`);
+          NODE
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Generate Prisma client without connecting to any database
+        run: npm run prisma:generate
+      - name: Verify local service is the only disposable database target
+        run: |
+          set -euo pipefail
+          node - <<'NODE'
+          const { assertDisposableUrl } = require('./scripts/ci/attendance-void-evidence');
+          const env = process.env;
+          assertDisposableUrl(env.DATABASE_URL, 'sms_v3_test', env);
+          assertDisposableUrl(env.DIRECT_URL, 'sms_v3_test', env);
+          assertDisposableUrl(env.SHADOW_DATABASE_URL, 'sms_v3_shadow', env);
+          console.log('ATTENDANCE_VOID_DATABASE_TARGET=DISPOSABLE_POSTGRES_SERVICE_ONLY');
+          NODE
+      - name: Run read-only P1-P12 preflight, apply only M2-M5, and verify postconditions
+        run: node scripts/ci/attendance-void-evidence.js run
+      - name: Upload redacted P1-P12 evidence artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: attendance-void-evidence-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/attendance-void-evidence-${{ github.run_id }}-${{ github.run_attempt }}.json
+          if-no-files-found: warn
+          retention-days: 30
