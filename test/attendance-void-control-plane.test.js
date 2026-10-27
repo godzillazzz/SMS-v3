@@ -31,8 +31,10 @@ const {
   evidenceDocument,
   formatCheckStatus,
   prepareBaseline,
+  runEmptySchemaDiff,
   runM1BaselineSchemaDiffs,
   runPostApplySchemaDiffs,
+  runPrisma,
   verifyIdempotentDeploy
 } = require('../scripts/ci/attendance-void-evidence');
 const { validateReleaseManifest } = require('../scripts/ci/verify-release-manifest');
@@ -365,6 +367,91 @@ test('P10 fails closed on a non-empty schema diff or a second deploy that applie
   assert.equal(verifyIdempotentDeploy(baseline.fullSchemaPath, env, ROOT, () => 'No pending migrations to apply.'), true);
   assert.throws(() => verifyIdempotentDeploy(baseline.fullSchemaPath, env, ROOT, () => 'Applying migration 202610230002_attendance_void_closed_state'), /attempted to apply an additional migration/);
   assert.throws(() => verifyIdempotentDeploy(baseline.fullSchemaPath, env, ROOT, () => 'unexpected Prisma output'), /not recognizable/);
+});
+
+test('P10 failure evidence captures bounded redacted diff output without passing a non-empty diff', () => {
+  const label = 'disposable database to M1 schema diff';
+  const secretUrl = 'postgresql://ci_user:password123@postgres:5432/sms_v3_test?token=hidden';
+  const stderr = `Prisma diff target ${secretUrl}; owner@example.com token=hidden-token`;
+  const runnerError = Object.assign(new Error('Prisma diff failed'), {
+    status: 2,
+    stdout: 'ALTER TABLE "attendance_sessions" ADD COLUMN "unexpected" TEXT;\n',
+    stderr
+  });
+  assert.throws(() => runEmptySchemaDiff([], {}, label, ROOT, () => { throw runnerError; }), (error) => {
+    assert.equal(error.code, label);
+    assert.match(error.message, /exit=2/);
+    assert.deepEqual(error.details, {
+      command_label: label,
+      exit_code: 2,
+      stdout: 'ALTER TABLE "attendance_sessions" ADD COLUMN "unexpected" TEXT;\n',
+      stderr: 'Prisma diff target [REDACTED CONNECTION STRING] [REDACTED EMAIL] token=[REDACTED]'
+    });
+
+    const checks = createCheckCollector();
+    checks.fail('preflight', 'P10_IDEMPOTENT_DEPLOY_AND_EMPTY_SCHEMA_DIFF', { failure: error.details });
+    const document = evidenceDocument({
+      status: 'FAIL',
+      metadata: null,
+      preflight: { checks },
+      startedAt: 'start',
+      completedAt: 'end',
+      failureCode: error.code
+    });
+    const serialized = JSON.stringify(document);
+    const artifact = JSON.parse(serialized);
+    assert.equal(artifact.evidence_status, 'FAIL');
+    assert.equal(artifact.checks.P10_IDEMPOTENT_DEPLOY_AND_EMPTY_SCHEMA_DIFF.preflight.status, 'FAIL');
+    assert.deepEqual(artifact.checks.P10_IDEMPOTENT_DEPLOY_AND_EMPTY_SCHEMA_DIFF.preflight.failure, error.details);
+    assert.equal(artifact.checks.P11_SCHEMA_COUNTS_AND_CHECKSUM_POSTCONDITIONS.preflight.status, 'NOT_RUN');
+    assert.equal(artifact.checks.P12_OLD_AND_NEW_APP_SCHEMA_COMPATIBILITY.preflight.status, 'NOT_RUN');
+    assert.doesNotMatch(serialized, /password123|hidden-token|owner@example\.com|postgresql:\/\//);
+    return true;
+  });
+
+  assert.throws(() => runEmptySchemaDiff([], {}, label, ROOT, () => 'ALTER TABLE unexpected;'), (error) => {
+    assert.match(error.message, /is not empty/);
+    assert.equal(error.details.command_label, label);
+    assert.equal(error.details.exit_code, 0);
+    assert.equal(error.details.stdout, 'ALTER TABLE unexpected;');
+    return true;
+  });
+
+  const oversized = 'ALTER TABLE unexpected;'.repeat(1000);
+  assert.throws(() => runEmptySchemaDiff([], {}, label, ROOT, () => oversized), (error) => {
+    assert.equal(error.details.stdout.length, 12_000 + '...[truncated]'.length);
+    assert.ok(error.details.stdout.endsWith('...[truncated]'));
+    return true;
+  });
+});
+
+test('Prisma migrate diff preserves bounded diagnostics on nonzero exit while other Prisma errors stay generic', () => {
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'attendance-void-prisma-runner-test-'));
+  const cliPath = path.join(tempRoot, 'node_modules/prisma/build/index.js');
+  const label = 'disposable database to M1 schema diff';
+  const diff = 'ALTER TABLE "attendance_sessions" ADD COLUMN "unexpected" TEXT;';
+  fs.mkdirSync(path.dirname(cliPath), { recursive: true });
+  try {
+    fs.writeFileSync(cliPath, `process.stdout.write(${JSON.stringify(diff)}); process.stderr.write('P1000 postgresql://ci_user:password@postgres:5432/sms_v3_test'); process.exit(2);`);
+    assert.throws(() => runPrisma(['migrate', 'diff'], {}, label, tempRoot), (error) => {
+      assert.equal(error.status, 2);
+      assert.equal(error.details.command_label, label);
+      assert.equal(error.details.exit_code, 2);
+      assert.equal(error.details.stdout, diff);
+      assert.equal(error.details.stderr, 'P1000 [REDACTED CONNECTION STRING]');
+      assert.doesNotMatch(JSON.stringify(error.details), /password|postgresql:\/\//);
+      return true;
+    });
+
+    fs.writeFileSync(cliPath, "process.stdout.write('do not retain this output'); process.stderr.write('error'); process.exit(1);");
+    assert.throws(() => runPrisma(['migrate', 'deploy'], {}, 'approved deploy', tempRoot), (error) => {
+      assert.equal(error.details, undefined);
+      assert.equal(error.stdout, undefined);
+      return true;
+    });
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
 });
 
 test('evidence status formatting reports real per-phase results and rejects deferred P10-P12 PASS', () => {

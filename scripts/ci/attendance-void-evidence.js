@@ -26,6 +26,7 @@ const M1_SCHEMA_SOURCE_SHA = '56c33991503e09c5904279205fe1aaa423a8b219';
 const OLD_SCHEMA_SOURCE_SHA = PRODUCTION_SOURCE_SHA;
 const REQUIRED_ROLES = Object.freeze(['ADMIN', 'MANAGER', 'SUPERVISOR', 'VIEWER']);
 const TABLES = Object.freeze(['attendance_sessions', 'attendance_events', 'attendance_selfie_policies']);
+const MAX_SCHEMA_DIFF_OUTPUT_CHARS = 12_000;
 const EXPECTED_CHECK_NAMES = Object.freeze([
   'P1_SOURCE_IDENTITY',
   'P2_DISPOSABLE_DATABASE_IDENTITY',
@@ -251,9 +252,46 @@ function formatCheckStatus(name, check) {
   return `${name}=preflight:${preflight},post_apply:${postApply}`;
 }
 
+function redactedSchemaDiffOutput(value) {
+  const text = String(value || '')
+    .replace(/\b[a-z][a-z0-9+.-]*:\/\/[^\s"'<>]+/gi, '[REDACTED CONNECTION STRING]')
+    .replace(/\b(password|passwd|pwd|token|secret|api[_-]?key)\b(\s*[=:]\s*)("[^"]*"|'[^']*'|[^\s,;]+)/gi, '$1$2[REDACTED]')
+    .replace(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi, '[REDACTED EMAIL]');
+  return text.length > MAX_SCHEMA_DIFF_OUTPUT_CHARS
+    ? `${text.slice(0, MAX_SCHEMA_DIFF_OUTPUT_CHARS)}...[truncated]`
+    : text;
+}
+
+function schemaDiffFailureDetails(error, label, fallback = {}) {
+  const details = error?.details && typeof error.details === 'object' ? error.details : {};
+  const exitCode = Number.isSafeInteger(details.exit_code)
+    ? details.exit_code
+    : Number.isSafeInteger(error?.status) ? error.status : (fallback.exit_code ?? 1);
+  return Object.freeze({
+    command_label: label,
+    exit_code: exitCode,
+    stdout: redactedSchemaDiffOutput(details.stdout ?? error?.stdout ?? fallback.stdout),
+    stderr: redactedSchemaDiffOutput(details.stderr ?? error?.stderr ?? fallback.stderr)
+  });
+}
+
 function runEmptySchemaDiff(args, env, label, root, prismaRunner) {
-  const output = prismaRunner(args, env, label, root);
-  assert(output.length === 0 || /No difference detected\.?/i.test(output), `${label} is not empty`);
+  let output;
+  try {
+    output = prismaRunner(args, env, label, root);
+  } catch (error) {
+    const details = schemaDiffFailureDetails(error, label);
+    const failure = new Error(`${label} failed (exit=${details.exit_code})`);
+    failure.code = label;
+    failure.details = details;
+    throw failure;
+  }
+  if (output.length !== 0 && !/No difference detected\.?/i.test(output)) {
+    const failure = new Error(`${label} is not empty`);
+    failure.code = label;
+    failure.details = schemaDiffFailureDetails(failure, label, { exit_code: 0, stdout: output, stderr: '' });
+    throw failure;
+  }
   return 'EMPTY';
 }
 
@@ -626,7 +664,7 @@ async function collectPreflight(prisma, env = process.env, root = ROOT, baseline
   try {
     m1BaselineDiffs = runM1BaselineSchemaDiffs(baseline, env, root);
   } catch (error) {
-    checks.fail('preflight', 'P10_IDEMPOTENT_DEPLOY_AND_EMPTY_SCHEMA_DIFF', { failure: safeError(error) });
+    checks.fail('preflight', 'P10_IDEMPOTENT_DEPLOY_AND_EMPTY_SCHEMA_DIFF', { failure: error.details || safeError(error) });
     throw error;
   }
   const oldCompatibility = await oldApplicationCompatibilitySmoke(env.DIRECT_URL, env.RUNNER_TEMP || env.TMPDIR, env);
@@ -652,6 +690,12 @@ function runPrisma(args, env, label, root = ROOT) {
   if (result.error || result.status !== 0) {
     const error = new Error(`${label} failed (exit=${result.status ?? 1})`);
     error.code = label;
+    if (args[0] === 'migrate' && args[1] === 'diff') {
+      error.status = result.status;
+      error.stdout = result.stdout || '';
+      error.stderr = result.stderr || '';
+      error.details = schemaDiffFailureDetails(error, label);
+    }
     throw error;
   }
   return `${result.stdout || ''}\n${result.stderr || ''}`.trim();
@@ -755,7 +799,7 @@ async function collectPostflight(prisma, env, root, preflight, deployEvidence, c
     verifyIdempotentDeploy(preflight.baseline.fullSchemaPath, env, root);
     postApplyDiffs = runPostApplySchemaDiffs(preflight.baseline, env, root);
   } catch (error) {
-    checks.fail('post_apply', 'P10_IDEMPOTENT_DEPLOY_AND_EMPTY_SCHEMA_DIFF', { first_deploy_migrations: deployEvidence.applied_migrations, failure: safeError(error) });
+    checks.fail('post_apply', 'P10_IDEMPOTENT_DEPLOY_AND_EMPTY_SCHEMA_DIFF', { first_deploy_migrations: deployEvidence.applied_migrations, failure: error.details || safeError(error) });
     throw error;
   }
   checks.pass('post_apply', 'P10_IDEMPOTENT_DEPLOY_AND_EMPTY_SCHEMA_DIFF', {
@@ -944,6 +988,10 @@ async function runEvidence({ root = ROOT, env = process.env } = {}) {
     const document = evidenceDocument({ status: 'FAIL', metadata: null, preflight, postflight, env, startedAt, completedAt, failureCode: error.code || safeError(error) });
     const evidencePath = writeEvidence(document, env);
     for (const [name, check] of Object.entries(document.checks)) console.log(formatCheckStatus(name, check));
+    for (const phase of ['preflight', 'post_apply']) {
+      const failure = document.checks.P10_IDEMPOTENT_DEPLOY_AND_EMPTY_SCHEMA_DIFF?.[phase]?.failure;
+      if (failure && typeof failure === 'object') console.error(`P10_SCHEMA_DIFF_DIAGNOSTICS=${JSON.stringify(failure)}`);
+    }
     console.error(`ATTENDANCE_VOID_DISPOSABLE_EVIDENCE=FAIL failure=${safeError(error)}`);
     console.log(`EVIDENCE_ARTIFACT_PATH=${evidencePath}`);
     throw error;
@@ -980,6 +1028,10 @@ module.exports = {
   migrationDirectories,
   migrationStatus,
   normalizeStatements,
+  redactedSchemaDiffOutput,
+  schemaDiffFailureDetails,
+  runEmptySchemaDiff,
+  runPrisma,
   postflightShapeOk,
   preflightShapeOk,
   prepareBaseline,
