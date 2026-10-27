@@ -542,7 +542,7 @@ export function AttendanceDevicePage({ token, role, readOnly = false, initialReq
     {role === 'ADMIN' && <SectionCard className="attendance-device-admin-section" kicker="การดูแลอุปกรณ์" title="เครื่องหลักของพนักงาน" description="ตั้งหรือยกเลิกเครื่องหลักให้พนักงาน รายละเอียดและประวัติอยู่ใน “ดูประวัติ” ของแต่ละคน" actions={<>{!overviewLoading && !queueError && <span className="attendance-device-queue-count">{adminOverview.length}</span>}</>}>
       {overviewLoading ? <div className="attendance-device-state">กำลังโหลดประวัติอุปกรณ์…</div> : adminOverview.length ? <>
         <input className="attendance-device-admin-search" type="search" value={adminSearch} onChange={(event) => setAdminSearch(event.target.value)} placeholder="ค้นหาชื่อพนักงานหรือหน่วยงาน" aria-label="ค้นหาพนักงานในรายการอุปกรณ์" />
-        <div className="attendance-device-admin-list">{adminRows.map(({ row, candidates }) => <article className="attendance-device-review-card attendance-device-admin-row" key={row.employeeId}>
+        <div className="attendance-device-admin-list">{adminRows.map(({ row, candidates }) => { const history = row.history.filter((device) => device.id !== row.activeDevice?.id && device.id !== row.activeRequest?.candidateDeviceEnrollmentId); return <article className="attendance-device-review-card attendance-device-admin-row" key={row.employeeId}>
           <header>
             <div><strong>{adminEmployeeName(row)}</strong><span>{row.employee?.department || 'ไม่ระบุหน่วยงาน'}</span></div>
             <span className={`status-badge ${row.activeDevice ? 'active' : candidates.length ? 'returned' : 'muted'}`}>{row.activeDevice ? 'มีเครื่องหลัก' : candidates.length ? 'รอตั้งเครื่องหลัก' : 'ไม่มีเครื่องหลัก'}</span>
@@ -556,13 +556,13 @@ export function AttendanceDevicePage({ token, role, readOnly = false, initialReq
             <button type="button" className="btn-primary small-action" disabled={busy || readOnly} onClick={() => { setPromoteTarget({ row, device }); setPromoteReason(''); }}>ตั้งเป็นเครื่องหลัก</button>
           </li>)}</ul>}
           <footer>
-            <details className="attendance-device-admin-history"><summary>ดูประวัติ ({row.history.length})</summary>
-              <ul>{row.history.map((device) => <li key={device.id}><b>{enrollmentStatusLabel[device.status]}</b> · {device.displayName}{device.activatedAt ? ` · เปิดใช้ ${formatDate(device.activatedAt)}` : ''}{device.revokedAt ? ` · ยกเลิก ${formatDate(device.revokedAt)}${device.revokedReason ? ` (${device.revokedReason})` : ''}` : ''}{device.approvedBy?.displayName ? ` · อนุมัติโดย ${device.approvedBy.displayName}` : ''}</li>)}</ul>
+            <details className="attendance-device-admin-history"><summary>ดูประวัติ ({history.length})</summary>
+              <ul>{history.map((device) => <li key={device.id}><b>{enrollmentStatusLabel[device.status]}</b> · {device.displayName}{device.activatedAt ? ` · เปิดใช้ ${formatDate(device.activatedAt)}` : ''}{device.revokedAt ? ` · ยกเลิก ${formatDate(device.revokedAt)}${device.revokedReason ? ` (${device.revokedReason})` : ''}` : ''}{device.approvedBy?.displayName ? ` · อนุมัติโดย ${device.approvedBy.displayName}` : ''}</li>)}</ul>
               {row.recentAudit.length > 0 && <ul className="attendance-device-admin-events">{row.recentAudit.slice(0, 5).map((audit) => <li key={audit.id}><b>{auditEventLabel(audit.metadata?.event || audit.action)}</b> · {formatDate(audit.createdAt)} · {audit.actor?.displayName || 'ระบบ'}{typeof audit.metadata?.reason === 'string' ? ` · ${audit.metadata.reason}` : ''}</li>)}</ul>}
             </details>
             {row.activeDevice && <button type="button" className="btn-danger-outline small-action" disabled={busy || readOnly} onClick={() => { setRevokeTarget(row); setRevokeReason(''); }}>ยกเลิกเครื่องหลัก</button>}
           </footer>
-        </article>)}{!adminRows.length && <div className="attendance-device-state attendance-device-state--empty"><strong>ไม่พบพนักงานตามคำค้น</strong></div>}</div>
+        </article>; })}{!adminRows.length && <div className="attendance-device-state attendance-device-state--empty"><strong>ไม่พบพนักงานตามคำค้น</strong></div>}</div>
       </> : <div className="attendance-device-state attendance-device-state--empty"><strong>ยังไม่มีอุปกรณ์ในระบบ</strong><span>เมื่อพนักงานลงเวลาหรือลงทะเบียนอุปกรณ์ รายการจะปรากฏที่นี่</span></div>}
     </SectionCard>}
 

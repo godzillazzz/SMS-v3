@@ -201,6 +201,23 @@ describe('AttendanceDevicePage local key readiness', () => {
   });
 });
 
+describe('AttendanceDevicePage admin history presentation', () => {
+  it('keeps the current primary and pending candidate out of collapsed historical records', async () => {
+    vi.mocked(api.attendanceDeviceState).mockResolvedValue({ data: { employeeId: 'employee-1', activeDevice: null, activeRequest: null } } as never);
+    vi.mocked(api.attendanceDeviceRequests).mockResolvedValue({ data: [] } as never);
+    const attendanceClient = await import('../../pages/attendance/attendance-client');
+    const candidate = { id: 'candidate-1', employeeId: 'employee-1', displayName: 'เครื่องใหม่', keyAlgorithm: 'ECDSA', status: 'PENDING_APPROVAL' as const, proofVerifiedAt: '2026-10-26T00:00:00.000Z' };
+    const historical = { id: 'old-1', employeeId: 'employee-1', displayName: 'เครื่องเก่า', keyAlgorithm: 'ECDSA', status: 'REVOKED' as const, revokedAt: '2026-10-01T00:00:00.000Z' };
+    vi.mocked(attendanceClient.attendanceDeviceAdminOverview).mockResolvedValue([{ employeeId: 'employee-1', employee: { id: 'employee-1', displayName: 'พนักงานตัวอย่าง' }, activeDevice: active, activeRequest: { id: 'request-1', employeeId: 'employee-1', requestType: 'REPLACEMENT', status: 'PENDING_APPROVAL', requestedByUserId: 'user-1', candidateDeviceEnrollmentId: candidate.id, createdAt: '2026-10-26T00:00:00.000Z' }, history: [active, candidate, historical], recentAudit: [] }] as never);
+    const keyModule = await import('../../lib/attendance-device-key');
+    vi.mocked(keyModule.listAttendanceDeviceKeyIds).mockResolvedValue(inventory([]));
+
+    render(<AttendanceDevicePage token="test" role="ADMIN" />);
+
+    expect(await screen.findByText('ดูประวัติ (1)')).toBeTruthy();
+  });
+});
+
 describe('AttendanceDevicePage ADMIN promote with selfie review', () => {
   it('shows the clock-in selfie behind the eye button before the admin confirms', async () => {
     vi.mocked(api.attendanceDeviceState).mockResolvedValue({ data: { employeeId: 'employee-1', activeDevice: null, activeRequest: null } } as never);
