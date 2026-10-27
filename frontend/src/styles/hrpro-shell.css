@@ -1,17 +1,17 @@
 /* SMS-v3 UI Redesign — app shell + page chrome (Figma 03/F2/F3/F4). Loaded last; desktop/tablet shell only
    (.pwa-shell keeps the Attendance-PWA set). Colours come from hrpro-tokens.css / ui-accent.css. */
-#sms-app { --sidebar-active: #1d4ed8; --sidebar-item: #c9d3e3; --sidebar-label: #8a97ad; }
+#sms-app { --sidebar-active: #2563eb; --sidebar-item: #c9d3e3; --sidebar-label: #8a97ad; }
 #sms-app[data-accent="teal"] { --sidebar-active: #0b7a74; }
 #sms-app[data-accent="emerald"] { --sidebar-active: #047857; }
 
-/* Type: one family across the shell (F2). Mono only where the design uses it. */
-#sms-app, #sms-app * { font-family: "IBM Plex Sans Thai", system-ui, -apple-system, "Segoe UI", sans-serif !important; }
-#sms-app .main-area :is(h1, h2, h3, h4, h5, h6, strong, b, button, input, select, textarea, th, td) { font-family: "IBM Plex Sans Thai", system-ui, -apple-system, "Segoe UI", sans-serif !important; }
+/* Type: Inter for Latin and digits, Noto Sans Thai for Thai (owner decision 2026-10-27). Mono only where the design uses it. */
+#sms-app, #sms-app * { font-family: "Inter", "Noto Sans Thai", system-ui, -apple-system, "Segoe UI", sans-serif !important; }
+#sms-app .main-area :is(h1, h2, h3, h4, h5, h6, strong, b, button, input, select, textarea, th, td) { font-family: "Inter", "Noto Sans Thai", system-ui, -apple-system, "Segoe UI", sans-serif !important; }
 #sms-app :is(code, kbd, pre, samp) { font-family: "IBM Plex Mono", ui-monospace, monospace !important; }
 #sms-app, #sms-app .main-area { background: var(--color-bg) !important; color: var(--color-text); }
 
 /* Sidebar: ink in both modes, brand pill for the current page. */
-#sms-app .sidebar { background: var(--color-sidebar-bg) !important; background-image: none !important; color: var(--color-sidebar-text); border-right: 0 !important; box-shadow: none !important; backdrop-filter: none !important; }
+#sms-app .sidebar { background: var(--sidebar-gradient, var(--color-sidebar-bg)) !important; color: var(--color-sidebar-text); border-right: 0 !important; box-shadow: none !important; backdrop-filter: none !important; }
 #sms-app .sidebar-brand { border-bottom: 1px solid var(--color-sidebar-border) !important; background: transparent !important; }
 #sms-app .sidebar-brand .sms-brand-logo__light { display: none !important; }
 #sms-app .sidebar-brand .sms-brand-logo__dark { display: block !important; }
@@ -41,9 +41,9 @@
 #sms-app .main-area :is(.nexus-kicker, .page-header-kicker, .section-card-kicker, .layout-section-card__kicker, [class*="kicker"]) { color: var(--color-text-muted) !important; font-size: 12px !important; font-weight: 500 !important; letter-spacing: 0 !important; text-transform: none !important; }
 #sms-app .main-area :is(.layout-section-card, .section-card, .table-card, .nexus-panel, .metric-card, .workflow-journey, .my-work-queue, .schedule-rule-panel) { background: var(--color-surface) !important; background-image: none !important; border: 1px solid var(--color-border) !important; border-radius: 14px !important; box-shadow: var(--shadow-sm) !important; color: var(--color-text); }
 
-/* Layout foundation variables follow the design set (F2: radius 14 · IBM Plex Sans Thai). */
-#sms-app { --layout-card-radius: 14px; --layout-heading-font: "IBM Plex Sans Thai", sans-serif; --layout-body-font: "IBM Plex Sans Thai", sans-serif; }
-#sms-app .content-area .layout-page-surface :is(.layout-section-card, .layout-metric-card, .layout-step-flow) { border-radius: 14px !important; }
+/* Layout foundation variables (2026-10-27: cards 10px · controls 7px · Inter + Noto Sans Thai). */
+#sms-app { --layout-card-radius: 10px; --layout-heading-font: "Inter", "Noto Sans Thai", sans-serif; --layout-body-font: "Inter", "Noto Sans Thai", sans-serif; }
+#sms-app .content-area .layout-page-surface :is(.layout-section-card, .layout-metric-card, .layout-step-flow) { border-radius: 10px !important; }
 #sms-app .attendance-device-security-note { padding-top: 12px !important; padding-bottom: 12px !important; }
 #sms-app .data-table-scroll { padding-top: 1px !important; }
 
@@ -80,3 +80,22 @@
 #sms-app .main-area .signature-filter-bar{padding:0!important;border:0!important;background:transparent!important;box-shadow:none!important}
 #sms-app .schedule-calendar-page{animation:none!important}
 #sms-app .sidebar-rail-toggle{display:none}
+
+/* ---- 2026-10-27 HR-PRO alignment (owner decisions 1–10) ---------------------------------------
+   Shape: cards 10px, controls (buttons, inputs, selects, textareas) 7px.
+   Type scale: tables + menu 13.5px, status badges 11.5px, menu group labels 10.5px.
+   Numbers: tabular figures everywhere data is compared in columns. */
+#sms-app .main-area :is(.layout-section-card, .section-card, .table-card, .nexus-panel, .metric-card, .layout-metric-card, .data-table-card, .attendance-device-card, .attendance-device-admin-section, .attendance-device-review-card, .workflow-journey, .my-work-queue, .schedule-rule-panel, .settings-card) { border-radius: 10px !important; }
+#sms-app .topbar-search { border-radius: 7px; }
+#sms-app .main-area :is(.btn-primary, .btn-neutral, .btn-secondary, .btn-danger, .btn-danger-outline, .small-action, .primary-button, input:not([type="checkbox"]):not([type="radio"]):not([type="range"]), select, textarea) { border-radius: 7px !important; }
+#sms-app .main-area :is(.status-badge, .status-pill, [class*="status-badge--"]) { font-size: 11.5px !important; }
+#sms-app .main-area :is(table, .data-table) :is(td, th) { font-size: 13.5px !important; }
+#sms-app .sidebar .nav-item { font-size: 13.5px !important; }
+#sms-app .sidebar .nav-section > p { font-size: 10.5px !important; font-weight: 600 !important; letter-spacing: 0.06em !important; color: var(--sidebar-label) !important; opacity: 0.9; }
+#sms-app :is(table, .data-table, .layout-metric-card__value, .metric-value, .kpi-value, .quota-balance, time, .tabular) { font-variant-numeric: tabular-nums; }
+#sms-app :is(td, th) { font-variant-numeric: tabular-nums; }
+/* Colour roles (decision 10): navy #1e3a5f = brand + sidebar, blue #2563eb = buttons + links.
+   Set on #sms-app so the later page layers cannot repaint the action colour; teal/emerald accents keep theirs. */
+[data-theme="light"] #sms-app:not([data-accent]) { --color-brand: #1e3a5f; --color-primary: #2563eb; --color-primary-hover: #1d4ed8; --color-primary-active: #1e40af; --color-primary-soft: #e8f0fe; --color-accent: #2563eb; }
+[data-theme="dark"] #sms-app:not([data-accent]) { --color-brand: #1e3a5f; --color-primary: #86a8ff; --color-primary-hover: #a9c1ff; --color-primary-active: #6f93f5; --color-primary-soft: #18264a; --color-accent: #86a8ff; }
+#sms-app .main-area a:not([class]) { color: var(--color-primary); }
