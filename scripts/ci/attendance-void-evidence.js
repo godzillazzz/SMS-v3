@@ -83,7 +83,7 @@ function createCheckCollector() {
       assert(false, 'P10 preflight must be PARTIAL until the second deploy and post-apply diffs pass');
     }
     if (name === 'P10_IDEMPOTENT_DEPLOY_AND_EMPTY_SCHEMA_DIFF' && phase === 'post_apply') {
-      assert(details.second_deploy_idempotent === true && details.disposable_database_to_new_schema_diff === 'EMPTY', 'post-apply P10 evidence is incomplete');
+      assert(details.second_deploy_idempotent === true && details.full_migration_to_schema_diff === 'EMPTY' && details.disposable_database_to_new_schema_diff === 'EMPTY', 'post-apply P10 evidence is incomplete');
       assert(JSON.stringify(details.first_deploy_migrations) === JSON.stringify(MIGRATIONS.map(({ name: migration }) => migration)), 'P10 first deploy evidence does not show exact M2-M5 order');
     }
 
@@ -187,6 +187,8 @@ function prepareBaseline({ root = ROOT, tempRoot = process.env.RUNNER_TEMP || pr
   copyMigrations(migrationRoot, baselineMigrations);
   const schemaPath = path.join(baselineRoot, 'prisma', 'schema.prisma');
   const fullSchemaPath = path.join(baselineRoot, 'target', 'schema.prisma');
+  const fullMigrationRoot = path.join(baselineRoot, 'target', 'migrations');
+  copyMigrations(fullMigrationRoot, sourceMigrations);
   const oldApplicationSchema = gitBytes(['show', `${M1_SCHEMA_SOURCE_SHA}:prisma/schema.prisma`], root);
   fs.writeFileSync(schemaPath, oldApplicationSchema);
   fs.mkdirSync(path.dirname(fullSchemaPath), { recursive: true });
@@ -196,8 +198,10 @@ function prepareBaseline({ root = ROOT, tempRoot = process.env.RUNNER_TEMP || pr
     baselineRoot,
     schemaPath,
     migrationsRoot: migrationRoot,
+    fullMigrationRoot,
     fullSchemaPath,
     migrationCount: baselineMigrations.length,
+    fullMigrationCount: sourceMigrations.length,
     lastMigration: PREREQUISITE.name
   });
 }

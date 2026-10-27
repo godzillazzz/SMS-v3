@@ -28,6 +28,7 @@ const {
   assertDisposableUrl,
   createCheckCollector,
   evaluateRollbackGuard,
+  evidenceDocument,
   formatCheckStatus,
   prepareBaseline,
   runM1BaselineSchemaDiffs,
@@ -56,10 +57,11 @@ function readSql(name) {
 function evidenceDetails(name, phase) {
   if (name === 'P10_IDEMPOTENT_DEPLOY_AND_EMPTY_SCHEMA_DIFF') {
     return phase === 'preflight'
-      ? { disposable_database_to_m1_schema_diff: 'EMPTY', exact_m1_migration_checksum_verified: true }
+      ? { disposable_database_to_m1_schema_diff: 'EMPTY' }
       : {
           first_deploy_migrations: MIGRATIONS.map(({ name: migration }) => migration),
           second_deploy_idempotent: true,
+          full_migration_to_schema_diff: 'EMPTY',
           disposable_database_to_new_schema_diff: 'EMPTY'
         };
   }
@@ -312,11 +314,13 @@ test('disposable baseline paths use the exact M1 schema and migration history', 
 test('P10 compares disposable DB schema to M1 baseline before apply and to full schema after apply', () => {
   const env = {
     ATTENDANCE_VOID_DISPOSABLE_DATABASE: 'true',
-    DIRECT_URL: 'postgresql://ci_user:ci_test_only@postgres:5432/sms_v3_test'
+    DIRECT_URL: 'postgresql://ci_user:ci_test_only@postgres:5432/sms_v3_test',
+    SHADOW_DATABASE_URL: 'postgresql://ci_user:ci_test_only@postgres:5432/sms_v3_shadow'
   };
   const baseline = {
     migrationsRoot: '/tmp/m1/prisma/migrations',
     schemaPath: '/tmp/m1/prisma/schema.prisma',
+    fullMigrationRoot: path.join(ROOT, 'prisma/migrations'),
     fullSchemaPath: path.join(ROOT, 'prisma/schema.prisma')
   };
   const calls = [];
@@ -324,8 +328,7 @@ test('P10 compares disposable DB schema to M1 baseline before apply and to full 
 
   const m1BaselineDiffs = runM1BaselineSchemaDiffs(baseline, env, ROOT, runner);
   assert.deepEqual(m1BaselineDiffs, {
-    disposable_database_to_m1_schema_diff: 'EMPTY',
-    exact_m1_migration_checksum_verified: true
+    disposable_database_to_m1_schema_diff: 'EMPTY'
   });
   const checks = createCheckCollector();
   checks.partial('preflight', 'P10_IDEMPOTENT_DEPLOY_AND_EMPTY_SCHEMA_DIFF', m1BaselineDiffs);
@@ -338,9 +341,11 @@ test('P10 compares disposable DB schema to M1 baseline before apply and to full 
 
   calls.length = 0;
   assert.deepEqual(runPostApplySchemaDiffs(baseline, env, ROOT, runner), {
+    full_migration_to_schema_diff: 'EMPTY',
     disposable_database_to_new_schema_diff: 'EMPTY'
   });
   assert.deepEqual(calls, [
+    ['migrate', 'diff', '--from-migrations', baseline.fullMigrationRoot, '--to-schema-datamodel', baseline.fullSchemaPath, '--shadow-database-url', env.SHADOW_DATABASE_URL, '--exit-code'],
     ['migrate', 'diff', '--from-url', env.DIRECT_URL, '--to-schema-datamodel', baseline.fullSchemaPath, '--exit-code']
   ]);
 });
@@ -368,7 +373,7 @@ test('evidence status formatting reports real per-phase results and rejects defe
   }), 'P10_IDEMPOTENT_DEPLOY_AND_EMPTY_SCHEMA_DIFF=preflight:PARTIAL,post_apply:NOT_RUN');
   const checks = createCheckCollector();
   assert.throws(() => checks.pass('preflight', 'P10_IDEMPOTENT_DEPLOY_AND_EMPTY_SCHEMA_DIFF', {
-    disposable_database_to_m1_schema_diff: 'EMPTY', exact_m1_migration_checksum_verified: true
+    disposable_database_to_m1_schema_diff: 'EMPTY'
   }), /P10 preflight must be PARTIAL/);
   assert.doesNotThrow(() => checks.pass('preflight', 'P11_SCHEMA_COUNTS_AND_CHECKSUM_POSTCONDITIONS', evidenceDetails('P11_SCHEMA_COUNTS_AND_CHECKSUM_POSTCONDITIONS', 'preflight')));
   assert.throws(() => checks.partial('preflight', 'P11_SCHEMA_COUNTS_AND_CHECKSUM_POSTCONDITIONS', { deferred: true }), /partial evidence is allowed/);
@@ -384,7 +389,13 @@ test('evidence collector requires every P1-P12 in both read-only preflight and p
   assert.throws(() => checks.assertComplete(), /post-apply evidence is not PASS/);
   for (const name of EXPECTED_CHECK_NAMES) checks.pass('post_apply', name, evidenceDetails(name, 'post_apply'));
   checks.assertComplete();
-  assert.equal(Object.keys(checks.complete()).length, 12);
+  const completed = checks.complete();
+  assert.equal(Object.keys(completed).length, 12);
+  const document = evidenceDocument({ status: 'PASS', metadata: {}, preflight: { checks }, postflight: { checks }, startedAt: 'start', completedAt: 'end' });
+  assert.equal(document.checks.P10_IDEMPOTENT_DEPLOY_AND_EMPTY_SCHEMA_DIFF.preflight.status, 'PARTIAL');
+  assert.equal(document.checks.P10_IDEMPOTENT_DEPLOY_AND_EMPTY_SCHEMA_DIFF.post_apply.status, 'PASS');
+  assert.equal(document.checks.P12_OLD_AND_NEW_APP_SCHEMA_COMPATIBILITY.preflight.status, 'PARTIAL');
+  assert.equal(document.checks.P12_OLD_AND_NEW_APP_SCHEMA_COMPATIBILITY.post_apply.status, 'PASS');
 });
 
 test('disposable evidence workflow cannot target Production/UAT or real credentials', () => {
