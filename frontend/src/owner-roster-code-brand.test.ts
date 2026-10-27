@@ -45,6 +45,8 @@ describe('Owner-approved roster and brand contracts', () => {
     expect(main.match(/sortScheduleEmployeesByDepartment\(rawCalendarEmployees\)/g)).toHaveLength(2);
     expect(main).toContain('className="schedule-grid"');
     expect(main).not.toContain('className="schedule-department-group-row"');
+    expect(main).not.toContain('className="schedule-group-row"');
+    expect(main).not.toContain('const startsGroup =');
     expect(main).not.toContain('schedule-grid--compact');
     expect(main).not.toContain('calendarDepartmentStartByEmployeeId');
     expect(main).not.toContain('schedule-time-toggle');
