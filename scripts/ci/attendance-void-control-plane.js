@@ -123,10 +123,11 @@ function git(root, args, options = {}) {
 
 function gitAssertion(root, args, message) {
   try {
-    execFileSync('git', ['-C', root, ...args], { stdio: 'ignore' });
+    execFileSync('git', ['-C', root, ...args], { stdio: ['ignore', 'ignore', 'pipe'] });
     return true;
-  } catch {
-    assert(false, message);
+  } catch (error) {
+    const detail = String(error && error.stderr || '').trim().split(/\r?\n/)[0];
+    assert(false, detail ? `${message} (git exit ${error.status}: ${detail.slice(0, 160)})` : `${message} (git exit ${error && error.status})`);
   }
 }
 
