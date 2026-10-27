@@ -37,9 +37,23 @@ function createS3ContractWrappers({ environment = process.env, backend = createS
     async put({ employeeId, captureId, selfie: file }) {
       const secret = String(environment.SELFIE_PATH_SECRET || '');
       const identity = secret ? crypto.createHmac('sha256', secret).update(String(employeeId)).digest('hex') : String(employeeId);
-      return put('selfie', `attendance-selfie/${identity}/${captureId}`, file);
+      // normalizeSelfie() yields { buffer, mimeType, checksum }, while the S3 backend
+      // reads `mimetype` and reports `sha256`. Return the same shape as the Supabase
+      // selfie storage so AttendanceDeviceSelfie rows get checksum/mimeType/sizeBytes.
+      const mimeType = file?.mimeType || file?.mimetype;
+      const objectKey = `attendance-selfie/${identity}/${captureId}`;
+      const stored = await put('selfie', objectKey, { buffer: file?.buffer, mimetype: mimeType });
+      if (typeof file?.checksum !== 'string' || !file.checksum || stored?.sha256 !== file.checksum) {
+        // The upload succeeded, but cannot be used as attendance evidence. Best-effort
+        // remove only the exact key passed to this upload; cleanup must not mask the
+        // fail-closed checksum error.
+        try { await remove('selfie', objectKey); } catch {}
+        fail('STORAGE_CHECKSUM_UNCONFIRMED', 'Object storage checksum could not be confirmed.');
+      }
+      return { ...stored, mimeType: mimeType || stored.mimeType, sizeBytes: stored.sizeBytes ?? file?.buffer?.length, checksum: stored.sha256 };
     },
     async remove({ objectKey }) { return remove('selfie', objectKey); },
+    async getBytes({ objectKey }) { return { buffer: await store.get(buckets.selfie, objectKey) }; },
     async listObjects() { if (typeof store.listObjects !== 'function') fail('STORAGE_LIST_UNAVAILABLE', 'Object storage listing is unavailable.'); return store.listObjects(buckets.selfie, 'attendance-selfie/'); },
     async reconcileOrphans({ olderThanMs = 60 * 60 * 1000, limit = 1000, now = clock() } = {}) {
       if (!prisma?.attendanceDeviceSelfie?.findMany) fail('STORAGE_RECONCILE_UNAVAILABLE', 'Attendance selfie reconciliation is unavailable.');

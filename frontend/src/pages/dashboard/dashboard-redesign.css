@@ -2,7 +2,6 @@
 #sms-app .dashboard-redesign { display: grid; gap: 16px; }
 #sms-app .dashboard-redesign > * { margin: 0 !important; }
 #sms-app .dashboard-redesign .layout-page-header p, #sms-app .dashboard-redesign .nexus-command__hero p { color: var(--color-text-secondary) !important; }
-#sms-app .dashboard-redesign .nexus-hero-status { display: none !important; }
 #sms-app .dashboard-redesign__top { display: grid; grid-template-columns: minmax(0, 1.65fr) minmax(300px, 1fr); gap: 16px; align-items: start; }
 #sms-app .dashboard-redesign__top > .dashboard-command-grid { display: block !important; margin: 0 !important; }
 #sms-app .dashboard-redesign__top > :only-child { grid-column: 1 / -1; }

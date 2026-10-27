@@ -139,14 +139,47 @@ function record(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' ? value as Record<string, unknown> : {};
 }
 
-export function attendanceSimpleErrorDetails(body: unknown): AttendanceSimpleErrorDetails {
+const ATTENDANCE_SIMPLE_FALLBACK_MESSAGE = 'ไม่สามารถลงเวลาได้ กรุณาลองใหม่หรือติดต่อหัวหน้างาน';
+
+// Responses without a public code (validation, auth, proxy or 5xx failures)
+// are otherwise indistinguishable on screen. The HTTP status is not sensitive,
+// so it becomes a fixed diagnostic code that staff can report with the Request ID.
+const ATTENDANCE_HTTP_STATUS_MESSAGES: Record<string, string> = {
+  ATTENDANCE_REQUEST_INVALID: 'ข้อมูลลงเวลาไม่ผ่านการตรวจสอบของระบบ กรุณาปิดแล้วเปิดแอปใหม่ หากยังไม่ได้ให้แจ้งผู้ดูแลพร้อมรหัสด้านล่าง',
+  HTTP_401: 'เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่แล้วลองอีกครั้ง',
+  HTTP_403: 'บัญชีนี้ไม่มีสิทธิ์ลงเวลา กรุณาติดต่อผู้ดูแลระบบ',
+  HTTP_404: 'ไม่พบบริการลงเวลาบนระบบ กรุณาแจ้งผู้ดูแลพร้อมรหัสด้านล่าง',
+  HTTP_413: 'ข้อมูลหรือภาพที่ส่งมีขนาดใหญ่เกินกว่าที่ระบบรับได้ กรุณาแจ้งผู้ดูแลพร้อมรหัสด้านล่าง',
+  HTTP_429: 'มีการลองลงเวลาถี่เกินไป กรุณารอสักครู่แล้วลองใหม่',
+  HTTP_503: 'ระบบไม่พร้อมให้บริการชั่วคราว กรุณาลองใหม่อีกครั้งในอีกสักครู่',
+  HTTP_5XX: 'ระบบขัดข้อง กรุณาแจ้งผู้ดูแลพร้อมรหัสด้านล่าง'
+};
+
+function statusDiagnosticCode(status: number | undefined): string | undefined {
+  if (!Number.isInteger(status) || !status || status < 400 || status > 599) return undefined;
+  if (status === 400 || status === 422) return 'ATTENDANCE_REQUEST_INVALID';
+  return `HTTP_${status}`;
+}
+
+function statusDiagnosticMessage(code: string): string {
+  if (ATTENDANCE_HTTP_STATUS_MESSAGES[code]) return ATTENDANCE_HTTP_STATUS_MESSAGES[code];
+  if (/^HTTP_5\d\d$/.test(code)) return ATTENDANCE_HTTP_STATUS_MESSAGES.HTTP_5XX;
+  return ATTENDANCE_SIMPLE_FALLBACK_MESSAGE;
+}
+
+export function attendanceSimpleErrorDetails(body: unknown, status?: number): AttendanceSimpleErrorDetails {
   const responseBody = record(body);
   const nestedError = record(responseBody.error);
   const codeValue = typeof responseBody.code === 'string' ? responseBody.code : nestedError.code;
-  const code = typeof codeValue === 'string' ? codeValue : undefined;
+  const publicCode = typeof codeValue === 'string' ? codeValue : undefined;
   const requestId = normalizeRequestId(responseBody.requestId ?? nestedError.requestId);
+  const diagnosticCode = publicCode ? undefined : statusDiagnosticCode(status);
+  const code = publicCode || diagnosticCode;
+  const message = publicCode
+    ? ATTENDANCE_SIMPLE_ERROR_MESSAGES[publicCode] || ATTENDANCE_SIMPLE_FALLBACK_MESSAGE
+    : diagnosticCode ? statusDiagnosticMessage(diagnosticCode) : ATTENDANCE_SIMPLE_FALLBACK_MESSAGE;
   return {
-    message: (code && ATTENDANCE_SIMPLE_ERROR_MESSAGES[code]) || 'ไม่สามารถลงเวลาได้ กรุณาลองใหม่หรือติดต่อหัวหน้างาน',
+    message,
     ...(code ? { code } : {}),
     ...(requestId ? { requestId } : {})
   };
@@ -171,7 +204,7 @@ export class AttendanceSimpleRequestError extends Error {
 async function payload(response: Response) {
   const body = await response.json().catch(() => ({}));
   if (!response.ok) {
-    const details = attendanceSimpleErrorDetails(body);
+    const details = attendanceSimpleErrorDetails(body, response.status);
     throw new AttendanceSimpleRequestError({
       ...details,
       requestId: details.requestId || normalizeRequestId(response.headers.get('x-request-id'))

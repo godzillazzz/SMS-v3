@@ -34,11 +34,9 @@ html[data-theme] .app-shell .content-area .layout-page-surface.nexus-command .ne
   border: 0;
   background: transparent !important;
 }
-html[data-theme] .app-shell .content-area .layout-page-surface.nexus-command .nexus-command__hero > div > p:last-child,
-html[data-theme] .app-shell .content-area .layout-page-surface.nexus-command .nexus-hero-status small {
+html[data-theme] .app-shell .content-area .layout-page-surface.nexus-command .nexus-command__hero > div > p:last-child {
   color: var(--color-text-secondary) !important;
 }
-html[data-theme] .app-shell .content-area .layout-page-surface.nexus-command .nexus-hero-status strong { color: var(--color-text) !important; }
 html[data-theme] .app-shell .content-area .layout-page-surface.nexus-command .nexus-kicker { color: var(--color-primary, #5145cd) !important; font-family: var(--layout-body-font); letter-spacing: .04em; }
 html[data-theme="light"] .app-shell .content-area .layout-page-surface.nexus-command .nexus-kicker { color: #006b82 !important; }
 html[data-theme] .app-shell .content-area .layout-page-surface.nexus-command :is(.nexus-panel,.nexus-stream,.nexus-readiness,.nexus-activity) {
@@ -68,7 +66,6 @@ html[data-theme] .app-shell .content-area .layout-page-surface.nexus-command .ne
 html[data-theme] .app-shell .content-area .layout-page-surface.nexus-command .nexus-readiness :is(button,span,b),
 html[data-theme] .app-shell .content-area .layout-page-surface.nexus-command .nexus-activity :is(strong,small) { color: var(--color-text-secondary) !important; }
 @media(max-width:760px) {
-  html[data-theme] .app-shell .content-area .layout-page-surface.nexus-command .nexus-hero-status { display: none; }
   html[data-theme] .app-shell .content-area .layout-page-surface.nexus-command .nexus-kpis { grid-template-columns: repeat(2,minmax(0,1fr)); }
 }
 @media(max-width:420px) {

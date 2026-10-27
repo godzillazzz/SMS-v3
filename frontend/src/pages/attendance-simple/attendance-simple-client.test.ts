@@ -61,4 +61,19 @@ describe('Attendance structured error messages', () => {
     expect(attendanceSimpleErrorMessage({ error: 'Internal server error.', code: 'UNRECOGNIZED_ATTENDANCE_FAILURE' }))
       .toBe('ไม่สามารถลงเวลาได้ กรุณาลองใหม่หรือติดต่อหัวหน้างาน');
   });
+
+  it('turns code-less failures into status diagnostics instead of a bare Request ID', () => {
+    expect(attendanceSimpleErrorDetails({ error: 'Validation failed: device.signals (Required)', requestId: '8333a3d5-fcb0-4b98-bb13-f0dba4757424' }, 400))
+      .toEqual(expect.objectContaining({ code: 'ATTENDANCE_REQUEST_INVALID', requestId: '8333a3d5-fcb0-4b98-bb13-f0dba4757424' }));
+    expect(attendanceSimpleErrorDetails({ error: 'Internal server error.' }, 500)).toMatchObject({ code: 'HTTP_500', message: expect.stringContaining('ระบบขัดข้อง') });
+    expect(attendanceSimpleErrorDetails({ error: 'Database unavailable.' }, 503)).toMatchObject({ code: 'HTTP_503' });
+    expect(attendanceSimpleErrorDetails({}, 413)).toMatchObject({ code: 'HTTP_413' });
+    expect(attendanceSimpleErrorDetails({}, 403).message).toContain('ไม่มีสิทธิ์');
+  });
+
+  it('keeps the public server code ahead of any status diagnostic', () => {
+    expect(attendanceSimpleErrorDetails({ code: 'ATTENDANCE_CHECK_IN_TOO_EARLY' }, 422)).toMatchObject({ code: 'ATTENDANCE_CHECK_IN_TOO_EARLY', message: 'ยังไม่ถึงช่วงเวลาที่อนุญาตให้ลงเวลาเข้า' });
+    expect(attendanceSimpleErrorDetails({ code: 'ATTENDANCE_CONTEXT_STALE' }, 409)).toMatchObject({ code: 'ATTENDANCE_CONTEXT_STALE' });
+    expect(attendanceSimpleErrorDetails({})).toEqual({ message: 'ไม่สามารถลงเวลาได้ กรุณาลองใหม่หรือติดต่อหัวหน้างาน' });
+  });
 });

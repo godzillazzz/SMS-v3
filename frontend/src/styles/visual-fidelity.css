@@ -129,22 +129,6 @@ body {
     display: none;
   }
 
-  .topbar-search {
-    width: min(100%, 560px);
-    min-width: 0 !important;
-    min-height: 44px;
-    justify-self: start;
-    border-color: color-mix(in srgb, var(--color-border) 76%, transparent);
-    border-radius: 13px;
-    background: color-mix(in srgb, var(--color-surface-muted) 70%, transparent);
-  }
-
-  .topbar-search input {
-    min-width: 0 !important;
-    height: 42px;
-    font-size: 14px;
-  }
-
   .content-area {
     width: 100%;
     min-width: 0;
@@ -249,13 +233,6 @@ body {
 .topbar-actions {
   display: flex !important;
   gap: 9px !important;
-}
-
-.environment-pill {
-  min-height: 34px;
-  padding-inline: 11px;
-  border-radius: 999px;
-  font-size: 11px;
 }
 
 .topbar-profile {
@@ -384,14 +361,6 @@ button.personnel-primary-action {
   color: var(--color-text);
 }
 
-.dashboard-top-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: end;
-  gap: 20px;
-  min-width: 0;
-}
-
 .dashboard-hero {
   display: block;
   min-width: 0;
@@ -423,10 +392,6 @@ button.personnel-primary-action {
   border-radius: 0;
   background: transparent;
   box-shadow: none;
-}
-
-.dashboard-filter-bar__context {
-  display: none;
 }
 
 .dashboard-filter-bar__icon {
@@ -1426,11 +1391,6 @@ button.personnel-primary-action {
     border: 1px solid var(--vf-border);
   }
 
-  .dashboard-top-row {
-    grid-template-columns: 1fr;
-    align-items: start;
-  }
-
   .dashboard-filter-bar {
     justify-content: flex-start;
   }
@@ -1490,10 +1450,6 @@ button.personnel-primary-action {
   .personnel-directory-page,
   .access-management-page {
     gap: 18px !important;
-  }
-
-  .dashboard-top-row {
-    gap: 15px;
   }
 
   .dashboard-filter-bar {
@@ -1902,7 +1858,6 @@ button.personnel-primary-action {
   box-shadow: 0 4px 12px var(--pastel-halo-primary);
 }
 
-.topbar-search:focus-within,
 .personnel-search-input:focus-within,
 .registration-review__search:focus-within {
   border-color: color-mix(in srgb, var(--color-primary) 54%, var(--color-border));
@@ -1973,12 +1928,6 @@ button.personnel-primary-action,
     radial-gradient(220px 150px at 0% 0%, color-mix(in srgb, var(--vf03-accent) 15%, transparent), transparent 72%),
     linear-gradient(145deg, color-mix(in srgb, var(--color-surface) 89%, var(--vf03-wash)), var(--color-surface) 76%);
   box-shadow: 0 14px 34px var(--vf03-halo), var(--shadow-sm);
-}
-
-.dashboard-metric--indigo {
-  --vf03-accent: var(--color-primary);
-  --vf03-wash: var(--surface-accent-primary);
-  --vf03-halo: var(--pastel-halo-primary);
 }
 
 .dashboard-metric--green {
@@ -2249,13 +2198,6 @@ button.personnel-primary-action,
   --vf03-accent: var(--color-attention);
   --vf03-wash: var(--surface-accent-attention);
   --vf03-halo: var(--pastel-halo-attention);
-}
-
-.access-summary-icon {
-  color: var(--vf03-accent);
-  background: color-mix(in srgb, var(--vf03-accent) 20%, var(--vf03-wash));
-  border: 1px solid color-mix(in srgb, var(--vf03-accent) 17%, transparent);
-  box-shadow: 0 7px 16px var(--vf03-halo);
 }
 
 .access-table th {
@@ -2926,7 +2868,6 @@ button.personnel-primary-action,
   box-shadow: 0 14px 36px color-mix(in srgb, var(--vf03-accent) 8%, transparent), var(--shadow-sm);
 }
 
-[data-theme="dark"] .access-summary-icon,
 [data-theme="dark"] .personnel-metric__icon {
   background: color-mix(in srgb, var(--vf03-accent) 25%, var(--color-surface-elevated));
   box-shadow: 0 7px 22px color-mix(in srgb, var(--vf03-accent) 20%, transparent);

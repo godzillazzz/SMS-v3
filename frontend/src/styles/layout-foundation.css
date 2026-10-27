@@ -24,5 +24,4 @@ html[data-theme] .app-shell:not(.pwa-shell) :is(.main-area,.content-area,.view-p
 @media(max-width:768px) { :root { --layout-card-padding:16px; } }
 
 /* Keep existing shell labels readable when the canvas is light. */
-[data-theme="light"] .app-shell:not(.pwa-shell) .environment-pill { color:color-mix(in srgb,var(--color-success) 80%,var(--color-text) 20%) !important; }
 [data-theme="light"] .app-shell:not(.pwa-shell) .nexus-command__hero > div > p:not(.nexus-kicker) { color:var(--color-text-secondary) !important; }

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   simpleAttendanceBootstrap,
+  simpleAttendanceMoveRequest,
   simpleAttendanceSelfieProof,
   simpleAttendanceSubmit,
   type AttendanceSimpleErrorDetails,
@@ -150,6 +151,15 @@ export function attendanceErrorMessage(code: string | undefined, fallback: strin
   return fallback;
 }
 
+// Server codes are fixed identifiers, never user data. Any code with this shape is
+// shown as a reference so an unmapped server rule is diagnosable instead of
+// collapsing into the generic fallback with only a Request ID.
+const DISPLAYABLE_ATTENDANCE_CODE = /^(?:ATTENDANCE_[A-Z0-9_]{2,80}|HTTP_[45]\d\d)$/;
+
+export function isDisplayableAttendanceCode(value: string): boolean {
+  return SAFE_ATTENDANCE_ERROR_CODES.has(value) || DISPLAYABLE_ATTENDANCE_CODE.test(value);
+}
+
 export function attendanceFailure(reason: unknown, fallback: string): AttendanceSimpleErrorDetails {
   const normalized = toRequestErrorState(reason, fallback);
   const readRecord = (value: unknown): Record<string, unknown> => value && typeof value === 'object' ? value as Record<string, unknown> : {};
@@ -160,7 +170,7 @@ export function attendanceFailure(reason: unknown, fallback: string): Attendance
   const body = readRecord(source.body);
   const nested = [source.error, responseData.error, data.error, body.error].map(readRecord);
   const code = [source.code, responseData.code, data.code, body.code, ...nested.map((item) => item.code)]
-    .find((value): value is string => typeof value === 'string' && SAFE_ATTENDANCE_ERROR_CODES.has(value));
+    .find((value): value is string => typeof value === 'string' && isDisplayableAttendanceCode(value));
   const requestId = [normalized.requestId, source.requestId, responseData.requestId, data.requestId, body.requestId, ...nested.map((item) => item.requestId)]
     .map((value) => normalizeRequestId(value))
     .find((value): value is string => Boolean(value));
@@ -400,6 +410,53 @@ export function AttendanceSimplePage({
       document.removeEventListener('visibilitychange', onVisible);
     };
   }, [syncQueue, token]);
+
+  const [moveBusy, setMoveBusy] = useState(false);
+  const pendingMoveForThisDevice = Boolean(bootstrap?.pendingDeviceRequest && fingerprint
+    && bootstrap.pendingDeviceRequest.candidateFingerprint === fingerprint);
+
+  // Employee self-service: sign a move request with this app's device key so an
+  // ADMIN can approve it from the Approval Center. The existing primary device
+  // keeps working until the request is approved.
+  const requestMove = async () => {
+    if (readOnly || !token || !online || !identity || moveBusy) return;
+    setMoveBusy(true);
+    try {
+      const requestId = uuid();
+      const payload = {
+        version: 'SMS_ATTENDANCE_DEVICE_MOVE_V1',
+        requestId,
+        publicKeySpkiBase64: identity.publicKeySpkiBase64,
+        keyAlgorithm: identity.keyAlgorithm,
+        reason: 'ยืนยันด้วย selfie สดจากเครื่องใหม่'
+      };
+      await simpleAttendanceMoveRequest(token, {
+        requestId,
+        publicKeySpkiBase64: identity.publicKeySpkiBase64,
+        keyAlgorithm: identity.keyAlgorithm,
+        signatureBase64: await signPayload(identity, payload),
+        displayName: 'อุปกรณ์ลงเวลา',
+        platformHint: platformHint()
+      });
+      setRequestErrorId(undefined);
+      setRequestErrorCode(undefined);
+      setTone('warning');
+      setMessage('ส่งคำขอใช้เครื่องนี้เป็นเครื่องหลักแล้ว · รอ ADMIN อนุมัติ ระหว่างนี้ยังลงเวลาจากเครื่องนี้ได้');
+      try {
+        const fresh = await simpleAttendanceBootstrap(token, fingerprint);
+        await storeEncryptedBootstrap(fresh);
+        setBootstrap(fresh);
+      } catch { /* the request is stored server-side; the badge refreshes on next load */ }
+    } catch (error) {
+      const failure = attendanceFailure(error, 'ส่งคำขอเปลี่ยนเครื่องหลักไม่สำเร็จ กรุณาลองใหม่หรือติดต่อผู้ดูแลระบบ');
+      setRequestErrorId(failure.requestId);
+      setRequestErrorCode(failure.code);
+      setTone('danger');
+      setMessage(failure.message);
+    } finally {
+      setMoveBusy(false);
+    }
+  };
 
   const bindingState = useMemo(() => {
     if (!bootstrap || !fingerprint) return 'UNKNOWN';
@@ -846,7 +903,13 @@ export function AttendanceSimplePage({
         <SmsIcon name="device" size={18} />
         <div>
           <strong>อุปกรณ์นี้ไม่ใช่เครื่องหลักของคุณ</strong>
-          <small>ลงเวลาได้ แต่รายการจะถูกติดธงส่งให้ Admin ตรวจ ถ้าเปลี่ยนเครื่องถาวร ให้แจ้ง Admin ย้ายเครื่องหลักให้</small>
+          <small>{pendingMoveForThisDevice
+            ? 'ส่งคำขอใช้เครื่องนี้เป็นเครื่องหลักแล้ว · รอ ADMIN อนุมัติ ระหว่างนี้ยังลงเวลาได้ตามปกติ'
+            : 'ลงเวลาได้ แต่รายการจะถูกติดธงส่งให้ Admin ตรวจ ถ้าใช้เครื่องนี้ถาวร ให้กดขอใช้เป็นเครื่องหลัก'}</small>
+          {!pendingMoveForThisDevice && !readOnly && <button type="button" className="attendance-simple__device-move"
+            disabled={!online || !token || !identity || moveBusy} onClick={() => void requestMove()}>
+            {moveBusy ? 'กำลังส่งคำขอ…' : 'ขอใช้เครื่องนี้เป็นเครื่องหลัก'}
+          </button>}
         </div>
       </article>}
       {(queueCount > 0 || syncPhase !== 'idle') && <article className="attendance-simple__sync" aria-label="รายการที่บันทึกตอนออฟไลน์">

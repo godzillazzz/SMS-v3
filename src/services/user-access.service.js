@@ -2,6 +2,7 @@ const prisma = require('../config/prisma');
 const audit = require('./audit.service');
 const HttpError = require('../utils/http-error');
 const { createApprovalPolicyService } = require('./approval-policy.service');
+const { createPasskeyRevocationService } = require('./passkey-revocation.service');
 
 const USER_MUTATION_LOCK = 746281903;
 const SELF_ACCESS_MUTATION_FORBIDDEN = 'SELF_ACCESS_MUTATION_FORBIDDEN';
@@ -40,6 +41,7 @@ async function recordRejectedAttempt(auditService, { actorUserId, actorRole, tar
 
 function createUserAccessService({ prismaClient = prisma, auditService = audit, approvalPolicyService } = {}) {
   const policyService = approvalPolicyService || createApprovalPolicyService({ prismaClient, auditService });
+  const passkeyRevocationService = createPasskeyRevocationService({ auditService });
   async function updateUserAccount({ id, input, actorUserId, actorRole }) {
     let outcome;
     try {
@@ -79,6 +81,9 @@ function createUserAccessService({ prismaClient = prisma, auditService = audit, 
           select: { id: true, legacyUserId: true, displayName: true, email: true, role: true, department: true, accountStatus: true, isActive: true, passwordResetRequired: true, approvedAt: true, approvedByLegacyRef: true }
         });
         await tx.refreshSession.updateMany({ where: { userId: id, revokedAt: null }, data: { revokedAt: new Date() } });
+        if (actorRole === 'ADMIN' && attemptedProtectedFields.length > 0) {
+          await passkeyRevocationService.revokeAll({ tx, userId: id, actorUserId });
+        }
         await auditService.log({ actorUserId, action: 'UPDATE', entityType: 'User', entityId: id, metadata: { before: { role: before.role, department: before.department, accountStatus: before.accountStatus, isActive: before.isActive }, after: { role: after.role, department: after.department, accountStatus: after.accountStatus, isActive: after.isActive }, ...(isApprovalTransition && { approval: { approvedByUserId: actorUserId, approvedAt: after.approvedAt } }) } }, tx);
         return { after };
       }, { isolationLevel: 'Serializable' });

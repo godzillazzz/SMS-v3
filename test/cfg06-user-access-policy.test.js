@@ -97,3 +97,68 @@ test('CFG-06 does not let Manager use USER_ACCESS policy to assign elevated role
   );
   assert.equal(db.updated(), undefined);
 });
+
+test('ADMIN role/status changes transactionally revoke only that user passkeys and audit each revocation', async () => {
+  const targetId = 'target-user';
+  const otherId = 'other-user';
+  const credentials = [
+    { id: 'passkey-one', userId: targetId, revokedAt: null },
+    { id: 'passkey-two', userId: targetId, revokedAt: null },
+    { id: 'other-passkey', userId: otherId, revokedAt: null }
+  ];
+  const auditEvents = [];
+  let transactionCommitted = false;
+  const tx = {
+    $executeRaw: async () => 1,
+    user: {
+      findUniqueOrThrow: async () => ({ id: targetId, role: 'VIEWER', department: null, accountStatus: 'ACTIVE', isActive: true, passwordResetRequired: false }),
+      count: async () => 2,
+      update: async ({ data }) => ({ id: targetId, role: data.role || 'VIEWER', accountStatus: 'ACTIVE', isActive: true })
+    },
+    refreshSession: { updateMany: async () => ({ count: 0 }) },
+    webAuthnCredential: {
+      findMany: async ({ where }) => credentials.filter((row) => row.userId === where.userId && row.revokedAt === null).map(({ id }) => ({ id })),
+      updateMany: async ({ where, data }) => {
+        const matching = credentials.filter((row) => row.id === where.id && row.userId === where.userId && row.revokedAt === null);
+        matching.forEach((row) => { row.revokedAt = data.revokedAt; });
+        return { count: matching.length };
+      }
+    }
+  };
+  const prismaClient = { $transaction: async (callback) => { const result = await callback(tx); transactionCommitted = true; return result; } };
+  const service = createUserAccessService({ prismaClient, auditService: { log: async (event, client) => { assert.equal(client, tx); auditEvents.push(event); } } });
+
+  await service.updateUserAccount({ id: targetId, input: { role: 'MANAGER' }, actorUserId: 'admin-1', actorRole: 'ADMIN' });
+
+  assert.equal(transactionCommitted, true);
+  assert.ok(credentials[0].revokedAt instanceof Date);
+  assert.ok(credentials[1].revokedAt instanceof Date);
+  assert.equal(credentials[2].revokedAt, null);
+  assert.deepEqual(auditEvents.filter((event) => event.action === 'PASSKEY_REVOKED').map((event) => [event.actorUserId, event.entityId, event.metadata.reason]), [
+    ['admin-1', 'passkey-one', 'admin_revoked'],
+    ['admin-1', 'passkey-two', 'admin_revoked']
+  ]);
+});
+
+test('non-ADMIN account status changes do not revoke passkeys', async () => {
+  let credentialQueryCount = 0;
+  const tx = {
+    $executeRaw: async () => 1,
+    user: {
+      findUniqueOrThrow: async () => ({ id: 'user-1', role: 'VIEWER', department: null, accountStatus: 'PENDING', isActive: false, passwordResetRequired: false }),
+      count: async () => 2,
+      update: async ({ data }) => ({ id: 'user-1', role: data.role, accountStatus: data.accountStatus, isActive: data.isActive })
+    },
+    refreshSession: { updateMany: async () => ({ count: 0 }) },
+    webAuthnCredential: { findMany: async () => { credentialQueryCount += 1; return []; }, updateMany: async () => ({ count: 0 }) }
+  };
+  const service = createUserAccessService({
+    prismaClient: { $transaction: async (callback) => callback(tx) },
+    auditService: { log: async () => {} },
+    approvalPolicyService: { assertReviewer: async () => ({ reviewerRoles: ['MANAGER'] }) }
+  });
+
+  await service.updateUserAccount({ id: 'user-1', input: {}, actorUserId: 'manager-1', actorRole: 'MANAGER' });
+
+  assert.equal(credentialQueryCount, 0);
+});

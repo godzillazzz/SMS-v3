@@ -87,6 +87,19 @@ function createSupabaseAttendanceDeviceSelfieStorage({ environment = process.env
     const response = await fetchImpl(objectPath(url, bucket, canonicalKey), { method: 'DELETE', headers: { authorization: `Bearer ${serviceKey}`, apikey: serviceKey } });
     if (!response.ok && response.status !== 404) throw http(502, 'ATTENDANCE_SELFIE_STORAGE_DELETE_FAILED', 'Attendance selfie cleanup failed.');
   }
+  // Server-side read for an authorized ADMIN review; the private object is
+  // proxied through the API so no storage URL is ever exposed to the browser.
+  async function getBytes({ objectKey }) {
+    const canonicalKey = String(objectKey || '');
+    if (!canonicalKey.startsWith('attendance-selfie/') || canonicalKey.includes('..') || canonicalKey.includes('\\') || canonicalKey.includes('%') || canonicalKey.split('/').some((segment) => !segment || segment === '.' || segment === '..')) {
+      throw http(400, 'ATTENDANCE_SELFIE_OBJECT_KEY_INVALID', 'Attendance selfie object key is invalid.');
+    }
+    const { url, serviceKey, bucket } = config(environment);
+    const response = await fetchImpl(objectPath(url, bucket, canonicalKey), { method: 'GET', headers: { authorization: `Bearer ${serviceKey}`, apikey: serviceKey } });
+    if (response.status === 404) throw http(404, 'ATTENDANCE_DEVICE_SELFIE_NOT_FOUND', 'Attendance selfie is no longer available.');
+    if (!response.ok) throw http(502, 'ATTENDANCE_SELFIE_STORAGE_READ_FAILED', 'Attendance selfie could not be read.');
+    return { buffer: Buffer.from(await response.arrayBuffer()) };
+  }
   async function put({ employeeId, captureId, selfie }) {
     await assertPrivate();
     const { url, serviceKey, bucket, pathSecret } = config(environment);
@@ -203,7 +216,7 @@ function createSupabaseAttendanceDeviceSelfieStorage({ environment = process.env
     }
     return { inspected: rows.length, purged, failed };
   }
-  return { put, remove, listObjects, reconcileOrphans, purgeExpiredSelfies, assertPrivate };
+  return { put, remove, getBytes, listObjects, reconcileOrphans, purgeExpiredSelfies, assertPrivate };
 }
 
 module.exports = { MAX_BYTES, RETENTION_DAYS, DEFAULT_ORPHAN_AGE_MS, MIN_ORPHAN_AGE_MS, config, normalizeSelfie, validateSelfieImage, selfiePathHash, createSupabaseAttendanceDeviceSelfieStorage };

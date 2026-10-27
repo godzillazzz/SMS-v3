@@ -31,7 +31,8 @@ describe('G04.2 UX-01 design foundation contract', () => {
     expect(tokens).toContain('[data-theme="light"]');
     expect(tokens).toContain('[data-theme="dark"]');
     requiredTokens.forEach((token) => expect(tokens).toContain(token));
-    expect(tokens).toContain('--font-sans: "IBM Plex Sans Thai"');
+    // Owner decision 2026-10-27: Inter (Latin/digits) + Noto Sans Thai.
+    expect(tokens).toContain('--font-sans: "Inter", "Noto Sans Thai"');
     expect(tokens).toContain('--control-height: 40px');
     expect(main.indexOf("import './styles/tokens.css';")).toBeGreaterThan(main.indexOf("import './styles/action-system.css';"));
     expect(main.indexOf("import './styles/theme-foundation.css';")).toBeGreaterThan(main.indexOf("import './styles/tokens.css';"));

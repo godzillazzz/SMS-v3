@@ -1,6 +1,6 @@
 /* G04.2 UX-01 — authoritative semantic design tokens. */
 :root {
-  --font-sans: "IBM Plex Sans Thai", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-sans: "Inter", "Noto Sans Thai", system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Consolas, monospace;
 
   --font-size-page-title: 22px;

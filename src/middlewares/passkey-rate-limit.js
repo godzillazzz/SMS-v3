@@ -14,10 +14,13 @@ function createPasskeyRateLimit(options = {}) {
   const windowMs = options.windowMs || env.loginRateLimitWindowMs;
   const logger = options.logger || defaultLogger;
   const isVercel = options.isVercel ?? Boolean(process.env.VERCEL);
+  const userIdScoped = options.userIdScoped === true;
   const evaluate = createRateLimitEvaluator({ store, hashSecret, limit, windowMs, clock: options.clock });
-  return async function passkeyRateLimit(req, res, next) {
+  const middleware = async function passkeyRateLimit(req, res, next) {
     try {
-      const result = await evaluate({ scope: 'passkey-ip', identity: getRequestIpIdentity(req, { isVercel }) });
+      const identity = userIdScoped ? req.user?.sub : getRequestIpIdentity(req, { isVercel });
+      if (userIdScoped && (typeof identity !== 'string' || !identity)) return next(new HttpError(401, 'กรุณาเข้าสู่ระบบ'));
+      const result = await evaluate({ scope: userIdScoped ? 'passkey-user' : 'passkey-ip', identity });
       res.setHeader('RateLimit-Limit', limit);
       res.setHeader('RateLimit-Remaining', result.remaining);
       res.setHeader('RateLimit-Reset', Math.ceil(result.resetAt.getTime() / 1000));
@@ -32,7 +35,20 @@ function createPasskeyRateLimit(options = {}) {
       return next(new HttpError(503, 'ระบบยืนยันตัวตนไม่พร้อมใช้งานชั่วคราว'));
     }
   };
+  middleware.rateLimitScope = userIdScoped ? 'user' : 'ip';
+  middleware.store = store;
+  middleware.storeType = storeType;
+  middleware.hashSecret = hashSecret;
+  return middleware;
 }
 
-module.exports = createPasskeyRateLimit();
+const passkeyRateLimit = createPasskeyRateLimit();
+passkeyRateLimit.createUserScoped = () => createPasskeyRateLimit({
+  store: passkeyRateLimit.store,
+  storeType: passkeyRateLimit.storeType,
+  hashSecret: passkeyRateLimit.hashSecret,
+  userIdScoped: true
+});
+
+module.exports = passkeyRateLimit;
 module.exports.createPasskeyRateLimit = createPasskeyRateLimit;
