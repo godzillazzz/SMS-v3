@@ -32,7 +32,6 @@
 
 /* Topbar: flat white bar under the page edge (Figma 03 #7). */
 #sms-app .topbar { margin: 0 !important; border: 0 !important; border-bottom: 1px solid var(--color-border) !important; border-radius: 0 !important; background: var(--color-surface) !important; background-image: none !important; box-shadow: none !important; backdrop-filter: none !important; color: var(--color-text); }
-#sms-app .topbar-search, #sms-app .topbar-search input { background: var(--color-surface-muted) !important; border-color: var(--color-border) !important; color: var(--color-text) !important; box-shadow: none !important; }
 #sms-app .topbar-actions > button, #sms-app .theme-control, #sms-app .workflow-command-trigger { background: var(--color-surface) !important; border-color: var(--color-border) !important; color: var(--color-text-secondary) !important; box-shadow: none !important; }
 
 /* Page chrome: plain headings, quiet kickers, flat white cards (F3). */
@@ -50,7 +49,6 @@
 /* Topbar per F4/W-01: page name as breadcrumb, no environment pill, compact controls. */
 @media (min-width: 1024px) {
   #sms-app .topbar { display: flex !important; flex-wrap: nowrap !important; align-items: center !important; gap: 16px !important; grid-template-columns: none !important; }
-  #sms-app .topbar-search { flex: 1 1 280px !important; max-width: 420px !important; margin-left: auto !important; }
   #sms-app .topbar-actions { flex: 0 0 auto !important; flex-wrap: nowrap !important; }
   #sms-app .topbar-left { display: flex !important; align-items: center; flex: 0 0 auto; }
   #sms-app .topbar-left :is(.mobile-menu-button, .mobile-brand) { display: none !important; }
@@ -58,7 +56,6 @@
   #sms-app .topbar-copy::before { content: "หน้าหลัก  ›"; white-space: pre; color: var(--color-text-muted); }
   #sms-app .topbar-copy strong { color: var(--color-text) !important; font-size: 14px !important; font-weight: 600 !important; }
   #sms-app .topbar-copy small { display: none !important; }
-  #sms-app .environment-pill { display: none !important; }
   #sms-app .accent-control button { width: 20px; height: 20px; min-height: 20px; }
 }
 #sms-app .sr-only { position: absolute !important; width: 1px !important; height: 1px !important; margin: -1px !important; padding: 0 !important; overflow: hidden !important; clip: rect(0 0 0 0) !important; clip-path: inset(50%) !important; white-space: nowrap !important; border: 0 !important; }
@@ -79,14 +76,12 @@
 #sms-app .main-area :is(.btn-neutral,.btn-secondary,.small-action){border:1px solid var(--color-border)!important;background:var(--color-surface)!important;background-image:none!important;color:var(--color-text)!important;box-shadow:none!important;border-radius:10px!important}
 #sms-app .main-area .signature-filter-bar{padding:0!important;border:0!important;background:transparent!important;box-shadow:none!important}
 #sms-app .schedule-calendar-page{animation:none!important}
-#sms-app .sidebar-rail-toggle{display:none}
 
 /* ---- 2026-10-27 HR-PRO alignment (owner decisions 1–10) ---------------------------------------
    Shape: cards 10px, controls (buttons, inputs, selects, textareas) 7px.
    Type scale: tables + menu 13.5px, status badges 11.5px, menu group labels 10.5px.
    Numbers: tabular figures everywhere data is compared in columns. */
 #sms-app .main-area :is(.layout-section-card, .section-card, .table-card, .nexus-panel, .metric-card, .layout-metric-card, .data-table-card, .attendance-device-card, .attendance-device-admin-section, .attendance-device-review-card, .workflow-journey, .my-work-queue, .schedule-rule-panel, .settings-card) { border-radius: 10px !important; }
-#sms-app .topbar-search { border-radius: 7px; }
 #sms-app .main-area :is(.btn-primary, .btn-neutral, .btn-secondary, .btn-danger, .btn-danger-outline, .small-action, .primary-button, input:not([type="checkbox"]):not([type="radio"]):not([type="range"]), select, textarea) { border-radius: 7px !important; }
 #sms-app .main-area :is(.status-badge, .status-pill, [class*="status-badge--"]) { font-size: 11.5px !important; }
 #sms-app .main-area :is(table, .data-table) :is(td, th) { font-size: 13.5px !important; }
@@ -99,3 +94,58 @@
 [data-theme="light"] #sms-app:not([data-accent]) { --color-brand: #1e3a5f; --color-primary: #2563eb; --color-primary-hover: #1d4ed8; --color-primary-active: #1e40af; --color-primary-soft: #e8f0fe; --color-accent: #2563eb; }
 [data-theme="dark"] #sms-app:not([data-accent]) { --color-brand: #1e3a5f; --color-primary: #86a8ff; --color-primary-hover: #a9c1ff; --color-primary-active: #6f93f5; --color-primary-soft: #18264a; --color-accent: #86a8ff; }
 #sms-app .main-area a:not([class]) { color: var(--color-primary); }
+
+/* Shell (owner decision 2026-10-27): sidebar 252px with a remembered collapse to a 72px icon rail, 60px topbar, content capped at 1280px. */
+#sms-app .sidebar-collapse-toggle { display: none; }
+@media (min-width: 1025px) {
+  #sms-app:not(.desktop-view) { --shell-sidebar-w: 252px; }
+  #sms-app:not(.desktop-view)[data-sidebar="collapsed"] { --shell-sidebar-w: 72px; }
+  #sms-app:not(.desktop-view) .sidebar { width: var(--shell-sidebar-w) !important; flex: 0 0 var(--shell-sidebar-w) !important; transition: width .18s ease; }
+  #sms-app:not(.desktop-view) .main-area { width: calc(100% - var(--shell-sidebar-w)) !important; margin-left: var(--shell-sidebar-w) !important; transition: margin-left .18s ease, width .18s ease; }
+  #sms-app .sidebar-brand { position: relative; }
+  #sms-app .sidebar-collapse-toggle { position: absolute; top: 50%; right: 0; z-index: 1; transform: translateY(-50%); display: inline-grid; place-items: center; flex: 0 0 auto; width: 32px; height: 32px; min-height: 32px; padding: 0; border: 1px solid var(--color-sidebar-border, rgba(255,255,255,.14)); border-radius: 7px; background: transparent; color: var(--sidebar-item, #cbd5e1); cursor: pointer; }
+  #sms-app .sidebar-collapse-toggle:hover { background: rgba(255,255,255,.08); color: #fff; }
+  #sms-app .sidebar-collapse-toggle:focus-visible { outline: 2px solid #93c5fd; outline-offset: 2px; }
+  #sms-app[data-sidebar="collapsed"] .sidebar { padding-inline: 10px !important; }
+  #sms-app[data-sidebar="collapsed"] .sidebar :is(.nav-section > p, .nav-item > span:not(.nav-icon), .sidebar-user > span:not(.avatar), .sidebar-logout > span) { position: absolute !important; width: 1px !important; height: 1px !important; overflow: hidden !important; clip-path: inset(50%) !important; white-space: nowrap !important; }
+  #sms-app[data-sidebar="collapsed"] .sidebar :is(.nav-item, .sidebar-logout) { position: relative; justify-content: center !important; width: 48px !important; margin-inline: auto !important; padding-inline: 0 !important; }
+  #sms-app[data-sidebar="collapsed"] .sidebar .nav-section { padding-top: 6px; border-top: 1px solid rgba(255,255,255,.06); }
+  #sms-app[data-sidebar="collapsed"] .sidebar .nav-section:first-child { border-top: 0; }
+  #sms-app[data-sidebar="collapsed"] .sidebar .nav-menu { scrollbar-width: none; padding-inline: 0 !important; }
+  #sms-app[data-sidebar="collapsed"] .sidebar .nav-menu::-webkit-scrollbar { display: none; }
+  #sms-app[data-sidebar="collapsed"] .sidebar-brand { display: flex !important; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding-inline: 0 !important; }
+  #sms-app[data-sidebar="collapsed"] .sidebar-collapse-toggle { position: static; transform: none; }
+  #sms-app[data-sidebar="collapsed"] .sidebar-brand :is(picture, a, .brand-logo) { width: 40px; overflow: hidden; }
+  #sms-app[data-sidebar="collapsed"] .sidebar-brand img { max-width: none; object-fit: cover; object-position: left; }
+  #sms-app[data-sidebar="collapsed"] .sidebar-user { justify-content: center; }
+  #sms-app[data-sidebar="collapsed"] .nav-count-badge { position: absolute; top: 2px; right: 2px; transform: scale(.8); }
+
+  /* Topbar 60px: page title left; search icon, bell and user menu right. */
+  #sms-app .topbar { min-height: 60px !important; height: 60px; padding-block: 0 !important; margin-left: 0 !important; margin-right: 0 !important; padding-inline: 24px !important; }
+  #sms-app .topbar-actions { margin-left: auto !important; gap: 8px !important; align-items: center; }
+  #sms-app .user-menu__panel :is(.theme-control, .accent-control) { display: flex !important; }
+  #sms-app .workflow-command-trigger { display: inline-grid !important; place-items: center; width: 38px; height: 38px; min-height: 38px !important; padding: 0 !important; border-radius: 7px !important; }
+  #sms-app .topbar-copy::before { content: none !important; }
+  #sms-app .topbar-copy strong { font-size: 16px !important; font-weight: 600 !important; }
+
+  /* Content width: 1280px centered; wide working pages use the full width. */
+  #sms-app:not([data-page-width="wide"]) .content-area { max-width: 1328px !important; margin-inline: auto !important; }
+}
+
+/* User menu (desktop dropdown). */
+#sms-app .user-menu { position: relative; display: flex; }
+#sms-app .user-menu .topbar-profile { display: flex; align-items: center; gap: 8px; padding: 4px 8px 4px 4px; border: 1px solid transparent; border-radius: 7px; background: transparent !important; color: var(--color-text); }
+#sms-app .user-menu .topbar-profile:hover, #sms-app .user-menu .topbar-profile[aria-expanded="true"] { border-color: var(--color-border) !important; background: var(--color-surface-muted) !important; }
+#sms-app .user-menu__chevron { color: var(--color-text-muted); }
+#sms-app .user-menu__panel { position: absolute; top: calc(100% + 8px); right: 0; z-index: 90; display: grid; gap: 4px; width: 280px; padding: 8px; border: 1px solid var(--color-border); border-radius: 10px; background: var(--color-surface-elevated, var(--color-surface)); color: var(--color-text); box-shadow: var(--shadow-lg); }
+#sms-app .user-menu__panel[hidden] { display: none; }
+#sms-app .user-menu__profile { display: flex; align-items: center; gap: 10px; padding: 6px 6px 10px; margin-bottom: 4px; border-bottom: 1px solid var(--color-border); }
+#sms-app .user-menu__profile > span:last-child { display: grid; gap: 2px; min-width: 0; }
+#sms-app .user-menu__profile b { overflow: hidden; font-size: 13.5px; text-overflow: ellipsis; white-space: nowrap; }
+#sms-app .user-menu__profile small { color: var(--color-text-secondary); font-size: 12px; }
+#sms-app .user-menu__row { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 40px; padding: 0 6px; color: var(--color-text-secondary); font-size: 13px; }
+#sms-app .user-menu__item { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 38px; padding: 0 8px; border: 0; border-radius: 7px; background: transparent; color: var(--color-text); font: inherit; font-size: 13.5px; text-align: left; cursor: pointer; }
+#sms-app .user-menu__item:hover, #sms-app .user-menu__item:focus-visible { background: var(--color-surface-muted); }
+#sms-app .user-menu__item--danger { color: var(--color-danger); }
+@media (max-width: 1024px) { #sms-app:not(.desktop-view) .user-menu { display: none !important; } }
+body > .workflow-command-layer .workflow-command__employee-search { border-top: 1px solid var(--color-border); }
