@@ -248,11 +248,11 @@ export function AttendanceOfficialReportPanel({ token, month, role, enabled, ini
       <div className="report-center-export-icon">ATT</div>
       <div>
         <h3>รายงานลงเวลาประจำเดือนที่รับรองแล้ว</h3>
-        <p>ใช้ Certified Snapshot เท่านั้น รายงานพิมพ์ 1 คนต่อหน้า; วันหยุด ตำแหน่ง และประเภทลาที่ไม่มีใน Snapshot จะแสดงว่าไม่มีข้อมูล</p>
+        <p>ใช้ Certified Snapshot เท่านั้น รายงานพิมพ์ 1 คนต่อหน้า; วันหยุด ตำแหน่ง และประเภทลาที่ไม่มีใน Snapshot จะแสดงว่าไม่มีข้อมูล</p><small>การพิมพ์เป็นแบบอ่านอย่างเดียว และไม่บันทึกหรือเปลี่ยนสถานะการลงเวลา</small>
         <small>{report ? `Report ID: ${report.reportId} · Revision ${report.revision}` : `Period: ${month}`}</small>
       </div>
       <div className="attendance-report-export-actions">
-        <button type="button" className="btn-primary" disabled={!report || loading || !pagesToPrint.length} onClick={() => void exportPdf()}>{printMode === 'employee' ? 'พิมพ์รายบุคคล' : 'พิมพ์ทั้งหน่วยงาน'}</button>
+        <button type="button" className="btn-primary" disabled={!report || loading || !pagesToPrint.length} onClick={() => void exportPdf()}>{printMode === 'employee' ? 'พิมพ์รายบุคคล' : 'พิมพ์ทั้งหมด 1 คนต่อแผ่น'}</button>
         {role === 'ADMIN' && <button type="button" className="btn-neutral" disabled={!report || loading || downloading} onClick={() => void exportExcel()}>{downloading ? 'กำลังสร้าง…' : 'ส่งออก Excel'}</button>}
       </div>
     </article>

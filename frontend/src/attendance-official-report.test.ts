@@ -118,6 +118,8 @@ describe('Official Attendance report presentation', () => {
     expect(source).toContain('ไม่มีข้อมูลใน Snapshot');
     expect(source).toContain("['พนักงาน', 'หัวหน้าหน่วยงาน', 'ฝ่ายบุคคล']");
     expect(source).toContain('ฝ่ายบุคคล');
+    expect(source).toContain('พิมพ์ทั้งหมด 1 คนต่อแผ่น');
+    expect(source).toContain('การพิมพ์เป็นแบบอ่านอย่างเดียว และไม่บันทึกหรือเปลี่ยนสถานะการลงเวลา');
     expect(source).not.toMatch(/\bOT\b|ค่าล่วงเวลา|เบี้ยเลี้ยง|ค่าพาหนะ|ค่าเดินทาง|ค่าตำแหน่ง|employee\.phone/);
     expect(source).toContain("{ orientation: 'portrait', margin: '0' }");
     expect(styles).not.toMatch(/@page/i);
