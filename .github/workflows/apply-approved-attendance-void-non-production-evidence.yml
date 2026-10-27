@@ -30,6 +30,9 @@ jobs:
     runs-on: ubuntu-latest
     container: node:22-bookworm
     timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
     services:
       postgres:
         image: postgres:16-alpine
