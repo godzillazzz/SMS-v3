@@ -397,42 +397,6 @@ body {
   white-space: nowrap;
 }
 
-.topbar-search {
-  display: flex;
-  width: min(100%, 460px);
-  min-width: 0;
-  min-height: 42px;
-  align-items: center;
-  justify-self: center;
-  gap: 8px;
-  border: 1px solid var(--color-border);
-  border-radius: 12px;
-  padding: 0 12px;
-  color: var(--color-text-muted);
-  background: var(--color-surface-muted);
-  transition: border-color .16s ease, box-shadow .16s ease, background-color .16s ease;
-}
-
-.topbar-search:focus-within {
-  border-color: color-mix(in srgb, var(--color-primary) 44%, var(--color-border));
-  background: var(--color-surface-elevated);
-  box-shadow: var(--focus-ring);
-}
-
-.topbar-search input {
-  width: 100%;
-  min-width: 0;
-  height: 40px;
-  border: 0;
-  outline: 0;
-  color: var(--color-text);
-  background: transparent;
-  font-size: 13px;
-  font-weight: 500;
-}
-
-.topbar-search input::placeholder { color: var(--color-text-muted); }
-
 .topbar-actions {
   display: flex;
   min-width: 0;
@@ -444,20 +408,6 @@ body {
 .topbar-actions > .theme-control {
   flex: 0 0 auto;
   box-shadow: none;
-}
-
-.environment-pill {
-  display: inline-flex;
-  min-height: 30px;
-  align-items: center;
-  border: 1px solid var(--color-border);
-  border-radius: 999px;
-  padding: 0 9px;
-  color: var(--color-text-secondary);
-  background: var(--color-surface-muted);
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: .045em;
 }
 
 .topbar-profile {
@@ -532,7 +482,6 @@ body {
   .main-area { width: calc(100% - 248px); }
   .content-area { padding: 24px; }
   .topbar { margin-inline: 16px; gap: 14px; }
-  .topbar-search { max-width: 380px; }
 }
 
 @media (max-width: 1024px) {
@@ -613,12 +562,10 @@ body {
   }
 
   .topbar-copy small { display: none; }
-  .topbar-search { width: min(100%, 300px); min-height: 40px; }
   .content-area { padding: 20px; }
 }
 
 @media (max-width: 820px) {
-  .environment-pill { display: none; }
   .topbar-profile > span:last-child { display: none; }
   .topbar { grid-template-columns: minmax(160px, auto) minmax(150px, 1fr) auto; }
 }
@@ -641,8 +588,6 @@ body {
   }
 
   .topbar-copy,
-  .topbar-search,
-  .topbar-actions > .environment-pill,
   .topbar-actions > .theme-control,
   .topbar-actions > .topbar-profile {
     display: none !important;
@@ -839,8 +784,7 @@ body {
 
 @media (prefers-reduced-motion: reduce) {
   .sidebar,
-  .nav-item,
-  .topbar-search {
+  .nav-item {
     transition-duration: .001ms !important;
   }
 }

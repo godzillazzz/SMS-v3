@@ -32,7 +32,6 @@
 
 /* Topbar: flat white bar under the page edge (Figma 03 #7). */
 #sms-app .topbar { margin: 0 !important; border: 0 !important; border-bottom: 1px solid var(--color-border) !important; border-radius: 0 !important; background: var(--color-surface) !important; background-image: none !important; box-shadow: none !important; backdrop-filter: none !important; color: var(--color-text); }
-#sms-app .topbar-search, #sms-app .topbar-search input { background: var(--color-surface-muted) !important; border-color: var(--color-border) !important; color: var(--color-text) !important; box-shadow: none !important; }
 #sms-app .topbar-actions > button, #sms-app .theme-control, #sms-app .workflow-command-trigger { background: var(--color-surface) !important; border-color: var(--color-border) !important; color: var(--color-text-secondary) !important; box-shadow: none !important; }
 
 /* Page chrome: plain headings, quiet kickers, flat white cards (F3). */
@@ -50,7 +49,6 @@
 /* Topbar per F4/W-01: page name as breadcrumb, no environment pill, compact controls. */
 @media (min-width: 1024px) {
   #sms-app .topbar { display: flex !important; flex-wrap: nowrap !important; align-items: center !important; gap: 16px !important; grid-template-columns: none !important; }
-  #sms-app .topbar-search { flex: 1 1 280px !important; max-width: 420px !important; margin-left: auto !important; }
   #sms-app .topbar-actions { flex: 0 0 auto !important; flex-wrap: nowrap !important; }
   #sms-app .topbar-left { display: flex !important; align-items: center; flex: 0 0 auto; }
   #sms-app .topbar-left :is(.mobile-menu-button, .mobile-brand) { display: none !important; }
@@ -58,7 +56,6 @@
   #sms-app .topbar-copy::before { content: "หน้าหลัก  ›"; white-space: pre; color: var(--color-text-muted); }
   #sms-app .topbar-copy strong { color: var(--color-text) !important; font-size: 14px !important; font-weight: 600 !important; }
   #sms-app .topbar-copy small { display: none !important; }
-  #sms-app .environment-pill { display: none !important; }
   #sms-app .accent-control button { width: 20px; height: 20px; min-height: 20px; }
 }
 #sms-app .sr-only { position: absolute !important; width: 1px !important; height: 1px !important; margin: -1px !important; padding: 0 !important; overflow: hidden !important; clip: rect(0 0 0 0) !important; clip-path: inset(50%) !important; white-space: nowrap !important; border: 0 !important; }
@@ -79,14 +76,12 @@
 #sms-app .main-area :is(.btn-neutral,.btn-secondary,.small-action){border:1px solid var(--color-border)!important;background:var(--color-surface)!important;background-image:none!important;color:var(--color-text)!important;box-shadow:none!important;border-radius:10px!important}
 #sms-app .main-area .signature-filter-bar{padding:0!important;border:0!important;background:transparent!important;box-shadow:none!important}
 #sms-app .schedule-calendar-page{animation:none!important}
-#sms-app .sidebar-rail-toggle{display:none}
 
 /* ---- 2026-10-27 HR-PRO alignment (owner decisions 1–10) ---------------------------------------
    Shape: cards 10px, controls (buttons, inputs, selects, textareas) 7px.
    Type scale: tables + menu 13.5px, status badges 11.5px, menu group labels 10.5px.
    Numbers: tabular figures everywhere data is compared in columns. */
 #sms-app .main-area :is(.layout-section-card, .section-card, .table-card, .nexus-panel, .metric-card, .layout-metric-card, .data-table-card, .attendance-device-card, .attendance-device-admin-section, .attendance-device-review-card, .workflow-journey, .my-work-queue, .schedule-rule-panel, .settings-card) { border-radius: 10px !important; }
-#sms-app .topbar-search { border-radius: 7px; }
 #sms-app .main-area :is(.btn-primary, .btn-neutral, .btn-secondary, .btn-danger, .btn-danger-outline, .small-action, .primary-button, input:not([type="checkbox"]):not([type="radio"]):not([type="range"]), select, textarea) { border-radius: 7px !important; }
 #sms-app .main-area :is(.status-badge, .status-pill, [class*="status-badge--"]) { font-size: 11.5px !important; }
 #sms-app .main-area :is(table, .data-table) :is(td, th) { font-size: 13.5px !important; }
@@ -128,7 +123,6 @@
   /* Topbar 60px: page title left; search icon, bell and user menu right. */
   #sms-app .topbar { min-height: 60px !important; height: 60px; padding-block: 0 !important; margin-left: 0 !important; margin-right: 0 !important; padding-inline: 24px !important; }
   #sms-app .topbar-actions { margin-left: auto !important; gap: 8px !important; align-items: center; }
-  #sms-app .topbar-actions :is(.theme-control, .accent-control, .display-mode-toggle, .environment-pill) { display: none !important; }
   #sms-app .user-menu__panel :is(.theme-control, .accent-control) { display: flex !important; }
   #sms-app .workflow-command-trigger { display: inline-grid !important; place-items: center; width: 38px; height: 38px; min-height: 38px !important; padding: 0 !important; border-radius: 7px !important; }
   #sms-app .topbar-copy::before { content: none !important; }
