@@ -24,7 +24,12 @@ describe('WAVE 4 operational data surfaces contract', () => {
     expect(main).toContain("ariaLabel={mode === 'history' ? 'ประวัติการลาพนักงานทั้งหมด' : 'ประวัติคำขอลาของฉัน'}");
     expect(main).toContain('ariaLabel="การแบ่งหน้าประวัติการลา"');
     expect(main).toContain('onClick={() => onAttachment(row)}');
-    expect(main).toContain('onClick={() => onPrint(row)}');
+    const approvedLeavePrintCell = main.match(/\{row\.status === 'APPROVED' \? <LeavePrintLedgerPanel(?<props>[^>]+)\/> : <span className="muted-text">–<\/span>\}/);
+    expect(approvedLeavePrintCell).not.toBeNull();
+    expect(approvedLeavePrintCell?.groups?.props).toContain('role={currentUserRole}');
+    expect(approvedLeavePrintCell?.groups?.props).toContain('row={row as DataRow & { id: string }}');
+    expect(approvedLeavePrintCell?.groups?.props).toContain('token={auth.token}');
+    expect(approvedLeavePrintCell?.groups?.props).toContain('onPrint={onPrint}');
     expect(main).toContain('onClick={() => onEditReturned(row)}');
     expect(main).toContain('onClick={() => onCancel(row)}');
     expect(main).toContain('leaveTable(pendingRows, true)');
