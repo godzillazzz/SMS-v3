@@ -22,7 +22,6 @@
 .dashboard-quick-actions__grid small,
 .dashboard-activity-row small,
 .dashboard-status-row small,
-.dashboard-filter-bar__context small,
 .dashboard-filter-bar__controls label span { color: var(--color-text-secondary); }
 .dashboard-panel,
 .dashboard-metric,
@@ -142,7 +141,6 @@
 
 @media (max-width: 640px) {
   .dashboard-hero__subtitle,
-  .dashboard-hero__status--inline,
   .dashboard-kpi-heading small,
   .dashboard-metric p,
   .dashboard-metric small,

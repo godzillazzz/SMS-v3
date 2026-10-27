@@ -11,8 +11,6 @@
 .app-shell:not(.pwa-shell) .nav-item.active .nav-icon{color:#60def7}.app-shell:not(.pwa-shell) .sidebar-footer{border-top:1px solid rgba(255,255,255,.07)}
 .app-shell:not(.pwa-shell) .topbar{background:rgba(249,251,253,.84);backdrop-filter:blur(20px) saturate(1.25);border-bottom:1px solid rgba(116,137,159,.13);box-shadow:0 8px 32px rgba(35,56,76,.035)}
 .app-shell:not(.pwa-shell) .topbar-copy strong{font-size:15px;letter-spacing:-.015em;color:#101d2c}.app-shell:not(.pwa-shell) .topbar-copy small{color:#78899b}
-.app-shell:not(.pwa-shell) .topbar-search{border-color:#dde5ed;background:#fff;border-radius:12px;box-shadow:0 4px 18px rgba(28,52,76,.04)}
-.app-shell:not(.pwa-shell) .environment-pill{background:#e8f8f4;color:#13745f;border-color:#cceee5;letter-spacing:.08em}
 .app-shell:not(.pwa-shell) .content-area{background:radial-gradient(circle at 90% 0,rgba(76,171,230,.055),transparent 24%),linear-gradient(180deg,#f7f9fc,#f2f6fa);padding-top:28px}
 .app-shell:not(.pwa-shell) .view-pane{animation:awardPageIn .3s cubic-bezier(.2,.7,.2,1)}
 .app-shell:not(.pwa-shell) table{border-collapse:separate;border-spacing:0}.app-shell:not(.pwa-shell) thead th{background:#f5f8fb;color:#64788c;font-size:10px;letter-spacing:.035em}.app-shell:not(.pwa-shell) tbody tr{transition:background .15s ease}.app-shell:not(.pwa-shell) tbody tr:hover{background:#f6fbff}

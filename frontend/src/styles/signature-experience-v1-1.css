@@ -409,7 +409,6 @@ code, .audit-entity-id, .personnel-table code { font-family: var(--font-mono) !i
 
 /* Mobile Command Center priority: filters + critical 2x2 metrics, then Action Required. */
 @media (max-width: 760px) {
-  .dashboard-top-row { gap: 7px !important; }
   .dashboard-hero__subtitle { margin-top: 2px !important; font-size: 10px !important; line-height: 1.35 !important; }
   .dashboard-filter-bar { padding: 6px !important; gap: 5px !important; }
   .dashboard-filter-bar__controls {
