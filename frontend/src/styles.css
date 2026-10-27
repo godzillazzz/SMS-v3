@@ -1680,6 +1680,8 @@ button, select, input, textarea {
   .leave-print-table th:nth-child(3) { width: 16%; }
   .leave-print-table td:nth-child(-n+3) { text-align: center; }
   .leave-print-table td:last-child { min-height: 25mm; white-space: pre-wrap; }
+  .leave-print-ledger { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 2mm 4mm; margin-top: 4mm; padding: 3mm; border: 1px solid #64748b; font-size: 10pt; }
+  .leave-print-ledger > strong { grid-column: 1 / -1; }
   .leave-print-signatures { width: 58%; margin: 15mm 0 0 auto; font-size: 13pt; text-align: center; }
   .leave-print-signature-block + .leave-print-signature-block { margin-top: 10mm; }
   .leave-print-signature-line { display: flex; align-items: baseline; justify-content: center; white-space: nowrap; gap: 4px; margin-bottom: 2mm; }

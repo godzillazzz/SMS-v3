@@ -39,7 +39,8 @@ const { optimizeAttachment, ATTACHMENT_PROFILES } = require('../services/attachm
 const { cleanupDueLicenseDocuments, expireDueLicenseDocuments } = require('../services/license-document-retention.service');
 const { createSupabaseAttendanceFaceEvidenceStorage } = require('../services/attendance-face-evidence-storage.service');
 const { normalizeLicenseNumber } = require('../services/license-document.service');
-const { parseLeaveMonth, leaveMonthWhere } = require('../utils/leave-month-filter');
+const { parseLeaveMonth } = require('../utils/leave-month-filter');
+const { leaveRequestListWhere } = require('../utils/leave-request-list-scope');
 const { normalizeScheduleTime } = require('../utils/schedule-time');
 const { getDashboardSummary } = require('../services/dashboard.service');
 const { getDashboardDetails } = require('../services/dashboard-detail.service');
@@ -1260,22 +1261,10 @@ router.get('/leave-requests', async (req, res, next) => {
     const filters = leaveListQuery.parse(req.query);
     let monthFilter;
     try { monthFilter = parseLeaveMonth(filters); } catch (error) { throw new HttpError(400, error.message); }
-    const viewerWhere = currentUser.role === 'VIEWER' ? { employeeId: currentUser.employeeId } : {};
-    const requestedEmployeeWhere = currentUser.role === 'VIEWER' ? {} : (filters.employeeId ? { employeeId: filters.employeeId } : {});
-    const searchWhere = filters.search ? { OR: [{ employeeNameSnapshot: { contains: filters.search, mode: 'insensitive' } }, { departmentSnapshot: { contains: filters.search, mode: 'insensitive' } }, { leaveTypeNameSnapshot: { contains: filters.search, mode: 'insensitive' } }, { leaveType: { contains: filters.search, mode: 'insensitive' } }, { reason: { contains: filters.search, mode: 'insensitive' } }] } : {};
+    const where = leaveRequestListWhere(currentUser, { ...filters, monthFilter });
     
-    // MANAGER global scope: no department filter — MANAGER sees all leave requests.
-    // VIEWER is scoped to their own employee record (viewerWhere above).
-    const baseWhere = {
-      ...viewerWhere,
-      ...requestedEmployeeWhere,
-      ...(filters.status ? { status: filters.status } : {}),
-      ...(filters.department ? { departmentSnapshot: { contains: filters.department, mode: 'insensitive' } } : {}),
-      ...searchWhere,
-      ...leaveMonthWhere(monthFilter)
-    };
+    // MANAGER/SUPERVISOR retain global scope; VIEWER is bound to the linked employee.
 
-    const where = baseWhere;
     const [response, statusCounts] = await Promise.all([
       paged(prisma.leaveRequest, req.query, {
         where,

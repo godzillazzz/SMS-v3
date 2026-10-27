@@ -52,6 +52,7 @@ import { describePattern, getAutoSchedulePatterns, type AutoSchedulePattern } fr
 import { setAttendanceTokenRefreshGuard, setAttendanceTokenRefreshHandler } from './attendance-auth-request';
 import { RequestErrorContent, formatRequestErrorMessage, toRequestErrorState, type RequestErrorInput } from './request-error';
 import { checkExistingLeaveDates } from './leave-date-overlap-client';
+import { isPrintReadyLeaveLedger, LEAVE_PRINT_LEDGER_READY_EVENT, LeavePrintLedgerPanel, type LeavePrintLedger } from './leave-print-ledger';
 import { acquireDocumentScrollLock } from './document-scroll-lock';
 import { buildLeaveQuotaProvisioningPayload, canProvisionLeaveQuota, currentBangkokQuotaYear, hasUnmatchedLegacyQuota, leaveQuotaDefaultsFromPolicy, quotaProvisioningEmployeeOptions, thaiQuotaYearLabel } from './leave-quota-provisioning';
 import { printDocument, printScheduleDocument, printTableReport } from './schedule-print';
@@ -1399,7 +1400,7 @@ function ShiftEditorModal({ shift, defaults, employees, shiftTypes, licenses, is
   );
 }
 
-function LeaveManagementPage({ rows, loading, error, linked, remaining, quotaSummary, leavePolicy, leaveTypes, quotaYear, employeeId, currentUserId, currentUserRole, canManage, canSubmit, canCancelApprovedLeave, mutationsEnabled = true, mode = 'all', historyScope = 'mine', historyMonth, historyTotal, historyPage, historyTotalPages, historyStatusCounts, employeeOptions, initialPendingId, onInitialPendingHandled, onSubmit, onApprove, onReject, onReturnForCorrection, onEditReturned, onCancel, onRefresh, onHistoryMonthChange, onHistoryMonthStep, onHistoryPageChange, onAttachment, onPrint }: { rows: DataRow[]; loading: boolean; error?: RequestErrorInput; linked: boolean; remaining: DataRow; quotaSummary: DataRow; leavePolicy: DataRow; leaveTypes: LeaveTypeMaster[]; quotaYear?: number; employeeId?: string; currentUserId?: string; currentUserRole?: string; canManage: boolean; canSubmit: boolean; canCancelApprovedLeave: boolean; mutationsEnabled?: boolean; mode?: 'all' | 'pending' | 'history'; historyScope?: 'mine' | 'all'; historyMonth?: string; historyTotal?: number; historyPage?: number; historyTotalPages?: number; historyStatusCounts?: Record<string, number>; employeeOptions: Array<{ value: string; label: string }>; initialPendingId?: string; onInitialPendingHandled?(): void; onSubmit(values: Record<string, string>, file?: File): Promise<void>; onApprove(row: DataRow): void; onReject(row: DataRow): void; onReturnForCorrection(row: DataRow): void; onEditReturned(row: DataRow): void; onCancel(row: DataRow): void; onRefresh(): void; onHistoryMonthChange?(value: string): void; onHistoryMonthStep?(delta: number): void; onHistoryPageChange?(page: number): void; onAttachment(row: DataRow): void; onPrint(row: DataRow): void }) {
+function LeaveManagementPage({ rows, loading, error, linked, remaining, quotaSummary, leavePolicy, leaveTypes, quotaYear, employeeId, currentUserId, currentUserRole, canManage, canSubmit, canCancelApprovedLeave, mutationsEnabled = true, mode = 'all', historyScope = 'mine', historyMonth, historyTotal, historyPage, historyTotalPages, historyStatusCounts, employeeOptions, initialPendingId, onInitialPendingHandled, onSubmit, onApprove, onReject, onReturnForCorrection, onEditReturned, onCancel, onRefresh, onHistoryMonthChange, onHistoryMonthStep, onHistoryPageChange, onAttachment, onPrint }: { rows: DataRow[]; loading: boolean; error?: RequestErrorInput; linked: boolean; remaining: DataRow; quotaSummary: DataRow; leavePolicy: DataRow; leaveTypes: LeaveTypeMaster[]; quotaYear?: number; employeeId?: string; currentUserId?: string; currentUserRole?: string; canManage: boolean; canSubmit: boolean; canCancelApprovedLeave: boolean; mutationsEnabled?: boolean; mode?: 'all' | 'pending' | 'history'; historyScope?: 'mine' | 'all'; historyMonth?: string; historyTotal?: number; historyPage?: number; historyTotalPages?: number; historyStatusCounts?: Record<string, number>; employeeOptions: Array<{ value: string; label: string }>; initialPendingId?: string; onInitialPendingHandled?(): void; onSubmit(values: Record<string, string>, file?: File): Promise<void>; onApprove(row: DataRow): void; onReject(row: DataRow): void; onReturnForCorrection(row: DataRow): void; onEditReturned(row: DataRow): void; onCancel(row: DataRow): void; onRefresh(): void; onHistoryMonthChange?(value: string): void; onHistoryMonthStep?(delta: number): void; onHistoryPageChange?(page: number): void; onAttachment(row: DataRow): void;  onPrint(row: DataRow): void }) {
   const auth = useContext(AuthContext)!;
   const [form, setForm] = useState({ employeeId: '', leaveType: '', startDate: '', endDate: '', substitute: '', reason: '' });
   const [file, setFile] = useState<File>();
@@ -1589,7 +1590,7 @@ function LeaveManagementPage({ rows, loading, error, linked, remaining, quotaSum
           <td>{text(row.reasonDetail || row.reason)}{row.status === 'RETURNED_FOR_CORRECTION' && row.returnReason ? <small className="cell-note">ส่งกลับ: {text(row.returnReason)}{row.returnedByDisplayName ? ` · ${text(row.returnedByDisplayName)}` : ''}</small> : null}</td>
           <td>{row.attachmentUrl ? <button className="attachment-link" onClick={() => onAttachment(row)}>เปิดเอกสาร</button> : <span className="muted-text">–</span>}</td>
           {!actions && <td>{status(row)}</td>}
-          <td>{row.status === 'APPROVED' ? <button className="btn-info leave-print-button" onClick={() => onPrint(row)}>พิมพ์ A4</button> : <span className="muted-text">–</span>}</td>
+          <td>{row.status === 'APPROVED' ? <LeavePrintLedgerPanel role={currentUserRole} row={row as DataRow & { id: string }} token={auth.token} onPrint={onPrint} /> : <span className="muted-text">–</span>}</td>
           {actions && <td className="row-actions data-row-actions">{String(row.employeeId || '') === String(employeeId || '') ? <span className="muted-text" style={{ fontSize: '0.8rem', display: 'block', marginBottom: 4 }}>ไม่สามารถตรวจสอบใบลาของตนเอง</span> : <><button className="btn-success" disabled={!mutationsEnabled} onClick={() => onApprove(row)}>อนุมัติ</button><button className="btn-warning" disabled={!mutationsEnabled} onClick={() => onReturnForCorrection(row)}>ส่งกลับไปแก้ไข</button><button className="danger-action" disabled={!mutationsEnabled} onClick={() => onReject(row)}>ไม่อนุมัติ</button></>}</td>}
           {showHistoryActions && <td className="row-actions data-row-actions">{renderHistoryActions(row)}</td>}
         </tr>) : <tr><td colSpan={(actions || showHistoryActions) ? 9 : 8} className="no-rows data-table-empty-cell"><div className="empty-state data-state data-state--empty" role="status" aria-live="polite"><strong>{emptyMessage}</strong></div></td></tr>}</tbody>
@@ -1610,7 +1611,7 @@ function LeaveManagementPage({ rows, loading, error, linked, remaining, quotaSum
           <div className="leave-history-mobile-wide"><dt>เหตุผล / รายละเอียด</dt><dd>{text(row.reasonDetail || row.reason)}</dd></div>
           {row.status === 'RETURNED_FOR_CORRECTION' && row.returnReason ? <div className="leave-history-mobile-wide"><dt>เหตุผลที่ส่งกลับ</dt><dd>{text(row.returnReason)}{row.returnedByDisplayName ? ` · ${text(row.returnedByDisplayName)}` : ''}</dd></div> : null}
         </dl>
-        {hasActions && <footer>{Boolean(row.attachmentUrl) && <button className="attachment-link" onClick={() => onAttachment(row)}>เปิดเอกสาร</button>}{row.status === 'APPROVED' && <button className="btn-info leave-print-button" onClick={() => onPrint(row)}>พิมพ์ A4</button>}{renderHistoryActions(row)}</footer>}
+        {hasActions && <footer>{Boolean(row.attachmentUrl) && <button className="attachment-link" onClick={() => onAttachment(row)}>เปิดเอกสาร</button>}{row.status === 'APPROVED' && <LeavePrintLedgerPanel role={currentUserRole} row={row as DataRow & { id: string }} token={auth.token} onPrint={onPrint} />}{renderHistoryActions(row)}</footer>}
       </article>;
     }) : <div className="empty-state data-state data-state--empty" role="status" aria-live="polite"><strong>{emptyMessage}</strong></div>}</div>;
     return <ResponsiveDataTable ariaLabel={mode === 'history' ? 'ประวัติการลาพนักงานทั้งหมด' : 'ประวัติคำขอลาของฉัน'} hasRows={items.length > 0} className="leave-history-responsive-table" desktop={desktop} mobile={mobile} />;
@@ -1664,7 +1665,7 @@ function LeaveManagementPage({ rows, loading, error, linked, remaining, quotaSum
   </section>;
 }
 
-function LeavePrintDocument({ row }: { row: DataRow }) {
+function LeavePrintDocument({ row, ledger }: { row: DataRow; ledger: LeavePrintLedger }) {
   const leaveDates = inputDate(row.startDate) === inputDate(row.endDate) ? date(row.startDate) : `${date(row.startDate)} – ${date(row.endDate)}`;
   const status = String(row.status || '');
   const statusText = ({ APPROVED: 'อนุมัติแล้ว', REJECTED: 'ไม่อนุมัติ', PENDING: 'รอพิจารณา', CANCELLED: 'ยกเลิก', RETURNED: 'ส่งกลับแก้ไข' } as Record<string, string>)[status] || text(row.status);
@@ -1681,6 +1682,14 @@ function LeavePrintDocument({ row }: { row: DataRow }) {
     <table className="leave-print-table"><thead><tr><th>วันที่ลางาน</th><th>ประเภทการลา</th><th>จำนวนวัน</th><th>ผู้ปฏิบัติงานแทน / รายละเอียด</th></tr></thead><tbody><tr><td>{leaveDates}</td><td>{leaveTypeDisplayText(row)}</td><td>{text(row.dayCount)} วัน</td><td><div className="leave-print-detail-lines"><strong>ผู้ปฏิบัติงานแทน:</strong> {text(row.substitute || row.substituteName)}<br /><strong>รายละเอียด:</strong> {text(row.reasonDetail || row.reason)}</div></td></tr></tbody></table>
     <div className="leave-print-decision"><strong>ผลการพิจารณา</strong><span><i className={status === 'APPROVED' ? 'is-checked' : undefined} /> อนุมัติ</span><span><i className={status === 'REJECTED' ? 'is-checked' : undefined} /> ไม่อนุมัติ</span>{decided && row.approvedByDisplayName ? <small>ดำเนินการในระบบโดย {text(row.approvedByDisplayName)}{row.approvedAt ? ` · ${formatApprovalDateTime(new Date(String(row.approvedAt)))}` : ''}</small> : null}</div>
     <p className="leave-print-attachment"><strong>เอกสารแนบในระบบ:</strong> {row.attachmentUrl ? 'มี' : 'ไม่มี'}</p>
+    <section className="leave-print-ledger" aria-label="สรุปโควตาวันลา">
+      <strong>สรุปโควตาวันลา ({ledger.unit})</strong>
+      <span>สิทธิ์ต่อปี {ledger.entitlementDays} วัน</span>
+      <span>อนุมัติก่อนหน้า {ledger.previouslyApprovedDays} วัน</span>
+      <span>คงเหลือก่อนลา {ledger.remainingBeforeDays} วัน</span>
+      <span>คำขอนี้ {ledger.requestDays} วัน</span>
+      <span>คงเหลือหลังลา {ledger.remainingAfterDays} วัน</span>
+    </section>
     <div className="leave-print-signatures">
       <div className="leave-print-signature-block">
         <div className="leave-print-signature-line">
@@ -1734,6 +1743,7 @@ function Dashboard() {
   const [operationResponseBinding, setOperationResponseBinding] = useState<PageResponseBinding<DataResponse>>();
   const [operationRequestState, setOperationRequestState] = useState<OperationRequestState>();
   const [leavePrintTarget, setLeavePrintTarget] = useState<DataRow>();
+  const [leavePrintLedger, setLeavePrintLedger] = useState<LeavePrintLedger>();
   const [leaveDecision, setLeaveDecision] = useState<LeaveDecisionRequest>();
   const [operationPage, setOperationPage] = useState(() => pwaShell ? 1 : routeQueryNumber('page'));
   const [licenseEmployeeStatus, setLicenseEmployeeStatus] = useState<LicenseEmployeeStatus>(() => {
@@ -2052,15 +2062,26 @@ function Dashboard() {
   }, []);
 
   useEffect(() => {
-    if (!leavePrintTarget) return;
+    const onLedgerReady = (event: Event) => {
+      const detail = (event as CustomEvent<{ row: DataRow; ledger: LeavePrintLedger }>).detail;
+      setLeavePrintTarget(detail.row);
+      setLeavePrintLedger(detail.ledger);
+    };
+    window.addEventListener(LEAVE_PRINT_LEDGER_READY_EVENT, onLedgerReady);
+    return () => window.removeEventListener(LEAVE_PRINT_LEDGER_READY_EVENT, onLedgerReady);
+  }, []);
+
+  useEffect(() => {
+    if (!leavePrintTarget || !isPrintReadyLeaveLedger(leavePrintLedger)
+      || !['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(auth.user?.role || '')) return;
     let active = true;
     void printDocument('.leave-print-document', 'ใบขออนุมัติลางาน.pdf', { orientation: 'portrait', margin: '12mm' })
       .catch(() => { if (active) setOperationError('ไม่สามารถจัดเตรียมเอกสารพิมพ์ใบลาได้'); })
-      .finally(() => { if (active) setLeavePrintTarget(undefined); });
+      .finally(() => { if (active) { setLeavePrintTarget(undefined); setLeavePrintLedger(undefined); } });
     return () => {
       active = false;
     };
-  }, [leavePrintTarget]);
+  }, [auth.user?.role, leavePrintLedger, leavePrintTarget]);
 
   const saveAllDrafts = async () => {
     if (!auth.token || !Object.keys(scheduleDrafts).length) return;
@@ -3652,7 +3673,7 @@ function Dashboard() {
         })}
       </div>
     )}
-    {leavePrintTarget && <LeavePrintDocument row={leavePrintTarget} />}
+    {leavePrintTarget && isPrintReadyLeaveLedger(leavePrintLedger) && ['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(auth.user?.role || '') && <LeavePrintDocument row={leavePrintTarget} ledger={leavePrintLedger} />}
     {actionDialog.dialog}
     </>
   );
