@@ -118,7 +118,8 @@ test('Dashboard accessible names and light-theme contrast pass against synthetic
     await signInToSyntheticDashboard(page, viewport.width, viewport.height);
     await expect(page.getByRole('main')).toHaveCount(1);
     const commandTrigger = page.locator('.workflow-command-trigger');
-    if (await commandTrigger.isVisible()) await expect(commandTrigger).toContainText('เมนูด่วน');
+    // 2026-10-27: the topbar search is icon-only; its accessible name carries the label.
+    if (await commandTrigger.isVisible()) await expect(commandTrigger).toHaveAccessibleName(/ค้นหาเมนูหรือพนักงาน/);
 
     const violations = await seriousAxeViolations(page);
     expect(violations, JSON.stringify(violations, null, 2)).toEqual([]);
