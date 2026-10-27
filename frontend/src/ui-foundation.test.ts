@@ -32,6 +32,17 @@ describe('SMSv3 UI foundation on the corporate tokens', () => {
     expect(shell.dataset.accent).toBe('navy');
   });
 
+  it('keeps the Sidebar collapse control in the footer with a readable label', () => {
+    const main = fs.readFileSync(path.join(__dirname, 'main.tsx'), 'utf8');
+    const footer = main.slice(main.indexOf('<div className="sidebar-footer">'), main.indexOf('</div>', main.indexOf('<div className="sidebar-footer">')) + 6);
+    expect(footer).toContain('sidebar-collapse-toggle');
+    expect(footer).toContain("sidebarCollapsed ? 'ขยายเมนู' : 'ย่อเมนู'");
+    expect(footer).toContain('<span>{sidebarCollapsed ? \'ขยายเมนู\' : \'ย่อเมนู\'}</span>');
+    const shell = fs.readFileSync(path.join(__dirname, 'styles/hrpro-shell.css'), 'utf8');
+    expect(shell).toContain('#sms-app .sidebar-footer .sidebar-collapse-toggle');
+    expect(shell).not.toContain('#sms-app .sidebar-collapse-toggle { display: none; }');
+  });
+
   it('maps business statuses to badge tones without changing their values', () => {
     expect(statusBadgeTone('APPROVED')).toBe('success');
     expect(statusBadgeTone('pending')).toBe('warning');
