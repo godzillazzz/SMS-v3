@@ -137,20 +137,6 @@
 #sms-app .schedule-calendar-page .roster-search { display: inline-flex; align-items: center; gap: 8px; min-width: 240px; min-height: 40px; padding: 0 12px; border: 1px solid var(--color-border); border-radius: 10px; background: var(--color-surface); color: var(--color-text-muted); }
 #sms-app .schedule-calendar-page .roster-search input { flex: 1; min-width: 0; border: 0 !important; background: transparent !important; color: var(--color-text) !important; outline: none; box-shadow: none !important; }
 
-/* 07 #1: on the monthly roster the menu is an icon rail; the button at the bottom expands it (remembered). */
-@media (min-width:1024px){
-#sms-app:has(.schedule-calendar-page) .sidebar-rail-toggle{display:flex;align-items:center;gap:10px;width:100%;min-height:40px;margin-bottom:8px;padding:0 12px;border:1px solid var(--color-sidebar-border);border-radius:10px;background:transparent;color:var(--sidebar-item);cursor:pointer}
-#sms-app:has(.schedule-calendar-page):not([data-rail=expanded]) .main-area{margin-left:76px!important;width:auto!important;max-width:none!important}
-#sms-app:has(.schedule-calendar-page):not([data-rail=expanded]) .sidebar{width:76px!important;padding-inline:10px!important}
-#sms-app:has(.schedule-calendar-page):not([data-rail=expanded]) .sidebar :is(.nav-section>p,.nav-item>span:not(.nav-icon),.sidebar-user>span:not(.avatar),.sidebar-logout>span,.sidebar-rail-toggle>span){position:absolute!important;width:1px!important;height:1px!important;overflow:hidden!important;clip-path:inset(50%)!important;white-space:nowrap!important}
-#sms-app:has(.schedule-calendar-page):not([data-rail=expanded]) .sidebar :is(.nav-item,.sidebar-rail-toggle){position:relative;justify-content:center;width:56px!important;margin-inline:auto!important;padding-inline:0!important}
-#sms-app:has(.schedule-calendar-page):not([data-rail=expanded]) .sidebar .nav-menu{scrollbar-width:none;padding-inline:0!important}
-#sms-app:has(.schedule-calendar-page):not([data-rail=expanded]) .sidebar .nav-menu::-webkit-scrollbar{display:none}
-#sms-app:has(.schedule-calendar-page):not([data-rail=expanded]) .sidebar-brand{justify-content:center;padding-inline:0!important}
-#sms-app:has(.schedule-calendar-page):not([data-rail=expanded]) .sidebar-brand picture{width:44px;overflow:hidden}
-#sms-app:has(.schedule-calendar-page):not([data-rail=expanded]) .sidebar-brand img{max-width:none;object-fit:cover;object-position:left}
-#sms-app:has(.schedule-calendar-page):not([data-rail=expanded]) .nav-count-badge{position:absolute;top:2px;right:4px;transform:scale(.8)}
-}
 #sms-app .auto-preview-dialog,.auto-preview-dialog{max-width:980px;width:min(980px,calc(100vw - 32px));max-height:calc(100vh - 48px);overflow:auto;background:var(--color-surface,#fff);color:var(--color-text,#0F172A);border-radius:16px;padding:24px;box-shadow:0 24px 48px -12px rgba(15,23,42,.35)}
 .auto-preview-head{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin-bottom:16px}
 .auto-preview-head h2{margin:0;font-size:20px;font-weight:700;color:var(--color-text,#0F172A)}

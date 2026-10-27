@@ -75,6 +75,7 @@ import { LICENSE_BUCKETS, countLicenseBuckets, licenseBuckets, type LicenseBucke
 
 
 import { WorkflowCommandPalette } from './components/WorkflowCommandPalette';
+import { UserMenu } from './components/UserMenu';
 import { defaultAuditFilters, type AuditFilters } from './components/audit/audit-types';
 import type { DataQualityFilters, DataQualityIssue } from './pages/data-quality/DataQualityCenterPage';
 import type { G06UatProvisionResult } from './pages/access-management/G06UatProvisioningPanel';
@@ -182,6 +183,8 @@ const SearchableEmployeeCombobox = React.lazy(() => import('./components/Searcha
 type User = { id: string; email: string; displayName: string; role: string; department?: string; employeeId?: string };
 type Employee = { id: string; employeeCode: string; firstName: string; lastName: string; displayName?: string; email?: string | null; phone?: string | null; department?: string; jobTitle?: string; hiredAt?: string | null; skill?: string | null; isActive: boolean; updatedAt?: string };
 type Page = RoutePage;
+// Owner decision 2026-10-27: content is capped at 1280px except these wide working pages.
+const WIDE_PAGES: ReadonlySet<Page> = new Set<Page>(['schedule', 'attendanceSupervisor', 'reportCenter', 'reports', 'executiveReport', 'attendanceReport']);
 type Auth = { token?: string; user?: User; originalUser?: User; loading: boolean; error?: string; refreshState: 'checking' | 'ready' | 'unauthenticated' | 'unavailable'; isViewingAs: boolean; login(email: string, password: string): Promise<void>; passkeyLogin(): Promise<void>; logout(): Promise<void>; retryRefresh(): Promise<void>; beginViewAs(userId: string): Promise<void>; endViewAs(): void };
 type DataRow = Record<string, unknown>;
 type DataResponse = { data?: DataRow[] | DataRow; summary?: { total?: number; critical?: number; warning?: number; info?: number }; meta?: { total?: number; page?: number; pageSize?: number; totalPages?: number; statusCounts?: Record<string, number>; unmatchedLegacyCount?: number } };
@@ -1858,7 +1861,8 @@ function Dashboard() {
   }, [activePage]);
   const [operationRefresh, setOperationRefresh] = useState(0);
   const [rosterSearch, setRosterSearch] = useState('');
-  const [railExpanded, setRailExpanded] = useState(() => { try { return localStorage.getItem('sms-v3-rail-expanded') === '1'; } catch { return false; } });
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => { try { return localStorage.getItem('sms-v3-sidebar-collapsed') === '1'; } catch { return false; } });
+  const toggleSidebarCollapsed = () => setSidebarCollapsed((value) => { const next = !value; try { localStorage.setItem('sms-v3-sidebar-collapsed', next ? '1' : '0'); } catch { /* best effort */ } return next; });
   const [approvalSummary, setApprovalSummary] = useState<ApprovalCountSummary | null>(null);
   const [approvalCountStatus, setApprovalCountStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
   const [registrationReviewInitialRequestId, setRegistrationReviewInitialRequestId] = useState<string>();
@@ -3448,7 +3452,7 @@ function Dashboard() {
 
   return (
     <>
-      {!pwaShell && <WorkflowCommandPalette open={commandPaletteOpen} items={workflowCommands} onClose={() => setCommandPaletteOpen(false)} onNavigate={(id) => setActivePage(id as Page)} />}
+      {!pwaShell && <WorkflowCommandPalette open={commandPaletteOpen} items={workflowCommands} onClose={() => setCommandPaletteOpen(false)} onNavigate={(id) => setActivePage(id as Page)} onSearchEmployees={(query) => { setSearch(query); setActivePage('employees'); }} />}
       {leaveDecision && <React.Suspense fallback={<div className="full-loader" role="status">กำลังโหลดหน้าต่างยืนยัน…</div>}><LeaveDecisionConfirmation
         target={leaveDecision.target}
         action={leaveDecision.action}
@@ -3459,7 +3463,8 @@ function Dashboard() {
       /></React.Suspense>}
       <div
         id={pwaShell ? undefined : 'sms-app'}
-        data-rail={railExpanded ? 'expanded' : undefined}
+        data-sidebar={sidebarCollapsed ? 'collapsed' : undefined}
+        data-page-width={WIDE_PAGES.has(activePage) ? 'wide' : undefined}
         className={`app-shell ${desktopView ? 'desktop-view' : ''} ${auth.isViewingAs ? 'view-as-active' : ''} ${pwaShell ? `pwa-shell pwa-page-${activePage}` : ''}`}
         style={{ backgroundColor: 'var(--surface-page, #020813)', color: 'var(--text-on-surface, #f1f5f9)' }}
       >
@@ -3472,6 +3477,7 @@ function Dashboard() {
         <div className="sidebar-brand">
           <BrandLogo />
           <button type="button" className="sidebar-close-button" aria-label="ปิดเมนูหลัก" onClick={() => setMobileMenuOpen(false)}><SmsIcon name="close" size={20} /></button>
+          <button type="button" className="sidebar-collapse-toggle" aria-pressed={sidebarCollapsed} aria-label={sidebarCollapsed ? 'ขยายเมนู' : 'ย่อเมนู'} title={sidebarCollapsed ? 'ขยายเมนู' : 'ย่อเมนู'} onClick={toggleSidebarCollapsed}><SmsIcon name="menu" size={18} /></button>
         </div>
         <nav className="nav-menu" aria-label="เมนูหลัก">{visibleNavigation.map((section) => (
           <div className="nav-section" key={section.label || section.items.map((item) => item.id).join('-')}>{section.label && <p>{section.label}</p>}{section.items.map((item) => {
@@ -3482,11 +3488,10 @@ function Dashboard() {
             const countStateTitle = countEnabled && approvalCountStatus === 'loading' ? 'กำลังโหลดจำนวนรายการรออนุมัติ' : countEnabled && approvalCountStatus === 'error' ? 'โหลดจำนวนรายการรออนุมัติไม่สำเร็จ' : undefined;
             const countStateLabel = countStateTitle ? `${item.label}, ${countStateTitle}` : undefined;
             const countTitle = badge && menuCount !== null ? `${menuCount} รายการรออนุมัติ` : countStateTitle;
-            return <button type="button" key={item.id} data-navigation-id={item.id} aria-label={badge ? `${item.label}, ${countTitle}` : countStateLabel} title={countTitle} className={`nav-item ${navigationPage === item.id ? 'active' : ''} ${badge ? 'has-approval-count' : ''}`} onClick={() => { setActivePage(item.id); setMobileMenuOpen(false); }}><span className="nav-icon"><SmsIcon name={item.icon} size={19} /></span><span>{item.label}{badge && <b className="nav-count-badge" aria-hidden="true">{badge}</b>}</span></button>;
+            return <button type="button" key={item.id} data-navigation-id={item.id} aria-label={badge ? `${item.label}, ${countTitle}` : countStateLabel} title={countTitle ?? (sidebarCollapsed ? item.label : undefined)} className={`nav-item ${navigationPage === item.id ? 'active' : ''} ${badge ? 'has-approval-count' : ''}`} onClick={() => { setActivePage(item.id); setMobileMenuOpen(false); }}><span className="nav-icon"><SmsIcon name={item.icon} size={19} /></span><span>{item.label}{badge && <b className="nav-count-badge" aria-hidden="true">{badge}</b>}</span></button>;
           })}</div>
         ))}</nav>
         <div className="sidebar-footer">
-          <button type="button" className="sidebar-rail-toggle" aria-pressed={railExpanded} onClick={() => setRailExpanded((value) => { const next = !value; try { localStorage.setItem('sms-v3-rail-expanded', next ? '1' : '0'); } catch { /* best effort */ } return next; })}><SmsIcon name="menu" size={18} /><span>{railExpanded ? 'ย่อเมนู' : 'ขยายเมนู'}</span></button>
           <div className="sidebar-user sidebar-profile"><span className="avatar">{initials}</span><span><b>{auth.user?.displayName || 'ผู้ใช้งาน'}</b><small>{roleDisplayName(auth.user?.role || 'VIEWER')}</small></span></div>
           <button type="button" className="sidebar-logout" onClick={() => auth.logout()}><SmsIcon name="logout" size={18} /><span>ออกจากระบบ</span></button>
         </div>
@@ -3500,15 +3505,10 @@ function Dashboard() {
             <span className="mobile-brand"><BrandLogo /></span>
             <span className="topbar-copy"><strong>{pageTitle}</strong><small>{pageSubtitle[navigationPage]}</small></span>
           </div>
-          <label className="topbar-search"><span aria-hidden="true"><SmsIcon name="search" size={17} /></span><input aria-label="ค้นหาพนักงาน" placeholder="ค้นหาพนักงาน..." value={search} onChange={(event) => { setSearch(event.target.value); if (event.target.value && activePage !== 'employees') setActivePage('employees'); }} /></label>
           <div className="topbar-actions">
-            {!pwaShell && <button type="button" className="workflow-command-trigger" title="ไปยังงานหรือหน้าที่ต้องการ" onClick={() => setCommandPaletteOpen(true)}><SmsIcon name="search" size={16} /><span>เมนูด่วน</span><kbd>Ctrl K</kbd></button>}
-            <span className="environment-pill">{import.meta.env.PROD ? 'DEPLOYED' : 'LOCAL'}</span>
+            {!pwaShell && <button type="button" className="workflow-command-trigger" title="ค้นหาเมนูหรือพนักงาน (Ctrl K)" aria-label="ค้นหาเมนูหรือพนักงาน (Ctrl K)" onClick={() => setCommandPaletteOpen(true)}><SmsIcon name="search" size={18} /></button>}
             {['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(auth.user?.role || '') && !auth.isViewingAs && <ApprovalCenterNotificationButton count={approvalMenuCount('approvalCenter', approvalSummary)} onClick={() => setActivePage('approvalCenter')} />}
-            <ThemeControl compact />
-            {!pwaShell && <React.Suspense fallback={null}><AccentControl /></React.Suspense>}
-            <button type="button" className="display-mode-toggle" aria-pressed={desktopView} title={desktopView ? 'กลับมุมมองมือถือ' : 'แสดงแบบเดสก์ท็อป'} onClick={toggleDesktopView}><SmsIcon name={desktopView ? 'device' : 'system'} size={16} /><span>{desktopView ? 'Mobile' : 'Desktop'}</span></button>
-            <button type="button" className="topbar-profile topbar-profile-button" title="การเข้าสู่ระบบและ Passkey" onClick={() => setPasskeyPanelOpen(true)}><span className="avatar">{initials}</span><span><b>{auth.user?.displayName || 'ผู้ใช้งาน'}</b><small>{roleDisplayName(auth.user?.role || 'VIEWER')}</small></span></button>
+            <UserMenu initials={initials} showAccent={!pwaShell} displayName={auth.user?.displayName || 'ผู้ใช้งาน'} roleLabel={roleDisplayName(auth.user?.role || 'VIEWER')} desktopView={desktopView} onToggleDesktopView={toggleDesktopView} onOpenSecurity={() => setPasskeyPanelOpen(true)} onLogout={() => auth.logout()} />
             <button ref={mobileUtilityTriggerRef} type="button" className="mobile-utility-button" aria-label="เปิดเมนูบัญชีและธีม" aria-expanded={mobileUtilityOpen} aria-controls="mobile-utility-panel" onClick={() => setMobileUtilityOpen((value) => !value)}><SmsIcon name="more" size={20} /></button>
           </div>
           {mobileUtilityOpen && createPortal(<>

@@ -128,7 +128,9 @@ describe('SMS V1.2 Passkey product/security UI contract', () => {
   });
 
   it('keeps Passkey management accessible to all authenticated roles through profile utilities instead of admin-only navigation', () => {
-    expect(main).toContain('topbar-profile-button');
+    // 2026-10-27: the desktop profile button lives in the topbar UserMenu, which opens the same Passkey panel.
+    expect(read('components/UserMenu.tsx')).toContain('topbar-profile-button');
+    expect(main).toContain('onOpenSecurity={() => setPasskeyPanelOpen(true)}');
     expect(main).toContain('setPasskeyPanelOpen(true)');
     expect(main).toContain('mobile-utility-security');
     expect(main).toContain('<PasskeySecurityPanel token={auth.token}');
