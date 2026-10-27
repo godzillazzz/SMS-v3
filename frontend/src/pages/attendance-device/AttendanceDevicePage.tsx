@@ -6,7 +6,7 @@ import '../../styles/personnel-layout.css';
 import { SmsIcon } from '../../components/SmsIcon';
 import { auditEventLabel } from '../../components/audit/audit-utils';
 import { useActionDialog } from '../../components/useActionDialog';
-import { attendanceDeviceAdminOverview, revokeAttendanceDeviceCurrent } from '../attendance/attendance-client';
+import { attendanceDeviceAdminOverview, attendanceDeviceSelfieBlob, promoteAttendanceDevice, revokeAttendanceDeviceCurrent } from '../attendance/attendance-client';
 import { formatThaiDateTime } from '../../thai-date-time';
 import {
   ATTENDANCE_DEVICE_KEY_ALGORITHM,
@@ -31,6 +31,8 @@ export type AttendanceDeviceEnrollment = {
   platformHint?: string | null;
   status: 'PENDING_APPROVAL' | 'ACTIVE' | 'REVOKED' | 'REJECTED' | 'CANCELLED';
   proofVerifiedAt?: string | null;
+  /** ADMIN overview only: latest stored clock-in selfie taken on this device. */
+  latestSelfieAt?: string | null;
   enrolledAt?: string | null;
   activatedAt?: string | null;
   revokedAt?: string | null;
@@ -206,6 +208,34 @@ export function AttendanceDevicePage({ token, role, readOnly = false, initialReq
   const [overviewLoading, setOverviewLoading] = useState(role === 'ADMIN');
   const [revokeTarget, setRevokeTarget] = useState<AttendanceDeviceAdminEmployee | null>(null);
   const [revokeReason, setRevokeReason] = useState('');
+  const [promoteTarget, setPromoteTarget] = useState<{ row: AttendanceDeviceAdminEmployee; device: AttendanceDeviceEnrollment } | null>(null);
+  const [promoteReason, setPromoteReason] = useState('');
+  const [promoteSelfie, setPromoteSelfie] = useState<{ url?: string; loading?: boolean; error?: string }>({});
+  // The selfie is held only as an in-memory object URL while the dialog is open.
+  useEffect(() => {
+    setPromoteSelfie({});
+  }, [promoteTarget]);
+  useEffect(() => () => { if (promoteSelfie.url) URL.revokeObjectURL(promoteSelfie.url); }, [promoteSelfie.url]);
+  const openPromoteSelfie = async () => {
+    if (!promoteTarget || promoteSelfie.loading) return;
+    setPromoteSelfie({ loading: true });
+    try {
+      const blob = await attendanceDeviceSelfieBlob(token, promoteTarget.row.employeeId, promoteTarget.device.id);
+      setPromoteSelfie({ url: URL.createObjectURL(blob) });
+    } catch (error) {
+      setPromoteSelfie({ error: formatRequestErrorMessage(error, 'ไม่สามารถเปิดรูปเซลฟี่ได้') });
+    }
+  };
+  const [adminSearch, setAdminSearch] = useState('');
+  // Devices an employee has already proven with a key (first clock-in on a new phone
+  // or an enrollment request) can be made primary directly; rows needing action sort first.
+  const adminRows = useMemo(() => {
+    const query = adminSearch.trim().toLowerCase();
+    return adminOverview
+      .filter((row) => !query || `${adminEmployeeName(row)} ${row.employee?.department || ''}`.toLowerCase().includes(query))
+      .map((row) => ({ row, candidates: row.history.filter((device) => device.status === 'PENDING_APPROVAL' && Boolean(device.proofVerifiedAt)) }))
+      .sort((a, b) => Number(b.candidates.length > 0) - Number(a.candidates.length > 0));
+  }, [adminOverview, adminSearch]);
 
   const loadSelf = async () => {
     setSelfLoading(true); setSelfError(undefined); setSelfErrorRequestId(undefined); setEmployeeLinkRequired(false);
@@ -341,6 +371,21 @@ export function AttendanceDevicePage({ token, role, readOnly = false, initialReq
       onApprovalQueueChanged?.();
       await refresh();
     } catch (error) { setSelfError(formatRequestErrorMessage(error, 'ยกเลิกคำขอไม่สำเร็จ')); }
+    finally { setBusy(false); }
+  };
+
+  const submitPromote = async () => {
+    if (!promoteTarget || readOnly || role !== 'ADMIN') return;
+    const text = promoteReason.trim();
+    if (text.length < 3) { setQueueError('กรุณาระบุเหตุผลอย่างน้อย 3 ตัวอักษร'); return; }
+    setBusy(true); setQueueError(undefined); setMessage(undefined);
+    try {
+      await promoteAttendanceDevice(token, promoteTarget.row.employeeId, promoteTarget.device.id, text);
+      setMessage(`ตั้ง ${promoteTarget.device.displayName} เป็นเครื่องหลักของ ${adminEmployeeName(promoteTarget.row)} แล้ว`);
+      setPromoteTarget(null); setPromoteReason('');
+      onApprovalQueueChanged?.();
+      await refresh();
+    } catch (error) { setQueueError(formatRequestErrorMessage(error, 'ตั้งเครื่องหลักไม่สำเร็จ')); }
     finally { setBusy(false); }
   };
 
@@ -494,16 +539,39 @@ export function AttendanceDevicePage({ token, role, readOnly = false, initialReq
       </article>)}</div> : <div className="attendance-device-state attendance-device-state--empty"><strong>ไม่มีคำขอรออนุมัติ</strong><span>คำขอใหม่จะแสดงที่นี่หลังพนักงานลงทะเบียนและยืนยันคีย์</span></div>}
     </SectionCard>}
 
-    {role === 'ADMIN' && <SectionCard className="attendance-device-admin-section" kicker="การดูแลอุปกรณ์" title="จัดการอุปกรณ์ลงเวลาพนักงาน" description="ตรวจสอบอุปกรณ์ที่ลงทะเบียน ประวัติการอนุมัติและการยกเลิก โดยใช้ชื่อเครื่องและแพลตฟอร์มเป็นข้อมูลประกอบเท่านั้น" actions={<>{!overviewLoading && !queueError && <span className="attendance-device-queue-count">{adminOverview.length}</span>}</>}>
-      {overviewLoading ? <div className="attendance-device-state">กำลังโหลดประวัติอุปกรณ์…</div> : adminOverview.length ? <div className="attendance-device-review-list">{adminOverview.map((row) => <article className="attendance-device-review-card" key={row.employeeId}>
-        <div className="attendance-device-review-card__head"><div><strong>{adminEmployeeName(row)}</strong><span>{row.employee?.department || 'ไม่ระบุหน่วยงาน'}</span></div><span className={`status-badge ${row.activeDevice ? 'active' : 'muted'}`}>{row.activeDevice ? 'มีอุปกรณ์ใช้งานอยู่' : 'ไม่มีอุปกรณ์ใช้งานอยู่'}</span></div>
-        {row.activeDevice ? <div className="attendance-device-review-meta"><div><span>อุปกรณ์ปัจจุบัน</span><b>{row.activeDevice.displayName}</b></div><div><span>การยืนยันอุปกรณ์</span><b>{row.activeDevice.proofVerifiedAt ? `ผ่าน · ${formatDate(row.activeDevice.proofVerifiedAt)}` : 'ไม่พบหลักฐาน'}</b></div><div><span>เปิดใช้งานเมื่อ</span><b>{formatDate(row.activeDevice.activatedAt)}</b></div><div><span>รหัสอ้างอิงอุปกรณ์</span><b>{row.activeDevice.credentialFingerprint?.slice(0, 12) || '—'}…</b></div></div> : <div className="attendance-device-state attendance-device-state--empty"><strong>ไม่มีอุปกรณ์ใช้งานอยู่</strong><span>พนักงานต้องลงทะเบียนและผ่านการยืนยันอุปกรณ์ก่อนส่งให้ผู้ดูแลระบบอนุมัติอุปกรณ์ใหม่</span></div>}
-        {row.activeRequest && <p className="attendance-device-reason"><b>คำขอที่กำลังดำเนินการ:</b> {requestTypeLabel[row.activeRequest.requestType]} · {statusLabel[row.activeRequest.status]}{row.activeRequest.reason ? ` · ${row.activeRequest.reason}` : ''}</p>}
-        <div className="attendance-device-history-block"><strong>ประวัติอุปกรณ์ ({row.history.length})</strong>{row.history.map((device) => <div className="attendance-device-review-meta" key={device.id}><div><span>สถานะ</span><b>{enrollmentStatusLabel[device.status]}</b></div><div><span>อุปกรณ์</span><b>{device.displayName}</b></div><div><span>การยืนยันอุปกรณ์ / เปิดใช้งาน</span><b>{device.proofVerifiedAt ? 'ยืนยันแล้ว' : 'ยังไม่ยืนยัน'} · {formatDate(device.activatedAt)}</b></div><div><span>ผู้อนุมัติ</span><b>{device.approvedBy?.displayName || (device.status === 'ACTIVE' ? 'ไม่พบชื่อผู้อนุมัติ' : '—')}</b></div><div><span>ยกเลิกเมื่อ</span><b>{formatDate(device.revokedAt)}{device.revokedReason ? ` · ${device.revokedReason}` : ''}</b></div></div>)}</div>
-        {row.recentAudit.length > 0 && <div className="attendance-device-history-block"><strong>ประวัติเหตุการณ์</strong>{row.recentAudit.slice(0, 5).map((audit) => <p className="attendance-device-reason" key={audit.id}><b>{auditEventLabel(audit.metadata?.event || audit.action)}</b> · {formatDate(audit.createdAt)} · {audit.actor?.displayName || 'ระบบ'}{typeof audit.metadata?.reason === 'string' ? ` · ${audit.metadata.reason}` : ''}</p>)}</div>}
-        {row.activeDevice && <footer><button type="button" className="btn-danger-outline" disabled={busy || readOnly} onClick={() => { setRevokeTarget(row); setRevokeReason(''); }}>ยกเลิกอุปกรณ์ปัจจุบัน</button></footer>}
-      </article>)}</div> : <div className="attendance-device-state attendance-device-state--empty"><strong>ยังไม่มีประวัติอุปกรณ์</strong><span>เมื่อมีการลงทะเบียนอุปกรณ์ รายการจะปรากฏที่นี่</span></div>}
+    {role === 'ADMIN' && <SectionCard className="attendance-device-admin-section" kicker="การดูแลอุปกรณ์" title="เครื่องหลักของพนักงาน" description="ตั้งหรือยกเลิกเครื่องหลักให้พนักงาน รายละเอียดและประวัติอยู่ใน “ดูประวัติ” ของแต่ละคน" actions={<>{!overviewLoading && !queueError && <span className="attendance-device-queue-count">{adminOverview.length}</span>}</>}>
+      {overviewLoading ? <div className="attendance-device-state">กำลังโหลดประวัติอุปกรณ์…</div> : adminOverview.length ? <>
+        <input className="attendance-device-admin-search" type="search" value={adminSearch} onChange={(event) => setAdminSearch(event.target.value)} placeholder="ค้นหาชื่อพนักงานหรือหน่วยงาน" aria-label="ค้นหาพนักงานในรายการอุปกรณ์" />
+        <div className="attendance-device-admin-list">{adminRows.map(({ row, candidates }) => <article className="attendance-device-review-card attendance-device-admin-row" key={row.employeeId}>
+          <header>
+            <div><strong>{adminEmployeeName(row)}</strong><span>{row.employee?.department || 'ไม่ระบุหน่วยงาน'}</span></div>
+            <span className={`status-badge ${row.activeDevice ? 'active' : candidates.length ? 'returned' : 'muted'}`}>{row.activeDevice ? 'มีเครื่องหลัก' : candidates.length ? 'รอตั้งเครื่องหลัก' : 'ไม่มีเครื่องหลัก'}</span>
+          </header>
+          <p className="attendance-device-admin-primary">{row.activeDevice
+            ? <>เครื่องหลัก: <b>{row.activeDevice.displayName}</b>{row.activeDevice.platformHint ? ` · ${row.activeDevice.platformHint}` : ''} · ใช้งานตั้งแต่ {formatDate(row.activeDevice.activatedAt)}</>
+            : 'ยังไม่มีเครื่องหลัก'}</p>
+          {row.activeRequest && <p className="attendance-device-admin-note">คำขอที่ค้างอยู่: <b>{requestTypeLabel[row.activeRequest.requestType]} · {statusLabel[row.activeRequest.status]}</b> — อนุมัติได้ที่ศูนย์อนุมัติ หรือกด “ตั้งเป็นเครื่องหลัก”</p>}
+          {candidates.length > 0 && <ul className="attendance-device-admin-candidates">{candidates.map((device) => <li key={device.id}>
+            <div><b>{device.displayName}</b><span>{device.platformHint || 'อุปกรณ์อื่น'} · ยืนยันคีย์เมื่อ {formatDate(device.proofVerifiedAt)}{device.latestSelfieAt ? ' · มีรูปเซลฟี่ให้ตรวจ' : ''}</span></div>
+            <button type="button" className="btn-primary small-action" disabled={busy || readOnly} onClick={() => { setPromoteTarget({ row, device }); setPromoteReason(''); }}>ตั้งเป็นเครื่องหลัก</button>
+          </li>)}</ul>}
+          <footer>
+            <details className="attendance-device-admin-history"><summary>ดูประวัติ ({row.history.length})</summary>
+              <ul>{row.history.map((device) => <li key={device.id}><b>{enrollmentStatusLabel[device.status]}</b> · {device.displayName}{device.activatedAt ? ` · เปิดใช้ ${formatDate(device.activatedAt)}` : ''}{device.revokedAt ? ` · ยกเลิก ${formatDate(device.revokedAt)}${device.revokedReason ? ` (${device.revokedReason})` : ''}` : ''}{device.approvedBy?.displayName ? ` · อนุมัติโดย ${device.approvedBy.displayName}` : ''}</li>)}</ul>
+              {row.recentAudit.length > 0 && <ul className="attendance-device-admin-events">{row.recentAudit.slice(0, 5).map((audit) => <li key={audit.id}><b>{auditEventLabel(audit.metadata?.event || audit.action)}</b> · {formatDate(audit.createdAt)} · {audit.actor?.displayName || 'ระบบ'}{typeof audit.metadata?.reason === 'string' ? ` · ${audit.metadata.reason}` : ''}</li>)}</ul>}
+            </details>
+            {row.activeDevice && <button type="button" className="btn-danger-outline small-action" disabled={busy || readOnly} onClick={() => { setRevokeTarget(row); setRevokeReason(''); }}>ยกเลิกเครื่องหลัก</button>}
+          </footer>
+        </article>)}{!adminRows.length && <div className="attendance-device-state attendance-device-state--empty"><strong>ไม่พบพนักงานตามคำค้น</strong></div>}</div>
+      </> : <div className="attendance-device-state attendance-device-state--empty"><strong>ยังไม่มีอุปกรณ์ในระบบ</strong><span>เมื่อพนักงานลงเวลาหรือลงทะเบียนอุปกรณ์ รายการจะปรากฏที่นี่</span></div>}
     </SectionCard>}
+
+    {promoteTarget && <div className="attendance-device-review-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !busy) setPromoteTarget(null); }}><div className="attendance-device-review-modal" role="dialog" aria-modal="true" aria-labelledby="attendance-device-promote-title"><header><div><p>การดูแลอุปกรณ์โดยผู้ดูแลระบบ</p><h3 id="attendance-device-promote-title">ตั้งเป็นเครื่องหลัก</h3><span>{adminEmployeeName(promoteTarget.row)} · {promoteTarget.device.displayName}</span></div><button type="button" className="drawer-close overlay-close" disabled={busy} onClick={() => setPromoteTarget(null)} aria-label="ปิด"><SmsIcon name="close" size={20} /></button></header><div className="settings-notice">{promoteTarget.row.activeDevice ? `เครื่องหลักเดิม (${promoteTarget.row.activeDevice.displayName}) จะถูกยกเลิกทันที และเครื่องนี้จะใช้ลงเวลาได้โดยไม่ติดธง` : 'เครื่องนี้จะเป็นเครื่องหลักและใช้ลงเวลาได้ทันที'} คำขอเปลี่ยนเครื่องที่ค้างอยู่ของพนักงานคนนี้จะถูกยกเลิก</div><div className="attendance-device-selfie-review">{promoteTarget.device.latestSelfieAt ? <>
+          <button type="button" className="btn-neutral attendance-device-selfie-review__toggle" aria-pressed={Boolean(promoteSelfie.url)} disabled={busy || promoteSelfie.loading} onClick={() => { if (promoteSelfie.url) setPromoteSelfie({}); else void openPromoteSelfie(); }}><SmsIcon name="eye" size={18} />{promoteSelfie.loading ? 'กำลังโหลดรูป…' : promoteSelfie.url ? 'ซ่อนรูปเซลฟี่' : 'ดูรูปเซลฟี่จากการลงเวลา'}</button>
+          <small>ถ่ายเมื่อ {formatDate(promoteTarget.device.latestSelfieAt)} · ตรวจว่าเป็นพนักงานคนนี้ก่อนยืนยัน</small>
+          {promoteSelfie.url && <img src={promoteSelfie.url} alt={`รูปเซลฟี่จากการลงเวลาของ ${adminEmployeeName(promoteTarget.row)}`} />}
+          {promoteSelfie.error && <div className="alert alert-error" role="alert">{promoteSelfie.error}</div>}
+        </> : <small>ยังไม่มีรูปเซลฟี่จากเครื่องนี้ ตรวจตัวตนพนักงานด้วยวิธีอื่นก่อนยืนยัน</small>}</div><label className="attendance-device-field"><span>เหตุผล (บังคับ)</span><textarea autoFocus value={promoteReason} maxLength={1000} onChange={(event) => setPromoteReason(event.target.value)} placeholder="เช่น พนักงานเปลี่ยนโทรศัพท์ใหม่" /></label><footer><button type="button" className="btn-neutral" disabled={busy} onClick={() => setPromoteTarget(null)}>ยกเลิก</button><button type="button" className="btn-primary" disabled={busy || promoteReason.trim().length < 3} onClick={() => void submitPromote()}>{busy ? 'กำลังบันทึก…' : 'ยืนยันตั้งเป็นเครื่องหลัก'}</button></footer></div></div>}
 
     {revokeTarget?.activeDevice && <div className="attendance-device-review-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !busy) setRevokeTarget(null); }}><div className="attendance-device-review-modal" role="dialog" aria-modal="true" aria-labelledby="attendance-device-revoke-title"><header><div><p>การดูแลอุปกรณ์โดยผู้ดูแลระบบ</p><h3 id="attendance-device-revoke-title">ยกเลิกอุปกรณ์ปัจจุบัน</h3><span>{adminEmployeeName(revokeTarget)} · {revokeTarget.activeDevice.displayName}</span></div><button type="button" className="drawer-close overlay-close" disabled={busy} onClick={() => setRevokeTarget(null)} aria-label="ปิด"><SmsIcon name="close" size={20} /></button></header><div className="settings-notice">การยกเลิกมีผลทันที ระบบจะไม่เปิดใช้อุปกรณ์อื่นอัตโนมัติ และคำขอเปลี่ยนอุปกรณ์ที่ค้างอยู่จะถูกยกเลิกเพื่อป้องกันคำขอเก่าค้างอยู่</div><label className="attendance-device-field"><span>เหตุผลการยกเลิก (บังคับ)</span><textarea autoFocus value={revokeReason} maxLength={1000} onChange={(event) => setRevokeReason(event.target.value)} placeholder="เช่น อุปกรณ์สูญหาย / เลิกใช้งาน / เปลี่ยนเครื่อง" /></label><footer><button type="button" className="btn-neutral" disabled={busy} onClick={() => setRevokeTarget(null)}>ยกเลิก</button><button type="button" className="btn-danger" disabled={busy || revokeReason.trim().length < 3} onClick={() => void submitRevoke()}>{busy ? 'กำลังบันทึก…' : 'ยืนยันยกเลิกอุปกรณ์'}</button></footer></div></div>}
 

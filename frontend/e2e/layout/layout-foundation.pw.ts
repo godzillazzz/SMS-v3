@@ -30,6 +30,20 @@ for (const theme of ['light','dark'] as const) for (const width of [1366,375]) {
     await page.screenshot({path:info.outputPath(`layout-${theme}-${width}.png`),fullPage:true});expect(errors).toEqual([]);expect(writes).toEqual([]);
   });
 }
+for (const width of [1280,375]) {
+  test(`attendance device admin footer matches established flex layout at ${width}px`,async({page},info)=>{
+    await page.setViewportSize({width,height:width===375?812:800});
+    await page.goto('/e2e/layout/attendance-device-footer.fixture.html');
+    const footer=page.getByTestId('attendance-device-admin-row-footer');
+    const styles=await footer.evaluate(element=>{
+      const computed=getComputedStyle(element);
+      return {display:computed.display,alignItems:computed.alignItems,justifyContent:computed.justifyContent,gap:computed.gap,flexWrap:computed.flexWrap};
+    });
+    console.log(`ATTENDANCE_DEVICE_ADMIN_FOOTER width=${width}px ${JSON.stringify(styles)}`);
+    await info.attach('attendance-device-admin-footer-computed-style',{body:JSON.stringify({width,...styles},null,2),contentType:'application/json'});
+    expect(styles).toEqual({display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:'12px',flexWrap:'wrap'});
+  });
+}
 test('T30a system theme responds live with matching semantic dataset and dark class',async({page})=>{
   await page.addInitScript(()=>localStorage.setItem('sms-v3-theme','system'));await page.emulateMedia({colorScheme:'light'});await page.goto('/e2e/layout/fixture.html');await expect(page.locator('html')).toHaveAttribute('data-theme','light');await expect(page.locator('html')).not.toHaveClass(/dark/);await page.emulateMedia({colorScheme:'dark'});await expect(page.locator('html')).toHaveAttribute('data-theme','dark');await expect(page.locator('html')).toHaveClass(/dark/);await page.emulateMedia({colorScheme:'light'});await expect(page.locator('html')).toHaveAttribute('data-theme','light');await expect(page.locator('html')).not.toHaveClass(/dark/);
 });

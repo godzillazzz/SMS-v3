@@ -2,11 +2,11 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 
-const mocks = vi.hoisted(() => ({ bootstrap: vi.fn(), submit: vi.fn(), identity: vi.fn(), fingerprint: vi.fn(), count: vi.fn(), list: vi.fn(), cached: vi.fn(), store: vi.fn(), sign: vi.fn(), hash: vi.fn() }));
+const mocks = vi.hoisted(() => ({ bootstrap: vi.fn(), submit: vi.fn(), identity: vi.fn(), fingerprint: vi.fn(), count: vi.fn(), list: vi.fn(), cached: vi.fn(), store: vi.fn(), sign: vi.fn(), hash: vi.fn(), move: vi.fn() }));
 vi.mock('./pages/attendance-simple/attendance-simple-client', async () => ({
   ...(await vi.importActual<typeof import('./pages/attendance-simple/attendance-simple-client')>('./pages/attendance-simple/attendance-simple-client')),
   simpleAttendanceBootstrap: mocks.bootstrap, simpleAttendanceSubmit: mocks.submit,
-  simpleAttendanceSelfieProof: vi.fn()
+  simpleAttendanceSelfieProof: vi.fn(), simpleAttendanceMoveRequest: mocks.move
 }));
 vi.mock('./pages/attendance-simple/attendance-simple-storage', async () => ({
   ...(await vi.importActual<typeof import('./pages/attendance-simple/attendance-simple-storage')>('./pages/attendance-simple/attendance-simple-storage')),
@@ -39,6 +39,32 @@ describe('actionable attendance error mapping', () => {
   it('shows unmapped server codes and status diagnostics as a reference', () => { expect(attendanceFailure({ code: 'ATTENDANCE_CONTEXT_STALE', requestId: 'req-ctx-1' }, 'fallback')).toEqual({ message: 'fallback', code: 'ATTENDANCE_CONTEXT_STALE', requestId: 'req-ctx-1' }); expect(attendanceFailure({ code: 'HTTP_500' }, 'fallback')).toMatchObject({ code: 'HTTP_500' }); expect(isDisplayableAttendanceCode('ATTENDANCE_REQUEST_INVALID')).toBe(true); expect(isDisplayableAttendanceCode('attendance_lower')).toBe(false); expect(isDisplayableAttendanceCode('HTTP_200')).toBe(false); expect(isDisplayableAttendanceCode('ATTENDANCE_' + 'X'.repeat(81))).toBe(false); });
   it('omits unsafe nested request ids and codes', () => { const f = attendanceFailure({ error: { code: '<script>secret</script>', requestId: `safe\u0000${'x'.repeat(250)}` } }, 'fallback'); expect(f).toEqual({ message: 'fallback' }); });
   it('retains valid diagnostics while rejecting overlong request ids', () => { expect(attendanceFailure({ code: 'ATTENDANCE_CHECK_IN_REQUIRED', requestId: 'req-valid-1' }, 'fallback')).toMatchObject({ code: 'ATTENDANCE_CHECK_IN_REQUIRED', requestId: 'req-valid-1' }); expect(attendanceFailure({ code: 'ATTENDANCE_CHECK_IN_REQUIRED', requestId: 'r'.repeat(201) }, 'fallback')).not.toHaveProperty('requestId'); });
+});
+
+describe('primary device move from the PWA', () => {
+  // The foreign-device card is part of the installed-app (PWA) layout.
+  beforeEach(() => { window.history.replaceState({}, '', '/?pwa=1'); });
+  afterEach(() => { window.history.replaceState({}, '', '/'); });
+
+  it('offers an explicit request on a foreign device without blocking clock-in', async () => {
+    mocks.bootstrap.mockResolvedValue({ ...base, activeDevice: { id: 'device-a', credentialFingerprint: 'device-A' }, pendingDeviceRequest: null });
+    mocks.move.mockResolvedValue({ id: 'request-1', status: 'PENDING_APPROVAL' });
+    render(<AttendanceSimplePage token="t" online />);
+    const button = await screen.findByRole('button', { name: 'ขอใช้เครื่องนี้เป็นเครื่องหลัก' });
+    expect(document.querySelector<HTMLButtonElement>('.attendance-simple__clock')!.disabled).toBe(false);
+    expect(mocks.move).not.toHaveBeenCalled();
+    fireEvent.click(button);
+    await waitFor(() => expect(mocks.move).toHaveBeenCalledTimes(1));
+    expect(mocks.move.mock.calls[0][1]).toMatchObject({ publicKeySpkiBase64: 'pk', keyAlgorithm: 'ECDSA_P256_SHA256', signatureBase64: 'signature' });
+    expect(mocks.sign.mock.calls.at(-1)?.[1]).toMatchObject({ version: 'SMS_ATTENDANCE_DEVICE_MOVE_V1', reason: 'ยืนยันด้วย selfie สดจากเครื่องใหม่' });
+  });
+
+  it('shows the pending state instead of the button once a request exists for this device', async () => {
+    mocks.bootstrap.mockResolvedValue({ ...base, activeDevice: { id: 'device-a', credentialFingerprint: 'device-A' }, pendingDeviceRequest: { id: 'r1', status: 'PENDING_APPROVAL', requestedAt: '2026-10-26T00:00:00Z', candidateFingerprint: 'device-B' } });
+    render(<AttendanceSimplePage token="t" online />);
+    await screen.findByText(/ส่งคำขอใช้เครื่องนี้เป็นเครื่องหลักแล้ว/);
+    expect(screen.queryByRole('button', { name: 'ขอใช้เครื่องนี้เป็นเครื่องหลัก' })).toBeNull();
+  });
 });
 
 describe('device-independent selfie policy', () => {

@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { api } from '../../api';
 import { AttendanceDevicePage } from './AttendanceDevicePage';
@@ -14,7 +14,9 @@ vi.mock('../../api', async (importOriginal) => {
 });
 vi.mock('../../pages/attendance/attendance-client', () => ({
   attendanceDeviceAdminOverview: vi.fn(),
-  revokeAttendanceDeviceCurrent: vi.fn()
+  revokeAttendanceDeviceCurrent: vi.fn(),
+  promoteAttendanceDevice: vi.fn(),
+  attendanceDeviceSelfieBlob: vi.fn()
 }));
 vi.mock('../../lib/attendance-device-key', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../lib/attendance-device-key')>();
@@ -196,5 +198,31 @@ describe('AttendanceDevicePage local key readiness', () => {
     expect(screen.queryByText('บัญชีนี้ยังไม่ได้ผูกกับข้อมูลพนักงาน กรุณาติดต่อผู้ดูแลระบบ')).toBeNull();
     expect(screen.queryByText('ลงทะเบียนอุปกรณ์เครื่องแรก')).toBeNull();
     expect(screen.getByText('บัญชีผู้ดูแลไม่ใช้ลงเวลาเอง')).toBeTruthy();
+  });
+});
+
+describe('AttendanceDevicePage ADMIN promote with selfie review', () => {
+  it('shows the clock-in selfie behind the eye button before the admin confirms', async () => {
+    vi.mocked(api.attendanceDeviceState).mockResolvedValue({ data: { employeeId: 'employee-1', activeDevice: null, activeRequest: null } } as never);
+    vi.mocked(api.attendanceDeviceRequests).mockResolvedValue({ data: [] } as never);
+    const attendanceClient = await import('../../pages/attendance/attendance-client');
+    const candidate = { id: 'device-new', employeeId: 'employee-1', displayName: 'อุปกรณ์ลงเวลา', keyAlgorithm: 'ECDSA_P256_SHA256', status: 'PENDING_APPROVAL' as const, proofVerifiedAt: '2026-10-26T15:52:00.000Z', latestSelfieAt: '2026-10-26T15:52:00.000Z' };
+    vi.mocked(attendanceClient.attendanceDeviceAdminOverview).mockResolvedValue([{ employeeId: 'employee-1', employee: { id: 'employee-1', displayName: 'พนักงานตัวอย่าง' }, activeDevice: active, activeRequest: null, history: [active, candidate], recentAudit: [] }] as never);
+    vi.mocked(attendanceClient.attendanceDeviceSelfieBlob).mockResolvedValue(new Blob(['jpeg'], { type: 'image/jpeg' }));
+    const keyModule = await import('../../lib/attendance-device-key');
+    vi.mocked(keyModule.listAttendanceDeviceKeyIds).mockResolvedValue(inventory([]));
+    const createObjectURL = vi.fn(() => 'blob:selfie'); const revokeObjectURL = vi.fn();
+    Object.assign(URL, { createObjectURL, revokeObjectURL });
+
+    render(<AttendanceDevicePage token="test" role="ADMIN" />);
+    expect(await screen.findByText(/มีรูปเซลฟี่ให้ตรวจ/)).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'ตั้งเป็นเครื่องหลัก' }));
+    fireEvent.click(await screen.findByRole('button', { name: /ดูรูปเซลฟี่จากการลงเวลา/ }));
+    const image = await screen.findByRole('img', { name: /รูปเซลฟี่จากการลงเวลาของ พนักงานตัวอย่าง/ });
+    expect(image.getAttribute('src')).toBe('blob:selfie');
+    expect(attendanceClient.attendanceDeviceSelfieBlob).toHaveBeenCalledWith('test', 'employee-1', 'device-new');
+    expect(attendanceClient.promoteAttendanceDevice).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'ยกเลิก' }));
+    await waitFor(() => expect(revokeObjectURL).toHaveBeenCalledWith('blob:selfie'));
   });
 });

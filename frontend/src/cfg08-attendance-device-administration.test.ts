@@ -18,8 +18,11 @@ describe('CFG-08 Attendance Device Administration', () => {
     const page = read('./pages/attendance-device/AttendanceDevicePage.tsx');
     expect(page).not.toContain('CFG-08 · ADMIN');
     expect(page).toContain('<PageHeader kicker="บุคลากรและสิทธิ์" title="อุปกรณ์ลงเวลา"');
-    expect(page).toContain('ประวัติอุปกรณ์');
-    expect(page).toContain('ประวัติเหตุการณ์');
+    // History and audit context stay available behind a per-employee disclosure.
+    expect(page).toContain('ดูประวัติ');
+    expect(page).toContain('attendance-device-admin-events');
+    expect(page).toContain('promoteReason.trim().length < 3');
+    expect(page).toContain('promoteAttendanceDevice');
     expect(page).toContain('การยืนยันอุปกรณ์');
     expect(page).toContain("revokeReason.trim().length < 3");
     expect(page).toContain('revokeAttendanceDeviceCurrent');
