@@ -90,3 +90,10 @@ test('S3 selfie checksum failure remains fail-closed when best-effort cleanup re
   );
   assert.deepEqual(calls.filter((call) => call[0] === 'remove'), [['remove', 'selfie', 'attendance-selfie/e1/c-cleanup-fails']]);
 });
+
+test('S3 selfie getBytes reads only from the selfie bucket', async () => {
+  const { calls, wrappers } = harness();
+  const result = await wrappers.selfie.getBytes({ objectKey: 'attendance-selfie/a/b.jpg' });
+  assert.ok(Buffer.isBuffer(result.buffer));
+  assert.deepEqual(calls.at(-1), ['get', 'selfie', 'attendance-selfie/a/b.jpg']);
+});
