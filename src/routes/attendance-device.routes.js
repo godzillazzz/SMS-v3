@@ -32,6 +32,14 @@ router.post('/requests/:id/resubmit', async (req, res, next) => { try { res.json
 router.post('/requests/:id/cancel', async (req, res, next) => { try { res.json({ data: await service.cancel({ actor: req.user, requestId: uuid.parse(req.params.id), ...cancelInput.parse(req.body) }) }); } catch (error) { next(error); } });
 
 router.get('/admin/overview', authorize('ADMIN'), async (req, res, next) => { try { res.json({ data: await service.listAdminOverview({ actor: req.user }) }); } catch (error) { next(error); } });
+router.get('/admin/employees/:employeeId/devices/:deviceId/selfie', authorize('ADMIN'), async (req, res, next) => {
+  try {
+    const selfie = await service.getDeviceSelfie({ actor: req.user, employeeId: uuid.parse(req.params.employeeId), deviceEnrollmentId: uuid.parse(req.params.deviceId) });
+    res.set({ 'Content-Type': selfie.mimeType, 'Cache-Control': 'private, no-store', 'X-Content-Type-Options': 'nosniff', 'X-Selfie-Captured-At': new Date(selfie.capturedAt).toISOString() });
+    res.send(selfie.buffer);
+  } catch (error) { next(error); }
+});
+router.post('/admin/employees/:employeeId/devices/:deviceId/promote', authorize('ADMIN'), async (req, res, next) => { try { const input = adminRevokeInput.parse(req.body); res.json({ data: await service.promoteDevice({ actor: req.user, employeeId: uuid.parse(req.params.employeeId), deviceEnrollmentId: uuid.parse(req.params.deviceId), reason: input.reason }) }); } catch (error) { next(error); } });
 router.post('/admin/employees/:employeeId/current/:deviceId/revoke', authorize('ADMIN'), async (req, res, next) => { try { const input = adminRevokeInput.parse(req.body); res.json({ data: await service.revokeCurrent({ actor: req.user, employeeId: uuid.parse(req.params.employeeId), deviceEnrollmentId: uuid.parse(req.params.deviceId), reason: input.reason }) }); } catch (error) { next(error); } });
 
 router.get('/requests', authorize('ADMIN'), async (req, res, next) => { try { res.json({ data: await service.listRequests({ actor: req.user, status: req.query.status ? status.parse(req.query.status) : 'PENDING_APPROVAL' }) }); } catch (error) { next(error); } });

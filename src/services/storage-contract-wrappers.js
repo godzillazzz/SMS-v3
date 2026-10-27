@@ -53,6 +53,7 @@ function createS3ContractWrappers({ environment = process.env, backend = createS
       return { ...stored, mimeType: mimeType || stored.mimeType, sizeBytes: stored.sizeBytes ?? file?.buffer?.length, checksum: stored.sha256 };
     },
     async remove({ objectKey }) { return remove('selfie', objectKey); },
+    async getBytes({ objectKey }) { return { buffer: await store.get(buckets.selfie, objectKey) }; },
     async listObjects() { if (typeof store.listObjects !== 'function') fail('STORAGE_LIST_UNAVAILABLE', 'Object storage listing is unavailable.'); return store.listObjects(buckets.selfie, 'attendance-selfie/'); },
     async reconcileOrphans({ olderThanMs = 60 * 60 * 1000, limit = 1000, now = clock() } = {}) {
       if (!prisma?.attendanceDeviceSelfie?.findMany) fail('STORAGE_RECONCILE_UNAVAILABLE', 'Attendance selfie reconciliation is unavailable.');
