@@ -328,6 +328,12 @@ test('P10 compares disposable DB schema to M1 baseline before apply and to full 
   const calls = [];
   const runner = (args) => { calls.push(args); return 'No difference detected.'; };
 
+  assert.throws(() => runM1BaselineSchemaDiffs(baseline, {
+    ...env,
+    SHADOW_DATABASE_URL: 'postgresql://ci_user:***@other:5432/sms_v3_shadow'
+  }, ROOT, runner), /endpoint/);
+  assert.deepEqual(calls, []);
+
   const m1BaselineDiffs = runM1BaselineSchemaDiffs(baseline, env, ROOT, runner);
   assert.deepEqual(m1BaselineDiffs, {
     disposable_database_to_m1_schema_diff: 'EMPTY'
@@ -338,7 +344,7 @@ test('P10 compares disposable DB schema to M1 baseline before apply and to full 
   assert.throws(() => checks.pass('preflight', 'P10_IDEMPOTENT_DEPLOY_AND_EMPTY_SCHEMA_DIFF', m1BaselineDiffs), /P10 preflight must be PARTIAL/);
   assert.throws(() => checks.partial('preflight', 'P10_IDEMPOTENT_DEPLOY_AND_EMPTY_SCHEMA_DIFF', { deferred: true }), /P10 M1 baseline schema evidence is incomplete/);
   assert.deepEqual(calls, [
-    ['migrate', 'diff', '--from-url', env.DIRECT_URL, '--to-schema-datamodel', baseline.schemaPath, '--exit-code']
+    ['migrate', 'diff', '--from-migrations', baseline.migrationsRoot, '--to-url', env.DIRECT_URL, '--shadow-database-url', env.SHADOW_DATABASE_URL, '--exit-code']
   ]);
 
   calls.length = 0;
@@ -363,7 +369,7 @@ test('P10 fails closed on a non-empty schema diff or a second deploy that applie
     schemaPath: '/tmp/m1/schema.prisma',
     fullSchemaPath: '/repo/prisma/schema.prisma'
   };
-  assert.throws(() => runM1BaselineSchemaDiffs(baseline, env, ROOT, (args) => args.includes('--from-url') ? 'ALTER TABLE unexpected' : ''), /disposable database to M1 schema diff is not empty/);
+  assert.throws(() => runM1BaselineSchemaDiffs(baseline, env, ROOT, (args) => args.includes('--to-url') ? 'ALTER TABLE unexpected' : ''), /disposable database to M1 schema diff is not empty/);
   assert.equal(verifyIdempotentDeploy(baseline.fullSchemaPath, env, ROOT, () => 'No pending migrations to apply.'), true);
   assert.throws(() => verifyIdempotentDeploy(baseline.fullSchemaPath, env, ROOT, () => 'Applying migration 202610230002_attendance_void_closed_state'), /attempted to apply an additional migration/);
   assert.throws(() => verifyIdempotentDeploy(baseline.fullSchemaPath, env, ROOT, () => 'unexpected Prisma output'), /not recognizable/);

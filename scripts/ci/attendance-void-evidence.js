@@ -296,12 +296,14 @@ function runEmptySchemaDiff(args, env, label, root, prismaRunner) {
 }
 
 function runM1BaselineSchemaDiffs(baseline, env, root = ROOT, prismaRunner = runPrisma) {
-  assert(baseline && baseline.schemaPath, 'M1 baseline evidence directory is missing');
+  assert(baseline && baseline.migrationsRoot, 'M1 baseline migration history is missing');
   assertDisposableUrl(env.DIRECT_URL, 'sms_v3_test', env);
+  assertDisposableUrl(env.SHADOW_DATABASE_URL, 'sms_v3_shadow', env);
   const databaseDiff = runEmptySchemaDiff([
     'migrate', 'diff',
-    '--from-url', env.DIRECT_URL,
-    '--to-schema-datamodel', baseline.schemaPath,
+    '--from-migrations', baseline.migrationsRoot,
+    '--to-url', env.DIRECT_URL,
+    '--shadow-database-url', env.SHADOW_DATABASE_URL,
     '--exit-code'
   ], env, 'disposable database to M1 schema diff', root, prismaRunner);
   return Object.freeze({ disposable_database_to_m1_schema_diff: databaseDiff });
