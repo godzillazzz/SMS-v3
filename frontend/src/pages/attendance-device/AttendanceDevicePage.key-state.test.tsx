@@ -207,7 +207,8 @@ describe('AttendanceDevicePage ADMIN promote with selfie review', () => {
     vi.mocked(api.attendanceDeviceRequests).mockResolvedValue({ data: [] } as never);
     const attendanceClient = await import('../../pages/attendance/attendance-client');
     const candidate = { id: 'device-new', employeeId: 'employee-1', displayName: 'อุปกรณ์ลงเวลา', keyAlgorithm: 'ECDSA_P256_SHA256', status: 'PENDING_APPROVAL' as const, proofVerifiedAt: '2026-10-26T15:52:00.000Z', latestSelfieAt: '2026-10-26T15:52:00.000Z' };
-    vi.mocked(attendanceClient.attendanceDeviceAdminOverview).mockResolvedValue([{ employeeId: 'employee-1', employee: { id: 'employee-1', displayName: 'พนักงานตัวอย่าง' }, activeDevice: active, activeRequest: null, history: [active, candidate], recentAudit: [] }] as never);
+    const pendingRequest = { id: 'request-new', employeeId: 'employee-1', requestType: 'REPLACEMENT', status: 'PENDING_APPROVAL', requestedByUserId: 'employee-user', candidateDeviceEnrollmentId: 'device-new', createdAt: '2026-10-26T15:52:00.000Z', candidateDevice: candidate, employee: { id: 'employee-1', displayName: 'พนักงานตัวอย่าง' } };
+    vi.mocked(attendanceClient.attendanceDeviceAdminOverview).mockResolvedValue([{ employeeId: 'employee-1', employee: { id: 'employee-1', displayName: 'พนักงานตัวอย่าง' }, activeDevice: active, activeRequest: pendingRequest, history: [active, candidate], recentAudit: [] }] as never);
     vi.mocked(attendanceClient.attendanceDeviceSelfieBlob).mockResolvedValue(new Blob(['jpeg'], { type: 'image/jpeg' }));
     const keyModule = await import('../../lib/attendance-device-key');
     vi.mocked(keyModule.listAttendanceDeviceKeyIds).mockResolvedValue(inventory([]));
@@ -222,6 +223,7 @@ describe('AttendanceDevicePage ADMIN promote with selfie review', () => {
     expect(image.getAttribute('src')).toBe('blob:selfie');
     expect(attendanceClient.attendanceDeviceSelfieBlob).toHaveBeenCalledWith('test', 'employee-1', 'device-new');
     expect(attendanceClient.promoteAttendanceDevice).not.toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: 'ไม่อนุมัติคำขอ' })).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'ยกเลิก' }));
     await waitFor(() => expect(revokeObjectURL).toHaveBeenCalledWith('blob:selfie'));
   });
