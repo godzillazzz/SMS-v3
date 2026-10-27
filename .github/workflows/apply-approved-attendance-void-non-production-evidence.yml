@@ -28,6 +28,7 @@ jobs:
   evidence:
     name: P1-P12 disposable database evidence only
     runs-on: ubuntu-latest
+    container: node:22-bookworm
     timeout-minutes: 30
     services:
       postgres:
