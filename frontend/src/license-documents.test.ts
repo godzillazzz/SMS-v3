@@ -161,9 +161,12 @@ describe('license document viewer and review', () => {
     expect(JSON.stringify(fetchMock.mock.calls[0])).not.toContain('storageObjectKey');
   });
 
-  it('renders PDF and image inline and clears viewer state on cleanup', () => {
+  it('renders PDF and image inline with recovery controls and clears viewer state on cleanup', () => {
     expect(componentSource).toContain('<iframe className="license-pdf-viewer"');
     expect(componentSource).toContain('<img src={viewer.url}');
+    expect(componentSource).toContain('เปิดเอกสารในหน้าต่างใหม่');
+    expect(componentSource).toContain('ดาวน์โหลดเอกสาร');
+    expect(componentSource).toContain('ลองเปิดใหม่');
     expect(componentSource).toContain('return () => { active = false; setViewer(undefined); }');
     expect(componentSource).not.toContain('localStorage');
     expect(componentSource).not.toContain('sessionStorage');
