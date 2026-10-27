@@ -18,9 +18,9 @@ describe('SMSv3 UI foundation on the corporate tokens', () => {
     expect(css).toContain('var(--color-primary)');
   });
 
-  it('offers navy as default plus three accent hues and falls back safely', () => {
-    expect(ACCENT_OPTIONS.map((option) => option.value)).toEqual(['navy', 'teal', 'emerald']);
-    expect(normalizeAccent('pink')).toBe('navy');
+  it('offers the owner-approved five primary palettes and falls back safely', () => {
+    expect(ACCENT_OPTIONS.map((option) => option.value)).toEqual(['teal', 'indigo', 'navy', 'emerald', 'plum']);
+    expect(normalizeAccent('pink')).toBe('teal');
     const store = new Map<string, string>();
     const storage = { getItem: (k: string) => store.get(k) ?? null, setItem: (k: string, v: string) => void store.set(k, v) };
     persistAccent('teal', storage);
@@ -29,7 +29,7 @@ describe('SMSv3 UI foundation on the corporate tokens', () => {
     applyAccent('emerald', shell);
     expect(shell.dataset.accent).toBe('emerald');
     applyAccent('navy', shell);
-    expect(shell.dataset.accent).toBeUndefined();
+    expect(shell.dataset.accent).toBe('navy');
   });
 
   it('maps business statuses to badge tones without changing their values', () => {

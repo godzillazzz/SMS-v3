@@ -1,9 +1,9 @@
 import '../styles/ui-accent.css';
 import { useEffect, useState } from 'react';
-import { ACCENT_OPTIONS, applyAccent, persistAccent, readAccent, type AccentTheme } from '../accent';
+import { ACCENT_OPTIONS, DEFAULT_ACCENT, applyAccent, persistAccent, readAccent, type AccentTheme } from '../accent';
 
 export function AccentControl() {
-  const [accent, setAccent] = useState<AccentTheme>(() => typeof window !== 'undefined' ? readAccent(window.localStorage) : 'navy');
+  const [accent, setAccent] = useState<AccentTheme>(() => typeof window !== 'undefined' ? readAccent(window.localStorage) : DEFAULT_ACCENT);
   useEffect(() => {
     persistAccent(accent, window.localStorage);
     applyAccent(accent, document.querySelector<HTMLElement>('.app-shell'));
