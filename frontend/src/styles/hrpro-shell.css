@@ -150,15 +150,15 @@
 @media (max-width: 1024px) { #sms-app:not(.desktop-view) .user-menu { display: none !important; } }
 body > .workflow-command-layer .workflow-command__employee-search { border-top: 1px solid var(--color-border); }
 /* Name avatars: 8 colours fixed per person (src/avatar.ts). White text meets 4.5:1 on every tone. */
-:is(.avatar, .personnel-avatar, .personnel-drawer-avatar, .access-avatar, .audit-actor-avatar, .pwa-profile-avatar)[data-avatar-tone] { color: #fff !important; background-image: none !important; }
-:is(.avatar, .personnel-avatar, .personnel-drawer-avatar, .access-avatar, .audit-actor-avatar, .pwa-profile-avatar)[data-avatar-tone="0"] { background: #2563eb !important; }
-:is(.avatar, .personnel-avatar, .personnel-drawer-avatar, .access-avatar, .audit-actor-avatar, .pwa-profile-avatar)[data-avatar-tone="1"] { background: #0f766e !important; }
-:is(.avatar, .personnel-avatar, .personnel-drawer-avatar, .access-avatar, .audit-actor-avatar, .pwa-profile-avatar)[data-avatar-tone="2"] { background: #7c3aed !important; }
-:is(.avatar, .personnel-avatar, .personnel-drawer-avatar, .access-avatar, .audit-actor-avatar, .pwa-profile-avatar)[data-avatar-tone="3"] { background: #be185d !important; }
-:is(.avatar, .personnel-avatar, .personnel-drawer-avatar, .access-avatar, .audit-actor-avatar, .pwa-profile-avatar)[data-avatar-tone="4"] { background: #c2410c !important; }
-:is(.avatar, .personnel-avatar, .personnel-drawer-avatar, .access-avatar, .audit-actor-avatar, .pwa-profile-avatar)[data-avatar-tone="5"] { background: #047857 !important; }
-:is(.avatar, .personnel-avatar, .personnel-drawer-avatar, .access-avatar, .audit-actor-avatar, .pwa-profile-avatar)[data-avatar-tone="6"] { background: #4338ca !important; }
-:is(.avatar, .personnel-avatar, .personnel-drawer-avatar, .access-avatar, .audit-actor-avatar, .pwa-profile-avatar)[data-avatar-tone="7"] { background: #0369a1 !important; }
+[data-avatar-tone] { color: #fff !important; background-image: none !important; }
+[data-avatar-tone="0"] { background: #2563eb !important; }
+[data-avatar-tone="1"] { background: #0f766e !important; }
+[data-avatar-tone="2"] { background: #7c3aed !important; }
+[data-avatar-tone="3"] { background: #be185d !important; }
+[data-avatar-tone="4"] { background: #c2410c !important; }
+[data-avatar-tone="5"] { background: #047857 !important; }
+[data-avatar-tone="6"] { background: #4338ca !important; }
+[data-avatar-tone="7"] { background: #0369a1 !important; }
 
 /* Toasts (src/toast.ts): bottom-right, auto-dismiss 5s, pause on hover/focus. */
 .sms-toast-stack { position: fixed; right: 20px; bottom: 20px; z-index: 1200; display: grid; gap: 8px; width: min(360px, calc(100vw - 32px)); pointer-events: none; }
