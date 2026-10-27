@@ -211,7 +211,7 @@ async function migrationLedger(prisma) {
   `);
 }
 
-async function migrationDirectories(root = ROOT) {
+function migrationDirectories(root = ROOT) {
   return execFileSync('git', ['-C', root, 'ls-tree', '-d', '--name-only', `${SOURCE_COMMIT_SHA}:prisma/migrations`], { encoding: 'utf8' }).split(/\r?\n/).filter(Boolean).sort();
 }
 
@@ -879,6 +879,7 @@ module.exports = {
   evidenceDocument,
   legacyIntegrity,
   migrationChecksumPostconditions,
+  migrationDirectories,
   migrationStatus,
   normalizeStatements,
   postflightShapeOk,
