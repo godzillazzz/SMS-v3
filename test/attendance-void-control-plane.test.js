@@ -11,11 +11,13 @@ const {
   MIGRATIONS,
   MIGRATION_POLICY,
   PREREQUISITE,
+  PRODUCTION_BASELINE_MODE,
   PRODUCTION_SOURCE_SHA,
   SOURCE_COMMIT_SHA,
   SOURCE_TREE_SHA,
   VERIFIER_PATH,
-  assertSharedGitHistory,
+  assertApprovedSourceAncestry,
+  assertExactProductionPrismaChangeSet,
   validateAttendanceVoidManifest,
   validateAttendanceVoidSource,
   validateAttendanceVoidSql,
@@ -52,6 +54,7 @@ test('manifest pins exact source/tree, M2-M5 order, M1 checksum and non-Producti
   assert.equal(SOURCE_COMMIT_SHA, 'a50f99618ea9545668ad10152947fa126c6fc533');
   assert.equal(SOURCE_TREE_SHA, git(['rev-parse', `${SOURCE_COMMIT_SHA}^{tree}`]));
   assert.equal(PRODUCTION_SOURCE_SHA, '83fa98c9e9cd19fc09e27b5ad106d3eee9551442');
+  assert.equal(PRODUCTION_BASELINE_MODE, 'IMMUTABLE_EXTERNAL_BASELINE_EXACT_PRISMA_DIFF');
   assert.deepEqual(result.migrationNames, MIGRATIONS.map(({ name }) => name));
   assert.deepEqual(result.migrationPaths, MIGRATIONS.map(({ path: migrationPath }) => migrationPath));
   assert.equal(result.migrationPolicy, 'ADDITIVE_ENUM_COLUMNS_CONSTRAINT_SWAP_PARTIAL_UNIQUE');
@@ -72,7 +75,7 @@ test('exact source/tree/provenance and M1-M5 SQL checksums are mechanically veri
   const result = validateAttendanceVoidSource(MANIFEST, ROOT);
   assert.equal(result.sourceCommitSha, SOURCE_COMMIT_SHA);
   assert.equal(result.sourceTreeSha, SOURCE_TREE_SHA);
-  assert.equal(result.sharedProductionHistorySha, git(['merge-base', PRODUCTION_SOURCE_SHA, SOURCE_COMMIT_SHA]));
+  assert.equal(result.productionBaselineMode, PRODUCTION_BASELINE_MODE);
   assert.equal(result.canonicalIntegrationSha, git(['rev-parse', 'refs/remotes/origin/fix/serverless-database-reliability']));
   assert.equal(result.sourceOnCanonicalIntegration, true);
   assert.equal(result.exactPrismaChangeSet, true);
@@ -84,35 +87,79 @@ test('exact source/tree/provenance and M1-M5 SQL checksums are mechanically veri
   for (const migration of MIGRATIONS) assert.equal(validateAttendanceVoidSql(migration.name, readSql(migration.name)).sha256, migration.sha256);
 });
 
-test('provenance accepts divergent Production/source descendants only with shared history and rejects unrelated roots', () => {
+test('immutable Production baseline needs no shared history while unrelated approved-source roots fail ancestry guards', () => {
   const tempRoot = process.env.TMPDIR || os.tmpdir();
   const root = fs.mkdtempSync(path.join(tempRoot, 'attendance-void-provenance-'));
   const runGit = (args) => execFileSync('git', args, { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
   try {
-    runGit(['init', '-q', '-b', 'main']);
+    runGit(['init', '-q', '-b', 'production']);
     runGit(['config', 'user.name', 'SMS-v3 provenance test']);
     runGit(['config', 'user.email', 'provenance-test@example.invalid']);
-    fs.writeFileSync(path.join(root, 'base.txt'), 'shared history\n');
-    runGit(['add', 'base.txt']);
-    runGit(['commit', '-q', '-m', 'shared base']);
-    runGit(['switch', '-q', '-c', 'production']);
     fs.writeFileSync(path.join(root, 'production.txt'), 'production lineage\n');
     runGit(['add', 'production.txt']);
-    runGit(['commit', '-q', '-m', 'Production descendant']);
+    runGit(['commit', '-q', '-m', 'immutable external Production baseline']);
     const productionSha = runGit(['rev-parse', 'HEAD']);
-    runGit(['switch', '-q', 'main']);
+    runGit(['switch', '-q', '--orphan', 'approved']);
     fs.writeFileSync(path.join(root, 'approved.txt'), 'approved source lineage\n');
-    runGit(['add', 'approved.txt']);
-    runGit(['commit', '-q', '-m', 'approved source descendant']);
+    runGit(['add', '-A']);
+    runGit(['commit', '-q', '-m', 'approved source external lineage']);
     const approvedSha = runGit(['rev-parse', 'HEAD']);
-
-    assert.throws(() => runGit(['merge-base', '--is-ancestor', productionSha, approvedSha]));
-    assert.equal(assertSharedGitHistory(root, productionSha, approvedSha), runGit(['merge-base', productionSha, approvedSha]));
+    assert.throws(() => runGit(['merge-base', productionSha, approvedSha]));
+    runGit(['switch', '-q', '-c', 'control']);
+    fs.writeFileSync(path.join(root, 'control.txt'), 'control plane\n');
+    runGit(['add', 'control.txt']);
+    runGit(['commit', '-q', '-m', 'control descendant']);
+    const controlSha = runGit(['rev-parse', 'HEAD']);
+    const canonicalRef = 'refs/remotes/origin/fix/serverless-database-reliability';
+    runGit(['update-ref', canonicalRef, controlSha]);
+    assert.equal(assertApprovedSourceAncestry(root, approvedSha, controlSha, canonicalRef), controlSha);
 
     runGit(['switch', '-q', '--orphan', 'unrelated']);
+    fs.writeFileSync(path.join(root, 'unrelated.txt'), 'unrelated root\n');
+    runGit(['add', '-A']);
     runGit(['commit', '-q', '--allow-empty', '-m', 'unrelated root']);
     const unrelatedSha = runGit(['rev-parse', 'HEAD']);
-    assert.throws(() => assertSharedGitHistory(root, productionSha, unrelatedSha), /must share Git history \(merge-base is empty\)/);
+    assert.throws(() => assertApprovedSourceAncestry(root, approvedSha, unrelatedSha, canonicalRef), /approved application source must be an ancestor of the control-plane checkout/);
+    runGit(['update-ref', canonicalRef, unrelatedSha]);
+    assert.throws(() => assertApprovedSourceAncestry(root, approvedSha, controlSha, canonicalRef), /approved application source must be an ancestor of canonical Integration/);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('unrelated Production baseline is accepted only for the exact M1-M5/schema Prisma diff', () => {
+  const tempRoot = process.env.TMPDIR || os.tmpdir();
+  const root = fs.mkdtempSync(path.join(tempRoot, 'attendance-void-prisma-diff-'));
+  const runGit = (args) => execFileSync('git', args, { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
+  try {
+    runGit(['init', '-q', '-b', 'production']);
+    runGit(['config', 'user.name', 'SMS-v3 provenance test']);
+    runGit(['config', 'user.email', 'provenance-test@example.invalid']);
+    for (const relativePath of EXPECTED_CHANGE_PATHS) {
+      const file = path.join(root, relativePath);
+      fs.mkdirSync(path.dirname(file), { recursive: true });
+      fs.writeFileSync(file, 'Production baseline');
+    }
+    runGit(['add', '-A']);
+    runGit(['commit', '-q', '-m', 'immutable external Production baseline']);
+    const productionSha = runGit(['rev-parse', 'HEAD']);
+    runGit(['switch', '-q', '--orphan', 'approved']);
+    for (const relativePath of EXPECTED_CHANGE_PATHS) {
+      const file = path.join(root, relativePath);
+      fs.mkdirSync(path.dirname(file), { recursive: true });
+      fs.writeFileSync(file, 'approved source');
+    }
+    runGit(['add', '-A']);
+    runGit(['commit', '-q', '-m', 'approved source on unrelated root']);
+    const sourceSha = runGit(['rev-parse', 'HEAD']);
+    assert.throws(() => runGit(['merge-base', productionSha, sourceSha]));
+    assert.equal(assertExactProductionPrismaChangeSet(root, productionSha, sourceSha), true);
+
+    fs.mkdirSync(path.join(root, 'prisma/migrations/unapproved'), { recursive: true });
+    fs.writeFileSync(path.join(root, 'prisma/migrations/unapproved/migration.sql'), 'unexpected migration');
+    runGit(['add', '-A']);
+    runGit(['commit', '-q', '-m', 'unexpected migration path']);
+    assert.throws(() => assertExactProductionPrismaChangeSet(root, productionSha, runGit(['rev-parse', 'HEAD'])), /Prisma diff is not exactly M1-M5 plus prisma\/schema.prisma/);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }

@@ -7,7 +7,9 @@ const path = require('node:path');
 
 const SOURCE_COMMIT_SHA = 'a50f99618ea9545668ad10152947fa126c6fc533';
 const SOURCE_TREE_SHA = '09bbaa8fd99ce8dd22e16212b93c0a2ee03964b5';
+// Production is an immutable external baseline; compatibility is proven by the exact Prisma diff, not Git ancestry.
 const PRODUCTION_SOURCE_SHA = '83fa98c9e9cd19fc09e27b5ad106d3eee9551442';
+const PRODUCTION_BASELINE_MODE = 'IMMUTABLE_EXTERNAL_BASELINE_EXACT_PRISMA_DIFF';
 const MIGRATION_POLICY = 'ADDITIVE_ENUM_COLUMNS_CONSTRAINT_SWAP_PARTIAL_UNIQUE';
 const EVIDENCE_WORKFLOW_PATH = '.github/workflows/apply-approved-attendance-void-non-production-evidence.yml';
 const VERIFIER_PATH = 'scripts/ci/attendance-void-evidence.js';
@@ -128,37 +130,35 @@ function gitAssertion(root, args, message) {
   }
 }
 
-function assertSharedGitHistory(root, leftSha, rightSha, description = 'commits') {
-  let mergeBase;
-  try {
-    mergeBase = git(root, ['merge-base', leftSha, rightSha]);
-  } catch {
-    assert(false, `${description} must share Git history (merge-base is empty)`);
-  }
-  assert(mergeBase && git(root, ['rev-parse', `${mergeBase}^{commit}`]) === mergeBase, `${description} must share Git history (merge-base is invalid)`);
-  return mergeBase;
+function assertApprovedSourceAncestry(root, sourceSha, controlHeadSha, canonicalIntegrationRef) {
+  gitAssertion(root, ['merge-base', '--is-ancestor', sourceSha, controlHeadSha], 'approved application source must be an ancestor of the control-plane checkout');
+  gitAssertion(root, ['show-ref', '--verify', '--quiet', canonicalIntegrationRef], 'canonical Integration branch ref is unavailable');
+  const canonicalIntegrationSha = git(root, ['rev-parse', canonicalIntegrationRef]);
+  gitAssertion(root, ['merge-base', '--is-ancestor', sourceSha, canonicalIntegrationRef], 'approved application source must be an ancestor of canonical Integration');
+  return canonicalIntegrationSha;
+}
+
+function assertExactProductionPrismaChangeSet(root, productionSha, sourceSha) {
+  const changedPaths = git(root, ['diff', '--name-only', productionSha, sourceSha, '--', 'prisma/schema.prisma', 'prisma/migrations']).split('\n').filter(Boolean).sort();
+  assert(JSON.stringify(changedPaths) === JSON.stringify(EXPECTED_CHANGE_PATHS), 'Production-to-application Prisma diff is not exactly M1-M5 plus prisma/schema.prisma');
+  return true;
 }
 
 function validateAttendanceVoidSource(input, root) {
   assert(git(root, ['rev-parse', `${SOURCE_COMMIT_SHA}^{commit}`]) === SOURCE_COMMIT_SHA, 'approved source commit is unavailable');
   assert(git(root, ['rev-parse', `${SOURCE_COMMIT_SHA}^{tree}`]) === SOURCE_TREE_SHA, 'source commit tree SHA mismatch');
   assert(git(root, ['rev-parse', `${PRODUCTION_SOURCE_SHA}^{commit}`]) === PRODUCTION_SOURCE_SHA, 'current Production source commit is unavailable');
-  const sharedProductionHistorySha = assertSharedGitHistory(root, PRODUCTION_SOURCE_SHA, SOURCE_COMMIT_SHA, 'Production and approved source');
   const head = git(root, ['rev-parse', 'HEAD']);
-  gitAssertion(root, ['merge-base', '--is-ancestor', SOURCE_COMMIT_SHA, head], 'approved application source must be an ancestor of the control-plane checkout');
   const canonicalIntegrationRef = 'refs/remotes/origin/fix/serverless-database-reliability';
-  gitAssertion(root, ['show-ref', '--verify', '--quiet', canonicalIntegrationRef], 'canonical Integration branch ref is unavailable');
-  const canonicalIntegrationSha = git(root, ['rev-parse', canonicalIntegrationRef]);
-  gitAssertion(root, ['merge-base', '--is-ancestor', SOURCE_COMMIT_SHA, canonicalIntegrationRef], 'approved application source must be an ancestor of canonical Integration');
-  const changedPaths = git(root, ['diff', '--name-only', PRODUCTION_SOURCE_SHA, SOURCE_COMMIT_SHA, '--', 'prisma/schema.prisma', 'prisma/migrations']).split('\n').filter(Boolean).sort();
-  assert(JSON.stringify(changedPaths) === JSON.stringify(EXPECTED_CHANGE_PATHS), 'Production-to-application Prisma diff is not exactly M1-M5 plus prisma/schema.prisma');
+  const canonicalIntegrationSha = assertApprovedSourceAncestry(root, SOURCE_COMMIT_SHA, head, canonicalIntegrationRef);
+  assertExactProductionPrismaChangeSet(root, PRODUCTION_SOURCE_SHA, SOURCE_COMMIT_SHA);
   for (const migration of [{ name: PREREQUISITE.name, path: PREREQUISITE.path, sha256: PREREQUISITE.sha256 }, ...MIGRATIONS]) {
     const sourceSql = git(root, ['show', `${SOURCE_COMMIT_SHA}:${migration.path}`], { encoding: 'buffer' });
     assert(sha256(sourceSql) === migration.sha256, `${migration.name} source commit checksum mismatch`);
     const workingSql = fs.readFileSync(path.join(root, ...migration.path.split('/')));
     assert(sha256(workingSql) === migration.sha256, `${migration.name} working-tree file differs from approved source`);
   }
-  return Object.freeze({ sourceCommitSha: SOURCE_COMMIT_SHA, sourceTreeSha: SOURCE_TREE_SHA, currentControlHeadSha: head, sharedProductionHistorySha, canonicalIntegrationSha, sourceOnCanonicalIntegration: true, exactPrismaChangeSet: true });
+  return Object.freeze({ sourceCommitSha: SOURCE_COMMIT_SHA, sourceTreeSha: SOURCE_TREE_SHA, currentControlHeadSha: head, productionBaselineMode: PRODUCTION_BASELINE_MODE, canonicalIntegrationSha, sourceOnCanonicalIntegration: true, exactPrismaChangeSet: true });
 }
 
 function verifyMigrationSet({ migrationNames, migrationPaths, migrationSqlByName, verifyChecksum = true }) {
@@ -269,6 +269,7 @@ module.exports = {
   MIGRATIONS,
   MIGRATION_POLICY,
   PREREQUISITE,
+  PRODUCTION_BASELINE_MODE,
   PRODUCTION_SOURCE_SHA,
   SOURCE_COMMIT_SHA,
   SOURCE_TREE_SHA,
@@ -277,8 +278,9 @@ module.exports = {
   sha256,
   validateAttendanceVoidManifest,
   validateAttendanceVoidSource,
+  assertExactProductionPrismaChangeSet,
   validateAttendanceVoidSql,
   verifyMigrationSet,
-  assertSharedGitHistory,
+  assertApprovedSourceAncestry,
   gitAssertion
 };
