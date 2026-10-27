@@ -89,6 +89,114 @@ jobs:
           assertDisposableUrl(env.SHADOW_DATABASE_URL, 'sms_v3_shadow', env);
           console.log('ATTENDANCE_VOID_DATABASE_TARGET=DISPOSABLE_POSTGRES_SERVICE_ONLY');
           NODE
+      - name: Wait for and verify disposable PostgreSQL readiness
+        run: |
+          node <<'NODE'
+          'use strict';
+
+          const dns = require('node:dns').promises;
+          const net = require('node:net');
+          const { PrismaClient } = require('@prisma/client');
+
+          const host = 'postgres';
+          const port = 5432;
+          const expectedDatabase = 'sms_v3_test';
+          const expectedRole = 'ci_user';
+          const env = process.env;
+          const configuredDatabaseUrl = new URL(env.DATABASE_URL || '');
+          if (env.ATTENDANCE_VOID_DISPOSABLE_DATABASE !== 'true' || !['postgres:', 'postgresql:'].includes(configuredDatabaseUrl.protocol) || configuredDatabaseUrl.hostname !== host || (configuredDatabaseUrl.port || '5432') !== String(port) || decodeURIComponent(configuredDatabaseUrl.pathname.replace(/^\//, '')) !== expectedDatabase || decodeURIComponent(configuredDatabaseUrl.username) !== expectedRole || decodeURIComponent(configuredDatabaseUrl.password) !== 'ci_test_only') {
+            throw new Error('workflow database URL failed the disposable service contract before readiness probing');
+          }
+          for (const [variable, database] of [['DIRECT_URL', 'sms_v3_test'], ['SHADOW_DATABASE_URL', 'sms_v3_shadow']]) {
+            const url = new URL(env[variable] || '');
+            if (url.hostname !== host || (url.port || '5432') !== String(port) || decodeURIComponent(url.pathname.replace(/^\//, '')) !== database || decodeURIComponent(url.username) !== expectedRole || decodeURIComponent(url.password) !== 'ci_test_only') {
+              throw new Error(`${variable} failed the disposable service contract before readiness probing`);
+            }
+          }
+          const timeoutMs = 90_000;
+          const sleep = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
+          let attempts = 0;
+          let lastErrorCode = 'NOT_PROBED';
+
+          function tcpProbe(address) {
+            return new Promise((resolve) => {
+              const socket = net.createConnection({ host: address.address, port, family: address.family });
+              let settled = false;
+              const finish = (connected) => {
+                if (settled) return;
+                settled = true;
+                clearTimeout(timer);
+                socket.destroy();
+                resolve(connected);
+              };
+              const timer = setTimeout(() => finish(false), 2000);
+              socket.once('connect', () => finish(true));
+              socket.once('error', () => finish(false));
+              socket.once('close', () => finish(false));
+            });
+          }
+
+          async function verifyDatabaseIdentity() {
+            const addresses = await dns.lookup(host, { all: true, verbatim: true });
+            if (addresses.length === 0) throw Object.assign(new Error('service DNS returned no addresses'), { code: 'DNS_EMPTY' });
+
+            let tcpReady = false;
+            for (const address of addresses) {
+              if (await tcpProbe(address)) {
+                tcpReady = true;
+                break;
+              }
+            }
+            if (!tcpReady) throw Object.assign(new Error('service TCP endpoint is not ready'), { code: 'TCP_NOT_READY' });
+
+            const databaseUrl = new URL(process.env.DATABASE_URL || '');
+            databaseUrl.searchParams.set('connect_timeout', '5');
+            const prisma = new PrismaClient({ datasources: { db: { url: databaseUrl.toString() } } });
+            try {
+              await prisma.$connect();
+              const rows = await prisma.$queryRaw`SELECT current_database() AS database_name, current_user AS role_name, inet_server_port() AS server_port, inet_server_addr()::text AS server_address`;
+              const identity = rows[0];
+              if (!identity || identity.database_name !== expectedDatabase || identity.role_name !== expectedRole || Number(identity.server_port) !== port || !identity.server_address || ['127.0.0.1', '::1'].includes(identity.server_address)) {
+                throw Object.assign(new Error('connected PostgreSQL identity does not match the disposable service'), { code: 'DATABASE_IDENTITY_MISMATCH', fatal: true });
+              }
+            } finally {
+              await prisma.$disconnect();
+            }
+          }
+
+          const hardTimeout = setTimeout(() => {
+            console.error(`ATTENDANCE_VOID_POSTGRES_READINESS=FAIL attempts=${attempts} timeout_ms=${timeoutMs} last_error=${lastErrorCode}`);
+            process.exit(1);
+          }, timeoutMs);
+
+          (async () => {
+            while (true) {
+              attempts += 1;
+              try {
+                await verifyDatabaseIdentity();
+                clearTimeout(hardTimeout);
+                console.log(`ATTENDANCE_VOID_POSTGRES_READINESS=PASS attempts=${attempts} database=${expectedDatabase} role=${expectedRole} port=${port}`);
+                return;
+              } catch (error) {
+                const errorCode = String(error?.code || 'READINESS_PROBE_FAILED');
+                lastErrorCode = /^[A-Z0-9_]+$/.test(errorCode) ? errorCode : 'READINESS_PROBE_FAILED';
+                if (error?.fatal || ['P1000', 'P1003', 'P1010', 'P1013'].includes(lastErrorCode)) {
+                  clearTimeout(hardTimeout);
+                  console.error(`ATTENDANCE_VOID_POSTGRES_READINESS=FAIL attempts=${attempts} fatal_error=${lastErrorCode}`);
+                  process.exitCode = 1;
+                  return;
+                }
+              }
+              await sleep(1000);
+            }
+          })().catch((error) => {
+            clearTimeout(hardTimeout);
+            const errorCode = String(error?.code || 'READINESS_PROBE_FAILED');
+            lastErrorCode = /^[A-Z0-9_]+$/.test(errorCode) ? errorCode : 'READINESS_PROBE_FAILED';
+            console.error(`ATTENDANCE_VOID_POSTGRES_READINESS=FAIL attempts=${attempts} fatal_error=${lastErrorCode}`);
+            process.exitCode = 1;
+          });
+          NODE
       - name: Run read-only P1-P12 preflight, apply only M2-M5, and verify postconditions
         run: node scripts/ci/attendance-void-evidence.js run
       - name: Upload redacted P1-P12 evidence artifact
