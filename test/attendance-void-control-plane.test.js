@@ -3,6 +3,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
+const os = require('node:os');
 const path = require('node:path');
 const {
   EVIDENCE_WORKFLOW_PATH,
@@ -14,6 +15,7 @@ const {
   SOURCE_COMMIT_SHA,
   SOURCE_TREE_SHA,
   VERIFIER_PATH,
+  assertSharedGitHistory,
   validateAttendanceVoidManifest,
   validateAttendanceVoidSource,
   validateAttendanceVoidSql,
@@ -66,19 +68,54 @@ test('manifest pins exact source/tree, M2-M5 order, M1 checksum and non-Producti
   assert.deepEqual(EXPECTED_CHANGE_PATHS, git(['diff', '--name-only', PRODUCTION_SOURCE_SHA, SOURCE_COMMIT_SHA, '--', 'prisma/schema.prisma', 'prisma/migrations']).split('\n').sort());
 });
 
-test('exact source/tree/ancestry and M1-M5 SQL checksums are mechanically verified', () => {
+test('exact source/tree/provenance and M1-M5 SQL checksums are mechanically verified', () => {
   const result = validateAttendanceVoidSource(MANIFEST, ROOT);
   assert.equal(result.sourceCommitSha, SOURCE_COMMIT_SHA);
   assert.equal(result.sourceTreeSha, SOURCE_TREE_SHA);
-  assert.equal(result.ancestryVerified, true);
+  assert.equal(result.sharedProductionHistorySha, git(['merge-base', PRODUCTION_SOURCE_SHA, SOURCE_COMMIT_SHA]));
+  assert.equal(result.canonicalIntegrationSha, git(['rev-parse', 'refs/remotes/origin/fix/serverless-database-reliability']));
+  assert.equal(result.sourceOnCanonicalIntegration, true);
   assert.equal(result.exactPrismaChangeSet, true);
-  assert.equal(git(['merge-base', '--is-ancestor', PRODUCTION_SOURCE_SHA, SOURCE_COMMIT_SHA]) === '', true);
   for (const migration of [PREREQUISITE, ...MIGRATIONS]) {
     const content = execFileSync('git', ['show', `${SOURCE_COMMIT_SHA}:${migration.path}`], { cwd: ROOT, encoding: 'buffer' });
     const hash = require('node:crypto').createHash('sha256').update(content).digest('hex');
     assert.equal(hash, migration.sha256, migration.name);
   }
   for (const migration of MIGRATIONS) assert.equal(validateAttendanceVoidSql(migration.name, readSql(migration.name)).sha256, migration.sha256);
+});
+
+test('provenance accepts divergent Production/source descendants only with shared history and rejects unrelated roots', () => {
+  const tempRoot = process.env.TMPDIR || os.tmpdir();
+  const root = fs.mkdtempSync(path.join(tempRoot, 'attendance-void-provenance-'));
+  const runGit = (args) => execFileSync('git', args, { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
+  try {
+    runGit(['init', '-q', '-b', 'main']);
+    runGit(['config', 'user.name', 'SMS-v3 provenance test']);
+    runGit(['config', 'user.email', 'provenance-test@example.invalid']);
+    fs.writeFileSync(path.join(root, 'base.txt'), 'shared history\n');
+    runGit(['add', 'base.txt']);
+    runGit(['commit', '-q', '-m', 'shared base']);
+    runGit(['switch', '-q', '-c', 'production']);
+    fs.writeFileSync(path.join(root, 'production.txt'), 'production lineage\n');
+    runGit(['add', 'production.txt']);
+    runGit(['commit', '-q', '-m', 'Production descendant']);
+    const productionSha = runGit(['rev-parse', 'HEAD']);
+    runGit(['switch', '-q', 'main']);
+    fs.writeFileSync(path.join(root, 'approved.txt'), 'approved source lineage\n');
+    runGit(['add', 'approved.txt']);
+    runGit(['commit', '-q', '-m', 'approved source descendant']);
+    const approvedSha = runGit(['rev-parse', 'HEAD']);
+
+    assert.throws(() => runGit(['merge-base', '--is-ancestor', productionSha, approvedSha]));
+    assert.equal(assertSharedGitHistory(root, productionSha, approvedSha), runGit(['merge-base', productionSha, approvedSha]));
+
+    runGit(['switch', '-q', '--orphan', 'unrelated']);
+    runGit(['commit', '-q', '--allow-empty', '-m', 'unrelated root']);
+    const unrelatedSha = runGit(['rev-parse', 'HEAD']);
+    assert.throws(() => assertSharedGitHistory(root, productionSha, unrelatedSha), /must share Git history \(merge-base is empty\)/);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
 });
 
 test('valid exact M2-M5 set passes the strict migration allowlist', () => {
