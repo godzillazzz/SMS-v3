@@ -8,6 +8,7 @@ import { formatThaiDate, formatThaiDateTime } from '../../thai-date-time';
 import { currentBangkokQuotaYear, thaiQuotaYearLabel } from '../../leave-quota-provisioning';
 import { getEmployeeLeaveQuota } from '../../leave-request-quota-api';
 import { getEmployeeLicenses, type EmployeeLicense } from '../../employee-license-api';
+import { avatarTone } from '../../avatar';
 
 type Props = {
   employee?: PersonnelRecord;
@@ -126,7 +127,7 @@ export function PersonnelDetailDrawer({ employee, token, canManage, role, onClos
   return <div className="personnel-drawer-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
     <aside ref={drawerRef} className="personnel-detail-drawer personnel-detail-drawer--360 operational-drawer" role="dialog" aria-modal="true" aria-labelledby="personnel-drawer-title">
       <header className="personnel-drawer-header personnel-360-header">
-        <div className="personnel-drawer-identity"><span className="personnel-drawer-avatar" aria-hidden="true">{initials}</span><div><p>ข้อมูลพนักงาน</p><h2 id="personnel-drawer-title">{fullName || 'พนักงาน'}</h2><div className="personnel-drawer-context"><span>รหัส {employee.employeeCode}</span><span>{employee.department || 'ไม่ระบุหน่วยงาน'}</span><span>{employee.jobTitle || 'ไม่ระบุตำแหน่ง'}</span><span className={`status-badge ${employee.isActive ? 'status-badge--success active' : 'status-badge--neutral inactive'}`}>{employee.isActive ? 'ปฏิบัติงาน' : 'ลาออก/ไม่ใช้งาน'}</span></div></div></div>
+        <div className="personnel-drawer-identity"><span className="personnel-drawer-avatar" aria-hidden="true" data-avatar-tone={employee ? avatarTone(employee.employeeCode || employee.id) : undefined}>{initials}</span><div><p>ข้อมูลพนักงาน</p><h2 id="personnel-drawer-title">{fullName || 'พนักงาน'}</h2><div className="personnel-drawer-context"><span>รหัส {employee.employeeCode}</span><span>{employee.department || 'ไม่ระบุหน่วยงาน'}</span><span>{employee.jobTitle || 'ไม่ระบุตำแหน่ง'}</span><span className={`status-badge ${employee.isActive ? 'status-badge--success active' : 'status-badge--neutral inactive'}`}>{employee.isActive ? 'ปฏิบัติงาน' : 'ลาออก/ไม่ใช้งาน'}</span></div></div></div>
         <button ref={closeRef} type="button" className="personnel-drawer-close overlay-close" aria-label="ปิดรายละเอียดพนักงาน" onClick={onClose}><SmsIcon name="close" size={20} /></button>
       </header>
       <div className="personnel-drawer-content">

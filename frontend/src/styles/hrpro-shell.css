@@ -154,3 +154,27 @@
 #sms-app .user-menu__item--danger { color: var(--color-danger); }
 @media (max-width: 1024px) { #sms-app:not(.desktop-view) .user-menu { display: none !important; } }
 body > .workflow-command-layer .workflow-command__employee-search { border-top: 1px solid var(--color-border); }
+/* Name avatars: 8 colours fixed per person (src/avatar.ts). White text meets 4.5:1 on every tone. */
+:is(.avatar, .personnel-avatar, .personnel-drawer-avatar, .access-avatar, .audit-actor-avatar, .pwa-profile-avatar)[data-avatar-tone] { color: #fff !important; background-image: none !important; }
+:is(.avatar, .personnel-avatar, .personnel-drawer-avatar, .access-avatar, .audit-actor-avatar, .pwa-profile-avatar)[data-avatar-tone="0"] { background: #2563eb !important; }
+:is(.avatar, .personnel-avatar, .personnel-drawer-avatar, .access-avatar, .audit-actor-avatar, .pwa-profile-avatar)[data-avatar-tone="1"] { background: #0f766e !important; }
+:is(.avatar, .personnel-avatar, .personnel-drawer-avatar, .access-avatar, .audit-actor-avatar, .pwa-profile-avatar)[data-avatar-tone="2"] { background: #7c3aed !important; }
+:is(.avatar, .personnel-avatar, .personnel-drawer-avatar, .access-avatar, .audit-actor-avatar, .pwa-profile-avatar)[data-avatar-tone="3"] { background: #be185d !important; }
+:is(.avatar, .personnel-avatar, .personnel-drawer-avatar, .access-avatar, .audit-actor-avatar, .pwa-profile-avatar)[data-avatar-tone="4"] { background: #c2410c !important; }
+:is(.avatar, .personnel-avatar, .personnel-drawer-avatar, .access-avatar, .audit-actor-avatar, .pwa-profile-avatar)[data-avatar-tone="5"] { background: #047857 !important; }
+:is(.avatar, .personnel-avatar, .personnel-drawer-avatar, .access-avatar, .audit-actor-avatar, .pwa-profile-avatar)[data-avatar-tone="6"] { background: #4338ca !important; }
+:is(.avatar, .personnel-avatar, .personnel-drawer-avatar, .access-avatar, .audit-actor-avatar, .pwa-profile-avatar)[data-avatar-tone="7"] { background: #0369a1 !important; }
+
+/* Toasts (src/toast.ts): bottom-right, auto-dismiss 5s, pause on hover/focus. */
+.sms-toast-stack { position: fixed; right: 20px; bottom: 20px; z-index: 1200; display: grid; gap: 8px; width: min(360px, calc(100vw - 32px)); pointer-events: none; }
+.sms-toast { display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 10px 10px 10px 14px; border: 1px solid var(--color-border, #e2e8f0); border-left: 4px solid var(--color-success, #16a34a); border-radius: 10px; background: var(--color-surface-elevated, #fff); color: var(--color-text, #0f172a); box-shadow: var(--shadow-lg, 0 12px 32px rgba(15,23,42,.18)); font: 500 13.5px/1.45 "Inter", "Noto Sans Thai", sans-serif; pointer-events: auto; animation: sms-toast-in .18s ease-out; }
+.sms-toast > svg { flex: 0 0 auto; color: var(--color-success, #16a34a); }
+.sms-toast--info { border-left-color: var(--color-primary, #2563eb); } .sms-toast--info > svg { color: var(--color-primary, #2563eb); }
+.sms-toast--warning { border-left-color: var(--color-warning, #d97706); } .sms-toast--warning > svg { color: var(--color-warning, #d97706); }
+.sms-toast > span { flex: 1 1 auto; min-width: 0; }
+.sms-toast > button { display: inline-grid; place-items: center; flex: 0 0 auto; width: 28px; height: 28px; min-height: 28px; padding: 0; border: 0; border-radius: 7px; background: transparent; color: var(--color-text-muted, #64748b); cursor: pointer; }
+.sms-toast > button:hover { background: var(--color-surface-muted, #f1f5f9); }
+@keyframes sms-toast-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@media (max-width: 760px) { .sms-toast-stack { right: 16px; left: 16px; bottom: calc(84px + env(safe-area-inset-bottom, 0px)); width: auto; } }
+@media (prefers-reduced-motion: reduce) { .sms-toast { animation: none; } }
+
