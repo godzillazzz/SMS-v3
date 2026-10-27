@@ -186,7 +186,6 @@ input[type="radio"] { accent-color: var(--color-primary); }
 .dashboard-sync-status__body b,
 .dashboard-expiring-row__person b,
 .dashboard-subsection-heading b,
-.dashboard-filter-bar__context b,
 .dashboard-activity-row b { color: var(--color-text); }
 
 .dashboard-hero__subtitle,
@@ -205,7 +204,6 @@ input[type="radio"] { accent-color: var(--color-primary); }
 .dashboard-sync-status__body small,
 .dashboard-expiring-row__person small,
 .dashboard-subsection-heading small,
-.dashboard-filter-bar__context small,
 .dashboard-filter-bar__controls label span,
 .dashboard-activity-row small { color: var(--color-text-secondary) !important; }
 
@@ -217,8 +215,7 @@ input[type="radio"] { accent-color: var(--color-primary); }
 .dashboard-shift-group,
 .dashboard-attention-row,
 .dashboard-expiring-row,
-.dashboard-quick-actions__grid button,
-.dashboard-hero__status {
+.dashboard-quick-actions__grid button {
   border-color: var(--color-border);
   background: var(--surface-card, var(--color-surface));
   box-shadow: var(--shadow-sm);
@@ -233,8 +230,6 @@ input[type="radio"] { accent-color: var(--color-primary); }
   border-color: color-mix(in srgb, var(--color-primary) 38%, var(--color-border));
   background: color-mix(in srgb, var(--color-primary-soft) 56%, var(--color-surface));
 }
-
-.dashboard-metric--indigo { --metric-accent: var(--color-primary); }
 .dashboard-metric--green { --metric-accent: var(--color-success); }
 .dashboard-metric--teal { --metric-accent: var(--color-info); }
 .dashboard-metric--warning { --metric-accent: var(--color-warning); }

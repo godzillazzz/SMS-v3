@@ -75,6 +75,7 @@ import { LICENSE_BUCKETS, countLicenseBuckets, licenseBuckets, type LicenseBucke
 
 
 import { WorkflowCommandPalette } from './components/WorkflowCommandPalette';
+import { UserMenu } from './components/UserMenu';
 import { defaultAuditFilters, type AuditFilters } from './components/audit/audit-types';
 import type { DataQualityFilters, DataQualityIssue } from './pages/data-quality/DataQualityCenterPage';
 import type { G06UatProvisionResult } from './pages/access-management/G06UatProvisioningPanel';
@@ -130,6 +131,9 @@ import './styles/personnel-layout.css';
 import './styles/system-layout-group4.css';
 import './styles/r71-theme-contrast.css';
 import './styles/hrpro-shell.css';
+import { avatarTone } from './avatar';
+import { showToast } from './toast';
+import { ToastHost } from './components/ToastHost';
 // Page-level redesign styles load as a separate chunk (main CSS budget).
 void import('./styles/hrpro-pages.css');
 if (isSmsPwaShellMode()) void import('./styles/employee-pwa-light.css');
@@ -182,6 +186,8 @@ const SearchableEmployeeCombobox = React.lazy(() => import('./components/Searcha
 type User = { id: string; email: string; displayName: string; role: string; department?: string; employeeId?: string };
 type Employee = { id: string; employeeCode: string; firstName: string; lastName: string; displayName?: string; email?: string | null; phone?: string | null; department?: string; jobTitle?: string; hiredAt?: string | null; skill?: string | null; isActive: boolean; updatedAt?: string };
 type Page = RoutePage;
+// Owner decision 2026-10-27: content is capped at 1280px except these wide working pages.
+const WIDE_PAGES: ReadonlySet<Page> = new Set<Page>(['schedule', 'attendanceSupervisor', 'reportCenter', 'reports', 'executiveReport', 'attendanceReport']);
 type Auth = { token?: string; user?: User; originalUser?: User; loading: boolean; error?: string; refreshState: 'checking' | 'ready' | 'unauthenticated' | 'unavailable'; isViewingAs: boolean; login(email: string, password: string): Promise<void>; passkeyLogin(): Promise<void>; logout(): Promise<void>; retryRefresh(): Promise<void>; beginViewAs(userId: string): Promise<void>; endViewAs(): void };
 type DataRow = Record<string, unknown>;
 type DataResponse = { data?: DataRow[] | DataRow; summary?: { total?: number; critical?: number; warning?: number; info?: number }; meta?: { total?: number; page?: number; pageSize?: number; totalPages?: number; statusCounts?: Record<string, number>; unmatchedLegacyCount?: number } };
@@ -965,7 +971,7 @@ type OperationalPage = Exclude<Page, 'dashboard' | 'dashboardDetails' | 'employe
 
 const tablePages: Record<OperationalPage, { title: string; eyebrow: string; description: string; columns: Array<{ label: string; value: (row: DataRow) => React.ReactNode }> }> = {
   licenses: { title: 'ใบอนุญาตพนักงาน', eyebrow: 'จัดการบุคลากร', description: 'ตรวจสอบประเภท เลขที่ สถานะ และวันหมดอายุใบอนุญาต', columns: [
-    { label: 'พนักงาน', value: (row) => { const employee = nested(row.employee); const initial = (value: unknown) => String(value || '').trim().replace(/^[เแโใไ]+/, '').charAt(0); return <span className="license-person"><span className="personnel-avatar" aria-hidden="true" data-tone={String(employee.employeeCode || '').split('').reduce((sum, ch) => sum + ch.charCodeAt(0), 0) % 5}>{`${initial(employee.firstName)}${initial(employee.lastName)}`}</span><span><strong>{`${text(employee.firstName)} ${text(employee.lastName)}`}</strong>{employee.department ? <small>{text(employee.department)}</small> : null}</span></span>; } },
+    { label: 'พนักงาน', value: (row) => { const employee = nested(row.employee); const initial = (value: unknown) => String(value || '').trim().replace(/^[เแโใไ]+/, '').charAt(0); return <span className="license-person"><span className="personnel-avatar" aria-hidden="true" data-avatar-tone={avatarTone(employee.employeeCode || employee.id)}>{`${initial(employee.firstName)}${initial(employee.lastName)}`}</span><span><strong>{`${text(employee.firstName)} ${text(employee.lastName)}`}</strong>{employee.department ? <small>{text(employee.department)}</small> : null}</span></span>; } },
     { label: 'รหัส', value: (row) => text(nested(row.employee).employeeCode) }, { label: 'ประเภท', value: (row) => text(row.licenseType) },
     { label: 'เลขที่ใบอนุญาต', value: (row) => text(row.licenseNumber) }, { label: 'วันหมดอายุ', value: (row) => <span className={licenseBuckets(row).has('EXPIRED') ? 'license-expiry is-expired' : licenseBuckets(row).has('EXP_30') ? 'license-expiry is-soon' : 'license-expiry'}>{date(row.expiryDate)}</span> },
     { label: 'สถานะ', value: (row) => <span className={`status-badge status-badge--${semanticStatusTone(row.status)}`}>{({ ACTIVE: 'ใช้งานได้', EXPIRED: 'หมดอายุ', SUSPENDED: 'ระงับ', REVOKED: 'เพิกถอน' } as Record<string, string>)[String(row.status || '').toUpperCase()] || text(row.status)}</span> }, { label: 'ดูไฟล์', value: () => null }
@@ -992,7 +998,7 @@ const tablePages: Record<OperationalPage, { title: string; eyebrow: string; desc
   ] },
   quota: { title: 'โควตาวันลา', eyebrow: 'การลา', description: 'แสดงสิทธิ์รายปี ใช้แล้ว และคงเหลือจากใบลาที่อนุมัติ', columns: [
     { label: 'ปี', value: (row) => row.quotaYear ? thaiQuotaYearLabel(Number(row.quotaYear)) : 'ข้อมูลเดิม — ยังไม่ระบุปี' },
-    { label: 'พนักงาน', value: (row) => { const name = text(row.employeeNameSnapshot); const code = text(nested(row.employee).employeeCode || row.employeeCodeSnapshot || ''); return <span className="license-person"><span className="personnel-avatar" aria-hidden="true" data-tone={String(row.employeeId || name).split('').reduce((sum, ch) => sum + ch.charCodeAt(0), 0) % 5}>{String(name).split(/\s+/).filter(Boolean).map((part) => part.replace(/^[เแโใไ]+/, '').charAt(0)).join('').slice(0, 2)}</span><span><strong>{name}</strong>{code && code !== '—' ? <small>{code}</small> : null}</span></span>; } },
+    { label: 'พนักงาน', value: (row) => { const name = text(row.employeeNameSnapshot); const code = text(nested(row.employee).employeeCode || row.employeeCodeSnapshot || ''); return <span className="license-person"><span className="personnel-avatar" aria-hidden="true" data-avatar-tone={avatarTone(nested(row.employee).employeeCode || row.employeeCodeSnapshot || row.employeeId || name)}>{String(name).split(/\s+/).filter(Boolean).map((part) => part.replace(/^[เแโใไ]+/, '').charAt(0)).join('').slice(0, 2)}</span><span><strong>{name}</strong>{code && code !== '—' ? <small>{code}</small> : null}</span></span>; } },
     { label: 'ลาป่วย', value: (row) => quotaBalanceCell(row.sickLeave, row.sickLeaveUsed, 'sick') },
     { label: 'ลากิจ', value: (row) => Number.isFinite(Number(row.personalLeave)) && Number.isFinite(Number(row.personalLeaveUsed)) ? quotaBalanceCell(row.personalLeave, row.personalLeaveUsed, 'personal') : quotaBalanceText(row.personalLeave, row.personalLeaveUsed) },
     { label: 'ลาพักร้อน', value: (row) => quotaBalanceCell(row.vacationLeave, row.vacationLeaveUsed, 'vacation') },
@@ -1549,7 +1555,7 @@ function LeaveManagementPage({ rows, loading, error, linked, remaining, quotaSum
       const payload: Record<string, string> = { ...form };
       if (!canManage) delete payload.employeeId;
       await onSubmit(payload, file);
-      setForm({ employeeId: '', leaveType: '', startDate: '', endDate: '', substitute: '', reason: '' }); setFile(undefined); setSubmitError(undefined); setNotice('ส่งคำขอลาสำเร็จแล้ว');
+      setForm({ employeeId: '', leaveType: '', startDate: '', endDate: '', substitute: '', reason: '' }); setFile(undefined); setSubmitError(undefined); showToast('ส่งคำขอลาสำเร็จแล้ว');
     }
     catch (reason) {
       setNotice(undefined);
@@ -1583,7 +1589,7 @@ function LeaveManagementPage({ rows, loading, error, linked, remaining, quotaSum
       <table className="data-table leave-data-table data-surface-table">
         <thead><tr><th>พนักงาน</th><th>ประเภทลา</th><th>วันที่ลา</th><th>วัน</th><th>แทน / เหตุผล</th><th>เอกสาร</th>{!actions && <th>สถานะ</th>}<th>พิมพ์</th>{(actions || showHistoryActions) && <th>จัดการ</th>}</tr></thead>
         <tbody>{items.length ? items.map((row) => <tr key={text(row.id)}>
-          <td className="employee-name"><span className="license-person"><span className="personnel-avatar" aria-hidden="true" data-tone={String(row.employeeId || row.employeeNameSnapshot || '').split('').reduce((sum, ch) => sum + ch.charCodeAt(0), 0) % 5}>{String(text(row.employeeNameSnapshot)).split(/\s+/).filter(Boolean).map((part) => part.replace(/^[เแโใไ]+/, '').charAt(0)).join('').slice(0, 2)}</span><span><strong>{text(row.employeeNameSnapshot)}</strong><small className="cell-note">{text(row.departmentSnapshot)}</small></span></span></td>
+          <td className="employee-name"><span className="license-person"><span className="personnel-avatar" aria-hidden="true" data-avatar-tone={avatarTone(nested(row.employee).employeeCode || row.employeeCodeSnapshot || row.employeeId || row.employeeNameSnapshot)}>{String(text(row.employeeNameSnapshot)).split(/\s+/).filter(Boolean).map((part) => part.replace(/^[เแโใไ]+/, '').charAt(0)).join('').slice(0, 2)}</span><span><strong>{text(row.employeeNameSnapshot)}</strong><small className="cell-note">{text(row.departmentSnapshot)}</small></span></span></td>
           <td>{leaveTypeDisplayText(row)}{row.isRetroactive ? <span className="status-badge status-badge--attention leave-retro-badge">ย้อนหลัง</span> : null}</td>
           <td>{date(row.startDate)} – {date(row.endDate)}</td>
           <td>{text(row.dayCount)}</td>
@@ -1858,7 +1864,8 @@ function Dashboard() {
   }, [activePage]);
   const [operationRefresh, setOperationRefresh] = useState(0);
   const [rosterSearch, setRosterSearch] = useState('');
-  const [railExpanded, setRailExpanded] = useState(() => { try { return localStorage.getItem('sms-v3-rail-expanded') === '1'; } catch { return false; } });
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => { try { return localStorage.getItem('sms-v3-sidebar-collapsed') === '1'; } catch { return false; } });
+  const toggleSidebarCollapsed = () => setSidebarCollapsed((value) => { const next = !value; try { localStorage.setItem('sms-v3-sidebar-collapsed', next ? '1' : '0'); } catch { /* best effort */ } return next; });
   const [approvalSummary, setApprovalSummary] = useState<ApprovalCountSummary | null>(null);
   const [approvalCountStatus, setApprovalCountStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
   const [registrationReviewInitialRequestId, setRegistrationReviewInitialRequestId] = useState<string>();
@@ -2419,6 +2426,7 @@ function Dashboard() {
         try {
           await action(values, files);
           setEditor(undefined);
+          showToast('บันทึกข้อมูลเรียบร้อยแล้ว');
           if (refresh === 'employees') setEmployeeRefresh((value) => value + 1);
           else setOperationRefresh((value) => value + 1);
         } catch (reason) {
@@ -2767,6 +2775,7 @@ function Dashboard() {
       else if (activePage === 'schedule') await api.updateShift(auth.token, id, { locked: !row.locked });
       else if (activePage === 'users') await api.updateUser(auth.token, id, { isActive: !row.isActive, accountStatus: row.isActive ? 'SUSPENDED' : 'ACTIVE' });
       setOperationRefresh((value) => value + 1);
+      showToast(action === 'delete' ? 'ลบรายการเรียบร้อยแล้ว' : 'ดำเนินการเรียบร้อยแล้ว');
     } catch (reason) {
       setOperationError(toRequestErrorState(reason, 'ดำเนินการไม่สำเร็จ'));
     }
@@ -3448,7 +3457,7 @@ function Dashboard() {
 
   return (
     <>
-      {!pwaShell && <WorkflowCommandPalette open={commandPaletteOpen} items={workflowCommands} onClose={() => setCommandPaletteOpen(false)} onNavigate={(id) => setActivePage(id as Page)} />}
+      {!pwaShell && <WorkflowCommandPalette open={commandPaletteOpen} items={workflowCommands} onClose={() => setCommandPaletteOpen(false)} onNavigate={(id) => setActivePage(id as Page)} onSearchEmployees={(query) => { setSearch(query); setActivePage('employees'); }} />}
       {leaveDecision && <React.Suspense fallback={<div className="full-loader" role="status">กำลังโหลดหน้าต่างยืนยัน…</div>}><LeaveDecisionConfirmation
         target={leaveDecision.target}
         action={leaveDecision.action}
@@ -3459,7 +3468,8 @@ function Dashboard() {
       /></React.Suspense>}
       <div
         id={pwaShell ? undefined : 'sms-app'}
-        data-rail={railExpanded ? 'expanded' : undefined}
+        data-sidebar={sidebarCollapsed ? 'collapsed' : undefined}
+        data-page-width={WIDE_PAGES.has(activePage) ? 'wide' : undefined}
         className={`app-shell ${desktopView ? 'desktop-view' : ''} ${auth.isViewingAs ? 'view-as-active' : ''} ${pwaShell ? `pwa-shell pwa-page-${activePage}` : ''}`}
         style={{ backgroundColor: 'var(--surface-page, #020813)', color: 'var(--text-on-surface, #f1f5f9)' }}
       >
@@ -3472,6 +3482,7 @@ function Dashboard() {
         <div className="sidebar-brand">
           <BrandLogo />
           <button type="button" className="sidebar-close-button" aria-label="ปิดเมนูหลัก" onClick={() => setMobileMenuOpen(false)}><SmsIcon name="close" size={20} /></button>
+          <button type="button" className="sidebar-collapse-toggle" aria-pressed={sidebarCollapsed} aria-label={sidebarCollapsed ? 'ขยายเมนู' : 'ย่อเมนู'} title={sidebarCollapsed ? 'ขยายเมนู' : 'ย่อเมนู'} onClick={toggleSidebarCollapsed}><SmsIcon name="menu" size={18} /></button>
         </div>
         <nav className="nav-menu" aria-label="เมนูหลัก">{visibleNavigation.map((section) => (
           <div className="nav-section" key={section.label || section.items.map((item) => item.id).join('-')}>{section.label && <p>{section.label}</p>}{section.items.map((item) => {
@@ -3482,12 +3493,11 @@ function Dashboard() {
             const countStateTitle = countEnabled && approvalCountStatus === 'loading' ? 'กำลังโหลดจำนวนรายการรออนุมัติ' : countEnabled && approvalCountStatus === 'error' ? 'โหลดจำนวนรายการรออนุมัติไม่สำเร็จ' : undefined;
             const countStateLabel = countStateTitle ? `${item.label}, ${countStateTitle}` : undefined;
             const countTitle = badge && menuCount !== null ? `${menuCount} รายการรออนุมัติ` : countStateTitle;
-            return <button type="button" key={item.id} data-navigation-id={item.id} aria-label={badge ? `${item.label}, ${countTitle}` : countStateLabel} title={countTitle} className={`nav-item ${navigationPage === item.id ? 'active' : ''} ${badge ? 'has-approval-count' : ''}`} onClick={() => { setActivePage(item.id); setMobileMenuOpen(false); }}><span className="nav-icon"><SmsIcon name={item.icon} size={19} /></span><span>{item.label}{badge && <b className="nav-count-badge" aria-hidden="true">{badge}</b>}</span></button>;
+            return <button type="button" key={item.id} data-navigation-id={item.id} aria-label={badge ? `${item.label}, ${countTitle}` : countStateLabel} title={countTitle ?? (sidebarCollapsed ? item.label : undefined)} className={`nav-item ${navigationPage === item.id ? 'active' : ''} ${badge ? 'has-approval-count' : ''}`} onClick={() => { setActivePage(item.id); setMobileMenuOpen(false); }}><span className="nav-icon"><SmsIcon name={item.icon} size={19} /></span><span>{item.label}{badge && <b className="nav-count-badge" aria-hidden="true">{badge}</b>}</span></button>;
           })}</div>
         ))}</nav>
         <div className="sidebar-footer">
-          <button type="button" className="sidebar-rail-toggle" aria-pressed={railExpanded} onClick={() => setRailExpanded((value) => { const next = !value; try { localStorage.setItem('sms-v3-rail-expanded', next ? '1' : '0'); } catch { /* best effort */ } return next; })}><SmsIcon name="menu" size={18} /><span>{railExpanded ? 'ย่อเมนู' : 'ขยายเมนู'}</span></button>
-          <div className="sidebar-user sidebar-profile"><span className="avatar">{initials}</span><span><b>{auth.user?.displayName || 'ผู้ใช้งาน'}</b><small>{roleDisplayName(auth.user?.role || 'VIEWER')}</small></span></div>
+          <div className="sidebar-user sidebar-profile"><span className="avatar" data-avatar-tone={avatarTone(auth.user?.id)}>{initials}</span><span><b>{auth.user?.displayName || 'ผู้ใช้งาน'}</b><small>{roleDisplayName(auth.user?.role || 'VIEWER')}</small></span></div>
           <button type="button" className="sidebar-logout" onClick={() => auth.logout()}><SmsIcon name="logout" size={18} /><span>ออกจากระบบ</span></button>
         </div>
       </aside>
@@ -3500,21 +3510,16 @@ function Dashboard() {
             <span className="mobile-brand"><BrandLogo /></span>
             <span className="topbar-copy"><strong>{pageTitle}</strong><small>{pageSubtitle[navigationPage]}</small></span>
           </div>
-          <label className="topbar-search"><span aria-hidden="true"><SmsIcon name="search" size={17} /></span><input aria-label="ค้นหาพนักงาน" placeholder="ค้นหาพนักงาน..." value={search} onChange={(event) => { setSearch(event.target.value); if (event.target.value && activePage !== 'employees') setActivePage('employees'); }} /></label>
           <div className="topbar-actions">
-            {!pwaShell && <button type="button" className="workflow-command-trigger" title="ไปยังงานหรือหน้าที่ต้องการ" onClick={() => setCommandPaletteOpen(true)}><SmsIcon name="search" size={16} /><span>เมนูด่วน</span><kbd>Ctrl K</kbd></button>}
-            <span className="environment-pill">{import.meta.env.PROD ? 'DEPLOYED' : 'LOCAL'}</span>
+            {!pwaShell && <button type="button" className="workflow-command-trigger" title="ค้นหาเมนูหรือพนักงาน (Ctrl K)" aria-label="ค้นหาเมนูหรือพนักงาน (Ctrl K)" onClick={() => setCommandPaletteOpen(true)}><SmsIcon name="search" size={18} /></button>}
             {['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(auth.user?.role || '') && !auth.isViewingAs && <ApprovalCenterNotificationButton count={approvalMenuCount('approvalCenter', approvalSummary)} onClick={() => setActivePage('approvalCenter')} />}
-            <ThemeControl compact />
-            {!pwaShell && <React.Suspense fallback={null}><AccentControl /></React.Suspense>}
-            <button type="button" className="display-mode-toggle" aria-pressed={desktopView} title={desktopView ? 'กลับมุมมองมือถือ' : 'แสดงแบบเดสก์ท็อป'} onClick={toggleDesktopView}><SmsIcon name={desktopView ? 'device' : 'system'} size={16} /><span>{desktopView ? 'Mobile' : 'Desktop'}</span></button>
-            <button type="button" className="topbar-profile topbar-profile-button" title="การเข้าสู่ระบบและ Passkey" onClick={() => setPasskeyPanelOpen(true)}><span className="avatar">{initials}</span><span><b>{auth.user?.displayName || 'ผู้ใช้งาน'}</b><small>{roleDisplayName(auth.user?.role || 'VIEWER')}</small></span></button>
+            <UserMenu initials={initials} avatarTone={avatarTone(auth.user?.id)} showAccent={!pwaShell} displayName={auth.user?.displayName || 'ผู้ใช้งาน'} roleLabel={roleDisplayName(auth.user?.role || 'VIEWER')} desktopView={desktopView} onToggleDesktopView={toggleDesktopView} onOpenSecurity={() => setPasskeyPanelOpen(true)} onLogout={() => auth.logout()} />
             <button ref={mobileUtilityTriggerRef} type="button" className="mobile-utility-button" aria-label="เปิดเมนูบัญชีและธีม" aria-expanded={mobileUtilityOpen} aria-controls="mobile-utility-panel" onClick={() => setMobileUtilityOpen((value) => !value)}><SmsIcon name="more" size={20} /></button>
           </div>
           {mobileUtilityOpen && createPortal(<>
             <button type="button" className="mobile-utility-backdrop" aria-label="ปิดเมนูบัญชีและธีม" onClick={() => setMobileUtilityOpen(false)} />
             <div id="mobile-utility-panel" className="mobile-utility-panel" role="dialog" aria-modal="true" aria-label="บัญชีและการตั้งค่าหน้าจอ">
-              <div className="mobile-utility-profile"><span className="avatar">{initials}</span><span><b>{auth.user?.displayName || 'ผู้ใช้งาน'}</b><small>{roleDisplayName(auth.user?.role || 'VIEWER')}</small></span></div>
+              <div className="mobile-utility-profile"><span className="avatar" data-avatar-tone={avatarTone(auth.user?.id)}>{initials}</span><span><b>{auth.user?.displayName || 'ผู้ใช้งาน'}</b><small>{roleDisplayName(auth.user?.role || 'VIEWER')}</small></span></div>
               <label className="mobile-utility-search"><span aria-hidden="true"><SmsIcon name="search" size={17} /></span><input aria-label="ค้นหาพนักงานบนมือถือ" placeholder="ค้นหาพนักงาน..." value={search} onChange={(event) => { setSearch(event.target.value); if (event.target.value && activePage !== 'employees') setActivePage('employees'); }} /></label>
               <button type="button" className="mobile-utility-security" onClick={() => { setMobileUtilityOpen(false); setCommandPaletteOpen(true); }}><SmsIcon name="search" size={18} />ไปยังงานหรือหน้าอื่น</button>
               <div className="mobile-utility-theme"><span>โหมดสี</span><ThemeControl /></div>
@@ -3535,6 +3540,7 @@ function Dashboard() {
         </nav>}
       </main>
     </div>
+    <ToastHost />
     {passkeyPanelOpen && auth.token && <React.Suspense fallback={<div className="full-loader" role="status">กำลังโหลดหน้าต่าง…</div>}><PasskeySecurityPanel token={auth.token} onClose={() => setPasskeyPanelOpen(false)} /></React.Suspense>}
     {printData && (
       <div className="print-only">

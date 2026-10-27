@@ -3,8 +3,10 @@ import { SmsIcon } from '../../components/SmsIcon';
 import { buildSmsPwaUatReport, readSmsPwaDiagnostics } from '../../pwa-diagnostics';
 import { roleDisplayName } from '../../role-display';
 import '../pwa-attendance/employee-attendance-v4.css';
+import { avatarTone } from '../../avatar';
 
 export type PwaProfileUser = {
+  id?: string;
   displayName?: string;
   email?: string;
   role?: string;
@@ -57,7 +59,7 @@ export function PwaProfilePage({ user, online, readOnly = false, onOpenPasskeys,
   return <section className="pwa-profile-page nexus-mobile-profile" aria-label="Officer Profile">
     <div className="nexus-mobile-breadcrumb">โปรไฟล์พนักงาน</div>
     <header className="pwa-profile-hero">
-      <span className="pwa-profile-avatar">{initials(user?.displayName)}</span>
+      <span className="pwa-profile-avatar" data-avatar-tone={avatarTone(user?.id)}>{initials(user?.displayName)}</span>
       <div><p>SMS EMPLOYEE</p><h1>{user?.displayName || 'ผู้ใช้งาน'}</h1><span>{roleDisplayName(user?.role || 'VIEWER')}</span></div>
     </header>
 

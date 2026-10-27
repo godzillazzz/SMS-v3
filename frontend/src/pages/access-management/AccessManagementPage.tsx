@@ -23,6 +23,7 @@ import {
 import '../../styles/access-management.css';
 import { G06UatProvisioningPanel, type G06UatProvisionResult } from './G06UatProvisioningPanel';
 import { isG06PreviewUatProvisioningEnabled } from '../../lib/g06-preview-uat-provisioning';
+import { avatarTone } from '../../avatar';
 
 type AccountUpdate = { role?: string; department?: string | null; accountStatus?: string; isActive?: boolean };
 type Props = {
@@ -90,7 +91,7 @@ function AccountTable({ rows, role, originalUserId, loading, onDetails, onEdit, 
   return <div className="access-table-card data-surface-card"><div className="access-table-scroll data-table-scroll"><table className="access-table data-surface-table"><thead><tr><th scope="col">ชื่อที่แสดง</th><th scope="col">บทบาท</th><th scope="col">หน่วยงาน</th><th scope="col">สถานะบัญชี</th><th scope="col">สถานะใช้งาน</th><th scope="col">ความปลอดภัย</th><th scope="col">อัปเดตล่าสุด</th><th scope="col"><span className="sr-only">จัดการบัญชี</span></th></tr></thead><tbody>{rows.map((account) => {
     const actions = visibleAccountActions(role, account, originalUserId);
     return <tr key={account.id} data-account-id={account.id}>
-      <td><div className="access-name-cell"><span className="access-avatar" aria-hidden="true">{accessInitials(account.displayName)}</span><span><strong>{account.displayName || 'ไม่ระบุชื่อ'}</strong><small>บัญชีผู้ใช้งาน</small></span></div></td>
+      <td><div className="access-name-cell"><span className="access-avatar" aria-hidden="true" data-avatar-tone={avatarTone(account.id)}>{accessInitials(account.displayName)}</span><span><strong>{account.displayName || 'ไม่ระบุชื่อ'}</strong><small>บัญชีผู้ใช้งาน</small></span></div></td>
       <td><span className="role-badge">{roleLabel[account.role || ''] || account.role || 'ไม่ระบุ'}</span></td>
       <td>{account.department || 'ไม่ระบุหน่วยงาน'}</td>
       <td><span className={`access-account-state access-account-state--${String(account.accountStatus || '').toLowerCase()}`}>{statusLabel[String(account.accountStatus || '')] || 'ไม่ระบุ'}</span></td>

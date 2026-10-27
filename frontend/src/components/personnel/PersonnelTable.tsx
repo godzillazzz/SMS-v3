@@ -1,6 +1,7 @@
 import { TableActionCell, TableActionHeader } from '../TableActionColumn';
 import { DataTableSkeletonCards, DataTableSkeletonRows, DataTableState, ResponsiveDataTable } from '../ResponsiveDataTable';
 import type { PersonnelRecord } from './types';
+import { avatarTone } from '../../avatar';
 
 /* First letter for an avatar; Thai leading vowels (เ แ โ ใ ไ) are skipped so 'ใจดี' gives 'จ'. */
 const thaiInitial = (value?: string | null) => (String(value || '').trim().replace(/^[เแโใไ]+/, '').charAt(0));
@@ -30,7 +31,7 @@ export function PersonnelTable({ rows, canManage, canPrintAttendance = false, on
           data-personnel-id={employee.id}
           className={selectedId === employee.id ? 'is-selected personnel-record-row' : 'personnel-record-row'}
         >
-          <td><span className="personnel-identity"><span className="personnel-avatar" aria-hidden="true" data-tone={(String(employee.employeeCode || employee.id).split('').reduce((sum, ch) => sum + ch.charCodeAt(0), 0) % 5)}>{`${thaiInitial(employee.firstName)}${thaiInitial(employee.lastName)}`}</span><button type="button" className="personnel-name-button" onClick={(event) => { event.stopPropagation(); onSelect(employee); }}>{employee.firstName} {employee.lastName}</button></span></td>
+          <td><span className="personnel-identity"><span className="personnel-avatar" aria-hidden="true" data-avatar-tone={avatarTone(employee.employeeCode || employee.id)}>{`${thaiInitial(employee.firstName)}${thaiInitial(employee.lastName)}`}</span><button type="button" className="personnel-name-button" onClick={(event) => { event.stopPropagation(); onSelect(employee); }}>{employee.firstName} {employee.lastName}</button></span></td>
           <td><code>{employee.employeeCode}</code></td>
           <td>{employee.department || '—'}</td>
           <td>{employee.jobTitle || '—'}</td>
