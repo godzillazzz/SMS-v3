@@ -22,7 +22,8 @@ const {
 
 const ROOT = path.resolve(__dirname, '../..');
 const MANIFEST_PATH = '.github/releases/approved-attendance-void-migration.json';
-const OLD_SCHEMA_SOURCE_SHA = '56c33991503e09c5904279205fe1aaa423a8b219';
+const M1_SCHEMA_SOURCE_SHA = '56c33991503e09c5904279205fe1aaa423a8b219';
+const OLD_SCHEMA_SOURCE_SHA = PRODUCTION_SOURCE_SHA;
 const REQUIRED_ROLES = Object.freeze(['ADMIN', 'MANAGER', 'SUPERVISOR', 'VIEWER']);
 const TABLES = Object.freeze(['attendance_sessions', 'attendance_events', 'attendance_selfie_policies']);
 const EXPECTED_CHECK_NAMES = Object.freeze([
@@ -76,10 +77,36 @@ function assertDisposableUrl(rawUrl, expectedDatabase, env = process.env) {
 
 function createCheckCollector() {
   const checks = new Map();
+  function verifyEvidence(name, phase, details) {
+    assert(details && typeof details === 'object' && !Array.isArray(details), `${name} evidence details are missing`);
+    if (name === 'P10_IDEMPOTENT_DEPLOY_AND_EMPTY_SCHEMA_DIFF' && phase === 'preflight') {
+      assert(false, 'P10 preflight must be PARTIAL until the second deploy and post-apply diffs pass');
+    }
+    if (name === 'P10_IDEMPOTENT_DEPLOY_AND_EMPTY_SCHEMA_DIFF' && phase === 'post_apply') {
+      assert(details.second_deploy_idempotent === true && details.disposable_database_to_new_schema_diff === 'EMPTY', 'post-apply P10 evidence is incomplete');
+      assert(JSON.stringify(details.first_deploy_migrations) === JSON.stringify(MIGRATIONS.map(({ name: migration }) => migration)), 'P10 first deploy evidence does not show exact M2-M5 order');
+    }
+
+    if (name === 'P11_SCHEMA_COUNTS_AND_CHECKSUM_POSTCONDITIONS' && phase === 'post_apply') {
+      assert(details.post_schema_verified === true && details.row_counts_unchanged === true && Array.isArray(details.migration_checksums) && details.migration_checksums.length === MIGRATIONS.length && details.migration_checksums.every(({ checksum_match }) => checksum_match === true), 'P11 post-apply evidence is incomplete');
+      assert(JSON.stringify(details.migration_checksums.map(({ migration_name }) => migration_name)) === JSON.stringify(MIGRATIONS.map(({ name: migration }) => migration)), 'P11 post-apply checksum evidence is not exact M2-M5 order');
+    }
+    if (name === 'P11_SCHEMA_COUNTS_AND_CHECKSUM_POSTCONDITIONS' && phase === 'preflight') {
+      assert(details.row_counts_before && TABLES.every((table) => Number.isSafeInteger(details.row_counts_before[table]) && details.row_counts_before[table] >= 0), 'P11 preflight row-count evidence is incomplete');
+      assert(details.source_migration_checksums_verified === true && details.no_data_backfill_or_DML_in_approved_SQL === true, 'P11 preflight source evidence is incomplete');
+    }
+    if (name === 'P12_OLD_AND_NEW_APP_SCHEMA_COMPATIBILITY' && phase === 'preflight') {
+      assert(false, 'P12 preflight must be PARTIAL until new-schema compatibility is tested after apply');
+    }
+    if (name === 'P12_OLD_AND_NEW_APP_SCHEMA_COMPATIBILITY' && phase === 'post_apply') {
+      assert(details.old_application_schema_read === 'PASS' && details.new_application_schema_read === 'PASS' && details.database_writes === false, 'P12 post-apply compatibility evidence is incomplete');
+    }
+  }
   return {
     pass(phase, name, details = {}) {
       assert(['preflight', 'post_apply'].includes(phase), 'unknown evidence phase');
       assert(EXPECTED_CHECK_NAMES.includes(name), `unknown P check: ${name}`);
+      verifyEvidence(name, phase, details);
       const check = checks.get(name) || { preflight: { status: 'NOT_RUN' }, post_apply: { status: 'NOT_RUN' } };
       check[phase] = { status: 'PASS', ...jsonSafe(details) };
       checks.set(name, check);
@@ -91,12 +118,27 @@ function createCheckCollector() {
       check[phase] = { status: 'FAIL', ...jsonSafe(details) };
       checks.set(name, check);
     },
+    partial(phase, name, details = {}) {
+      assert(phase === 'preflight' && ['P10_IDEMPOTENT_DEPLOY_AND_EMPTY_SCHEMA_DIFF', 'P12_OLD_AND_NEW_APP_SCHEMA_COMPATIBILITY'].includes(name), 'partial evidence is allowed only for P10/P12 preflight');
+      if (name === 'P10_IDEMPOTENT_DEPLOY_AND_EMPTY_SCHEMA_DIFF') {
+        assert(details.disposable_database_to_m1_schema_diff === 'EMPTY', 'P10 M1 baseline schema evidence is incomplete');
+      } else {
+        assert(details.old_application_schema_read === 'PASS' && details.new_application_schema_read === 'NOT_RUN' && details.database_writes === false, 'P12 preflight partial evidence is incomplete');
+      }
+      const check = checks.get(name) || { preflight: { status: 'NOT_RUN' }, post_apply: { status: 'NOT_RUN' } };
+      check[phase] = { status: 'PARTIAL', ...jsonSafe(details) };
+      checks.set(name, check);
+    },
     complete() {
       return Object.fromEntries(EXPECTED_CHECK_NAMES.map((name) => [name, checks.get(name) || { preflight: { status: 'NOT_RUN' }, post_apply: { status: 'NOT_RUN' } }]));
     },
     assertComplete() {
       for (const name of EXPECTED_CHECK_NAMES) assert(checks.has(name), `${name} evidence was not produced`);
-      assert([...checks.values()].every((check) => check.preflight.status === 'PASS' && check.post_apply.status === 'PASS'), 'one or more P1-P12 preflight/post-apply evidence checks failed');
+      for (const [name, check] of checks) {
+        assert(check.post_apply.status === 'PASS', `${name} post-apply evidence is not PASS`);
+        const preflightStatus = ['P10_IDEMPOTENT_DEPLOY_AND_EMPTY_SCHEMA_DIFF', 'P12_OLD_AND_NEW_APP_SCHEMA_COMPATIBILITY'].includes(name) ? 'PARTIAL' : 'PASS';
+        assert(check.preflight.status === preflightStatus, `${name} preflight evidence is not ${preflightStatus}`);
+      }
     }
   };
 }
@@ -132,7 +174,6 @@ function prepareBaseline({ root = ROOT, tempRoot = process.env.RUNNER_TEMP || pr
   assert(JSON.stringify(afterM1) === JSON.stringify(MIGRATIONS.map(({ name }) => name)), 'source tree has pending migrations outside exact M2-M5');
   const provider = execFileSync('git', ['-C', root, 'show', `${SOURCE_COMMIT_SHA}:prisma/schema.prisma`], { encoding: 'utf8' }).match(/datasource\s+db\s*\{[\s\S]*?provider\s*=\s*"([^"]+)"/);
   assert(provider?.[1] === 'postgresql', 'approved source datasource provider is not PostgreSQL');
-  const allMigrationNames = sourceMigrations;
   const copyMigrations = (destination, names) => {
     fs.mkdirSync(destination, { recursive: true });
     for (const name of names) {
@@ -146,17 +187,15 @@ function prepareBaseline({ root = ROOT, tempRoot = process.env.RUNNER_TEMP || pr
   copyMigrations(migrationRoot, baselineMigrations);
   const schemaPath = path.join(baselineRoot, 'prisma', 'schema.prisma');
   const fullSchemaPath = path.join(baselineRoot, 'target', 'schema.prisma');
-  const fullMigrationRoot = path.join(baselineRoot, 'target', 'migrations');
-  copyMigrations(fullMigrationRoot, allMigrationNames);
-  const oldApplicationSchema = gitBytes(['show', `${OLD_SCHEMA_SOURCE_SHA}:prisma/schema.prisma`], root);
+  const oldApplicationSchema = gitBytes(['show', `${M1_SCHEMA_SOURCE_SHA}:prisma/schema.prisma`], root);
   fs.writeFileSync(schemaPath, oldApplicationSchema);
   fs.mkdirSync(path.dirname(fullSchemaPath), { recursive: true });
   fs.writeFileSync(fullSchemaPath, gitBytes(['show', `${SOURCE_COMMIT_SHA}:prisma/schema.prisma`], root));
+
   return Object.freeze({
     baselineRoot,
     schemaPath,
     migrationsRoot: migrationRoot,
-    fullMigrationRoot,
     fullSchemaPath,
     migrationCount: baselineMigrations.length,
     lastMigration: PREREQUISITE.name
@@ -200,6 +239,57 @@ async function databaseFingerprint(prisma) {
   const row = rows[0];
   const digest = sha256(JSON.stringify({ database_oid: row.database_oid, database_name: row.database_name, role_name: row.role_name, server_version_num: row.server_version_num, system_identifier: row.system_identifier }));
   return Object.freeze({ sha256: digest, databaseName: row.database_name, roleName: row.role_name, serverVersionNum: row.server_version_num });
+}
+
+function formatCheckStatus(name, check) {
+  const preflight = check?.preflight?.status || 'NOT_RUN';
+  const postApply = check?.post_apply?.status || 'NOT_RUN';
+  return `${name}=preflight:${preflight},post_apply:${postApply}`;
+}
+
+function runEmptySchemaDiff(args, env, label, root, prismaRunner) {
+  const output = prismaRunner(args, env, label, root);
+  assert(output.length === 0 || /No difference detected\.?/i.test(output), `${label} is not empty`);
+  return 'EMPTY';
+}
+
+function runM1BaselineSchemaDiffs(baseline, env, root = ROOT, prismaRunner = runPrisma) {
+  assert(baseline && baseline.schemaPath, 'M1 baseline evidence directory is missing');
+  assertDisposableUrl(env.DIRECT_URL, 'sms_v3_test', env);
+  const databaseDiff = runEmptySchemaDiff([
+    'migrate', 'diff',
+    '--from-url', env.DIRECT_URL,
+    '--to-schema-datamodel', baseline.schemaPath,
+    '--exit-code'
+  ], env, 'disposable database to M1 schema diff', root, prismaRunner);
+  return Object.freeze({ disposable_database_to_m1_schema_diff: databaseDiff });
+}
+
+function verifyIdempotentDeploy(schemaPath, env, root = ROOT, prismaRunner = runPrisma) {
+  const output = prismaRunner(['migrate', 'deploy', '--schema', schemaPath], env, 'second idempotent Prisma migrate deploy', root);
+  assert(!/Applying migration\s+[0-9]{12,14}_/.test(output), 'second migrate deploy attempted to apply an additional migration');
+  assert(/already up to date|no pending migrations|No pending migrations|No migration found/i.test(output) || output.length === 0, 'second migrate deploy output was not recognizable');
+  return true;
+}
+
+function runPostApplySchemaDiffs(baseline, env, root = ROOT, prismaRunner = runPrisma) {
+  assert(baseline && baseline.fullMigrationRoot && baseline.fullSchemaPath, 'post-apply full migration/schema baseline is missing');
+  assertDisposableUrl(env.DIRECT_URL, 'sms_v3_test', env);
+  assertDisposableUrl(env.SHADOW_DATABASE_URL, 'sms_v3_shadow', env);
+  const migrationDiff = runEmptySchemaDiff([
+    'migrate', 'diff',
+    '--from-migrations', baseline.fullMigrationRoot,
+    '--to-schema-datamodel', baseline.fullSchemaPath,
+    '--shadow-database-url', env.SHADOW_DATABASE_URL,
+    '--exit-code'
+  ], env, 'full M1-M5 migration-to-schema diff', root, prismaRunner);
+  const databaseDiff = runEmptySchemaDiff([
+    'migrate', 'diff',
+    '--from-url', env.DIRECT_URL,
+    '--to-schema-datamodel', baseline.fullSchemaPath,
+    '--exit-code'
+  ], env, 'disposable database to new schema diff', root, prismaRunner);
+  return Object.freeze({ full_migration_to_schema_diff: migrationDiff, disposable_database_to_new_schema_diff: databaseDiff });
 }
 
 async function migrationLedger(prisma) {
@@ -470,8 +560,7 @@ function assertSelfiePolicy(state) {
   for (const [privilege, allowed] of Object.entries(state.privileges)) assert(allowed === false, `SELFIE-POLICY browser privilege is enabled: ${privilege}`);
 }
 
-async function collectPreflight(prisma, env = process.env, root = ROOT, baseline = null) {
-  const checks = createCheckCollector();
+async function collectPreflight(prisma, env = process.env, root = ROOT, baseline = null, checks = createCheckCollector()) {
   const manifest = JSON.parse(fs.readFileSync(path.join(root, MANIFEST_PATH), 'utf8'));
   const source = sourceMetadata(root);
   validateAttendanceVoidManifest(manifest, { root, verifySql: true, verifySource: true });
@@ -529,19 +618,17 @@ async function collectPreflight(prisma, env = process.env, root = ROOT, baseline
   const locks = await lockAndSizeState(prisma);
   assert(locks.ungranted_relation_lock_count === 0 && locks.waiting_backend_count === 0, 'blocked database locks exist during preflight');
   checks.pass('preflight', 'P9_LOCK_AND_RELATION_SIZE_EVIDENCE', locks);
-  assert(baseline && baseline.migrationsRoot && baseline.schemaPath, 'M1 baseline evidence directory is missing');
-  const preflightDiff = runPrisma([
-    'migrate', 'diff',
-    '--from-migrations', baseline.migrationsRoot,
-    '--to-schema-datamodel', baseline.schemaPath,
-    '--shadow-database-url', env.SHADOW_DATABASE_URL,
-    '--exit-code'
-  ], env, 'read-only M1 baseline schema diff');
-  assert(preflightDiff.length === 0 || /No difference detected\.?/i.test(preflightDiff), 'read-only M1 baseline schema diff is not empty');
+  let m1BaselineDiffs;
+  try {
+    m1BaselineDiffs = runM1BaselineSchemaDiffs(baseline, env, root);
+  } catch (error) {
+    checks.fail('preflight', 'P10_IDEMPOTENT_DEPLOY_AND_EMPTY_SCHEMA_DIFF', { failure: safeError(error) });
+    throw error;
+  }
   const oldCompatibility = await oldApplicationCompatibilitySmoke(env.DIRECT_URL, env.RUNNER_TEMP || env.TMPDIR, env);
-  checks.pass('preflight', 'P10_IDEMPOTENT_DEPLOY_AND_EMPTY_SCHEMA_DIFF', { preflight_m1_migration_to_schema_diff: 'EMPTY', exact_pending_set_verified: true, deploy_not_yet_run: true });
+  checks.partial('preflight', 'P10_IDEMPOTENT_DEPLOY_AND_EMPTY_SCHEMA_DIFF', m1BaselineDiffs);
   checks.pass('preflight', 'P11_SCHEMA_COUNTS_AND_CHECKSUM_POSTCONDITIONS', { row_counts_before: beforeCounts, source_migration_checksums_verified: true, no_data_backfill_or_DML_in_approved_SQL: true });
-  checks.pass('preflight', 'P12_OLD_AND_NEW_APP_SCHEMA_COMPATIBILITY', { ...oldCompatibility, database_migrations_not_applied: true });
+  checks.partial('preflight', 'P12_OLD_AND_NEW_APP_SCHEMA_COMPATIBILITY', { ...oldCompatibility, new_application_schema_read: 'NOT_RUN', database_migrations_not_applied: true });
   return { checks, dbFingerprint, beforeCounts, beforeShapes: shapes, beforeLedger: ledger, source, legacy, selfie, locks, baseline };
 }
 
@@ -659,23 +746,18 @@ async function collectPostflight(prisma, env, root, preflight, deployEvidence, c
   const postFingerprint = await databaseFingerprint(prisma);
   assert(postFingerprint.databaseName === dbTarget.databaseName && postFingerprint.sha256 === preflight.dbFingerprint.sha256, 'database identity/fingerprint changed during test');
 
-  const secondDeploy = runPrisma(['migrate', 'deploy', '--schema', preflight.baseline.fullSchemaPath], env, 'second idempotent Prisma migrate deploy');
-  assert(!/Applying migration\s+[0-9]{12,14}_/.test(secondDeploy), 'second migrate deploy attempted to apply an additional migration');
-  assert(/already up to date|no pending migrations|No pending migrations|No migration found/i.test(secondDeploy) || secondDeploy.length === 0, 'second migrate deploy output was not recognizable');
-  const shadowUrl = env.SHADOW_DATABASE_URL;
-  assertDisposableUrl(shadowUrl, 'sms_v3_shadow', env);
-  const diff = runPrisma([
-    'migrate', 'diff',
-    '--from-migrations', preflight.baseline.fullMigrationRoot,
-    '--to-schema-datamodel', preflight.baseline.fullSchemaPath,
-    '--shadow-database-url', shadowUrl,
-    '--exit-code'
-  ], env, 'Prisma migration-to-schema diff');
-  assert(diff.length === 0 || /No difference detected\.?/i.test(diff), 'Prisma schema diff is not empty');
+  let postApplyDiffs;
+  try {
+    verifyIdempotentDeploy(preflight.baseline.fullSchemaPath, env, root);
+    postApplyDiffs = runPostApplySchemaDiffs(preflight.baseline, env, root);
+  } catch (error) {
+    checks.fail('post_apply', 'P10_IDEMPOTENT_DEPLOY_AND_EMPTY_SCHEMA_DIFF', { first_deploy_migrations: deployEvidence.applied_migrations, failure: safeError(error) });
+    throw error;
+  }
   checks.pass('post_apply', 'P10_IDEMPOTENT_DEPLOY_AND_EMPTY_SCHEMA_DIFF', {
     first_deploy_migrations: deployEvidence.applied_migrations,
     second_deploy_idempotent: true,
-    migration_to_schema_diff: 'EMPTY'
+    ...postApplyDiffs
   });
 
   const ledger = await migrationLedger(prisma);
@@ -752,7 +834,17 @@ async function collectPostflight(prisma, env, root, preflight, deployEvidence, c
 }
 
 function evidenceDocument({ status, metadata, preflight, postflight, env = process.env, startedAt, completedAt, failureCode = null }) {
-  const checks = status === 'PASS' ? postflight.checks.complete() : (postflight?.checks || preflight?.checks)?.complete() || {};
+  const checks = postflight?.checks.complete() || preflight?.checks.complete() || Object.fromEntries(EXPECTED_CHECK_NAMES.map((name) => [name, { preflight: { status: 'NOT_RUN' }, post_apply: { status: 'NOT_RUN' } }]));
+  for (const name of EXPECTED_CHECK_NAMES) {
+    checks[name] ||= { preflight: { status: 'NOT_RUN' }, post_apply: { status: 'NOT_RUN' } };
+  }
+  if (status === 'PASS') {
+    for (const name of EXPECTED_CHECK_NAMES) {
+      assert(checks[name].post_apply.status === 'PASS', `${name} post-apply evidence must be PASS`);
+      const expectedPreflight = ['P10_IDEMPOTENT_DEPLOY_AND_EMPTY_SCHEMA_DIFF', 'P12_OLD_AND_NEW_APP_SCHEMA_COMPATIBILITY'].includes(name) ? 'PARTIAL' : 'PASS';
+      assert(checks[name].preflight.status === expectedPreflight, `${name} preflight evidence must be ${expectedPreflight}`);
+    }
+  }
   return {
     schema_version: 1,
     task_id: 'SMSV3-ATTENDANCE-VOID-CONTROL-PLANE',
@@ -822,8 +914,9 @@ async function runEvidence({ root = ROOT, env = process.env } = {}) {
     const base = prepareBaseline({ root, tempRoot: env.RUNNER_TEMP || env.TMPDIR });
     const baselineEnv = { ...env, DATABASE_URL: env.DATABASE_URL, DIRECT_URL: env.DIRECT_URL };
     runPrisma(['migrate', 'deploy', '--schema', base.schemaPath], baselineEnv, 'disposable historical baseline through M1');
-    preflight = await collectPreflight(prisma, env, root, base);
-    preflight.baseline = base;
+    const checks = createCheckCollector();
+    preflight = { checks, baseline: base };
+    preflight = await collectPreflight(prisma, env, root, base, checks);
     const deployOutput = runPrisma(['migrate', 'deploy', '--schema', base.fullSchemaPath], env, 'approved M2-M5 Prisma migrate deploy');
     const applied = deployOutput.match(/\bApplying migration\s+([^\r\n]+)/g) || [];
     const appliedNames = applied.map((line) => line.replace(/^.*\bApplying migration\s+/, '').trim().replace(/^[`'"\s]+|[`'"\s]+$/g, ''));
@@ -834,7 +927,7 @@ async function runEvidence({ root = ROOT, env = process.env } = {}) {
     const completedAt = new Date().toISOString();
     const document = evidenceDocument({ status: 'PASS', metadata, preflight, postflight, env, startedAt, completedAt });
     const evidencePath = writeEvidence(document, env);
-    for (const [name, check] of Object.entries(document.checks)) console.log(`${name}=${check.status}`);
+    for (const [name, check] of Object.entries(document.checks)) console.log(formatCheckStatus(name, check));
     console.log('ATTENDANCE_VOID_DISPOSABLE_EVIDENCE=PASS');
     console.log(`SOURCE_COMMIT_SHA=${SOURCE_COMMIT_SHA}`);
     console.log(`SOURCE_TREE_SHA=${SOURCE_TREE_SHA}`);
@@ -846,7 +939,7 @@ async function runEvidence({ root = ROOT, env = process.env } = {}) {
     const completedAt = new Date().toISOString();
     const document = evidenceDocument({ status: 'FAIL', metadata: null, preflight, postflight, env, startedAt, completedAt, failureCode: error.code || safeError(error) });
     const evidencePath = writeEvidence(document, env);
-    for (const [name, check] of Object.entries(document.checks)) console.log(`${name}=${check.status}`);
+    for (const [name, check] of Object.entries(document.checks)) console.log(formatCheckStatus(name, check));
     console.error(`ATTENDANCE_VOID_DISPOSABLE_EVIDENCE=FAIL failure=${safeError(error)}`);
     console.log(`EVIDENCE_ARTIFACT_PATH=${evidencePath}`);
     throw error;
@@ -877,6 +970,7 @@ module.exports = {
   duplicateLiveSessions,
   evaluateRollbackGuard,
   evidenceDocument,
+  formatCheckStatus,
   legacyIntegrity,
   migrationChecksumPostconditions,
   migrationDirectories,
@@ -885,6 +979,9 @@ module.exports = {
   postflightShapeOk,
   preflightShapeOk,
   prepareBaseline,
+  runM1BaselineSchemaDiffs,
+  runPostApplySchemaDiffs,
+  verifyIdempotentDeploy,
   runEvidence,
   selfiePolicyState,
   validateAttendanceVoidSql

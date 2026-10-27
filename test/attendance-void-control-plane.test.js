@@ -28,7 +28,11 @@ const {
   assertDisposableUrl,
   createCheckCollector,
   evaluateRollbackGuard,
-  prepareBaseline
+  formatCheckStatus,
+  prepareBaseline,
+  runM1BaselineSchemaDiffs,
+  runPostApplySchemaDiffs,
+  verifyIdempotentDeploy
 } = require('../scripts/ci/attendance-void-evidence');
 const { validateReleaseManifest } = require('../scripts/ci/verify-release-manifest');
 const { execFileSync } = require('node:child_process');
@@ -47,6 +51,29 @@ function git(args) {
 
 function readSql(name) {
   return SQL_BY_NAME[name];
+}
+
+function evidenceDetails(name, phase) {
+  if (name === 'P10_IDEMPOTENT_DEPLOY_AND_EMPTY_SCHEMA_DIFF') {
+    return phase === 'preflight'
+      ? { disposable_database_to_m1_schema_diff: 'EMPTY', exact_m1_migration_checksum_verified: true }
+      : {
+          first_deploy_migrations: MIGRATIONS.map(({ name: migration }) => migration),
+          second_deploy_idempotent: true,
+          disposable_database_to_new_schema_diff: 'EMPTY'
+        };
+  }
+  if (name === 'P11_SCHEMA_COUNTS_AND_CHECKSUM_POSTCONDITIONS') {
+    return phase === 'preflight'
+      ? { row_counts_before: { attendance_sessions: 0, attendance_events: 0, attendance_selfie_policies: 4 }, source_migration_checksums_verified: true, no_data_backfill_or_DML_in_approved_SQL: true }
+      : { post_schema_verified: true, row_counts_unchanged: true, migration_checksums: MIGRATIONS.map(({ name: migration }) => ({ migration_name: migration, checksum_match: true })) };
+  }
+  if (name === 'P12_OLD_AND_NEW_APP_SCHEMA_COMPATIBILITY') {
+    return phase === 'preflight'
+      ? { old_application_schema_read: 'PASS', new_application_schema_read: 'NOT_RUN', database_writes: false }
+      : { old_application_schema_read: 'PASS', new_application_schema_read: 'PASS', database_writes: false };
+  }
+  return { checked: true };
 }
 
 test('manifest pins exact source/tree, M2-M5 order, M1 checksum and non-Production policy', () => {
@@ -259,14 +286,103 @@ test('preflight evidence only accepts the disposable CI PostgreSQL aliases and i
     'postgresql://ci_user:ci_test_only@postgres:5432/production',
     'postgresql://ci_user:ci_test_only@other:5432/sms_v3_test'
   ]) assert.throws(() => assertDisposableUrl(rawUrl, 'sms_v3_test', env));
-  assert.throws(() => assertDisposableUrl('postgresql://ci_user:ci_test_only@postgres:5432/sms_v3_test', 'sms_v3_test', {}), /guard is not enabled/);
+  assert.throws(() => assertDisposableUrl('postgresql://ci_user:***@postgres:5432/sms_v3_test', 'sms_v3_test', {}), /guard is not enabled/);
+});
+
+test('disposable baseline paths use the exact M1 schema and migration history', () => {
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'attendance-void-m1-baseline-test-'));
+  let baseline;
+  try {
+    baseline = prepareBaseline({ root: ROOT, tempRoot });
+    const expectedSchema = execFileSync('git', ['show', '56c33991503e09c5904279205fe1aaa423a8b219:prisma/schema.prisma'], { cwd: ROOT, encoding: 'buffer' });
+    assert.deepEqual(fs.readFileSync(baseline.schemaPath), expectedSchema);
+    const sourceMigrations = execFileSync('git', ['ls-tree', '-d', '--name-only', `${SOURCE_COMMIT_SHA}:prisma/migrations`], { cwd: ROOT, encoding: 'utf8' }).split(/\r?\n/).filter(Boolean).sort();
+    const expectedM1Migrations = sourceMigrations.filter((name) => name <= PREREQUISITE.name);
+    assert.deepEqual(fs.readdirSync(baseline.migrationsRoot).filter((name) => name !== 'migration_lock.toml').sort(), expectedM1Migrations);
+    assert.equal(expectedM1Migrations.at(-1), PREREQUISITE.name);
+    assert.equal(baseline.migrationCount, expectedM1Migrations.length);
+    assert.equal(baseline.fullSchemaPath, path.join(baseline.baselineRoot, 'target/schema.prisma'));
+    assert.deepEqual(fs.readFileSync(baseline.fullSchemaPath), execFileSync('git', ['show', `${SOURCE_COMMIT_SHA}:prisma/schema.prisma`], { cwd: ROOT, encoding: 'buffer' }));
+  } finally {
+    if (baseline) fs.rmSync(baseline.baselineRoot, { recursive: true, force: true });
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('P10 compares disposable DB schema to M1 baseline before apply and to full schema after apply', () => {
+  const env = {
+    ATTENDANCE_VOID_DISPOSABLE_DATABASE: 'true',
+    DIRECT_URL: 'postgresql://ci_user:ci_test_only@postgres:5432/sms_v3_test'
+  };
+  const baseline = {
+    migrationsRoot: '/tmp/m1/prisma/migrations',
+    schemaPath: '/tmp/m1/prisma/schema.prisma',
+    fullSchemaPath: path.join(ROOT, 'prisma/schema.prisma')
+  };
+  const calls = [];
+  const runner = (args) => { calls.push(args); return 'No difference detected.'; };
+
+  const m1BaselineDiffs = runM1BaselineSchemaDiffs(baseline, env, ROOT, runner);
+  assert.deepEqual(m1BaselineDiffs, {
+    disposable_database_to_m1_schema_diff: 'EMPTY',
+    exact_m1_migration_checksum_verified: true
+  });
+  const checks = createCheckCollector();
+  checks.partial('preflight', 'P10_IDEMPOTENT_DEPLOY_AND_EMPTY_SCHEMA_DIFF', m1BaselineDiffs);
+  assert.equal(checks.complete().P10_IDEMPOTENT_DEPLOY_AND_EMPTY_SCHEMA_DIFF.preflight.status, 'PARTIAL');
+  assert.throws(() => checks.pass('preflight', 'P10_IDEMPOTENT_DEPLOY_AND_EMPTY_SCHEMA_DIFF', m1BaselineDiffs), /P10 preflight must be PARTIAL/);
+  assert.throws(() => checks.partial('preflight', 'P10_IDEMPOTENT_DEPLOY_AND_EMPTY_SCHEMA_DIFF', { deferred: true }), /P10 M1 baseline schema evidence is incomplete/);
+  assert.deepEqual(calls, [
+    ['migrate', 'diff', '--from-url', env.DIRECT_URL, '--to-schema-datamodel', baseline.schemaPath, '--exit-code']
+  ]);
+
+  calls.length = 0;
+  assert.deepEqual(runPostApplySchemaDiffs(baseline, env, ROOT, runner), {
+    disposable_database_to_new_schema_diff: 'EMPTY'
+  });
+  assert.deepEqual(calls, [
+    ['migrate', 'diff', '--from-url', env.DIRECT_URL, '--to-schema-datamodel', baseline.fullSchemaPath, '--exit-code']
+  ]);
+});
+
+test('P10 fails closed on a non-empty schema diff or a second deploy that applies migrations', () => {
+  const env = {
+    ATTENDANCE_VOID_DISPOSABLE_DATABASE: 'true',
+    DIRECT_URL: 'postgresql://ci_user:ci_test_only@postgres:5432/sms_v3_test',
+    SHADOW_DATABASE_URL: 'postgresql://ci_user:ci_test_only@postgres:5432/sms_v3_shadow'
+  };
+  const baseline = {
+    migrationsRoot: '/tmp/m1/migrations',
+    schemaPath: '/tmp/m1/schema.prisma',
+    fullSchemaPath: '/repo/prisma/schema.prisma'
+  };
+  assert.throws(() => runM1BaselineSchemaDiffs(baseline, env, ROOT, (args) => args.includes('--from-url') ? 'ALTER TABLE unexpected' : ''), /disposable database to M1 schema diff is not empty/);
+  assert.equal(verifyIdempotentDeploy(baseline.fullSchemaPath, env, ROOT, () => 'No pending migrations to apply.'), true);
+  assert.throws(() => verifyIdempotentDeploy(baseline.fullSchemaPath, env, ROOT, () => 'Applying migration 202610230002_attendance_void_closed_state'), /attempted to apply an additional migration/);
+  assert.throws(() => verifyIdempotentDeploy(baseline.fullSchemaPath, env, ROOT, () => 'unexpected Prisma output'), /not recognizable/);
+});
+
+test('evidence status formatting reports real per-phase results and rejects deferred P10-P12 PASS', () => {
+  assert.equal(formatCheckStatus('P10_IDEMPOTENT_DEPLOY_AND_EMPTY_SCHEMA_DIFF', {
+    preflight: { status: 'PARTIAL' }, post_apply: { status: 'NOT_RUN' }
+  }), 'P10_IDEMPOTENT_DEPLOY_AND_EMPTY_SCHEMA_DIFF=preflight:PARTIAL,post_apply:NOT_RUN');
+  const checks = createCheckCollector();
+  assert.throws(() => checks.pass('preflight', 'P10_IDEMPOTENT_DEPLOY_AND_EMPTY_SCHEMA_DIFF', {
+    disposable_database_to_m1_schema_diff: 'EMPTY', exact_m1_migration_checksum_verified: true
+  }), /P10 preflight must be PARTIAL/);
+  assert.doesNotThrow(() => checks.pass('preflight', 'P11_SCHEMA_COUNTS_AND_CHECKSUM_POSTCONDITIONS', evidenceDetails('P11_SCHEMA_COUNTS_AND_CHECKSUM_POSTCONDITIONS', 'preflight')));
+  assert.throws(() => checks.partial('preflight', 'P11_SCHEMA_COUNTS_AND_CHECKSUM_POSTCONDITIONS', { deferred: true }), /partial evidence is allowed/);
+  assert.throws(() => checks.pass('preflight', 'P12_OLD_AND_NEW_APP_SCHEMA_COMPATIBILITY', { old_application_schema_read: 'PASS', new_application_schema_read: 'NOT_RUN', database_writes: false }), /P12 preflight/);
 });
 
 test('evidence collector requires every P1-P12 in both read-only preflight and post-apply phases', () => {
   const checks = createCheckCollector();
-  for (const name of EXPECTED_CHECK_NAMES) checks.pass('preflight', name, { read_only: true });
-  assert.throws(() => checks.assertComplete(), /preflight\/post-apply/);
-  for (const name of EXPECTED_CHECK_NAMES) checks.pass('post_apply', name, { pass: true });
+  for (const name of EXPECTED_CHECK_NAMES) {
+    if (['P10_IDEMPOTENT_DEPLOY_AND_EMPTY_SCHEMA_DIFF', 'P12_OLD_AND_NEW_APP_SCHEMA_COMPATIBILITY'].includes(name)) checks.partial('preflight', name, evidenceDetails(name, 'preflight'));
+    else checks.pass('preflight', name, evidenceDetails(name, 'preflight'));
+  }
+  assert.throws(() => checks.assertComplete(), /post-apply evidence is not PASS/);
+  for (const name of EXPECTED_CHECK_NAMES) checks.pass('post_apply', name, evidenceDetails(name, 'post_apply'));
   checks.assertComplete();
   assert.equal(Object.keys(checks.complete()).length, 12);
 });
