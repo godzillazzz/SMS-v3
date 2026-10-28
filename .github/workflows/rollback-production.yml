@@ -37,11 +37,27 @@ jobs:
       VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
       VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
       VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      DIRECT_URL: ${{ secrets.DIRECT_URL }}
+      APPROVED_DATABASE_TARGET_FINGERPRINT: ${{ vars.APPROVED_DATABASE_TARGET_FINGERPRINT }}
+      ATTENDANCE_VOID_ROLLBACK_READ_ONLY: 'true'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: npm
+      - name: Revalidate exact read-only Production database target
+        run: |
+          set -euo pipefail
+          test "$ATTENDANCE_VOID_ROLLBACK_READ_ONLY" = 'true'
+          node scripts/ci/verify-deployment-target.js --verify
+      - name: Install Prisma client without applying migrations
+        run: |
+          npm ci --ignore-scripts --no-audit --no-fund
+          npm run prisma:generate
+      - name: Prove application rollback is safe for Attendance Void rows
+        run: node scripts/ci/attendance-void-rollback-guard.js
       - name: Validate rollback target
         shell: bash
         run: |
@@ -102,5 +118,6 @@ jobs:
             echo '- Project: sms-v3-staging'
             echo '- Deployment promoted: ${{ inputs.deployment_id }}'
             echo '- Canonical health: verified'
-            echo '- Database migration rollback: not performed'
+            echo '- Database migration rollback: NOT PERFORMED'
+            echo '- Attendance Void application rollback precondition: zero session/event VOIDED rows verified before promotion'
           } >> "$GITHUB_STEP_SUMMARY"

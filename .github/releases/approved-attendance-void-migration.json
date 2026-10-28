@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "migration_id": "ATTENDANCE-VOID",
+  "manifest_state": "APPROVED_FOR_NON_PRODUCTION_EVIDENCE_ONLY",
+  "source_commit_sha": "a50f99618ea9545668ad10152947fa126c6fc533",
+  "source_tree_sha": "09bbaa8fd99ce8dd22e16212b93c0a2ee03964b5",
+  "current_production_source_sha": "83fa98c9e9cd19fc09e27b5ad106d3eee9551442",
+  "target_project_name": "sms-v3-staging",
+  "target_project_id": "prj_XwhNUOB2zLSPZ6UgQcfyOKBYJ75s",
+  "target_org_id": "team_nemCExHbZ8EAhSgsvefHPAEz",
+  "target_environment": "production",
+  "evidence_environment": "non-production-disposable-postgresql",
+  "canonical_url": "https://sms-v3-staging-ten.vercel.app",
+  "migration_policy": "ADDITIVE_ENUM_COLUMNS_CONSTRAINT_SWAP_PARTIAL_UNIQUE",
+  "migration_names": [
+    "202610220001_attendance_void_uat_reset",
+    "202610220002_attendance_void_schema",
+    "202610230001_attendance_session_history",
+    "202610230002_attendance_void_closed_state"
+  ],
+  "migration_paths": [
+    "prisma/migrations/202610220001_attendance_void_uat_reset/migration.sql",
+    "prisma/migrations/202610220002_attendance_void_schema/migration.sql",
+    "prisma/migrations/202610230001_attendance_session_history/migration.sql",
+    "prisma/migrations/202610230002_attendance_void_closed_state/migration.sql"
+  ],
+  "migration_checksums": {
+    "202610220001_attendance_void_uat_reset": "355ed9327f10da8f2b3e38810bbd3a397065d0f209ac912b6b672a1f6f7fde81",
+    "202610220002_attendance_void_schema": "5ceebfb2e579e8e992c85464b562d87f17c09d270be2c81a07f3a0d59d7687c8",
+    "202610230001_attendance_session_history": "d94a3772f9a271a1c17b2e0f7894c56b05fc540c091639c8c75474a93cfe12a7",
+    "202610230002_attendance_void_closed_state": "70d749b67f84d81089ddc17859575934226d499885fb4d261635c75a7288110b"
+  },
+  "prerequisite_migration": {
+    "name": "202610200001_attendance_selfie_policy",
+    "path": "prisma/migrations/202610200001_attendance_selfie_policy/migration.sql",
+    "sha256": "fe78d650a67a14d7adf5739be7194b3dbc2287dd98d6bf1d83ee831734b47231"
+  },
+  "preflight_evidence_run_id": null,
+  "data_mutation": false,
+  "data_backfill": false,
+  "application_deploy": false,
+  "destructive_rollback": false,
+  "rollback_policy": "FIX_FORWARD_OR_OWNER_APPROVED_PITR",
+  "app_rollback_precondition": "ZERO_VOIDED_ROWS",
+  "maintenance_window_required": true,
+  "production_dispatch_authorized": false,
+  "owner_action": "NON_PRODUCTION_EVIDENCE_ONLY_NO_PRODUCTION_ACTION",
+  "evidence_workflow_path": ".github/workflows/apply-approved-attendance-void-non-production-evidence.yml",
+  "evidence_verifier_path": "scripts/ci/attendance-void-evidence.js",
+  "evidence_status": "NOT_RUN"
+}
