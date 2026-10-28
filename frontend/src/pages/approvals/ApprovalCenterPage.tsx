@@ -676,7 +676,7 @@ export function ApprovalCenterPage({
                           </span>
                         </button>
                       </td>
-                      <td>
+                      <td className="approval-queue-type-cell" title={`รอมา ${pendingAge(item.ageHours)}`}>
                         <div className="approval-type-label">{typeLabel[item.type]}</div>
                         <span className={urgencyTone(item)}>
                           {urgencyText(item)}
@@ -686,7 +686,7 @@ export function ApprovalCenterPage({
                       <td className="approval-queue-submitted">
                         {fmt(item.submittedAt)}
                       </td>
-                      <td className="approval-queue-summary">
+                      <td className="approval-queue-summary" title={String(itemSummary(item) ?? '')}>
                         {itemSummary(item)}
                       </td>
                       <td><div className="approval-queue-row-actions">{renderDetailButton(item)}{renderReviewButton(item)}</div></td>

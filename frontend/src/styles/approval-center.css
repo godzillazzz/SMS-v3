@@ -124,3 +124,14 @@
 .approval-decision-panel__actions .approval-action-buttons{flex:1;justify-content:flex-start}
 .approval-decision-panel__actions .approval-action-button--approve{margin-left:auto}
 @media (max-width:560px){.approval-decision-panel{padding:16px}.approval-decision-panel__facts{grid-template-columns:1fr}.approval-decision-panel__actions{margin:auto -16px -16px;padding:12px 16px}}
+
+/* owner-single-row */
+/* Owner 2026-10-28: one line per request on desktop; sender role/age move to tooltips, buttons sit side by side. */
+@media(min-width:768px){
+.approval-queue-table td{white-space:nowrap;vertical-align:middle;padding:8px 12px}
+.approval-queue-table .approval-person-copy small{display:none}
+.approval-queue-type-cell{display:flex;align-items:center;gap:8px;flex-wrap:nowrap}
+.approval-queue-type-cell .approval-queue-age{display:inline;margin-top:0}
+.approval-queue-summary{max-width:260px;overflow:hidden;text-overflow:ellipsis}
+.approval-queue-row-actions{display:flex;flex-wrap:nowrap;justify-content:flex-end;gap:8px}
+}
