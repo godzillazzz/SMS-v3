@@ -214,7 +214,9 @@ describe('AttendanceDevicePage admin history presentation', () => {
 
     render(<AttendanceDevicePage token="test" role="ADMIN" />);
 
-    expect(await screen.findByText('ดูประวัติ (1)')).toBeTruthy();
+    expect(await screen.findByText('รายละเอียดอุปกรณ์และประวัติ (1)')).toBeTruthy();
+    expect(screen.getByText('อุปกรณ์ก่อนหน้า')).toBeTruthy();
+    expect(screen.getByText('กิจกรรมล่าสุด')).toBeTruthy();
   });
 });
 
