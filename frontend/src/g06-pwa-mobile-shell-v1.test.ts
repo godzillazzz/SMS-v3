@@ -71,7 +71,7 @@ describe('Attendance UX V4 Employee Mobile/PWA shell', () => {
 
   it('ships exactly the five approved employee shortcuts', () => {
     expect(index).toContain('rel="manifest" href="/manifest.webmanifest"');
-    expect(index).toContain('rel="apple-touch-icon" href="/apple-touch-icon.png"');
+    expect(index).toContain('rel="apple-touch-icon" href="/apple-touch-icon.png?v=2"');
     expect(manifest.display).toBe('standalone');
     expect(manifest.start_url).toBe('/?pwa=1&page=attendance');
     expect(manifest.shortcuts.map((item: { url: string }) => item.url)).toEqual([
@@ -94,8 +94,8 @@ describe('Attendance UX V4 Employee Mobile/PWA shell', () => {
   });
 
   it('refreshes installed-PWA manifest metadata across V6 upgrades and keeps browser theme color aligned', () => {
-    expect(sw).toContain("const CACHE_NAME = 'sms-pwa-shell-v6'");
-    expect(sw).not.toContain("const CACHE_NAME = 'sms-pwa-shell-v5'");
+    expect(sw).toContain("const CACHE_NAME = 'sms-pwa-shell-v7'");
+    expect(sw).not.toContain("const CACHE_NAME = 'sms-pwa-shell-v6'");
     expect(sw).toContain("if (url.pathname === '/manifest.webmanifest')");
     expect(sw).toContain("fetch(request)");
     expect(manifest.theme_color).toBe('#020813');

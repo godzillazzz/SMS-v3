@@ -240,13 +240,20 @@ test(`monthly roster remains usable at 375px with internal horizontal scroll and
 
   const grid = page.locator('.schedule-grid');
   const scroll = page.locator('.schedule-grid-scroll');
-  await expect(grid.locator('[data-label-type="manual"]')).toHaveCount(1);
-  await expect(grid.locator('[data-label-type="license-block"]')).toHaveText(['License Block', 'License Block']);
+  // Owner regression (2026-10-28): mobile portrait also shows only the shift code.
+  await expect(grid.locator('.schedule-time').first()).toBeHidden();
+  const manualLabel = grid.locator('[data-label-type="manual"]');
+  await expect(manualLabel).toHaveCount(1);
+  await expect(manualLabel).toHaveCSS('font-size', '0px');
+  const licenseLabels = grid.locator('[data-label-type="license-block"]');
+  await expect(licenseLabels).toHaveCount(2);
+  await expect(licenseLabels.first()).toHaveCSS('font-size', '0px');
+  await expect(licenseLabels.first()).toHaveCSS('background-color', 'rgb(220, 38, 38)');
   const overrideLabel = grid.locator('[data-label-type="override"]');
-  await expect(overrideLabel).toHaveText('OVERRIDE ⚡');
+  await expect(overrideLabel).toHaveCount(1);
+  await expect(overrideLabel).toHaveCSS('font-size', '0px');
   await expect(overrideLabel.locator('svg')).toHaveCount(0);
   await expect(grid.locator('.shift-note[data-label-type]')).toHaveCount(4);
-  await expect(grid.locator('[data-label-type="license-block"]').first()).toHaveCSS('color', theme === 'light' ? 'rgb(185, 28, 28)' : 'rgb(220, 38, 38)');
   await expect(page.getByRole('button', { name: 'แสดงเวลา' })).toHaveCount(0);
   await expect(grid.locator('thead th.today')).toHaveCount(1);
   const dateHeader = grid.locator('thead th').nth(1);

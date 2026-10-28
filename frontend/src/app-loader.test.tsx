@@ -17,7 +17,7 @@ describe('T32 accessible loading and offline brand',()=>{
   it('pre-caches all brand variants under the current brand cache revision and leaves API and cross-origin requests alone',async()=>{
     const handlers:Record<string,(event:any)=>void>={};let cached:string[]=[];
     const worker=readFileSync(new URL('../public/sw.js',import.meta.url),'utf8');
-    expect(worker).toContain("const CACHE_NAME = 'sms-pwa-shell-v6'");
+    expect(worker).toContain("const CACHE_NAME = 'sms-pwa-shell-v7'");
     for(const tone of ['','-dark']) expect(worker).toContain(`/brand/sms-logo-horizontal${tone}.webp`);
     runInNewContext(worker,{
       URL,self:{location:{origin:'https://fixture.test'},skipWaiting(){},addEventListener:(name:string,handler:any)=>handlers[name]=handler},

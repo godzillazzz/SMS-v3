@@ -1,7 +1,6 @@
 /* Owner issue 10 (2026-10-28): the monthly roster fits the whole month. Cells show only the shift code;
    the time stays in the cell tooltip, and lock/manual/override/licence markers sit in the corners. */
-@media (min-width: 1025px) {
-  /* schedule-rule-panel.css loads later with equal specificity; doubled classes keep the compact widths. */
+/* schedule-rule-panel.css loads later with equal specificity; doubled classes keep the compact widths. */
   #sms-app .schedule-grid.schedule-grid :is(th, td):not(.employee-sticky):not(:first-child) { width: 28px !important; min-width: 28px !important; max-width: 28px; padding: 2px 1px !important; }
   #sms-app .schedule-grid.schedule-grid :is(.employee-sticky, th:first-child, td:first-child) { width: 130px !important; min-width: 130px !important; max-width: 150px !important; }
   #sms-app .schedule-grid.schedule-grid :is(.calendar-shift, .empty-shift) { width: 26px !important; min-width: 0 !important; max-width: 26px; }
@@ -16,7 +15,6 @@
   #sms-app .schedule-grid .calendar-shift [data-label-type="override"] { background: #2563eb; }
   #sms-app .schedule-grid .calendar-shift [data-label-type="license-block"] { background: #dc2626; }
   #sms-app .schedule-grid .calendar-shift .shift-note:not([data-label-type]):not(.schedule-lock-marker) { display: none !important; }
-}
 
 #sms-app .schedule-legend { display: grid; gap: 10px; margin-top: 12px; padding: 14px 16px; border: 1px solid var(--color-border); border-radius: 10px; background: var(--color-surface); font-size: 12.5px; }
 #sms-app .schedule-legend > div { display: grid; grid-template-columns: 96px repeat(auto-fill, minmax(230px, 1fr)); align-items: center; gap: 6px 18px; }
