@@ -15,6 +15,7 @@ import {
   licenseValidityLabel,
   LicenseDocument,
   licenseDocumentStatusLabel,
+  normalizeLicenseDisplayFileName,
   sanitizeLicenseDocumentError,
   selectLicenseDocumentForTable,
   selectLicenseDocumentSummary,
@@ -99,13 +100,14 @@ export function LicenseDocumentViewerModal({ documentId, onRequestView, onClose 
     onRequestView(documentId).then((result) => { if (active) setViewer(result); }).catch((reason) => { if (active) setError(licenseRequestError(reason)); });
     return () => { active = false; setViewer(undefined); };
   }, [attempt, documentId, onRequestView]);
+  const fileName = viewer ? normalizeLicenseDisplayFileName(viewer.fileName) : 'กำลังเปิดเอกสาร…';
   return <ModalFrame labelledBy="license-viewer-title" className="license-viewer-dialog" onClose={onClose}>
-    <header className="license-modal-heading"><div><p>ตัวอย่างเอกสารใบอนุญาต</p><h2 id="license-viewer-title">{viewer?.fileName || 'กำลังเปิดเอกสาร…'}</h2></div></header>
+    <header className="license-modal-heading"><div><p>ตัวอย่างเอกสารใบอนุญาต</p><h2 id="license-viewer-title">{fileName}</h2></div></header>
     {!viewer && !error && <div className="license-modal-state" role="status">กำลังขอลิงก์สำหรับดูเอกสาร…</div>}
     {error && <div className="license-modal-error" role="alert"><RequestErrorContent error={error} /><button type="button" className="btn-neutral compact" onClick={() => setAttempt((value) => value + 1)}>ลองเปิดใหม่</button></div>}
-    {viewer && <div className="license-viewer-actions"><a className="btn-neutral compact" href={viewer.url} target="_blank" rel="noreferrer">เปิดเอกสารในหน้าต่างใหม่</a><a className="btn-primary compact" href={viewer.url} download={viewer.fileName}>ดาวน์โหลดเอกสาร</a><button type="button" className="btn-neutral compact" onClick={() => setAttempt((value) => value + 1)}>ลองเปิดใหม่</button></div>}
-    {viewer?.mimeType === 'application/pdf' && <iframe className="license-pdf-viewer" title={viewer.fileName} src={viewer.url} />}
-    {viewer && ['image/jpeg', 'image/png'].includes(viewer.mimeType) && <div className="license-image-stage"><img src={viewer.url} alt={viewer.fileName} /></div>}
+    {viewer && <div className="license-viewer-actions"><a className="btn-neutral compact" href={viewer.url} target="_blank" rel="noreferrer">เปิดเอกสารในหน้าต่างใหม่</a><a className="btn-primary compact" href={viewer.url} download={fileName}>ดาวน์โหลดเอกสาร</a><button type="button" className="btn-neutral compact" onClick={() => setAttempt((value) => value + 1)}>ลองเปิดใหม่</button></div>}
+    {viewer?.mimeType === 'application/pdf' && <iframe className="license-pdf-viewer" title={fileName} src={viewer.url} />}
+    {viewer && ['image/jpeg', 'image/png'].includes(viewer.mimeType) && <div className="license-image-stage"><img src={viewer.url} alt={fileName} /></div>}
     {viewer && viewer.mimeType !== 'application/pdf' && !['image/jpeg', 'image/png'].includes(viewer.mimeType) && <div className="license-modal-error" role="alert">ไม่รองรับชนิดไฟล์นี้สำหรับการแสดงผล</div>}
   </ModalFrame>;
 }

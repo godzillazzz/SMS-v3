@@ -7,6 +7,7 @@ import {
   LicenseDocument,
   licenseValidityLabel,
   licenseDocumentStatusLabel,
+  normalizeLicenseDisplayFileName,
   sanitizeLicenseDocumentError,
   licenseTableStatus,
   selectLicenseDocumentForTable,
@@ -153,6 +154,14 @@ describe('license document table state', () => {
     expect(componentSource).toContain('services.permanentlyDelete(document.id)');
     expect(componentSource).toContain('ลบรายการและไฟล์ถาวรแล้ว');
     expect(componentSource).toContain('isAdmin && canPermanentlyDeleteDocument');
+  });
+});
+
+describe('license document filename presentation', () => {
+  it('repairs UTF-8 Thai filename mojibake without altering ordinary filenames', () => {
+    expect(normalizeLicenseDisplayFileName('à¸£à¸²à¸¢à¸‡à¸²à¸™.pdf')).toBe('รายงาน.pdf');
+    expect(normalizeLicenseDisplayFileName('license.pdf')).toBe('license.pdf');
+    expect(normalizeLicenseDisplayFileName('')).toBe('เอกสารใบอนุญาต');
   });
 });
 
