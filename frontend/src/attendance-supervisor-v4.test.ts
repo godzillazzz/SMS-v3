@@ -78,12 +78,18 @@ describe('Attendance Supervisor UX V4', () => {
     expect(page).toContain("import { printDocument } from '../../schedule-print'");
     expect(page).toContain('รายงานวันนี้');
     expect(page).toContain('พิมพ์ทั้งหมด');
-    expect(page).toContain('พิมพ์รายบุคคล');
+    expect(page).toContain("mode === 'daily' && <button type=\"button\" className=\"attendance-supervisor-v4__detail-btn\" onClick={() => void printAttendance(row.employeeId)} aria-label={`พิมพ์รายบุคคล ${row.employeeName}`}>พิมพ์รายบุคคล</button>");
     expect(page).toContain("printDocument('.attendance-supervisor-print'");
     expect(page).toContain('attendance-supervisor-print-page');
     expect(page).toContain('rows.filter((item) => item.employeeId === employeeId)');
     expect(page).toContain('หนึ่งคนต่อหนึ่งแผ่น');
     expect(page).not.toContain("printDocument('.attendance-supervisor-print', 'Attendance'");
+  });
+
+  it('restricts per-employee printing exclusively to daily mode and hides it in history mode (UX-737-M1)', () => {
+    expect(page).toContain("if (mode !== 'daily' || !rows.length) return;");
+    expect(page).toContain("{mode === 'daily' && <button type=\"button\" className=\"attendance-supervisor-v4__detail-btn\" onClick={() => void printAttendance(row.employeeId)} aria-label={`พิมพ์รายบุคคล ${row.employeeName}`}>พิมพ์รายบุคคล</button>}");
+    expect(page).toContain("{mode === 'daily' && <AttendanceSupervisorPrint rows={rows} date={date} employeeId={printEmployeeId || undefined} />}");
   });
 
   it('implements approved dashboard filters and KPI/read-model fields', () => {

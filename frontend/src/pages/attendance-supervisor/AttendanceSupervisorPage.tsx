@@ -1038,7 +1038,7 @@ export function AttendanceSupervisorPage({ token, role, department, employeeAuth
             </td>
             <td>
               <div className="attendance-supervisor-v4__row-actions">
-                <button type="button" className="attendance-supervisor-v4__detail-btn" onClick={() => void printAttendance(row.employeeId)} aria-label={`พิมพ์รายบุคคล ${row.employeeName}`}>พิมพ์รายบุคคล</button>
+                {mode === 'daily' && <button type="button" className="attendance-supervisor-v4__detail-btn" onClick={() => void printAttendance(row.employeeId)} aria-label={`พิมพ์รายบุคคล ${row.employeeName}`}>พิมพ์รายบุคคล</button>}
                 <button type="button" className="attendance-supervisor-v4__onbehalf-btn" onClick={() => openRowAdjustment(row)} aria-label={`ลงเวลาแทน ${row.employeeName}`}>ลงเวลาแทน</button>
                 <button type="button" className="attendance-supervisor-v4__detail-btn" onClick={() => void openDetail(row.assignmentId)} aria-label={`ดูรายละเอียด Attendance ของ ${row.employeeName}`}>ดูรายละเอียด</button>
               </div>
