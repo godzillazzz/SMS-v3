@@ -182,7 +182,7 @@ function itemSummary(item: ApprovalCenterItem) {
     values.push(meta(item, 'deviceName'));
     values.push(meta(item, 'reason'));
   } else if (item.type === 'ATTENDANCE_ADJUSTMENT_REQUEST') {
-    values.push(meta(item, 'workDate'));
+    values.push(displayLeaveDate(meta(item, 'workDate')));
     values.push(meta(item, 'reason'));
   } else if (item.type === 'LICENSE_DOCUMENT') {
     values.push(meta(item, 'licenseType'));
@@ -752,7 +752,7 @@ export function ApprovalCenterPage({
                   </div>
                 </dl>
               </button>
-              <div className="approval-mobile-card-actions">{renderDetailButton(item)}{renderReviewButton(item, true)}</div>
+              <div className="approval-mobile-card-actions">{renderReviewButton(item, true)}</div>
             </article>) : <div className="approval-queue-empty">
               <SmsIcon name="check" size={30} className="approval-queue-empty-icon" />
               <strong className="approval-queue-empty-title">ไม่มีคำขอในตัวกรองนี้</strong>

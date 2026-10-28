@@ -28,11 +28,13 @@ async function signIn(page: Page, width: number) {
   await page.locator('#email').fill('admin@example.test');
   await page.locator('#password').fill('fixture-password');
   await page.locator('#auth-login-form button[type="submit"]').click();
-  if (width < 760) {
-    await page.getByRole('button', { name: 'เปิดเมนูหลัก' }).click();
-  }
-  await page.locator('[data-navigation-id="approvalCenter"]').click();
+  await page.goto('/app/approvals');
   await expect(page.locator('.approval-center-page')).toBeVisible({ timeout: readinessTimeout() });
+  if (width < 760) {
+    const mobileQueue = page.locator('.approval-queue-mobile');
+    await expect(mobileQueue.getByText('26 ต.ค. 2569 · ทดสอบ', { exact: true })).toBeVisible();
+    await expect(mobileQueue.getByRole('button', { name: 'ดูรายละเอียด' })).toHaveCount(0);
+  }
 }
 
 test('mobile decision panel shows attendance facts inline and omits the detail action', async ({ page }, testInfo) => {

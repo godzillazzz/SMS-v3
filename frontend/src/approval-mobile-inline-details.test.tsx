@@ -61,6 +61,8 @@ describe('mobile approval panel includes attendance details inline', () => {
   it('keeps detail buttons in desktop markup but hides the panel detail button only on mobile', async () => {
     const { container } = renderPage();
     await waitFor(() => expect(container.querySelectorAll('.approval-queue-desktop .approval-detail-button').length).toBe(1));
+    expect(container.querySelectorAll('.approval-queue-mobile .approval-detail-button')).toHaveLength(0);
+    expect(within(container.querySelector('.approval-queue-mobile') as HTMLElement).getByText('26 ต.ค. 2569 · ทดสอบ')).toBeTruthy();
     fireEvent.click(await within(container.querySelector('.approval-queue-mobile') as HTMLElement).findByRole('button', { name: 'พิจารณา' }));
     const panel = await screen.findByRole('complementary');
     const panelDetail = within(panel).getByRole('button', { name: 'ดูรายละเอียด' });
