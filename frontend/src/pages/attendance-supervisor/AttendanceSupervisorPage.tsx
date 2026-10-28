@@ -30,6 +30,7 @@ import {
 import { DataTablePagination, DataTableSkeletonCards, DataTableSkeletonRows, DataTableState, ResponsiveDataTable } from '../../components/ResponsiveDataTable';
 import { printDocument } from '../../schedule-print';
 import './attendance-supervisor-v4.css';
+import { avatarTone } from '../../avatar';
 
 type Props = {
   token: string;
@@ -466,6 +467,10 @@ function AttendanceMobileCard({
   </article>;
 }
 
+function initials(name: string) {
+  return String(name || '').trim().split(/\s+/).filter(Boolean).map((part) => part.replace(/^[เแโใไ]+/, '').charAt(0)).join('').slice(0, 2) || '—';
+}
+
 export function AttendanceSupervisorPage({ token, role, department, employeeAuthorityId, userId, onOpenAttendanceReport, desktopWeb = false, initialRequestId, onInitialRequestHandled, onApprovalQueueChanged }: Props) {
   const chainStart = Math.max(0, APPROVAL_CHAIN.findIndex((step) => step.role === role));
   const today = bangkokDateText();
@@ -500,6 +505,8 @@ export function AttendanceSupervisorPage({ token, role, department, employeeAuth
   const [filtersLoading, setFiltersLoading] = useState(false);
   const [error, setError] = useState<string>();
   const [detail, setDetail] = useState<DetailData>();
+  // Owner issue 8 (2026-10-28): the row opens its details; on-behalf and print live at the bottom of that dialog.
+  const [detailRow, setDetailRow] = useState<AttendanceRow>();
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailRequests, setDetailRequests] = useState<AttendanceAdjustmentRequest[]>([]);
   const [voidDialog, setVoidDialog] = useState<VoidDialog>();
@@ -1011,9 +1018,10 @@ export function AttendanceSupervisorPage({ token, role, department, employeeAuth
           <tr key={row.assignmentId}>
             {mode === 'history' && <td>{row.date}</td>}
             <td>
-              <strong>{row.employeeCode || '—'}</strong>
-              <small>{row.employeeName}</small>
-              <small>{row.department || '—'}</small>
+              <span className="attendance-supervisor-v4__identity">
+                <span className="personnel-avatar" aria-hidden="true" data-avatar-tone={avatarTone(row.employeeCode || row.employeeId)}>{initials(row.employeeName)}</span>
+                <span><strong>{row.employeeName}</strong><small>{[row.employeeCode, row.department].filter(Boolean).join(' · ') || '—'}</small></span>
+              </span>
             </td>
             <td>{row.shift.code || row.shift.name || '—'}</td>
             <td>{scheduledWindow(row)}</td>
@@ -1038,9 +1046,7 @@ export function AttendanceSupervisorPage({ token, role, department, employeeAuth
             </td>
             <td>
               <div className="attendance-supervisor-v4__row-actions">
-                {mode === 'daily' && <button type="button" className="attendance-supervisor-v4__detail-btn" onClick={() => void printAttendance(row.employeeId)} aria-label={`พิมพ์รายบุคคล ${row.employeeName}`}>พิมพ์รายบุคคล</button>}
-                <button type="button" className="attendance-supervisor-v4__onbehalf-btn" onClick={() => openRowAdjustment(row)} aria-label={`ลงเวลาแทน ${row.employeeName}`}>ลงเวลาแทน</button>
-                <button type="button" className="attendance-supervisor-v4__detail-btn" onClick={() => void openDetail(row.assignmentId)} aria-label={`ดูรายละเอียด Attendance ของ ${row.employeeName}`}>ดูรายละเอียด</button>
+                <button type="button" className="sms-edit-button attendance-supervisor-v4__open-btn" title="แก้ไข" aria-label={`แก้ไข ${row.employeeName}`} onClick={() => { setDetailRow(row); void openDetail(row.assignmentId); }}><SmsIcon name="edit" size={18} /></button>
               </div>
             </td>
           </tr>
@@ -1490,6 +1496,10 @@ export function AttendanceSupervisorPage({ token, role, department, employeeAuth
               </small>
             </section>
           </>}
+          {detail && detailRow && <footer className="attendance-supervisor-v4__drawer-footer">
+            {mode === 'daily' && <button type="button" className="btn-neutral" onClick={() => void printAttendance(detailRow.employeeId)}><SmsIcon name="report" size={16} />พิมพ์รายบุคคล</button>}
+            <button type="button" className="btn-primary" onClick={() => { const row = detailRow; setDetail(undefined); openRowAdjustment(row); }}><SmsIcon name="clock" size={16} />ลงเวลาแทน</button>
+          </footer>}
         </aside>
       </div>
     )}
