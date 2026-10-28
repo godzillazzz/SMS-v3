@@ -98,7 +98,7 @@ export function LicenseDocumentViewerModal({ documentId, onRequestView, onClose 
     setViewer(undefined);
     setError(undefined);
     onRequestView(documentId).then((result) => { if (active) setViewer(result); }).catch((reason) => { if (active) setError(licenseRequestError(reason)); });
-    return () => { active = false; setViewer(undefined); };
+    return () => { active = false; setViewer((current) => { if (current?.url?.startsWith('blob:')) URL.revokeObjectURL(current.url); return undefined; }); };
   }, [attempt, documentId, onRequestView]);
   const fileName = viewer ? normalizeLicenseDisplayFileName(viewer.fileName) : 'กำลังเปิดเอกสาร…';
   return <ModalFrame labelledBy="license-viewer-title" className="license-viewer-dialog" onClose={onClose}>

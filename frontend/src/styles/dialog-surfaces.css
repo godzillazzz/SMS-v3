@@ -1,0 +1,50 @@
+/* Owner issues 4-6 (2026-10-28): dialogs, drawers and modals stay readable in light and dark.
+   Many dialogs render in a portal directly under <body>, outside the scopes that define the light
+   theme tokens, so var(--color-*) there resolves to the dark defaults. Colours below are literal
+   per theme. Status badges, banners and alerts keep their own palettes. Loaded last. */
+[data-theme="light"] :is([role="dialog"], [role="alertdialog"], .employee-governed-modal, .employee-review-modal, .signature-record-drawer) {
+  --dlg-text: #172033; --dlg-text-2: #475569; --dlg-surface: #ffffff; --dlg-muted: #f8fafc; --dlg-border: #e2e8f0;
+}
+[data-theme="dark"] :is([role="dialog"], [role="alertdialog"], .employee-governed-modal, .employee-review-modal, .signature-record-drawer) {
+  --dlg-text: #e5edf7; --dlg-text-2: #b6c2d2; --dlg-surface: #111a2b; --dlg-muted: #17233a; --dlg-border: #2b3a52;
+}
+:is([data-theme="light"], [data-theme="dark"]) :is([role="dialog"], [role="alertdialog"], .employee-governed-modal, .employee-review-modal, .signature-record-drawer) {
+  color: var(--dlg-text) !important;
+}
+
+/* The governed edit and change-review modals hard-code white panels and inherit dark-theme text. */
+:is([data-theme="light"], [data-theme="dark"]) :is(.employee-governed-modal, .employee-review-modal) {
+  background: var(--dlg-surface) !important;
+  border-color: var(--dlg-border) !important;
+}
+:is([data-theme="light"], [data-theme="dark"]) :is(.employee-governed-modal, .employee-review-modal) :is(header, footer, section, aside, .employee-governed-section, .employee-governed-actions, .employee-impact, .employee-governed-body, .employee-governed-empty, .employee-critical-empty, .employee-critical-before-after, .employee-revision-list article, .employee-review-queue, [class*="__panel"], [class*="-panel"], [class*="-list"]):not([class*="banner"]):not([class*="alert"]) {
+  background: var(--dlg-surface) !important;
+  border-color: var(--dlg-border) !important;
+}
+:is([data-theme="light"], [data-theme="dark"]) :is(.employee-governed-modal, .employee-review-modal) :is(h1, h2, h3, h4, strong, b, label, dt, dd, th, td, li, span):not([class*="badge"]):not([class*="pill"]):not([class*="status"]):not(button):not(button *):not([class*="banner"] *):not([class*="alert"] *) {
+  color: var(--dlg-text) !important;
+}
+:is([data-theme="light"], [data-theme="dark"]) :is(.employee-governed-modal, .employee-review-modal) :is(p, small, .reference-photo-policy, [class*="hint"], [class*="note"], [class*="empty"]):not([class*="banner"] *):not([class*="alert"] *):not([class*="alert"]):not(button *) {
+  color: var(--dlg-text-2) !important;
+}
+:is([data-theme="light"], [data-theme="dark"]) :is(.employee-governed-modal, .employee-review-modal) :is(input, select, textarea) {
+  border-color: var(--dlg-border) !important;
+  background: var(--dlg-muted) !important;
+  color: var(--dlg-text) !important;
+}
+
+/* Secondary buttons and icon-only close buttons ("ปิด…") never take the panel colour. */
+:is([data-theme="light"], [data-theme="dark"]) :is([role="dialog"], [role="alertdialog"], .employee-governed-modal, .employee-review-modal) :is(.btn-neutral, .btn-secondary, .small-action, .employee-change-action-grid button, .employee-change-action-grid button *) {
+  border-color: var(--dlg-border) !important;
+  background: var(--dlg-surface) !important;
+  color: var(--dlg-text) !important;
+}
+:is([data-theme="light"], [data-theme="dark"]) :is([role="dialog"], [role="alertdialog"], .employee-governed-modal, .employee-review-modal, .signature-record-drawer) button[aria-label^="ปิด"] {
+  border-color: var(--dlg-border) !important;
+  background: var(--dlg-surface) !important;
+  color: var(--dlg-text-2) !important;
+}
+:is([data-theme="light"], [data-theme="dark"]) :is([role="dialog"], [role="alertdialog"], .employee-governed-modal, .employee-review-modal, .signature-record-drawer) button[aria-label^="ปิด"]:hover:not(:disabled) {
+  background: var(--dlg-muted) !important;
+  color: var(--dlg-text) !important;
+}

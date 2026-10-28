@@ -189,7 +189,7 @@ describe('license document viewer and review', () => {
     expect(componentSource).toContain('เปิดเอกสารในหน้าต่างใหม่');
     expect(componentSource).toContain('ดาวน์โหลดเอกสาร');
     expect(componentSource).toContain('ลองเปิดใหม่');
-    expect(componentSource).toContain('return () => { active = false; setViewer(undefined); }');
+    expect(componentSource).toContain("return () => { active = false; setViewer((current) => { if (current?.url?.startsWith('blob:')) URL.revokeObjectURL(current.url); return undefined; }); };");
     expect(componentSource).not.toContain('localStorage');
     expect(componentSource).not.toContain('sessionStorage');
     expect(componentSource).not.toContain('console.log');
