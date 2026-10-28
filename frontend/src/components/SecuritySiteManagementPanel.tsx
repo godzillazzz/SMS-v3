@@ -3,6 +3,7 @@ import { api } from '../api';
 import { formatRequestErrorMessage } from '../request-error';
 import { securitySiteOperations } from './security-site-operations-client';
 const SecuritySiteMapPicker = lazy(() => import('./SecuritySiteMapPicker').then((module) => ({ default: module.SecuritySiteMapPicker })));
+import { SecuritySiteListView } from './SecuritySiteListView';
 import { useActionDialog } from './useActionDialog';
 import { formatThaiDateTime } from '../thai-date-time';
 import { PageHeader, SectionCard } from './layout';
@@ -114,6 +115,7 @@ export function SecuritySiteManagementPanel({ token }: { token: string }) {
   const [deactivationReason, setDeactivationReason] = useState('');
   const [pendingDestructiveAction, setPendingDestructiveAction] = useState<DestructiveAction | null>(null);
   const [intelligenceOpen, setIntelligenceOpen] = useState(true);
+  const [view, setView] = useState<'list' | 'detail'>('list');
 
   useEffect(() => {
     if (!pendingDestructiveAction) return;
@@ -151,6 +153,8 @@ export function SecuritySiteManagementPanel({ token }: { token: string }) {
     setNotice(undefined);
     setDeactivationReason('');
   };
+
+  const openSite = (site: SecuritySite | null) => { applySite(site); setView('detail'); window.scrollTo({ top: 0 }); };
 
   const applyMapping = (mapping: DepartmentMapping | null) => {
     setSelectedDepartmentId(mapping?.departmentMasterId || '');
@@ -389,7 +393,11 @@ export function SecuritySiteManagementPanel({ token }: { token: string }) {
   };
 
   return <><section className="security-site-admin security-site-admin--layout layout-page-surface" aria-label="จัดการจุดรักษาความปลอดภัย">
-    <PageHeader kicker="ผู้ดูแลระบบ · สถานที่ลงเวลา" title="จุดรักษาความปลอดภัยและรหัส QR" description="กำหนด Site, Geofence, ความสัมพันธ์กับแผนก และ Default/Home Site โดยไม่ผูก Site ถาวรกับพนักงาน" actions={<button type="button" className="btn-neutral" disabled={loading || saving} onClick={() => void reload()}><SmsIcon name="refresh" size={16} />รีเฟรช</button>} className="security-site-page-header" />
+    <PageHeader kicker="ผู้ดูแลระบบ · สถานที่ลงเวลา" title="จุดรักษาความปลอดภัยและรหัส QR" description="กำหนด Site, Geofence, ความสัมพันธ์กับแผนก และ Default/Home Site โดยไม่ผูก Site ถาวรกับพนักงาน" actions={<>{view === 'detail' && <button type="button" className="btn-neutral security-site-back" disabled={saving} onClick={() => setView('list')}>‹ กลับไปรายการ</button>}<button type="button" className="btn-neutral" disabled={loading || saving} onClick={() => void reload()}><SmsIcon name="refresh" size={16} />รีเฟรช</button>{view === 'list' && <button type="button" className="btn-primary" disabled={loading || saving} onClick={() => openSite(null)}><SmsIcon name="plus" size={16} />เพิ่มบริเวณ</button>}</>} className="security-site-page-header" />
+    {view === 'list' ? <>
+      {error && <div className="alert alert-error" role="alert">{error}</div>}
+      <SecuritySiteListView sites={sites} overlaps={overlaps} loading={loading} onOpen={openSite} />
+    </> : <>
 
     <SectionCard kicker="ลำดับอ้างอิง" title="แหล่งกำหนด Site สำหรับลงเวลา" description="ระบบใช้ลำดับนี้และหยุดเมื่อไม่มีข้อมูลที่อนุญาต ห้ามเดา Site" className="security-site-authority-card">
       <div className="security-site-authority-rule"><strong>ลำดับ Site</strong><span>1. Schedule Site override</span><span>2. Department Default Site</span><span>3. BLOCK — ไม่เดา Site</span></div>
@@ -510,6 +518,8 @@ export function SecuritySiteManagementPanel({ token }: { token: string }) {
         </> : <div className="security-site-map-empty">เลือก Site ก่อนจัดการ QR lifecycle</div>}
       </SectionCard>
     </div>
+
+    </>}
 
     {pendingDestructiveAction && selectedSite && <div className="security-site-confirm-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !saving) setPendingDestructiveAction(null); }}>
       <section className="security-site-confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="security-site-confirm-title" aria-describedby="security-site-confirm-detail">
