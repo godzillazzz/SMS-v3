@@ -1,0 +1,51 @@
+/* Leave Type Master in the HR-PRO table style (owner request 2026-10-28). */
+.leave-type-master-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 16px; }
+.leave-type-master-head h2 { margin: 0; color: var(--color-text); font-size: 20px; font-weight: 700; }
+.leave-type-master-head p { margin: 4px 0 0; color: var(--color-text-secondary); font-size: 13.5px; }
+.leave-type-master-head__actions { display: flex; flex: 0 0 auto; align-items: center; gap: 8px; }
+.leave-type-master-head__actions .btn-primary { display: inline-flex; align-items: center; gap: 6px; }
+
+.leave-type-data-table th { color: var(--color-text-muted); font-size: 12.5px; font-weight: 500; }
+.leave-type-data-table td { vertical-align: middle; }
+.leave-type-name-cell { display: grid; justify-items: start; gap: 4px; }
+.leave-type-name-cell small { color: var(--color-text-muted); font-size: 12px; }
+.leave-type-code, .leave-type-kind { color: var(--color-text-muted); }
+
+.leave-type-chip, .leave-type-status, .leave-type-bucket { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; line-height: 1.5; white-space: nowrap; }
+.leave-type-chip::before, .leave-type-status::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.leave-type-chip--sick { background: #fde8e8; color: #b42318; }
+.leave-type-chip--personal { background: #e0f2fe; color: #0369a1; }
+.leave-type-chip--vacation { background: #dcfce7; color: #15803d; }
+.leave-type-chip--none { background: #f1f5f9; color: #475569; }
+.leave-type-bucket--quota { background: #ecfdf3; color: #15803d; }
+.leave-type-bucket--none { background: #f1f5f9; color: #475569; }
+.leave-type-status.is-active { background: #ecfdf3; color: #15803d; }
+.leave-type-status.is-inactive { background: #f1f5f9; color: #64748b; }
+[data-theme="dark"] .leave-type-chip--sick { background: rgba(248, 113, 113, .16); color: #fca5a5; }
+[data-theme="dark"] .leave-type-chip--personal { background: rgba(56, 189, 248, .16); color: #7dd3fc; }
+[data-theme="dark"] :is(.leave-type-chip--vacation, .leave-type-bucket--quota, .leave-type-status.is-active) { background: rgba(74, 222, 128, .14); color: #86efac; }
+[data-theme="dark"] :is(.leave-type-chip--none, .leave-type-bucket--none, .leave-type-status.is-inactive) { background: rgba(148, 163, 184, .14); color: #cbd5e1; }
+
+.leave-type-row-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.leave-type-icon-button { display: inline-grid; place-items: center; width: 34px; height: 34px; min-height: 34px; padding: 0; border: 1px solid transparent; border-radius: 7px; background: transparent; color: var(--color-text-secondary); cursor: pointer; }
+.leave-type-icon-button:hover:not(:disabled) { border-color: var(--color-border); background: var(--color-surface-muted); color: var(--color-text); }
+.leave-type-icon-button.is-danger { background: #b42318; color: #fff; }
+.leave-type-icon-button.is-danger:hover:not(:disabled) { background: #912018; color: #fff; }
+.leave-type-icon-button.is-success { border-color: var(--color-border); color: #15803d; }
+.leave-type-icon-button:disabled { opacity: .5; cursor: not-allowed; }
+.leave-type-count { margin: 0; padding: 14px 16px 4px; color: var(--color-text-muted); font-size: 12.5px; }
+.leave-type-policy-note { margin: 14px 0 0; color: var(--color-text-muted); font-size: 12.5px; }
+
+.leave-type-dialog-backdrop { position: fixed; inset: 0; z-index: 1000; display: grid; place-items: center; padding: 16px; background: rgba(15, 23, 42, .45); }
+.leave-type-dialog { width: min(480px, 100%); max-height: calc(100dvh - 32px); overflow: auto; border: 1px solid var(--color-border); border-radius: 10px; background: var(--color-surface-elevated, var(--color-surface)); color: var(--color-text); box-shadow: var(--shadow-lg); }
+.leave-type-dialog > header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 18px; border-bottom: 1px solid var(--color-border); }
+.leave-type-dialog h3 { margin: 0; font-size: 16px; font-weight: 700; }
+.leave-type-dialog form { display: grid; gap: 14px; padding: 18px; }
+.leave-type-dialog__fields { display: grid; gap: 14px; }
+.leave-type-dialog form > footer { display: flex; justify-content: flex-end; gap: 8px; }
+
+@media (max-width: 640px) {
+  .leave-type-master-head { flex-direction: column; }
+  .leave-type-master-head__actions { width: 100%; }
+  .leave-type-master-head__actions .btn-primary { flex: 1; justify-content: center; }
+}
