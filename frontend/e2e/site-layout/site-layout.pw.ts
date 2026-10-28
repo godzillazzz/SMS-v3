@@ -25,6 +25,8 @@ for(const theme of ['light','dark'])for(const viewport of [{width:1366,height:76
  await page.goto('/app/sites');await expect(page.locator('.nexus-public #auth-login-form')).toBeVisible();
  await page.locator('#email').fill('site@example.test');await page.locator('#password').fill('synthetic-site-password');await page.locator('#auth-login-form button[type=submit]').click();
  const root=page.locator('.security-site-admin--layout');await expect(root).toBeVisible({timeout:20_000});
+ // The page opens on the site list (#740); the status strip lives in the detail view.
+ await root.getByRole('button',{name:'แก้ไข AN1'}).click();
  await expect(root.locator('.nexus-gis-status-strip b').first()).toHaveText('2');
  const metrics=await root.evaluate(el=>({
   // Light Mode must not show Command Nexus dark fills, including the gaps between status cards.
