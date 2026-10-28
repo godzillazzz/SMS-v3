@@ -135,3 +135,6 @@
 .approval-queue-summary{max-width:260px;overflow:hidden;text-overflow:ellipsis}
 .approval-queue-row-actions{display:flex;flex-wrap:nowrap;justify-content:flex-end;gap:8px}
 }
+
+/* Owner 2026-10-28: mobile decision panels carry all queue facts inline; the desktop detail action remains unchanged. */
+@media(max-width:760px){.approval-decision-panel__detail{display:none!important}.approval-decision-panel__actions .approval-action-buttons{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));width:100%}.approval-decision-panel__actions .approval-action-button{min-width:0;width:100%;margin:0}}

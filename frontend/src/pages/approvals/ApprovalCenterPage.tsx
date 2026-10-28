@@ -100,7 +100,12 @@ function panelFacts(item: ApprovalCenterItem): Array<[string, unknown]> {
     facts.push(['จำนวนวัน', meta(item, 'dayCount') ? `${text(meta(item, 'dayCount'))} วัน` : null]);
     facts.push(['ผู้ปฏิบัติแทน', meta(item, 'substitute')]);
   } else if (item.type === 'ATTENDANCE_ADJUSTMENT_REQUEST') {
-    facts.push(['วันที่ทำงาน', meta(item, 'workDate')]);
+    facts.push(['วันที่ทำงาน', displayLeaveDate(meta(item, 'workDate'))]);
+    facts.push(['ประเภทคำขอ', String(meta(item, 'requestType') || '') === 'ADJUST_WORK_TIME' ? 'แก้ไขเวลาเข้างาน / ออกงาน' : 'ยืนยันการมาปฏิบัติงาน']);
+    facts.push(['ฉบับคำขอ', meta(item, 'revision') ? `ฉบับที่ ${text(meta(item, 'revision'))}` : null]);
+    const time = (value: unknown) => value ? formatThaiDateTime(String(value), { hour: '2-digit', minute: '2-digit' }).split(' ').pop() : '—';
+    facts.push(['เวลาเข้างาน', `${time(meta(item, 'originalCheckInAt'))} → ${time(meta(item, 'proposedCheckInAt'))}`]);
+    facts.push(['เวลาออกงาน', `${time(meta(item, 'originalCheckOutAt'))} → ${time(meta(item, 'proposedCheckOutAt'))}`]);
   } else if (item.type === 'ATTENDANCE_DEVICE_REQUEST') {
     facts.push(['อุปกรณ์', meta(item, 'deviceName')]);
   } else if (item.type === 'LICENSE_DOCUMENT') {
@@ -544,11 +549,11 @@ export function ApprovalCenterPage({
     }
   };
 
-  const renderDetailButton = (item: ApprovalCenterItem) => <button
+  const renderDetailButton = (item: ApprovalCenterItem, className = '') => <button
     type="button"
     disabled={detailState?.status === 'loading' && detailKey === `${item.type}:${String(item.requestId)}`}
     onClick={() => void openDetails(item)}
-    className="approval-detail-button"
+    className={`approval-detail-button ${className}`.trim()}
   >
     {detailActionLabel(item)}
   </button>;
@@ -787,7 +792,7 @@ export function ApprovalCenterPage({
           </section>}
           <footer className="approval-decision-panel__actions">
             {renderActionButtons(decision)}
-            {renderDetailButton(decision)}
+            {renderDetailButton(decision, 'approval-decision-panel__detail')}
           </footer>
         </aside>
       </>}

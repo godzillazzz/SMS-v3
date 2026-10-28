@@ -651,7 +651,11 @@ function createApprovalCenterService({
           requestType: row.requestType,
           workDate: row.workDate || null,
           revision: row.currentRevision,
-          reason: row.reason || null
+          reason: row.reason || null,
+          originalCheckInAt: row.beforeSnapshot?.effective?.checkInAt || null,
+          originalCheckOutAt: row.beforeSnapshot?.effective?.checkOutAt || null,
+          proposedCheckInAt: row.currentProposal?.checkInAt || null,
+          proposedCheckOutAt: row.currentProposal?.checkOutAt || null
         }
       }, now, policies.get('ATTENDANCE_ADJUSTMENT_REQUEST')));
     }
