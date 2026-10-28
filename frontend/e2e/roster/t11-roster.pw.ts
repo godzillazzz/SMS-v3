@@ -135,7 +135,7 @@ async function openAdminRoster(page: Page, testInfo: TestInfo) {
 }
 
 for (const theme of ['light', 'dark'] as const) {
-test(`monthly roster keeps classic visible shift times, natural department order and sticky controls on desktop (${theme})`, async ({ page }, testInfo) => {
+test(`monthly roster shows compact shift codes with times in tooltips, natural department order and sticky controls on desktop (${theme})`, async ({ page }, testInfo) => {
   const errors: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
   page.on('console', (message) => { if (message.type() === 'error') errors.push(message.text()); });
@@ -158,16 +158,18 @@ test(`monthly roster keeps classic visible shift times, natural department order
   await expect(grid.locator('tbody tr:not(.schedule-group-row)').nth(1)).toContainText('พนักงาน2 ทดสอบ');
   await expect(grid.locator('tbody tr:not(.schedule-group-row)').nth(2)).toContainText('พนักงาน3 ทดสอบ');
   await expect(grid.locator('.calendar-shift b').first()).toHaveText('D');
-  await expect(grid.locator('.schedule-time').first()).toBeVisible();
+  // Owner issue 10 (2026-10-28): desktop cells show only the code; the time lives in the cell tooltip.
+  await expect(grid.locator('.schedule-time').first()).toBeHidden();
+  await expect(grid.locator('.calendar-shift').first()).toHaveAttribute('title', /\d{2}:\d{2}/);
   await expect(grid.locator('.schedule-shift-kind')).toHaveCount(2);
   await expect(grid.getByRole('img', { name: 'กะล็อก' }).first()).toBeVisible();
   await expect(grid.locator('[data-label-type="manual"]')).toHaveCount(1);
-  await expect(grid.locator('[data-label-type="license-block"]')).toHaveText(['License Block', 'License Block']);
+  await expect(grid.locator('[data-label-type="license-block"]')).toHaveCount(2);
   const overrideLabel = grid.locator('[data-label-type="override"]');
-  await expect(overrideLabel).toHaveText('OVERRIDE ⚡');
+  await expect(overrideLabel).toHaveCount(1);
   await expect(overrideLabel.locator('svg')).toHaveCount(0);
   await expect(grid.locator('.shift-note[data-label-type]')).toHaveCount(4);
-  await expect(grid.locator('[data-label-type="license-block"]').first()).toHaveCSS('color', theme === 'light' ? 'rgb(185, 28, 28)' : 'rgb(220, 38, 38)');
+  await expect(grid.locator('[data-label-type="license-block"]').first()).toHaveCSS('background-color', 'rgb(220, 38, 38)');
 
   const todayHeader = grid.locator(`thead th.today`);
   await expect(todayHeader).toHaveCount(1);
@@ -181,7 +183,13 @@ test(`monthly roster keeps classic visible shift times, natural department order
   await expect(page.locator('.schedule-daily-count-note')).toHaveCount(0);
 
   await expect(page.getByRole('button', { name: 'แสดงเวลา' })).toHaveCount(0);
-  await expect(grid.locator('.schedule-time:visible').first()).toContainText('08:00–16:00');
+  await expect(grid.locator('.calendar-shift[title*="08:00"]').first()).toBeVisible();
+  const monthFits = await page.locator('.schedule-grid-scroll').evaluate((el) => {
+    const right = el.getBoundingClientRect().right + 1;
+    const days = [...el.querySelectorAll('thead th')].slice(1);
+    return days.length >= 28 && days.slice(0, 28).every((th) => th.getBoundingClientRect().right <= right);
+  });
+  expect(monthFits).toBe(true);
 
   const scroll = page.locator('.schedule-grid-scroll');
   const header = grid.locator('thead th').nth(1);
