@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import '../../styles/system-health.css';
 import { formatRequestErrorMessage } from '../../request-error';
 import { getSystemHealth } from '../../system-health-client';
 import { DataTableSkeletonCards, DataTableSkeletonRows, DataTableState, ResponsiveDataTable } from '../../components/ResponsiveDataTable';
