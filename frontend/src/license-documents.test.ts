@@ -45,6 +45,7 @@ describe('license document table state', () => {
     expect(mainSource).toContain("role === 'ADMIN' && <DataRowActionMenu");
     expect(actionStyleSource).toContain('.license-table-view { text-align: center; }');
     expect(actionStyleSource).toContain('.license-table-view .btn-icon-only { margin-inline: auto; }');
+    expect(dataSurfaceStyleSource).toContain('.license-table-status,\n.license-table-view {\n  text-align: center;');
     expect(hrproPageStyleSource).toContain('#sms-app .license-person strong{color:var(--color-text);');
     expect(dataSurfaceStyleSource).toContain('.status-badge--success');
     expect(mainSource).toContain("label: 'ลบใบอนุญาต'");
