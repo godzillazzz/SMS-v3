@@ -2,6 +2,7 @@ import { TableActionCell, TableActionHeader } from '../TableActionColumn';
 import { DataTableSkeletonCards, DataTableSkeletonRows, DataTableState, ResponsiveDataTable } from '../ResponsiveDataTable';
 import type { PersonnelRecord } from './types';
 import { avatarTone } from '../../avatar';
+import { EditIconButton } from '../EditIconButton';
 
 /* First letter for an avatar; Thai leading vowels (เ แ โ ใ ไ) are skipped so 'ใจดี' gives 'จ'. */
 const thaiInitial = (value?: string | null) => (String(value || '').trim().replace(/^[เแโใไ]+/, '').charAt(0));
@@ -38,7 +39,7 @@ export function PersonnelTable({ rows, canManage, canPrintAttendance = false, on
           <td><span className={`status-badge ${employee.isActive ? 'active status-badge--success' : 'inactive status-badge--neutral'}`}>{employee.isActive ? 'ใช้งาน' : 'ไม่ใช้งาน'}</span></td>
           {canPrintAttendance && <td><button type="button" className="data-row-primary-action" aria-label={`พิมพ์ใบลงเวลาของ ${employee.firstName} ${employee.lastName}`} onClick={() => onPrintAttendance?.(employee)}>🖨️ พิมพ์ใบลงเวลา</button></td>}
           {canManage && <TableActionCell className="personnel-row-actions data-row-actions" onClick={(event) => event.stopPropagation()}>
-            <button type="button" className="data-row-primary-action" aria-label={`แก้ไขข้อมูล ${employee.firstName} ${employee.lastName}`} onClick={() => onEdit(employee)}>แก้ไขข้อมูล</button>
+            <EditIconButton className="data-row-primary-action" label={`แก้ไขข้อมูล ${employee.firstName} ${employee.lastName}`} onClick={() => onEdit(employee)} />
           </TableActionCell>}
         </tr>) : <tr><td colSpan={columnCount} className="personnel-no-rows data-table-empty-cell"><DataTableState variant="empty" title={hasActiveFilters ? 'ไม่พบผลการค้นหา' : 'ยังไม่พบข้อมูลบุคลากร'} description={hasActiveFilters ? 'ลองล้างตัวกรองหรือใช้คำค้นหาอื่น' : 'ระบบยังไม่พบข้อมูลที่สามารถแสดงภายใต้หน่วยงานและสิทธิ์ของบัญชีนี้'} action={emptyAction} /></td></tr>}</tbody>
       </table>
