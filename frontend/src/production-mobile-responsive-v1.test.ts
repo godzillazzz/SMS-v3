@@ -91,7 +91,7 @@ describe('Production Mobile Responsive Hotfix V1', () => {
     const deleteRule = css.match(/\.schedule-calendar-page \.calendar-delete,[\s\S]*?\{([\s\S]*?)\}/)?.[1] ?? '';
     expect(deleteRule).toContain('position: absolute');
     expect(deleteRule).toContain('top: auto');
-    expect(deleteRule).toContain('right: 2px');
+    expect(deleteRule).toContain('right: 0');
     expect(deleteRule).toContain('bottom: 2px');
     expect(deleteRule).toContain('width: 44px');
     expect(deleteRule).toContain('height: 44px');
@@ -104,6 +104,12 @@ describe('Production Mobile Responsive Hotfix V1', () => {
     expect(deleteRule).toContain('padding: 0');
     expect(deleteRule).toContain('transform: none');
     expect(deleteRule).not.toMatch(/(?:top|right|bottom|left):\s*-/);
+
+    const shiftRule = css.match(/\.schedule-calendar-page \.calendar-shift\s*\{([\s\S]*?)\}/)?.[1] ?? '';
+    expect(shiftRule).toContain('width: 52px');
+    expect(shiftRule).toContain('max-width: 52px');
+    expect(shiftRule).toContain('margin-right: 44px');
+    expect(css).toContain('The 52px shift target and 44px delete target partition the 96px cell without overlap.');
 
     const visibleDeleteRule = css.match(/\.schedule-calendar-page \.calendar-delete::before\s*\{([\s\S]*?)\}/)?.[1] ?? '';
     expect(visibleDeleteRule).toContain("content: '×'");
