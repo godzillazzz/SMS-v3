@@ -12,7 +12,9 @@ test('Q12-D CI isolates frontend production build from job-level NODE_ENV=test',
   const workflow = read('.github/workflows/ci.yml');
   assert.match(workflow, /- name: Build frontend production bundle\n\s+env:\n\s+NODE_ENV: production\n\s+run: npm --prefix frontend run build/);
   assert.match(workflow, /- name: Verify frontend production bundle\n\s+run: node scripts\/ci\/verify-frontend-production-bundle\.js/);
-  assert.match(workflow, /feature\/q12d-node22-build-repro/);
+  // CI is manual-only since ee141eed (Owner decision): the old push branch list, including
+  // feature/q12d-node22-build-repro, no longer exists. The production build must still run on dispatch.
+  assert.match(workflow, /^on:\n\s+workflow_dispatch:/m);
 });
 
 test('Q12-D production bundle guard enforces scoped production budgets and rejects dev JSX runtime', () => {
