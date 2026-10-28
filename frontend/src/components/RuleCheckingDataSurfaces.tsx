@@ -5,6 +5,7 @@ import {
   DataTableState,
   ResponsiveDataTable
 } from './ResponsiveDataTable';
+import { EditIconButton } from './EditIconButton';
 
 export type RuleCheckingRow = Record<string, unknown>;
 
@@ -40,7 +41,7 @@ function RuleStatus({ rule, result }: { rule: RuleCheckingRow; result?: RuleResu
 
 function RuleActions({ rule, onAction }: { rule: RuleCheckingRow; onAction(row: RuleCheckingRow, action: 'edit' | 'toggle'): void }) {
   return <div className="row-actions data-row-actions rule-checking-row-actions">
-    <button type="button" className="btn-info-outline data-row-primary-action" onClick={() => onAction(rule, 'edit')}>แก้ไข</button>
+    <EditIconButton className="data-row-primary-action" label={`แก้ไข ${String(rule.name || rule.ruleType || 'กฎ')}`} onClick={() => onAction(rule, 'edit')} />
     <button type="button" role="switch" aria-checked={Boolean(rule.enabled)} aria-label={`${display(rule.name)}: ${rule.enabled ? 'เปิดใช้อยู่ กดเพื่อปิดใช้' : 'ปิดใช้อยู่ กดเพื่อเปิดใช้'}`} className="rule-switch" onClick={() => onAction(rule, 'toggle')}><span className="rule-switch__track" aria-hidden="true" />{rule.enabled ? 'เปิดใช้' : 'ปิดใช้'}</button>
   </div>;
 }

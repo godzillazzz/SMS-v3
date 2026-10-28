@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api } from '../api';
 import { formatRequestErrorMessage } from '../request-error';
+import { EditIconButton } from './EditIconButton';
 
 type MasterKind = 'department' | 'position';
 type MasterRow = { id: string; code: string; name: string; isActive: boolean; sortOrder: number };
@@ -57,7 +58,7 @@ function MasterColumn({ title, rows, kind, busy, onCreate, onEdit, onActivate, o
     <div className="personnel-master-list">{visibleRows.length ? visibleRows.map((row) => <div className="personnel-master-record" key={row.id}>
       <article className={row.isActive ? '' : 'is-inactive'}>
         <div><strong>{row.code} · {row.name}</strong><small>{row.isActive ? `เปิดใช้งาน · ลำดับ ${row.sortOrder} · ใช้เลือกค่าใหม่ได้` : `ปิดใช้งาน · ลำดับ ${row.sortOrder} · เก็บไว้เพื่อประวัติ`}</small></div>
-        <div className="personnel-master-row-actions"><button type="button" className="btn-neutral small-action" disabled={Boolean(busy)} onClick={() => beginEdit(row)}>แก้ไข</button><button type="button" className={row.isActive ? 'btn-neutral small-action' : 'btn-success'} disabled={Boolean(busy)} onClick={async () => { if (!row.isActive) { await onActivate(kind,row); return; } const nextImpact=await onPreflight(kind,row); setImpact(nextImpact); setTarget(row); setReason(''); }}>{busy === row.id ? 'กำลังบันทึก…' : row.isActive ? 'ตรวจสอบก่อนปิด' : 'เปิดใช้งาน'}</button></div>
+        <div className="personnel-master-row-actions"><EditIconButton label={`แก้ไข ${row.name}`} disabled={Boolean(busy)} onClick={() => beginEdit(row)} /><button type="button" className={row.isActive ? 'btn-neutral small-action' : 'btn-success'} disabled={Boolean(busy)} onClick={async () => { if (!row.isActive) { await onActivate(kind,row); return; } const nextImpact=await onPreflight(kind,row); setImpact(nextImpact); setTarget(row); setReason(''); }}>{busy === row.id ? 'กำลังบันทึก…' : row.isActive ? 'ตรวจสอบก่อนปิด' : 'เปิดใช้งาน'}</button></div>
       </article>
       {editTarget?.id === row.id && <form className="personnel-master-edit" aria-label={`แก้ไข ${title}: ${row.code}`} onSubmit={(event) => { event.preventDefault(); void saveEdit(); }}><p><strong>แก้ไข {row.code}</strong><span>รหัสรายการคงที่เพื่อรักษาการเชื่อมโยงข้อมูลเดิม</span></p><label><span>ชื่อ</span><input value={editName} maxLength={100} onChange={(event) => setEditName(event.target.value)} autoFocus /></label><label><span>ลำดับแสดงผล</span><input value={editSortOrder} inputMode="numeric" type="number" min={-9999} max={9999} onChange={(event) => setEditSortOrder(event.target.value)} /></label>{editError && <div className="personnel-master-edit-error" role="alert">{editError}</div>}<div className="personnel-master-edit-actions"><button type="button" className="btn-neutral small-action" disabled={Boolean(busy)} onClick={closeEdit}>ยกเลิก</button><button type="submit" className="btn-primary compact" disabled={Boolean(busy)}>{busy === row.id ? 'กำลังบันทึก…' : 'บันทึกการแก้ไข'}</button></div></form>}
     </div>) : <p className="personnel-master-empty">ไม่พบรายการที่ตรงกับการค้นหา</p>}</div>

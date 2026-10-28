@@ -24,6 +24,7 @@ import '../../styles/access-management.css';
 import { G06UatProvisioningPanel, type G06UatProvisionResult } from './G06UatProvisioningPanel';
 import { isG06PreviewUatProvisioningEnabled } from '../../lib/g06-preview-uat-provisioning';
 import { avatarTone } from '../../avatar';
+import { EditIconButton } from '../../components/EditIconButton';
 
 type AccountUpdate = { role?: string; department?: string | null; accountStatus?: string; isActive?: boolean };
 type Props = {
@@ -98,7 +99,7 @@ function AccountTable({ rows, role, originalUserId, loading, onDetails, onEdit, 
       <td><AccountStatusBadge account={account} /></td>
       <td><ResetBadge required={account.passwordResetRequired} /></td>
       <td>{formatDate(account.updatedAt || account.createdAt)}</td>
-      <td onClick={(event) => event.stopPropagation()}><div className="account-row-actions data-row-actions"><button type="button" className="btn-neutral data-row-primary-action" onClick={(event) => onDetails(account, event.currentTarget)}>รายละเอียด</button>{actions.includes('approve') && <button type="button" className="btn-success" onClick={(event) => onApprove(account, event.currentTarget)}>อนุมัติ</button>}{actions.includes('edit') && <button type="button" className="btn-info-outline data-row-primary-action" onClick={(event) => onEdit(account, event.currentTarget)}><SmsIcon name="edit" size={16} />แก้ไข</button>}</div></td>
+      <td onClick={(event) => event.stopPropagation()}><div className="account-row-actions data-row-actions"><button type="button" className="btn-neutral data-row-primary-action" onClick={(event) => onDetails(account, event.currentTarget)}>รายละเอียด</button>{actions.includes('approve') && <button type="button" className="btn-success" onClick={(event) => onApprove(account, event.currentTarget)}>อนุมัติ</button>}{actions.includes('edit') && <EditIconButton className="data-row-primary-action" label={`แก้ไข ${account.displayName || "บัญชีผู้ใช้"}`} onClick={(event) => onEdit(account, event.currentTarget)} />}</div></td>
     </tr>;
   })}</tbody></table></div><div className="access-mobile-cards">{rows.map((account) => <article className="account-mobile-card data-mobile-card" key={account.id}><div><span className="account-mobile-label">บัญชีผู้ใช้งาน</span><h2>{account.displayName || 'ไม่ระบุชื่อ'}</h2><p>{roleLabel[account.role || ''] || account.role || 'ไม่ระบุ'} · {account.department || 'ไม่ระบุหน่วยงาน'}</p></div><div className="account-mobile-status"><AccountStatusBadge account={account} /><ResetBadge required={account.passwordResetRequired} /></div><footer><small>อัปเดต {formatDate(account.updatedAt || account.createdAt)}</small><button type="button" className="btn-neutral" onClick={(event) => onDetails(account, event.currentTarget)}>เปิดรายละเอียด</button></footer></article>)}</div></div>;
 }
