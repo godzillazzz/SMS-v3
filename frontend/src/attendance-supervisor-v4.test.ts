@@ -69,7 +69,30 @@ describe('Attendance Supervisor UX V4', () => {
     expect(page).toContain("['REQUIRES_ATTENTION', 'ต้องตรวจสอบ']");
     expect(page).toContain("onClick={() => setStatus('REQUIRES_ATTENTION')}");
     expect(page).toContain("onClick={() => setStatus('WRONG_SHIFT')}");
+    expect(page).toContain("onClick={() => setStatus('COMPLETE')}");
+    expect(page).toContain("onClick={() => setStatus('CURRENTLY_WORKING')}");
     expect(page).toContain("role={onClick ? 'button' : undefined}");
+  });
+
+  it('offers read-only daily, all-employee, and per-employee print actions from filtered rows', () => {
+    expect(page).toContain("import { printDocument } from '../../schedule-print'");
+    expect(page).toContain('รายงานวันนี้');
+    expect(page).toContain('พิมพ์ทั้งหมด');
+    expect(page).toContain("mode === 'daily' && <button type=\"button\" className=\"attendance-supervisor-v4__detail-btn\" onClick={() => void printAttendance(row.employeeId)} aria-label={`พิมพ์รายบุคคล ${row.employeeName}`}>พิมพ์รายบุคคล</button>");
+    expect(page).toContain("printDocument('.attendance-supervisor-print'");
+    expect(page).toContain('attendance-supervisor-print-page');
+    expect(page).toContain('rows.filter((item) => item.employeeId === employeeId)');
+    expect(page).toContain('หนึ่งคนต่อหนึ่งแผ่น');
+    expect(page).not.toContain("printDocument('.attendance-supervisor-print', 'Attendance'");
+  });
+
+  it('restricts per-employee printing exclusively to daily mode and hides it in history mode (UX-737-M1)', () => {
+    expect(page).toContain("if (mode !== 'daily' || !rows.length) return;");
+    expect(page).toContain("{mode === 'daily' && <button type=\"button\" className=\"attendance-supervisor-v4__detail-btn\" onClick={() => void printAttendance(row.employeeId)} aria-label={`พิมพ์รายบุคคล ${row.employeeName}`}>พิมพ์รายบุคคล</button>}");
+    expect(page).toContain("{mode === 'daily' && <AttendanceSupervisorPrint rows={rows} date={date} employeeId={printEmployeeId || undefined} />}");
+  });
+
+  it('implements approved dashboard filters and KPI/read-model fields', () => {
     for (const column of ['สถานที่ตามตาราง', 'สถานที่ลงเวลาจริง', 'ประเภท', 'เวลาปฏิบัติงาน', 'ข้อสังเกต', 'การทำงาน']) expect(page).toContain(column);
   });
 

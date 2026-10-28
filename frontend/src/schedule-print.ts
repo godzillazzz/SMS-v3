@@ -84,6 +84,20 @@ function preparePrintLayout(frameDocument: Document, orientation: PrintOrientati
     .attendance-report-table { width: 100% !important; }
     .attendance-report-table thead { display: table-header-group !important; }
     .attendance-report-table tr { break-inside: avoid !important; page-break-inside: avoid !important; }
+    .attendance-supervisor-print { display: block !important; color: #0f172a; font-family: 'Noto Sans Thai', Inter, sans-serif; }
+    .attendance-supervisor-print-page { min-height: 270mm; padding: 10mm; break-after: page; page-break-after: always; }
+    .attendance-supervisor-print-page:last-child { break-after: auto; page-break-after: auto; }
+    .attendance-supervisor-print-page header { border-bottom: 2px solid #0f766e; padding-bottom: 4mm; }
+    .attendance-supervisor-print-page h1 { margin: 0; font-size: 18pt; }
+    .attendance-supervisor-print-page p { margin: 1mm 0 0; font-size: 10pt; }
+    .attendance-supervisor-print-page dl { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 3mm; margin: 5mm 0; }
+    .attendance-supervisor-print-page dl > div { display: grid; gap: 1mm; border: 1px solid #cbd5e1; padding: 2mm; }
+    .attendance-supervisor-print-page dt { color: #475569; font-size: 9pt; }
+    .attendance-supervisor-print-page dd { margin: 0; font-size: 11pt; font-weight: 600; }
+    .attendance-supervisor-print-page table { width: 100%; border-collapse: collapse; font-size: 10pt; }
+    .attendance-supervisor-print-page th, .attendance-supervisor-print-page td { border: 1px solid #94a3b8; padding: 2.5mm; text-align: left; vertical-align: top; }
+    .attendance-supervisor-print-page th { background: #e2f5f3 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .attendance-supervisor-print-page footer { margin-top: 6mm; color: #475569; font-size: 9pt; }
     .executive-report-print, .executive-report-print-page { box-sizing: border-box; width: 100% !important; min-width: 0 !important; overflow: visible !important; }
     .executive-report-print-section, .executive-report-print-kpis { break-inside: avoid; page-break-inside: avoid; }
     .executive-report-print * { min-width: 0; overflow-wrap: anywhere; }
