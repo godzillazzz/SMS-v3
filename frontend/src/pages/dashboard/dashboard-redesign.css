@@ -78,3 +78,4 @@
 #sms-app .dashboard-redesign .nexus-stream__item:nth-child(3n) .dashboard-follow-icon { background: var(--color-info-soft); color: var(--color-info); }
 #sms-app .dashboard-redesign .nexus-stream__item em { color: var(--color-primary) !important; font-size: 22px !important; }
 #sms-app .dashboard-redesign .nexus-stream__item:first-child em { color: var(--color-warning) !important; }
+#sms-app .dashboard-redesign .dashboard-quick-actions__grid > button:focus-visible { outline: 3px solid var(--color-primary); outline-offset: 3px; }

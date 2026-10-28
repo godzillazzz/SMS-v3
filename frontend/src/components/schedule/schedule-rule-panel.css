@@ -29,9 +29,9 @@
    Lives in this lazily-loaded file because the panel only renders on the roster page. */
 #sms-app { --shift-d-bg:#e3ecfd; --shift-d-fg:#235edf; --shift-n-bg:#efe7fd; --shift-n-fg:#7c3aed; --shift-s-bg:#ddf3ef; --shift-s-fg:#0a766d; --shift-off-bg:#eef0f3; --shift-off-fg:#606a78; --shift-al-bg:#fbeedd; --shift-al-fg:#985304; }
 [data-theme="dark"] #sms-app { --shift-d-bg:#1b2c55; --shift-d-fg:#9db8f7; --shift-n-bg:#2c2150; --shift-n-fg:#c4a8fb; --shift-s-bg:#123a37; --shift-s-fg:#4aaaa6; --shift-off-bg:#252f3d; --shift-off-fg:#a4b1c3; --shift-al-bg:#3a2a12; --shift-al-fg:#f0a24a; }
-#sms-app .schedule-grid-scroll { max-height: none !important; }
-#sms-app .schedule-grid { border-collapse: separate !important; border-spacing: 0 !important; width: 100%; table-layout: auto; }
-#sms-app .schedule-grid th, #sms-app .schedule-grid td { padding: 3px 2px !important; min-width: 34px !important; width: auto !important; border-color: var(--color-border) !important; background: var(--color-surface); text-align: center; vertical-align: middle; }
+#sms-app .schedule-grid-scroll { max-height: none !important; overflow: auto !important; overscroll-behavior: contain; }
+#sms-app .schedule-grid { border-collapse: separate !important; border-spacing: 0 !important; width: max-content; min-width: 100%; table-layout: auto; }
+#sms-app .schedule-grid th, #sms-app .schedule-grid td { padding: 3px 2px !important; min-width: 48px !important; width: auto !important; border-color: var(--color-border) !important; background: var(--color-surface); text-align: center; vertical-align: middle; }
 #sms-app .schedule-grid thead th { position: sticky; top: 0; z-index: 2; padding: 8px 2px !important; color: var(--color-text-secondary) !important; font-size: 12px !important; }
 #sms-app .schedule-grid thead th b { display: block; color: var(--color-text); font-size: 14px; }
 #sms-app .schedule-grid thead th small { font-size: 11px; color: var(--color-text-muted); }
@@ -69,8 +69,8 @@
 #sms-app .schedule-calendar-page .schedule-draft-actions:has(.btn-primary) { position: sticky; bottom: 12px; z-index: 6; margin-top: 12px; padding: 12px 16px !important; border: 0 !important; border-radius: 14px; background: #0e1a31 !important; color: #fff; box-shadow: 0 12px 28px rgba(14, 26, 49, 0.28); }
 #sms-app .schedule-calendar-page .schedule-draft-actions:has(.btn-primary) :is(p, span) { color: #e8edf5 !important; }
 #sms-app .schedule-calendar-page .schedule-draft-actions:has(.btn-primary) .btn-danger { background: transparent !important; border: 1px solid rgba(255, 255, 255, 0.3) !important; color: #fff !important; }
-#sms-app .schedule-grid th, #sms-app .schedule-grid td { min-width: 30px !important; padding: 2px 1px !important; }
-#sms-app .schedule-grid .calendar-shift, #sms-app .schedule-grid .empty-shift { width: 28px !important; min-width: 28px !important; height: 28px !important; min-height: 28px !important; }
+#sms-app .schedule-grid th, #sms-app .schedule-grid td { min-width: 48px !important; padding: 2px 1px !important; }
+#sms-app .schedule-grid .calendar-shift, #sms-app .schedule-grid .empty-shift { width: 40px !important; min-width: 40px !important; height: 32px !important; min-height: 32px !important; }
 #sms-app .schedule-grid .employee-sticky { padding: 4px 10px !important; line-height: 1.3 !important; }
 #sms-app .schedule-grid .employee-sticky > * { margin: 0 !important; }
 #sms-app .schedule-grid .employee-magic-button { width: 24px !important; height: 24px !important; min-height: 24px !important; padding: 0 !important; }

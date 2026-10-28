@@ -45,12 +45,21 @@ describe('Owner-approved roster and brand contracts', () => {
     expect(main.match(/sortScheduleEmployeesByDepartment\(rawCalendarEmployees\)/g)).toHaveLength(2);
     expect(main).toContain('className="schedule-grid"');
     expect(main).not.toContain('className="schedule-department-group-row"');
+    expect(main).not.toContain('className="schedule-group-row"');
+    expect(main).not.toContain('const startsGroup =');
     expect(main).not.toContain('schedule-grid--compact');
     expect(main).not.toContain('calendarDepartmentStartByEmployeeId');
     expect(main).not.toContain('schedule-time-toggle');
     expect(main).not.toMatch(/getScheduleRosterOrder|updateScheduleRosterOrder|ScheduleRosterOrderModal|canReorderRoster|rosterOrderDepartment|จัดลำดับพนักงาน/);
     expect(main).toContain('`แสดง ${calendarEmployees.length} จาก ${allCalendarEmployees.length} คน`');
     expect(main).not.toContain('แสดง {calendarEmployees.length} จาก {operationResponse.meta?.total || 0} คน');
+  });
+
+  it('keeps all 1–31 roster day cells readable through horizontal scrolling instead of compressing them', () => {
+    const rosterCss = fs.readFileSync(path.join(root, 'components/schedule/schedule-rule-panel.css'), 'utf8');
+    expect(rosterCss).toContain('#sms-app .schedule-grid { border-collapse: separate !important; border-spacing: 0 !important; width: max-content; min-width: 100%;');
+    expect(rosterCss).toContain('#sms-app .schedule-grid th, #sms-app .schedule-grid td { min-width: 48px !important;');
+    expect(rosterCss).toMatch(/#sms-app \.schedule-grid-scroll \{[^}]*overflow: auto !important;[^}]*overscroll-behavior: contain;/);
   });
 
   it('preserves existing printed department headings without inserting rows in the on-screen grid', () => {
