@@ -75,7 +75,7 @@ import { DashboardPage } from './pages/dashboard/DashboardPage';
 import { LICENSE_BUCKETS, countLicenseBuckets, licenseBuckets, type LicenseBucket } from './components/license-buckets';
 
 
-import { WorkflowCommandPalette } from './components/WorkflowCommandPalette';
+const WorkflowCommandPalette = React.lazy(() => import('./components/WorkflowCommandPalette').then((m) => ({ default: m.WorkflowCommandPalette })));
 import { UserMenu } from './components/UserMenu';
 import { defaultAuditFilters, type AuditFilters } from './components/audit/audit-types';
 import type { DataQualityFilters, DataQualityIssue } from './pages/data-quality/DataQualityCenterPage';
