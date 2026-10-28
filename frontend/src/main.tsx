@@ -1674,52 +1674,161 @@ function LeaveManagementPage({ rows, loading, error, linked, remaining, quotaSum
 }
 
 function LeavePrintDocument({ row, ledger }: { row: DataRow; ledger: LeavePrintLedger }) {
-  const leaveDates = inputDate(row.startDate) === inputDate(row.endDate) ? date(row.startDate) : `${date(row.startDate)} – ${date(row.endDate)}`;
   const status = String(row.status || '');
   const statusText = ({ APPROVED: 'อนุมัติแล้ว', REJECTED: 'ไม่อนุมัติ', PENDING: 'รอพิจารณา', CANCELLED: 'ยกเลิก', RETURNED: 'ส่งกลับแก้ไข' } as Record<string, string>)[status] || text(row.status);
   const decided = status === 'APPROVED' || status === 'REJECTED';
+  const createdDate = row.createdAt ? new Date(String(row.createdAt)) : new Date();
+  const docYear = createdDate.getFullYear() + 543;
+  const docMonth = String(createdDate.getMonth() + 1).padStart(2, '0');
+  const docSeq = String(row.id || '').replace(/-/g, '').slice(-6).toUpperCase() || '000001';
+  const docNo = `LV-${docYear}${docMonth}-${docSeq}`;
+  const startDateStr = row.startDate ? formatThaiDate(String(row.startDate), { day: 'numeric', month: 'long', year: 'numeric' }) : '–';
+  const endDateStr = row.endDate ? formatThaiDate(String(row.endDate), { day: 'numeric', month: 'long', year: 'numeric' }) : '–';
+  const createdDateLong = formatThaiDate(createdDate, { day: 'numeric', month: 'long', year: 'numeric' });
+  const createdDateShort = formatThaiDate(createdDate, { day: '2-digit', month: '2-digit', year: 'numeric' });
+  const approvedDateStr = row.approvedAt ? formatThaiDate(String(row.approvedAt), { day: '2-digit', month: '2-digit', year: 'numeric' }) : null;
+  const quotaYear = (ledger as { quotaYear?: number }).quotaYear || docYear;
+  const leaveName = leaveTypeDisplayText(row);
+  const totalApprovedAndCurrent = (ledger.previouslyApprovedDays || 0) + (ledger.requestDays || Number(row.dayCount) || 0);
+
   return <section className="leave-print-document" aria-hidden="true">
     {status === 'REJECTED' && <div className="leave-print-watermark">ไม่อนุมัติ</div>}
-    <div className="leave-print-topline"><span>{formatApprovalDateTime(new Date())}</span><span>Security Management System — แบบบันทึกการลาพนักงานรักษาความปลอดภัย</span></div>
-    <header className="leave-print-letterhead">
-      <div className="leave-print-brand"><span className="leave-print-mark">SMS</span><div><strong>Security Management System</strong><small>ระบบบริหารงานรักษาความปลอดภัย</small></div></div>
-      <div className="leave-print-heading"><h1>ใบขออนุมัติลางาน</h1><p>พนักงานรักษาความปลอดภัย</p><small>สถานะ: {statusText}{row.createdAt ? <> · วันที่ยื่น: {date(row.createdAt)}</> : null}</small></div>
+
+    <header className="leave-print-header-redesign">
+      <div className="leave-print-brand-left">
+        <div className="leave-print-brand-square">SMS</div>
+        <div className="leave-print-company-details">
+          <strong>Security Management System</strong>
+          <small>ระบบบริหารงานรักษาความปลอดภัย</small>
+        </div>
+      </div>
+      <div className="leave-print-doc-meta">
+        <h1 className="leave-print-main-title">ใบขออนุญาตลา</h1>
+        <div className="leave-print-en-title">LEAVE REQUEST</div>
+        <div className="leave-print-doc-no">เลขที่ {docNo}</div>
+        <div className="leave-print-status-tag">สถานะ: <span className={`status-pill status-${status.toLowerCase()}`}>{statusText}</span></div>
+      </div>
     </header>
-    <div className="leave-print-person"><strong>ชื่อพนักงาน: {text(row.employeeNameSnapshot)}</strong><strong>วันที่พิมพ์: {date(new Date())}</strong></div>
-    <dl className="leave-print-info">{row.employeeCodeSnapshot || row.employeeCode ? <div><dt>รหัสพนักงาน</dt><dd>{text(row.employeeCodeSnapshot || row.employeeCode)}</dd></div> : null}{row.departmentSnapshot || row.department ? <div><dt>หน่วยงาน</dt><dd>{text(row.departmentSnapshot || row.department)}</dd></div> : null}</dl>
-    <table className="leave-print-table"><thead><tr><th>วันที่ลางาน</th><th>ประเภทการลา</th><th>จำนวนวัน</th><th>ผู้ปฏิบัติงานแทน / รายละเอียด</th></tr></thead><tbody><tr><td>{leaveDates}</td><td>{leaveTypeDisplayText(row)}</td><td>{text(row.dayCount)} วัน</td><td><div className="leave-print-detail-lines"><strong>ผู้ปฏิบัติงานแทน:</strong> {text(row.substitute || row.substituteName)}<br /><strong>รายละเอียด:</strong> {text(row.reasonDetail || row.reason)}</div></td></tr></tbody></table>
-    <div className="leave-print-decision"><strong>ผลการพิจารณา</strong><span><i className={status === 'APPROVED' ? 'is-checked' : undefined} /> อนุมัติ</span><span><i className={status === 'REJECTED' ? 'is-checked' : undefined} /> ไม่อนุมัติ</span>{decided && row.approvedByDisplayName ? <small>ดำเนินการในระบบโดย {text(row.approvedByDisplayName)}{row.approvedAt ? ` · ${formatApprovalDateTime(new Date(String(row.approvedAt)))}` : ''}</small> : null}</div>
-    <p className="leave-print-attachment"><strong>เอกสารแนบในระบบ:</strong> {row.attachmentUrl ? 'มี' : 'ไม่มี'}</p>
-    <section className="leave-print-ledger" aria-label="สรุปโควตาวันลา">
-      <strong>สรุปโควตาวันลา ({ledger.unit})</strong>
-      <span>สิทธิ์ต่อปี {ledger.entitlementDays} วัน</span>
-      <span>อนุมัติก่อนหน้า {ledger.previouslyApprovedDays} วัน</span>
-      <span>คงเหลือก่อนลา {ledger.remainingBeforeDays} วัน</span>
-      <span>คำขอนี้ {ledger.requestDays} วัน</span>
-      <span>คงเหลือหลังลา {ledger.remainingAfterDays} วัน</span>
-    </section>
-    <div className="leave-print-signatures">
-      <div className="leave-print-signature-block">
+
+    <div className="leave-print-divider">
+      <div className="leave-print-divider-accent" />
+    </div>
+
+    <div className="leave-print-write-at">
+      <div>เขียนที่ Security Management System</div>
+      <div>วันที่ {createdDateLong}</div>
+    </div>
+
+    <div className="leave-print-subject">
+      <div><strong>เรื่อง</strong> ขอ{leaveName}</div>
+      <div><strong>เรียน</strong> ผู้บังคับบัญชา</div>
+    </div>
+
+    <div className="leave-print-letter-body">
+      <p>
+        ข้าพเจ้า <span className="print-fill print-fill-bold">{text(row.employeeNameSnapshot)}</span>{' '}
+        รหัสพนักงาน <span className="print-fill">{text(row.employeeCodeSnapshot || row.employeeCode || '–')}</span>{' '}
+        ตำแหน่ง <span className="print-fill">{text(row.jobTitle || nested(row.employee).jobTitle || 'พนักงานรักษาความปลอดภัย')}</span>{' '}
+        สังกัดแผนก <span className="print-fill">{text(row.departmentSnapshot || row.department || '–')}</span>
+      </p>
+      <p>
+        มีความประสงค์ขอ{leaveName} เนื่องจาก <span className="print-fill">{text(row.reasonDetail || row.reason || '–')}</span>
+      </p>
+      <p>
+        ตั้งแต่วันที่ <span className="print-fill">{startDateStr}</span> ถึงวันที่ <span className="print-fill">{endDateStr}</span>{' '}
+        มีกำหนด <span className="print-fill print-fill-bold">{text(row.dayCount)}</span> วันทำการ
+      </p>
+      <p>
+        ในระหว่างการลาติดต่อข้าพเจ้าได้ที่หมายเลข <span className="print-fill">{text(row.contactPhone || nested(row.employee).phone || '–')}</span>{' '}
+        ผู้ปฏิบัติงานแทน / รายละเอียด: <strong>ผู้ปฏิบัติงานแทน:</strong> <span className="print-fill">{text(row.substitute || row.substituteName || '–')}</span> <strong>รายละเอียด:</strong> <span className="print-fill">{text(row.reasonDetail || row.reason || '–')}</span>
+      </p>
+    </div>
+
+    <div className="leave-print-applicant-sig">
+      <div className="leave-print-sig-dots">ลงชื่อ ................................................................</div>
+      <div className="leave-print-sig-name">( {text(row.employeeNameSnapshot)} )</div>
+      <strong className="leave-print-sig-role">ผู้ขอลา</strong>
+      <small className="leave-print-sig-date">วันที่ {createdDateShort}</small>
+    </div>
+
+    <div className="leave-print-stats-section">
+      <div className="leave-print-stats-header">
+        <div className="leave-print-stats-title">
+          <span className="stats-accent-bar" /> สถิติการลาประเภทนี้ในปี {quotaYear}
+        </div>
+        <div className="leave-print-stats-unit">หน่วย: วันทำการ</div>
+      </div>
+      <table className="leave-print-stats-table">
+        <thead>
+          <tr>
+            <th>ประเภทการลา</th>
+            <th>สิทธิ์ทั้งปี</th>
+            <th>ลามาแล้ว</th>
+            <th>ลาครั้งนี้</th>
+            <th>รวมเป็น</th>
+            <th>คงเหลือ</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>{leaveTypeDisplayText(row)}</td>
+            <td>{ledger.entitlementDays != null ? ledger.entitlementDays : '–'}</td>
+            <td>{ledger.previouslyApprovedDays ?? 0}</td>
+            <td>{ledger.requestDays ?? (row.dayCount != null ? Number(row.dayCount) : 0)}</td>
+            <td>{totalApprovedAndCurrent}</td>
+            <td>{ledger.remainingAfterDays != null ? ledger.remainingAfterDays : '–'}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div className="leave-print-boxes-grid">
+      <div className="leave-print-decision-box">
+        <div className="leave-print-box-title">ความเห็นผู้บังคับบัญชา / ผู้อนุมัติ</div>
+        <div className="leave-print-checkboxes">
+          <span className={`print-check-item ${status === 'APPROVED' ? 'is-checked' : ''}`}>
+            <span className="print-checkbox-sq">{status === 'APPROVED' ? '✓' : ''}</span> อนุมัติ
+          </span>
+          <span className={`print-check-item ${status === 'REJECTED' ? 'is-checked' : ''}`}>
+            <span className="print-checkbox-sq">{status === 'REJECTED' ? '✓' : ''}</span> ไม่อนุมัติ
+          </span>
+        </div>
+        <div className="leave-print-comment-line">ความเห็น: {text(row.rejectionReason || row.reviewComment) || '........................................................'}</div>
         <div className="leave-print-signature-line">
           <span className="leave-print-sig-label">ลงชื่อ</span>
           <span className="leave-print-dots">........................................................</span>
         </div>
-        <div className="leave-print-name">(........................................................)</div>
-        <strong className="leave-print-title">หัวหน้าพนักงานรักษาความปลอดภัย</strong>
-        <small className="leave-print-date">วันที่ ........ / ........ / ........</small>
+        <div className="leave-print-name">( {text(row.approvedByDisplayName) || '........................................................'} )</div>
+        <strong className="leave-print-title">ผู้อนุมัติ</strong>
+        <small className="leave-print-date">วันที่ {approvedDateStr || '........ / ........ / ........'}</small>
       </div>
-      <div className="leave-print-signature-block">
+
+      <div className="leave-print-decision-box">
+        <div className="leave-print-box-title">สำหรับฝ่ายบุคคล</div>
+        <div className="leave-print-checkboxes">
+          <span className="print-check-item">
+            <span className="print-checkbox-sq" /> ตรวจสอบสิทธิ์การลาแล้ว
+          </span>
+          <span className={`print-check-item ${decided ? 'is-checked' : ''}`}>
+            <span className="print-checkbox-sq">{decided ? '✓' : ''}</span> บันทึกในระบบแล้ว
+          </span>
+        </div>
+        <div className="leave-print-comment-line">ความเห็น: ........................................................</div>
         <div className="leave-print-signature-line">
           <span className="leave-print-notice">ทราบ /</span>
           <span className="leave-print-sig-label">ลงชื่อ</span>
           <span className="leave-print-dots">........................................................</span>
         </div>
-        <div className="leave-print-name">(........................................................)</div>
-        <strong className="leave-print-title">ผู้จัดการเขต (ผู้อนุมัติ)</strong>
+        <div className="leave-print-name">( ........................................................ )</div>
+        <strong className="leave-print-title">เจ้าหน้าที่ฝ่ายบุคคล</strong>
         <small className="leave-print-date">วันที่ ........ / ........ / ........</small>
       </div>
     </div>
-    <footer className="leave-print-footer"><span>Security Management System</span><span>1/1</span></footer>
+
+    <footer className="leave-print-footer">
+      <span>เอกสารนี้จัดทำจากระบบ Security Management System (SMS V.3)</span>
+      <span>พิมพ์เมื่อ {formatThaiDateTime(new Date())} · ใบขออนุมัติลางาน</span>
+    </footer>
   </section>;
 }
 

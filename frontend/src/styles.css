@@ -1655,30 +1655,65 @@ button, select, input, textarea {
     break-before: auto !important;
     page-break-before: auto !important;
   }
-  .leave-print-topline { display: flex; justify-content: space-between; gap: 12px; font-family: var(--font-sans, "IBM Plex Sans Thai", system-ui, sans-serif); font-size: 8pt; font-weight: 700; }
-  .leave-print-heading { margin-top: 8mm; text-align: center; }
-  .leave-print-heading h1 { margin: 0; font-size: 22pt; line-height: 1.15; }
-  .leave-print-heading p { margin: 2mm 0 0; font-size: 15pt; font-weight: 700; }
-  .leave-print-person { display: flex; justify-content: space-between; gap: 10mm; margin-top: 6mm; padding-bottom: 2mm; border-bottom: 1px solid #000; font-size: 13pt; }
-  .leave-print-table { width: 100%; margin-top: 5mm; border-collapse: collapse; font-size: 13pt; }
-  .leave-print-table th, .leave-print-table td { border: 1px solid #000 !important; padding: 3mm 2.5mm; vertical-align: top; }
-  .leave-print-table th { text-align: center; background: #f3f4f6 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; font-weight: 700; }
-  .leave-print-table th:nth-child(1) { width: 27%; }
-  .leave-print-table th:nth-child(2) { width: 19%; }
-  .leave-print-table th:nth-child(3) { width: 16%; }
-  .leave-print-table td:nth-child(-n+3) { text-align: center; }
-  .leave-print-table td:last-child { min-height: 25mm; white-space: pre-wrap; }
-  .leave-print-ledger { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 2mm 4mm; margin-top: 4mm; padding: 3mm; border: 1px solid #64748b; font-size: 10pt; }
-  .leave-print-ledger > strong { grid-column: 1 / -1; }
-  .leave-print-signatures { width: 58%; margin: 15mm 0 0 auto; font-size: 13pt; text-align: center; }
-  .leave-print-signature-block + .leave-print-signature-block { margin-top: 10mm; }
-  .leave-print-signature-line { display: flex; align-items: baseline; justify-content: center; white-space: nowrap; gap: 4px; margin-bottom: 2mm; }
+  .leave-print-header-redesign { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 3mm; }
+  .leave-print-brand-left { display: flex; align-items: center; gap: 3mm; }
+  .leave-print-brand-square { width: 12mm; height: 12mm; background: #0f172a !important; color: #fff !important; font-weight: 800; font-size: 14pt; border-radius: 2.5mm; display: flex; align-items: center; justify-content: center; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .leave-print-company-details strong { display: block; font-size: 13pt; line-height: 1.2; color: #0f172a; }
+  .leave-print-company-details small { font-size: 9pt; color: #64748b; }
+  .leave-print-doc-meta { text-align: right; }
+  .leave-print-main-title { margin: 0; font-size: 18pt; font-weight: 700; color: #0f172a; line-height: 1.1; }
+  .leave-print-en-title { font-size: 8.5pt; font-weight: 700; letter-spacing: 0.15em; color: #0891b2; margin: 0.5mm 0 1.5mm; }
+  .leave-print-doc-no { font-size: 10pt; color: #334155; }
+  .leave-print-status-tag { font-size: 9.5pt; margin-top: 1mm; }
+  .leave-print-status-tag .status-pill { display: inline-block; padding: 1px 6px; border-radius: 4px; font-size: 8.5pt; font-weight: 600; }
+  .leave-print-status-tag .status-approved { background: #dcfce7 !important; color: #15803d !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .leave-print-status-tag .status-rejected { background: #fee2e2 !important; color: #b91c1c !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .leave-print-status-tag .status-pending { background: #fef3c7 !important; color: #b45309 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+
+  .leave-print-divider { width: 100%; height: 1px; background: #cbd5e1; margin: 2mm 0 4mm; position: relative; }
+  .leave-print-divider-accent { width: 18mm; height: 2px; background: #0891b2 !important; position: absolute; left: 0; top: -0.5px; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+
+  .leave-print-write-at { text-align: right; font-size: 11pt; line-height: 1.5; margin-bottom: 3mm; }
+  .leave-print-subject { font-size: 11.5pt; line-height: 1.6; margin-bottom: 3.5mm; }
+
+  .leave-print-letter-body { font-size: 11.5pt; line-height: 1.8; margin-bottom: 4mm; text-align: justify; }
+  .leave-print-letter-body p { margin: 1.5mm 0; }
+  .print-fill { border-bottom: 1px dotted #475569; padding: 0 4px; color: #0f172a; }
+  .print-fill-bold { font-weight: 700; }
+
+  .leave-print-applicant-sig { width: 55%; margin: 4mm 0 4mm auto; text-align: center; font-size: 11.5pt; line-height: 1.4; }
+  .leave-print-sig-dots { margin-bottom: 1.5mm; }
+  .leave-print-sig-name { margin-bottom: 1mm; }
+  .leave-print-sig-role { display: block; font-weight: 700; }
+  .leave-print-sig-date { font-size: 9.5pt; color: #475569; }
+
+  .leave-print-stats-section { margin-top: 3mm; margin-bottom: 4mm; }
+  .leave-print-stats-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2mm; font-size: 11pt; }
+  .leave-print-stats-title { font-weight: 700; display: flex; align-items: center; gap: 2mm; }
+  .stats-accent-bar { width: 3px; height: 4.5mm; background: #0891b2 !important; display: inline-block; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .leave-print-stats-unit { font-size: 9.5pt; color: #64748b; }
+  .leave-print-stats-table { width: 100%; border-collapse: collapse; font-size: 10.5pt; }
+  .leave-print-stats-table th, .leave-print-stats-table td { border: 1px solid #cbd5e1 !important; padding: 2.5mm 2mm; text-align: center; }
+  .leave-print-stats-table th { background: #f8fafc !important; font-weight: 600; color: #334155; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .leave-print-stats-table td:first-child { text-align: left; padding-left: 3mm; font-weight: 500; }
+
+  .leave-print-boxes-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4mm; margin-top: 4mm; margin-bottom: 3mm; }
+  .leave-print-decision-box { border: 1px solid #cbd5e1; border-radius: 2mm; padding: 3mm; font-size: 10pt; line-height: 1.4; background: #fff; }
+  .leave-print-box-title { font-weight: 700; font-size: 10.5pt; color: #0f172a; margin-bottom: 2mm; padding-bottom: 1.5mm; border-bottom: 1px solid #e2e8f0; }
+  .leave-print-checkboxes { display: flex; gap: 4mm; margin-bottom: 2mm; }
+  .print-check-item { display: inline-flex; align-items: center; gap: 1.5mm; font-size: 9.5pt; }
+  .print-checkbox-sq { width: 3.5mm; height: 3.5mm; border: 1px solid #475569; display: inline-flex; align-items: center; justify-content: center; font-size: 9pt; font-weight: 800; line-height: 1; border-radius: 0.5mm; }
+  .print-check-item.is-checked .print-checkbox-sq { background: #0891b2 !important; color: #fff !important; border-color: #0891b2 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .leave-print-comment-line { font-size: 9.5pt; margin-bottom: 2.5mm; color: #334155; }
+  .leave-print-signature-line { display: flex; align-items: baseline; justify-content: center; white-space: nowrap; gap: 4px; margin-bottom: 1.5mm; }
   .leave-print-notice { font-weight: 700; }
   .leave-print-sig-label { font-weight: 400; }
   .leave-print-dots { letter-spacing: 0.5px; }
-  .leave-print-name { text-align: center; margin-bottom: 2mm; }
-  .leave-print-title { display: block; text-align: center; font-weight: 700; }
-  .leave-print-footer { display: flex; justify-content: space-between; margin-top: 5mm; font-family: var(--font-sans, "IBM Plex Sans Thai", system-ui, sans-serif); font-size: 8pt; }
+  .leave-print-name { text-align: center; margin-bottom: 1mm; font-size: 9.5pt; }
+  .leave-print-title { display: block; text-align: center; font-weight: 700; font-size: 9.5pt; }
+  .leave-print-date { display: block; text-align: center; font-size: 8.5pt; color: #64748b; margin-top: 0.5mm; }
+
+  .leave-print-footer { display: flex; justify-content: space-between; margin-top: 3mm; border-top: 1px solid #e2e8f0; padding-top: 2mm; font-family: var(--font-sans, "IBM Plex Sans Thai", system-ui, sans-serif); font-size: 8pt; color: #64748b; }
 }
 @media (max-width: 900px) { .my-leave-quota-grid { grid-template-columns: 1fr; } }
 
