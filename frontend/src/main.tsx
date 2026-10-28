@@ -134,6 +134,7 @@ import './styles/hrpro-shell.css';
 import { avatarTone } from './avatar';
 import { showToast } from './toast';
 import { ToastHost } from './components/ToastHost';
+import { EditIconButton } from './components/EditIconButton';
 // Page-level redesign styles load as a separate chunk (main CSS budget).
 void import('./styles/hrpro-pages.css');
 if (isSmsPwaShellMode()) void import('./styles/employee-pwa-light.css');
@@ -1041,10 +1042,10 @@ function OperationalTable({ page, response, loading, error, onPageChange, onActi
     if (!canEditRows || !actionPages.includes(page)) return null;
 
     if (page === 'leave') return <><button className="btn-success compact" onClick={() => onAction(row, 'approve')}>อนุมัติ</button><button className="btn-danger-outline compact" onClick={() => onAction(row, 'reject')}>ไม่อนุมัติ</button></>;
-    if (page === 'rules') return <><button className="btn-info-outline data-row-primary-action" onClick={() => onAction(row, 'edit')}>แก้ไข</button><button className="btn-neutral" onClick={() => onAction(row, 'toggle')}>{row.enabled ? 'ปิดใช้' : 'เปิดใช้'}</button></>;
+    if (page === 'rules') return <><EditIconButton className="data-row-primary-action" label={`แก้ไข ${text(row.name || row.ruleType || row.id)}`} onClick={() => onAction(row, 'edit')} /><button className="btn-neutral" onClick={() => onAction(row, 'toggle')}>{row.enabled ? 'ปิดใช้' : 'เปิดใช้'}</button></>;
     if (page === 'licenses') return <><button className="btn-info-outline data-row-primary-action" aria-label="แก้ไขใบอนุญาต" onClick={() => (onEditLicense ? onEditLicense(row) : onAction(row, 'edit'))}>จัดการ</button>{role === 'ADMIN' && <DataRowActionMenu label="การทำงานเพิ่มเติมของใบอนุญาต" actions={[{ label: 'ลบใบอนุญาต', tone: 'danger', onSelect: () => onAction(row, 'delete') }]} />}</>;
     if (page === 'quota') return <><button className="btn-info-outline data-row-primary-action" onClick={() => onAction(row, 'edit')}>แก้ไขโควตา</button>{role === 'ADMIN' && (row.quotaYear === null || row.quotaYear === undefined || row.quotaYear === '') && <button className="btn-info compact" onClick={() => onAction(row, 'link')}>{row.employeeId ? 'จัดประเภทปี' : 'จับคู่พนักงานและปี'}</button>}</>;
-    if (page === 'schedule') return <><button className="btn-info-outline" onClick={() => onAction(row, 'edit')}>แก้ไข</button><button className="btn-neutral" onClick={() => onAction(row, 'toggle-lock')}>{row.locked ? 'ปลดล็อก' : 'ล็อก'}</button><button className="btn-danger-outline compact" onClick={() => onAction(row, 'delete')}>ลบ</button></>;
+    if (page === 'schedule') return <><EditIconButton label="แก้ไขกะ" onClick={() => onAction(row, 'edit')} /><button className="btn-neutral" onClick={() => onAction(row, 'toggle-lock')}>{row.locked ? 'ปลดล็อก' : 'ล็อก'}</button><button className="btn-danger-outline compact" onClick={() => onAction(row, 'delete')}>ลบ</button></>;
     return <><button className="btn-info-outline" onClick={() => onAction(row, 'edit')}>สิทธิ์</button><button className="btn-neutral" onClick={() => onAction(row, 'reset-password')}>ตั้งรหัสผ่าน</button><button className="btn-neutral" onClick={() => onAction(row, 'toggle-user')}>{row.isActive ? 'ระงับ' : 'เปิดใช้'}</button></>;
   };
   const showActions = canEditRows && actionPages.includes(page);

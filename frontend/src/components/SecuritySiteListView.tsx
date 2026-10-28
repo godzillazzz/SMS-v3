@@ -1,6 +1,6 @@
 import type { SecuritySite } from '../api';
-import { SmsIcon } from './SmsIcon';
 import '../styles/security-site-list.css';
+import { EditIconButton } from './EditIconButton';
 
 type OverlapRef = { siteId: string; otherSiteId: string };
 
@@ -42,7 +42,7 @@ export function SecuritySiteListView({ sites, overlaps, loading, onOpen }: {
                   : <span className="security-site-list__muted">ยังไม่ออก QR</span>}</td>
                 <td><span className={`security-site-list__status ${site.isActive ? 'is-active' : 'is-inactive'}`}>{site.isActive ? 'เปิดใช้งาน' : 'ปิดใช้งาน'}</span></td>
                 <td><div className="security-site-list__actions">
-                  <button type="button" className="security-site-list__icon" aria-label={`แก้ไข ${site.code}`} title="แก้ไข แผนที่ และ QR" onClick={() => onOpen(site)}><SmsIcon name="edit" size={16} /></button>
+                  <EditIconButton label={`แก้ไข ${site.code}`} onClick={() => onOpen(site)} />
                 </div></td>
               </tr>;
             }) : <tr><td colSpan={7} className="security-site-list__empty">ยังไม่มีบริเวณลงเวลา กด “เพิ่มบริเวณ” เพื่อสร้างรายการแรก</td></tr>}

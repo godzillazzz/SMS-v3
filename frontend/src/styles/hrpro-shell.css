@@ -176,3 +176,9 @@ body > .workflow-command-layer .workflow-command__employee-search { border-top: 
 @media (max-width: 760px) { .sms-toast-stack { right: 16px; left: 16px; bottom: calc(84px + env(safe-area-inset-bottom, 0px)); width: auto; } }
 @media (prefers-reduced-motion: reduce) { .sms-toast { animation: none; } }
 
+
+/* Row edit action (owner request 2026-10-28): square-pen icon, primary colour, no button chrome. */
+.sms-edit-button { display: inline-grid; place-items: center; width: 36px; height: 36px; min-height: 36px; padding: 0; border: 0; border-radius: 7px; background: transparent; color: var(--color-primary); cursor: pointer; }
+.sms-edit-button:hover:not(:disabled) { background: var(--color-primary-soft); }
+.sms-edit-button:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; }
+.sms-edit-button:disabled { opacity: .45; cursor: not-allowed; }
