@@ -31,6 +31,7 @@ import '@fontsource/ibm-plex-mono/400.css';
 import '@fontsource/ibm-plex-mono/500.css';
 import '@fontsource/ibm-plex-mono/600.css';
 import { api, refreshAuth, setTokenRefreshHandler } from './api';
+import { privateObjectUrl } from './private-object-url';
 import { isRefreshUnauthenticated, refreshWithRetry } from './auth-startup-recovery';
 import { isSupersededScheduleApproval, scheduleApprovalChangeTypeLabel, scheduleApprovalStatusLabel, scheduleApprovalTone } from './approval-display';
 import { getEmployeeLeaveQuota } from './leave-request-quota-api';
@@ -1060,7 +1061,7 @@ function OperationalTable({ page, response, loading, error, onPageChange, onActi
   const totalPages = response.meta?.totalPages ?? 0;
   const documentServices = {
     list: async (licenseId: string) => (await api.licenseDocuments(token!, licenseId))?.data as LicenseDocument[] || [],
-    view: async (documentId: string) => (await api.viewLicenseDocument(token!, documentId))?.data,
+    view: async (documentId: string) => { const result = (await api.viewLicenseDocument(token!, documentId))?.data; return result ? { ...result, url: await privateObjectUrl(token!, result.url) } : result; },
     approve: async (documentId: string) => { await api.approveLicenseDocument(token!, documentId); },
     returnForCorrection: async (documentId: string, reason: string) => { await api.returnLicenseDocumentForCorrection(token!, documentId, reason); },
     resubmit: async (documentId: string, data: { licenseNumber: string; proposedStartDate: string; proposedExpiryDate: string; note?: string }, file?: File) => { await api.resubmitLicenseDocument(token!, documentId, data, file); },
@@ -2437,7 +2438,7 @@ function Dashboard() {
 
   const licenseDocumentServices = {
     list: async (licenseId: string) => (await api.licenseDocuments(auth.token!, licenseId))?.data as LicenseDocument[] || [],
-    view: async (documentId: string) => (await api.viewLicenseDocument(auth.token!, documentId))?.data,
+    view: async (documentId: string) => { const result = (await api.viewLicenseDocument(auth.token!, documentId))?.data; return result ? { ...result, url: await privateObjectUrl(auth.token!, result.url) } : result; },
     approve: async (documentId: string) => { await api.approveLicenseDocument(auth.token!, documentId); },
     returnForCorrection: async (documentId: string, reason: string) => { await api.returnLicenseDocumentForCorrection(auth.token!, documentId, reason); },
     resubmit: async (documentId: string, data: { licenseNumber: string; proposedStartDate: string; proposedExpiryDate: string; note?: string }, file?: File) => { await api.resubmitLicenseDocument(auth.token!, documentId, data, file); },
