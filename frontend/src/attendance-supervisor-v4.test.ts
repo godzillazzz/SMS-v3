@@ -72,6 +72,21 @@ describe('Attendance Supervisor UX V4', () => {
     expect(page).toContain("onClick={() => setStatus('COMPLETE')}");
     expect(page).toContain("onClick={() => setStatus('CURRENTLY_WORKING')}");
     expect(page).toContain("role={onClick ? 'button' : undefined}");
+  });
+
+  it('offers read-only daily, all-employee, and per-employee print actions from filtered rows', () => {
+    expect(page).toContain("import { printDocument } from '../../schedule-print'");
+    expect(page).toContain('รายงานวันนี้');
+    expect(page).toContain('พิมพ์ทั้งหมด');
+    expect(page).toContain('พิมพ์รายบุคคล');
+    expect(page).toContain("printDocument('.attendance-supervisor-print'");
+    expect(page).toContain('attendance-supervisor-print-page');
+    expect(page).toContain('rows.filter((item) => item.employeeId === employeeId)');
+    expect(page).toContain('หนึ่งคนต่อหนึ่งแผ่น');
+    expect(page).not.toContain("printDocument('.attendance-supervisor-print', 'Attendance'");
+  });
+
+  it('implements approved dashboard filters and KPI/read-model fields', () => {
     for (const column of ['สถานที่ตามตาราง', 'สถานที่ลงเวลาจริง', 'ประเภท', 'เวลาปฏิบัติงาน', 'ข้อสังเกต', 'การทำงาน']) expect(page).toContain(column);
   });
 

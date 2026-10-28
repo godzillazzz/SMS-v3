@@ -1508,6 +1508,9 @@
   }
 }
 
+.attendance-supervisor-v4__print-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.attendance-supervisor-print { display: none; }
+
 .attendance-supervisor-v4__evidence-view {
   display: inline-flex;
   align-items: center;

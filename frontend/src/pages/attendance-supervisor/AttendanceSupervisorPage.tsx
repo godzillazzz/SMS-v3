@@ -28,6 +28,7 @@ import {
   type AttendanceAdjustmentStatus
 } from './attendance-adjustment-client';
 import { DataTablePagination, DataTableSkeletonCards, DataTableSkeletonRows, DataTableState, ResponsiveDataTable } from '../../components/ResponsiveDataTable';
+import { printDocument } from '../../schedule-print';
 import './attendance-supervisor-v4.css';
 
 type Props = {
@@ -388,6 +389,18 @@ function KPI({
   </article>;
 }
 
+function AttendanceSupervisorPrint({ rows, date, employeeId }: { rows: AttendanceRow[]; date: string; employeeId?: string }) {
+  const pages = employeeId ? rows.filter((item) => item.employeeId === employeeId) : rows;
+  return <section className="print-only attendance-supervisor-print" aria-label="รายงานการลงเวลา"><span className="sr-only">หนึ่งคนต่อหนึ่งแผ่น</span>
+    {pages.map((row) => <article className="attendance-supervisor-print-page" key={row.assignmentId}>
+      <header><h1>รายงานการลงเวลาประจำวัน</h1><p>วันที่ {row.date || date} · พิมพ์จากข้อมูลตามตัวกรองปัจจุบัน</p></header>
+      <dl><div><dt>รหัสพนักงาน</dt><dd>{row.employeeCode || '—'}</dd></div><div><dt>ชื่อพนักงาน</dt><dd>{row.employeeName}</dd></div><div><dt>หน่วยงาน</dt><dd>{row.department || '—'}</dd></div><div><dt>กะ</dt><dd>{row.shift.code || row.shift.name || '—'} · {scheduledWindow(row)}</dd></div><div><dt>สถานที่ตามตาราง</dt><dd>{(row.assignedSite || row.expectedSite)?.name || '—'}</dd></div><div><dt>สถานะ</dt><dd>{statusLabel(row.attendanceStatus)}</dd></div></dl>
+      <table><thead><tr><th>เวลาเข้า</th><th>เวลาออก</th><th>เวลาปฏิบัติงาน</th><th>ข้อสังเกต</th></tr></thead><tbody><tr><td>{time(row.checkInAt)}</td><td>{time(row.checkOutAt)}</td><td>{duration(row.workedMinutes)}</td><td>{attendanceOperationalLabels(row).join(' · ') || 'ไม่มี'}</td></tr></tbody></table>
+      <footer>เอกสารนี้เป็นรายงานแบบอ่านอย่างเดียว และไม่บันทึกหรือเปลี่ยนสถานะการลงเวลา</footer>
+    </article>)}
+  </section>;
+}
+
 function AttendanceMobileCard({
   row,
   mode,
@@ -469,6 +482,7 @@ export function AttendanceSupervisorPage({ token, role, department, employeeAuth
   const [shiftTypeId, setShiftTypeId] = useState('');
   const [employeeId, setEmployeeId] = useState('');
   const [status, setStatus] = useState('');
+  const [printEmployeeId, setPrintEmployeeId] = useState<string | null>();
   const [sites, setSites] = useState<SecuritySite[]>([]);
   const [shifts, setShifts] = useState<Array<{ id: string; code?: string; name?: string }>>([]);
   const [employees, setEmployees] = useState<Array<{
@@ -958,6 +972,13 @@ export function AttendanceSupervisorPage({ token, role, department, employeeAuth
     }
   };
 
+  const printAttendance = async (nextEmployeeId: string | null) => {
+    if (mode !== 'daily' || !rows.length) return;
+    setPrintEmployeeId(nextEmployeeId);
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    await printDocument('.attendance-supervisor-print', nextEmployeeId ? `รายงานลงเวลา-${nextEmployeeId}.pdf` : `รายงานลงเวลาวันนี้-${date}.pdf`, { orientation: 'portrait', margin: '10mm' });
+    setPrintEmployeeId(undefined);
+  };
   const attendanceColumnCount = mode === 'history' ? 14 : 13;
   const attendanceTableLabel = mode === 'history' ? 'ประวัติ Attendance' : 'สถานะ Attendance ประจำวัน';
   const attendanceStateTitle = error ? 'ไม่สามารถแสดงข้อมูล Attendance ได้' : rows.length ? '' : 'ไม่พบข้อมูล Attendance ตามตัวกรอง';
@@ -1017,22 +1038,9 @@ export function AttendanceSupervisorPage({ token, role, department, employeeAuth
             </td>
             <td>
               <div className="attendance-supervisor-v4__row-actions">
-                <button
-                  type="button"
-                  className="attendance-supervisor-v4__onbehalf-btn"
-                  onClick={() => openRowAdjustment(row)}
-                  aria-label={`ลงเวลาแทน ${row.employeeName}`}
-                >
-                  ลงเวลาแทน
-                </button>
-                <button
-                  type="button"
-                  className="attendance-supervisor-v4__detail-btn"
-                  onClick={() => void openDetail(row.assignmentId)}
-                  aria-label={`ดูรายละเอียด Attendance ของ ${row.employeeName}`}
-                >
-                  ดูรายละเอียด
-                </button>
+                <button type="button" className="attendance-supervisor-v4__detail-btn" onClick={() => void printAttendance(row.employeeId)} aria-label={`พิมพ์รายบุคคล ${row.employeeName}`}>พิมพ์รายบุคคล</button>
+                <button type="button" className="attendance-supervisor-v4__onbehalf-btn" onClick={() => openRowAdjustment(row)} aria-label={`ลงเวลาแทน ${row.employeeName}`}>ลงเวลาแทน</button>
+                <button type="button" className="attendance-supervisor-v4__detail-btn" onClick={() => void openDetail(row.assignmentId)} aria-label={`ดูรายละเอียด Attendance ของ ${row.employeeName}`}>ดูรายละเอียด</button>
               </div>
             </td>
           </tr>
@@ -1152,7 +1160,7 @@ export function AttendanceSupervisorPage({ token, role, department, employeeAuth
       </section>
       </SectionCard>}
 
-      <SectionCard className="attendance-supervisor-v4__table-card" kicker={mode === 'daily' ? 'ข้อมูลวันนี้' : 'ข้อมูลย้อนหลัง'} title={mode === 'daily' ? 'สถานะประจำวัน' : 'ประวัติการลงเวลา'} description={loading ? 'กำลังโหลดรายการตามตัวกรอง' : `${rows.length} รายการในขอบเขตที่เลือก`} actions={mode === 'history' && history?.meta ? <span>หน้า {history.meta.page}/{history.meta.totalPages} · {history.meta.total} รายการ</span> : undefined}>
+      <SectionCard className="attendance-supervisor-v4__table-card" kicker={mode === 'daily' ? 'ข้อมูลวันนี้' : 'ข้อมูลย้อนหลัง'} title={mode === 'daily' ? 'สถานะประจำวัน' : 'ประวัติการลงเวลา'} description={loading ? 'กำลังโหลดรายการตามตัวกรอง' : `${rows.length} รายการในขอบเขตที่เลือก`} actions={mode === 'daily' ? <div className="attendance-supervisor-v4__print-actions"><button type="button" className="btn-neutral" disabled={loading || !rows.length} onClick={() => void printAttendance(null)}>รายงานวันนี้</button><button type="button" className="btn-primary" disabled={loading || !rows.length} onClick={() => void printAttendance(null)}>พิมพ์ทั้งหมด</button></div> : history?.meta ? <span>หน้า {history.meta.page}/{history.meta.totalPages} · {history.meta.total} รายการ</span> : undefined}>
         <ResponsiveDataTable
           ariaLabel={attendanceTableLabel}
           loading={loading && !error}
@@ -1729,5 +1737,6 @@ export function AttendanceSupervisorPage({ token, role, department, employeeAuth
         </section>
       </div>
     )}
+    {mode === 'daily' && <AttendanceSupervisorPrint rows={rows} date={date} employeeId={printEmployeeId || undefined} />}
   </section>;
 }
