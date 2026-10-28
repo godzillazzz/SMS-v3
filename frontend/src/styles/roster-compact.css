@@ -1,6 +1,10 @@
 /* Owner issue 10 (2026-10-28): the monthly roster fits the whole month. Cells show only the shift code;
    the time stays in the cell tooltip, and lock/manual/override/licence markers sit in the corners. */
 @media (min-width: 1025px) {
+  /* schedule-rule-panel.css loads later with equal specificity; doubled classes keep the compact widths. */
+  #sms-app .schedule-grid.schedule-grid :is(th, td):not(.employee-sticky):not(:first-child) { width: 28px !important; min-width: 28px !important; max-width: 28px; padding: 2px 1px !important; }
+  #sms-app .schedule-grid.schedule-grid :is(.employee-sticky, th:first-child, td:first-child) { width: 130px !important; min-width: 130px !important; max-width: 150px !important; }
+  #sms-app .schedule-grid.schedule-grid :is(.calendar-shift, .empty-shift) { width: 26px !important; min-width: 0 !important; max-width: 26px; }
   #sms-app .schedule-grid :is(th, td):not(:first-child) { min-width: 28px !important; width: 28px; padding: 2px 1px !important; }
   #sms-app .schedule-grid th:not(:first-child) { font-size: 11px !important; line-height: 1.15; }
   #sms-app .schedule-grid :is(th, td):first-child { min-width: 130px !important; width: 130px; max-width: 150px; }
