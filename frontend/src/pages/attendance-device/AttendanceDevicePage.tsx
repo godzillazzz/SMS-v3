@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import '../../styles/attendance-device.css';
 import { api } from '../../api';
 import { formatRequestErrorMessage, RequestErrorReference, toRequestErrorState } from '../../request-error';
 import { PageHeader, SectionCard, StepFlow } from '../../components/layout';

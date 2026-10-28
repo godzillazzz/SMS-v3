@@ -16,8 +16,6 @@
 .attendance-device-state--empty span { max-width: 440px; font-size: 12px; line-height: 1.55; }
 .attendance-device-current { display: grid; gap: 18px; }
 .attendance-device-current__hero { display: flex; align-items: center; gap: 13px; }
-.device-orb { display: inline-grid; width: 48px; height: 48px; flex: 0 0 48px; place-items: center; border-radius: 15px; color: var(--color-success); background: color-mix(in srgb, var(--color-success) 12%, var(--color-surface)); }
-.device-orb.is-warning { color: var(--color-warning); background: color-mix(in srgb, var(--color-warning) 12%, var(--color-surface)); }
 .attendance-device-current__hero > div { display: grid; gap: 4px; min-width: 0; }
 .attendance-device-current__hero strong { overflow: hidden; color: var(--color-text); font-size: 17px; text-overflow: ellipsis; white-space: nowrap; }
 
@@ -35,13 +33,7 @@
 .attendance-device-field textarea { min-height: 88px; resize: vertical; }
 .attendance-device-field input:focus,
 .attendance-device-field textarea:focus { border-color: color-mix(in srgb, var(--color-primary) 58%, var(--color-border)); box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-primary) 10%, transparent); }
-.attendance-device-security-note,
-.device-proof-state { display: flex; align-items: flex-start; gap: 10px; border: 1px solid color-mix(in srgb, var(--color-primary) 17%, var(--color-border)); border-radius: 11px; padding: 11px 12px; color: var(--color-text-muted); background: color-mix(in srgb, var(--color-primary) 6%, var(--color-surface)); font-size: 11px; line-height: 1.55; }
-.device-proof-state > div { display: grid; gap: 3px; }
-.device-proof-state strong { color: var(--color-text); font-size: 12px; }
-.device-proof-state.is-ready { border-color: color-mix(in srgb, var(--color-success) 28%, var(--color-border)); background: color-mix(in srgb, var(--color-success) 7%, var(--color-surface)); }
-.device-proof-state.is-ready svg { color: var(--color-success); }
-.device-proof-state.is-warning svg { color: var(--color-warning); }
+.attendance-device-security-note { display: flex; align-items: flex-start; gap: 10px; border: 1px solid color-mix(in srgb, var(--color-primary) 17%, var(--color-border)); border-radius: 11px; padding: 11px 12px; color: var(--color-text-muted); background: color-mix(in srgb, var(--color-primary) 6%, var(--color-surface)); font-size: 11px; line-height: 1.55; }
 .attendance-device-enroll-action,
 .attendance-device-request > .btn-primary { display: inline-flex; justify-content: center; align-items: center; gap: 7px; width: fit-content; }
 .attendance-device-request__top,
@@ -90,8 +82,6 @@
 .attendance-device-runtime-diagnostics dt { color: var(--color-text-muted); font-size: 9px; font-weight: 700; overflow-wrap: anywhere; }
 .attendance-device-diagnostics dd,
 .attendance-device-runtime-diagnostics dd { min-width: 0; margin: 0; color: var(--color-text); font-family: var(--font-mono, monospace); font-size: 10px; overflow-wrap: anywhere; }
-.status-badge.returned { color: var(--color-warning); background: color-mix(in srgb, var(--color-warning) 10%, var(--color-surface)); }
-.status-badge.muted { color: var(--color-text-muted); background: var(--color-surface-muted); }
 
 @media (max-width: 980px) {
   .attendance-device-grid { grid-template-columns: 1fr; }

@@ -1,0 +1,12 @@
+/* Attendance device rules also used outside the device page; the page-only rules load with AttendanceDevicePage. */
+
+.device-orb { display: inline-grid; width: 48px; height: 48px; flex: 0 0 48px; place-items: center; border-radius: 15px; color: var(--color-success); background: color-mix(in srgb, var(--color-success) 12%, var(--color-surface)); }
+.device-orb.is-warning { color: var(--color-warning); background: color-mix(in srgb, var(--color-warning) 12%, var(--color-surface)); }
+.device-proof-state { display: flex; align-items: flex-start; gap: 10px; border: 1px solid color-mix(in srgb, var(--color-primary) 17%, var(--color-border)); border-radius: 11px; padding: 11px 12px; color: var(--color-text-muted); background: color-mix(in srgb, var(--color-primary) 6%, var(--color-surface)); font-size: 11px; line-height: 1.55; }
+.device-proof-state > div { display: grid; gap: 3px; }
+.device-proof-state strong { color: var(--color-text); font-size: 12px; }
+.device-proof-state.is-ready { border-color: color-mix(in srgb, var(--color-success) 28%, var(--color-border)); background: color-mix(in srgb, var(--color-success) 7%, var(--color-surface)); }
+.device-proof-state.is-ready svg { color: var(--color-success); }
+.device-proof-state.is-warning svg { color: var(--color-warning); }
+.status-badge.returned { color: var(--color-warning); background: color-mix(in srgb, var(--color-warning) 10%, var(--color-surface)); }
+.status-badge.muted { color: var(--color-text-muted); background: var(--color-surface-muted); }
