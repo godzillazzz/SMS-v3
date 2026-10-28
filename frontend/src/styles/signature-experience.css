@@ -828,3 +828,10 @@ input::placeholder, textarea::placeholder { color: var(--signature-text-muted); 
   .registration-review__grid { grid-template-columns: minmax(240px, 30%) minmax(0, 1fr); gap: 12px; }
   .registration-review__requests, .registration-review__detail { padding: 16px !important; }
 }
+
+/* Owner issue 7 (2026-10-28): the drawer icon stays centred, and a table identity cell reused as a field shows name over department without the avatar. */
+.signature-record-drawer .signature-record-drawer__icon { display: grid !important; place-items: center !important; padding: 0 !important; line-height: 0; }
+.signature-record-drawer__fields dd :is(.license-person, .personnel-identity) { display: grid; justify-items: start; gap: 2px; }
+.signature-record-drawer__fields dd :is(.personnel-avatar, .avatar) { display: none !important; }
+.signature-record-drawer__fields dd :is(.license-person, .personnel-identity) small { color: var(--color-text-muted); font-size: 12.5px; }
+.signature-record-drawer__fields dd .license-person > span:not(.personnel-avatar) { display: grid; gap: 2px; }
