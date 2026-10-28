@@ -138,6 +138,8 @@ button.btn-icon-only {
   padding: 0;
 }
 
+.license-table-view { text-align: center; }
+.license-table-view .btn-icon-only { margin-inline: auto; }
 .license-table-view .btn-icon-only,
 .license-edit-document .btn-icon-only,
 .license-document-line .btn-icon-only {

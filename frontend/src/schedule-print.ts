@@ -11,6 +11,7 @@ export type PrintTableMetadata = {
   title: string;
   printedBy: string;
   filters?: Array<{ label: string; value: string }>;
+  orientation?: PrintOrientation;
 };
 
 function waitForPaint(targetWindow: Window): Promise<void> {
@@ -227,7 +228,7 @@ export async function printTableReport(
 
   const columnCount = Math.max(...Array.from(table.rows, (row) => row.cells.length), 0);
   await printNodeDocument(root, metadata.title, {
-    orientation: columnCount > 7 ? 'landscape' : 'portrait',
+    orientation: metadata.orientation || (columnCount > 7 ? 'landscape' : 'portrait'),
     margin: '10mm'
   }, testPrint);
 }

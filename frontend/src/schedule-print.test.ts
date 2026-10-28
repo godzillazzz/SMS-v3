@@ -57,6 +57,8 @@ describe('schedule PDF export', () => {
     expect(printHelper).toContain('display: table-header-group !important');
     expect(printHelper).toContain('break-inside: avoid !important');
     expect(printHelper).toContain("columnCount > 7 ? 'landscape' : 'portrait'");
+    expect(mainTsx).toContain("orientation: page === 'licenses' ? 'landscape' : undefined");
+    expect(printHelper).toContain("orientation: metadata.orientation || (columnCount > 7 ? 'landscape' : 'portrait')");
   });
 
   test('leave and report print requests declare their own page geometry', () => {

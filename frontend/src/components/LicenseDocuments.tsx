@@ -15,6 +15,7 @@ import {
   licenseValidityLabel,
   LicenseDocument,
   licenseDocumentStatusLabel,
+  normalizeLicenseDisplayFileName,
   sanitizeLicenseDocumentError,
   selectLicenseDocumentForTable,
   selectLicenseDocumentSummary,
@@ -91,19 +92,22 @@ function ModalFrame({ labelledBy, className = '', onClose, escapeEnabled = true,
 export function LicenseDocumentViewerModal({ documentId, onRequestView, onClose }: { documentId: string; onRequestView: (id: string) => Promise<ViewResult>; onClose: () => void }) {
   const [viewer, setViewer] = useState<ViewResult>();
   const [error, setError] = useState<RequestErrorInput>();
+  const [attempt, setAttempt] = useState(0);
   useEffect(() => {
     let active = true;
     setViewer(undefined);
     setError(undefined);
     onRequestView(documentId).then((result) => { if (active) setViewer(result); }).catch((reason) => { if (active) setError(licenseRequestError(reason)); });
     return () => { active = false; setViewer(undefined); };
-  }, [documentId, onRequestView]);
+  }, [attempt, documentId, onRequestView]);
+  const fileName = viewer ? normalizeLicenseDisplayFileName(viewer.fileName) : 'กำลังเปิดเอกสาร…';
   return <ModalFrame labelledBy="license-viewer-title" className="license-viewer-dialog" onClose={onClose}>
-    <header className="license-modal-heading"><div><p>ตัวอย่างเอกสารใบอนุญาต</p><h2 id="license-viewer-title">{viewer?.fileName || 'กำลังเปิดเอกสาร…'}</h2></div></header>
+    <header className="license-modal-heading"><div><p>ตัวอย่างเอกสารใบอนุญาต</p><h2 id="license-viewer-title">{fileName}</h2></div></header>
     {!viewer && !error && <div className="license-modal-state" role="status">กำลังขอลิงก์สำหรับดูเอกสาร…</div>}
-    {error && <div className="license-modal-error" role="alert"><RequestErrorContent error={error} /></div>}
-    {viewer?.mimeType === 'application/pdf' && <iframe className="license-pdf-viewer" title={viewer.fileName} src={viewer.url} />}
-    {viewer && ['image/jpeg', 'image/png'].includes(viewer.mimeType) && <div className="license-image-stage"><img src={viewer.url} alt={viewer.fileName} /></div>}
+    {error && <div className="license-modal-error" role="alert"><RequestErrorContent error={error} /><button type="button" className="btn-neutral compact" onClick={() => setAttempt((value) => value + 1)}>ลองเปิดใหม่</button></div>}
+    {viewer && <div className="license-viewer-actions"><a className="btn-neutral compact" href={viewer.url} target="_blank" rel="noreferrer">เปิดเอกสารในหน้าต่างใหม่</a><a className="btn-primary compact" href={viewer.url} download={fileName}>ดาวน์โหลดเอกสาร</a><button type="button" className="btn-neutral compact" onClick={() => setAttempt((value) => value + 1)}>ลองเปิดใหม่</button></div>}
+    {viewer?.mimeType === 'application/pdf' && <iframe className="license-pdf-viewer" title={fileName} src={viewer.url} />}
+    {viewer && ['image/jpeg', 'image/png'].includes(viewer.mimeType) && <div className="license-image-stage"><img src={viewer.url} alt={fileName} /></div>}
     {viewer && viewer.mimeType !== 'application/pdf' && !['image/jpeg', 'image/png'].includes(viewer.mimeType) && <div className="license-modal-error" role="alert">ไม่รองรับชนิดไฟล์นี้สำหรับการแสดงผล</div>}
   </ModalFrame>;
 }
@@ -154,7 +158,7 @@ export function LicenseTableDocumentColumns({ license, summary, services, isAdmi
 
 function DocumentFacts({ document }: { document: LicenseDocument }) {
   return <dl className="license-document-facts">
-    <div><dt>ชื่อไฟล์</dt><dd>{document.safeDisplayFileName}</dd></div>
+    <div><dt>ชื่อไฟล์</dt><dd>{normalizeLicenseDisplayFileName(document.safeDisplayFileName)}</dd></div>
     <div><dt>ขนาด / ชนิด</dt><dd>{formatFileSize(document.fileSize)} · {document.mimeType}</dd></div>
     <div><dt>ผู้แนบ</dt><dd>{document.uploadedBy?.displayName || '-'}</dd></div>
     <div><dt>แนบเมื่อ</dt><dd>{formatLicenseDateTime(document.uploadedAt)}</dd></div>
@@ -232,7 +236,7 @@ function PermanentDeleteModal({ document, services, onClose, onDeleted }: { docu
     <header className="license-modal-heading"><div><p>ลบเอกสารถาวร</p><h2 id="license-hard-delete-title">ยืนยันการลบถาวร</h2></div></header>
     <div className="license-confirm-panel license-hard-delete-panel">
       <p>การลบนี้ไม่สามารถกู้คืนได้ และจะลบไฟล์กับประวัติการดำเนินการของรายการนี้</p>
-      <dl className="license-document-facts"><div><dt>เลขใบอนุญาต</dt><dd>{document.proposedLicenseNumber || '-'}</dd></div><div><dt>ชื่อไฟล์</dt><dd>{document.safeDisplayFileName}</dd></div><div><dt>สถานะ</dt><dd>{licenseDocumentStatusLabel[document.status]}</dd></div></dl>
+      <dl className="license-document-facts"><div><dt>เลขใบอนุญาต</dt><dd>{document.proposedLicenseNumber || '-'}</dd></div><div><dt>ชื่อไฟล์</dt><dd>{normalizeLicenseDisplayFileName(document.safeDisplayFileName)}</dd></div><div><dt>สถานะ</dt><dd>{licenseDocumentStatusLabel[document.status]}</dd></div></dl>
       <label className="field-group"><span>พิมพ์ DELETE เพื่อยืนยัน</span><input value={confirmation} onChange={(event) => setConfirmation(event.target.value)} autoComplete="off" /></label>
       {error && <div className="license-modal-error" role="alert"><RequestErrorContent error={error} /></div>}
       <div className="license-modal-actions"><button type="button" className="btn-neutral" disabled={busy} onClick={onClose}>ยกเลิก</button><button type="button" className="btn-danger" disabled={busy || confirmation !== 'DELETE'} onClick={() => void submit()}>{busy ? 'กำลังลบ…' : 'ลบถาวร'}</button></div>
@@ -250,7 +254,7 @@ function HistoryModal({ documents, services, isAdmin, onClose, onDeleted }: { do
       {!sorted.length && <div className="license-modal-state">ยังไม่มีประวัติเอกสาร</div>}
       <div className="license-history-list">{sorted.map((document) => <article key={document.id} className="license-history-card">
         <header><strong>ประวัติการดำเนินการ</strong><span className={`license-doc-badge ${licenseStatusClass(document.status)}`}>{licenseDocumentStatusLabel[document.status]}</span></header>
-        <p className="license-history-file">{document.safeDisplayFileName}</p>
+        <p className="license-history-file">{normalizeLicenseDisplayFileName(document.safeDisplayFileName)}</p>
         <p>{formatLicenseDate(document.proposedStartDate)} – {formatLicenseDate(document.proposedExpiryDate)}</p>
         <small>ผู้แนบ: {document.uploadedBy?.displayName || '-'} · {formatLicenseDateTime(document.uploadedAt)}</small>
         <small>{document.status === 'APPROVED' ? 'ผู้อนุมัติ' : 'ผู้ตรวจ'}: {document.reviewedBy?.displayName || (document.status === 'APPROVED' ? 'ไม่พบชื่อผู้อนุมัติ' : '-')} · {formatLicenseDateTime(document.reviewedAt)}</small>
@@ -262,7 +266,7 @@ function HistoryModal({ documents, services, isAdmin, onClose, onDeleted }: { do
           {document.revisions.map((revision) => <section key={revision.id} className="license-revision-card">
             <div><strong>Revision {revision.revision}</strong><span>{revision.proposedLicenseNumber || '-'}</span></div>
             <p>{formatLicenseDate(revision.proposedStartDate)} → {formatLicenseDate(revision.proposedExpiryDate)}</p>
-            <small>{revision.safeDisplayFileName} · {formatFileSize(revision.fileSize)}</small>
+            <small>{normalizeLicenseDisplayFileName(revision.safeDisplayFileName)} · {formatFileSize(revision.fileSize)}</small>
             <small>ส่งโดย {revision.submittedBy?.displayName || '-'} · {formatLicenseDateTime(revision.submittedAt)}</small>
             {revision.correctionReason && <small className="license-correction-reason">บริบทการแก้ไข: {revision.correctionReason}</small>}
           </section>)}

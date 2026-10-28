@@ -7,6 +7,7 @@ import {
   LicenseDocument,
   licenseValidityLabel,
   licenseDocumentStatusLabel,
+  normalizeLicenseDisplayFileName,
   sanitizeLicenseDocumentError,
   licenseTableStatus,
   selectLicenseDocumentForTable,
@@ -19,6 +20,7 @@ const mainSource = fs.readFileSync(path.join(__dirname, 'main.tsx'), 'utf-8');
 const styleSource = fs.readFileSync(path.join(__dirname, 'styles', 'license-documents.css'), 'utf-8');
 const dataSurfaceStyleSource = fs.readFileSync(path.join(__dirname, 'styles', 'data-surfaces.css'), 'utf-8');
 const actionStyleSource = fs.readFileSync(path.join(__dirname, 'styles', 'action-system.css'), 'utf-8');
+const hrproPageStyleSource = fs.readFileSync(path.join(__dirname, 'styles', 'hrpro-pages.css'), 'utf-8');
 
 const documentRow = (overrides: Partial<LicenseDocument> = {}): LicenseDocument => ({
   id: 'doc-1', employeeId: 'emp-1', licenseId: 'license-1', safeDisplayFileName: 'license.pdf', mimeType: 'application/pdf', fileSize: 1000,
@@ -41,6 +43,11 @@ describe('license document table state', () => {
     expect(componentSource).toContain('aria-label="ดูไฟล์ใบอนุญาต"');
     expect(componentSource).not.toMatch(/aria-label=\{`ดูไฟล์/);
     expect(mainSource).toContain("role === 'ADMIN' && <DataRowActionMenu");
+    expect(actionStyleSource).toContain('.license-table-view { text-align: center; }');
+    expect(actionStyleSource).toContain('.license-table-view .btn-icon-only { margin-inline: auto; }');
+    expect(dataSurfaceStyleSource).toContain('.license-table-status,\n.license-table-view {\n  text-align: center;');
+    expect(hrproPageStyleSource).toContain('#sms-app .license-person strong{color:var(--color-text);');
+    expect(dataSurfaceStyleSource).toContain('.status-badge--success');
     expect(mainSource).toContain("label: 'ลบใบอนุญาต'");
     expect(mainSource).toContain("onSelect: () => onAction(row, 'delete')");
     expect(mainSource).toContain("page === 'licenses' ? renderLicenseCell");
@@ -151,6 +158,21 @@ describe('license document table state', () => {
   });
 });
 
+describe('license document filename presentation', () => {
+  it('repairs UTF-8 Thai filename mojibake without altering ordinary filenames', () => {
+    expect(normalizeLicenseDisplayFileName('à¸£à¸²à¸¢à¸‡à¸²à¸™.pdf')).toBe('รายงาน.pdf');
+    expect(normalizeLicenseDisplayFileName('license.pdf')).toBe('license.pdf');
+    expect(normalizeLicenseDisplayFileName('')).toBe('เอกสารใบอนุญาต');
+  });
+
+  it('normalizes every document filename presentation surface without changing document transport', () => {
+    expect(componentSource).toContain('{normalizeLicenseDisplayFileName(document.safeDisplayFileName)}');
+    expect(componentSource).toContain('{normalizeLicenseDisplayFileName(revision.safeDisplayFileName)}');
+    expect(componentSource).toContain('download={fileName}');
+    expect(componentSource).not.toContain('url={normalizeLicenseDisplayFileName');
+  });
+});
+
 describe('license document viewer and review', () => {
   it('requests a fresh signed view using only the selected document ID', async () => {
     const fetchMock = vi.fn().mockResolvedValue({ status: 200, ok: true, json: async () => ({ data: { url: 'signed-result', mimeType: 'application/pdf', fileName: 'license.pdf' } }) });
@@ -161,9 +183,12 @@ describe('license document viewer and review', () => {
     expect(JSON.stringify(fetchMock.mock.calls[0])).not.toContain('storageObjectKey');
   });
 
-  it('renders PDF and image inline and clears viewer state on cleanup', () => {
+  it('renders PDF and image inline with recovery controls and clears viewer state on cleanup', () => {
     expect(componentSource).toContain('<iframe className="license-pdf-viewer"');
     expect(componentSource).toContain('<img src={viewer.url}');
+    expect(componentSource).toContain('เปิดเอกสารในหน้าต่างใหม่');
+    expect(componentSource).toContain('ดาวน์โหลดเอกสาร');
+    expect(componentSource).toContain('ลองเปิดใหม่');
     expect(componentSource).toContain('return () => { active = false; setViewer(undefined); }');
     expect(componentSource).not.toContain('localStorage');
     expect(componentSource).not.toContain('sessionStorage');
