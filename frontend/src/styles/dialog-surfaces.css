@@ -24,7 +24,7 @@
 :is([data-theme="light"], [data-theme="dark"]) :is(.employee-governed-modal, .employee-review-modal) :is(h1, h2, h3, h4, strong, b, label, dt, dd, th, td, li, span):not([class*="badge"]):not([class*="pill"]):not([class*="status"]):not(button):not(button *):not([class*="banner"] *):not([class*="alert"] *) {
   color: var(--dlg-text) !important;
 }
-:is([data-theme="light"], [data-theme="dark"]) :is(.employee-governed-modal, .employee-review-modal) :is(p, small, .reference-photo-policy, [class*="hint"], [class*="note"], [class*="empty"]):not([class*="banner"] *):not([class*="alert"] *):not([class*="alert"]) {
+:is([data-theme="light"], [data-theme="dark"]) :is(.employee-governed-modal, .employee-review-modal) :is(p, small, .reference-photo-policy, [class*="hint"], [class*="note"], [class*="empty"]):not([class*="banner"] *):not([class*="alert"] *):not([class*="alert"]):not(button *) {
   color: var(--dlg-text-2) !important;
 }
 :is([data-theme="light"], [data-theme="dark"]) :is(.employee-governed-modal, .employee-review-modal) :is(input, select, textarea) {
@@ -34,7 +34,7 @@
 }
 
 /* Secondary buttons and icon-only close buttons ("ปิด…") never take the panel colour. */
-:is([data-theme="light"], [data-theme="dark"]) :is([role="dialog"], [role="alertdialog"], .employee-governed-modal, .employee-review-modal) :is(.btn-neutral, .btn-secondary, .small-action) {
+:is([data-theme="light"], [data-theme="dark"]) :is([role="dialog"], [role="alertdialog"], .employee-governed-modal, .employee-review-modal) :is(.btn-neutral, .btn-secondary, .small-action, .employee-change-action-grid button, .employee-change-action-grid button *) {
   border-color: var(--dlg-border) !important;
   background: var(--dlg-surface) !important;
   color: var(--dlg-text) !important;
