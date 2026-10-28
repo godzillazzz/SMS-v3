@@ -29,6 +29,9 @@
 #sms-app .sidebar-logout { background: transparent !important; border: 1px solid var(--color-sidebar-border) !important; color: var(--sidebar-item) !important; box-shadow: none !important; }
 #sms-app .sidebar-logout:hover { background: var(--color-sidebar-hover) !important; color: #ffffff !important; }
 #sms-app .sidebar-close-button { color: var(--sidebar-item) !important; background: transparent !important; }
+#sms-app :is(.drawer-close, .overlay-close, .license-modal-close) { color: var(--color-text) !important; background: var(--color-surface) !important; border-color: var(--color-border-strong, var(--color-border)) !important; }
+#sms-app :is(.drawer-close, .overlay-close, .license-modal-close):hover { background: var(--color-surface-muted) !important; }
+#sms-app :is(.drawer-close, .overlay-close, .license-modal-close):focus-visible { outline: 3px solid var(--color-primary); outline-offset: 2px; }
 
 /* Topbar: flat white bar under the page edge (Figma 03 #7). */
 #sms-app .topbar { margin: 0 !important; border: 0 !important; border-bottom: 1px solid var(--color-border) !important; border-radius: 0 !important; background: var(--color-surface) !important; background-image: none !important; box-shadow: none !important; backdrop-filter: none !important; color: var(--color-text); }
