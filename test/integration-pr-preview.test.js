@@ -96,12 +96,8 @@ test('wrapper fails instead of skipping when provider has no successful Preview'
   assert.deepEqual(errors, ['PREVIEW_RUNTIME_FAILED=EXACT_HEAD_VERCEL_PREVIEW_NOT_READY']);
 });
 
-test('CI pins the actual PR head and keeps the required integration Preview gate', () => {
+test('CI is manual-only and does not consume Actions runners for routine push or PR source backups', () => {
   const ci = fs.readFileSync('.github/workflows/ci.yml', 'utf8');
-  assert.match(ci, /deployments: read/);
-  assert.match(ci, /EXPECTED_PR_HEAD_SHA: \$\{\{ github.event.pull_request.head.sha \}\}/);
-  assert.match(ci, /EXPECTED_PR_HEAD_REF: \$\{\{ github.head_ref \}\}/);
-  assert.match(ci, /if: github.event_name == 'pull_request' && github.base_ref == 'fix\/serverless-database-reliability'/);
-  assert.match(ci, /node scripts\/ci\/verify-integration-pr-preview.js/);
-  assert.doesNotMatch(ci, /continue-on-error/);
+  assert.match(ci, /^on:\r?\n\s+workflow_dispatch:/m);
+  assert.doesNotMatch(ci, /^\s+(?:push|pull_request|schedule|repository_dispatch):/m);
 });

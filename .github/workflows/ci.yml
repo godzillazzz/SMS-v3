@@ -2,25 +2,6 @@
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - preview/enterprise-evolution-20260927
-      - fix/serverless-database-reliability
-      - fix/sms-v1-2-1-visual-consistency-inactive-darkmode
-      - fix/g05-license-document-delete-audit-tombstone
-      - fix/email-01-production-backport-v1
-      - fix/production-mobile-responsive-v1
-      - fix/production-leave-p2028-transaction-reliability-v1
-      - fix/minio-complete-integration
-      - feature/approval-workflow-standard-v1
-      - feature/g06-department-security-site-v1
-      - feature/q11-production-assurance-dependency-hardening
-      - feature/q12a-data-scale-export-correctness
-      - feature/q12b-performance-code-splitting
-      - feature/q12c-native-dialog-replacement
-      - feature/q12d-node22-build-repro
-  pull_request:
-    branches: [main, fix/serverless-database-reliability]
 
 permissions:
   contents: read
