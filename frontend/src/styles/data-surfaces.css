@@ -450,6 +450,13 @@
   background: var(--color-success-soft);
 }
 
+.license-status-approved,
+.status-badge--success {
+  color: var(--color-text);
+  background: color-mix(in srgb, var(--color-success-soft) 82%, var(--color-surface));
+  border-color: color-mix(in srgb, var(--color-success) 38%, var(--color-border));
+}
+
 .status-badge--warning,
 .status-badge.pending,
 .access-account-state--pending,

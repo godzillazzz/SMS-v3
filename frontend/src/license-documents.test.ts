@@ -19,6 +19,7 @@ const mainSource = fs.readFileSync(path.join(__dirname, 'main.tsx'), 'utf-8');
 const styleSource = fs.readFileSync(path.join(__dirname, 'styles', 'license-documents.css'), 'utf-8');
 const dataSurfaceStyleSource = fs.readFileSync(path.join(__dirname, 'styles', 'data-surfaces.css'), 'utf-8');
 const actionStyleSource = fs.readFileSync(path.join(__dirname, 'styles', 'action-system.css'), 'utf-8');
+const hrproPageStyleSource = fs.readFileSync(path.join(__dirname, 'styles', 'hrpro-pages.css'), 'utf-8');
 
 const documentRow = (overrides: Partial<LicenseDocument> = {}): LicenseDocument => ({
   id: 'doc-1', employeeId: 'emp-1', licenseId: 'license-1', safeDisplayFileName: 'license.pdf', mimeType: 'application/pdf', fileSize: 1000,
@@ -41,6 +42,10 @@ describe('license document table state', () => {
     expect(componentSource).toContain('aria-label="ดูไฟล์ใบอนุญาต"');
     expect(componentSource).not.toMatch(/aria-label=\{`ดูไฟล์/);
     expect(mainSource).toContain("role === 'ADMIN' && <DataRowActionMenu");
+    expect(actionStyleSource).toContain('.license-table-view { text-align: center; }');
+    expect(actionStyleSource).toContain('.license-table-view .btn-icon-only { margin-inline: auto; }');
+    expect(hrproPageStyleSource).toContain('#sms-app .license-person strong{color:var(--color-text);');
+    expect(dataSurfaceStyleSource).toContain('.status-badge--success');
     expect(mainSource).toContain("label: 'ลบใบอนุญาต'");
     expect(mainSource).toContain("onSelect: () => onAction(row, 'delete')");
     expect(mainSource).toContain("page === 'licenses' ? renderLicenseCell");
