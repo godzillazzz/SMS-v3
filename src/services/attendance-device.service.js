@@ -6,6 +6,7 @@ const auditDefault = require('./audit.service');
 const HttpError = require('../utils/http-error');
 
 const ACTIVE_REQUEST_STATUSES = ['PENDING_APPROVAL', 'RETURNED_FOR_CORRECTION'];
+const SUPERSEDED_COMMENT = 'ถูกแทนที่ด้วยคำขอที่อนุมัติแล้ว';
 const SUPPORTED_KEY_ALGORITHMS = new Set(['ECDSA_P256_SHA256']);
 const CHALLENGE_TTL_MS = 5 * 60 * 1000;
 const SELFIE_CHALLENGE_TTL_MS = 120 * 1000;
@@ -35,7 +36,7 @@ function mapConflict(error) {
   return error;
 }
 function safeEnrollment(row) { return row ? { id: row.id, employeeId: row.employeeId, displayName: row.displayName, keyAlgorithm: row.keyAlgorithm, credentialFingerprint: row.credentialFingerprint, platformHint: row.platformHint, status: row.status, proofVerifiedAt: row.proofVerifiedAt, enrolledAt: row.enrolledAt, activatedAt: row.activatedAt, revokedAt: row.revokedAt, revokedReason: row.revokedReason, approvedByUserId: row.approvedByUserId || null, approvedBy: safeRequester(row.approvedBy) } : null; }
-function safeEmployee(row) { return row ? { id: row.id, displayName: row.displayName, firstName: row.firstName, lastName: row.lastName, department: row.department } : undefined; }
+function safeEmployee(row) { return row ? { id: row.id, employeeCode: row.employeeCode ?? null, displayName: row.displayName, firstName: row.firstName, lastName: row.lastName, department: row.department } : undefined; }
 function safeRequester(row) { return row ? { id: row.id, displayName: row.displayName, role: row.role || null } : undefined; }
 function safeAudit(row) {
   if (!row) return null;
@@ -191,8 +192,8 @@ function createAttendanceDeviceService({ prisma = prismaDefault, audit = auditDe
   async function listAdminOverview({ actor }) {
     assertAdmin(actor);
     const [enrollments, requests, audits] = await Promise.all([
-      prisma.attendanceDeviceEnrollment.findMany({ include: { employee: { select: { id: true, displayName: true, firstName: true, lastName: true, department: true } }, approvedBy: { select: { id: true, displayName: true, role: true } } }, orderBy: [{ employeeId: 'asc' }, { createdAt: 'desc' }] }),
-      prisma.attendanceDeviceChangeRequest.findMany({ include: { candidateDevice: { include: { approvedBy: { select: { id: true, displayName: true, role: true } } } }, employee: { select: { id: true, displayName: true, firstName: true, lastName: true, department: true } }, requestedBy: { select: { id: true, displayName: true, role: true } }, reviewedBy: { select: { id: true, displayName: true, role: true } } }, orderBy: { createdAt: 'desc' } }),
+      prisma.attendanceDeviceEnrollment.findMany({ include: { employee: { select: { id: true, employeeCode: true, displayName: true, firstName: true, lastName: true, department: true } }, approvedBy: { select: { id: true, displayName: true, role: true } } }, orderBy: [{ employeeId: 'asc' }, { createdAt: 'desc' }] }),
+      prisma.attendanceDeviceChangeRequest.findMany({ include: { candidateDevice: { include: { approvedBy: { select: { id: true, displayName: true, role: true } } } }, employee: { select: { id: true, employeeCode: true, displayName: true, firstName: true, lastName: true, department: true } }, requestedBy: { select: { id: true, displayName: true, role: true } }, reviewedBy: { select: { id: true, displayName: true, role: true } } }, orderBy: { createdAt: 'desc' } }),
       prisma.auditLog.findMany({ where: { entityType: { in: ['AttendanceDeviceEnrollment', 'AttendanceDeviceChangeRequest'] } }, include: { actor: { select: { id: true, displayName: true } } }, orderBy: { createdAt: 'desc' }, take: 300 })
     ]);
     const groups = new Map();
@@ -320,6 +321,21 @@ function createAttendanceDeviceService({ prisma = prismaDefault, audit = auditDe
         if (request.requestType === 'REPLACEMENT' && (!active || active.id !== request.currentDeviceEnrollmentId)) throw http(409, 'ATTENDANCE_DEVICE_STALE_REQUEST', 'The active device changed after this request was submitted.');
         if (active) await tx.attendanceDeviceEnrollment.update({ where: { id: active.id }, data: { status: 'REVOKED', revokedAt: now, revokedReason: 'DEVICE_TRANSFER_SUPERSEDED' } });
         const candidate = await tx.attendanceDeviceEnrollment.update({ where: { id: request.candidateDeviceEnrollmentId }, data: { status: 'ACTIVE', activatedAt: now, approvedByUserId: actor.sub, revokedAt: null, revokedReason: null }, include: { approvedBy: { select: { id: true, displayName: true, role: true } } } });
+        // Owner issue 9 (2026-10-28): once a device is approved, the employee's other open requests and older
+        // waiting devices are closed (kept, not deleted) so the queue only shows what still needs a decision.
+        const supersededRequestIds = [];
+        if (tx.attendanceDeviceChangeRequest.findMany) {
+          const others = await tx.attendanceDeviceChangeRequest.findMany({ where: { employeeId: request.employeeId, id: { not: request.id }, status: { in: ACTIVE_REQUEST_STATUSES } }, select: { id: true, candidateDeviceEnrollmentId: true } });
+          for (const other of others) {
+            const closed = await tx.attendanceDeviceChangeRequest.updateMany({ where: { id: other.id, status: { in: ACTIVE_REQUEST_STATUSES } }, data: { status: 'CANCELLED', cancelledAt: now, reviewedByUserId: actor.sub, reviewedAt: now, reviewerComment: SUPERSEDED_COMMENT } });
+            if (closed.count !== 1) continue;
+            supersededRequestIds.push(other.id);
+            await audit.log({ actorUserId: actor.sub, action: 'UPDATE', entityType: 'AttendanceDeviceChangeRequest', entityId: other.id, metadata: deviceRequestAuditMetadata({ event: 'SUPERSEDED_BY_APPROVAL', requestId: other.id, supersededByRequestId: request.id, employeeId: request.employeeId }) }, tx);
+          }
+        }
+        if (tx.attendanceDeviceEnrollment.updateMany) {
+          await tx.attendanceDeviceEnrollment.updateMany({ where: { employeeId: request.employeeId, id: { not: candidate.id }, status: 'PENDING_APPROVAL', createdAt: { lt: candidate.createdAt || now } }, data: { status: 'CANCELLED', revokedAt: now, revokedReason: SUPERSEDED_COMMENT } });
+        }
         const rejectedEvents = tx.attendanceEvent
           ? await tx.attendanceEvent.findMany({ where: { deviceEnrollmentId: request.candidateDeviceEnrollmentId, session: { employeeId: request.employeeId } }, select: { id: true, reviewReasons: true, reviewRequired: true } })
           : [];
@@ -327,7 +343,7 @@ function createAttendanceDeviceService({ prisma = prismaDefault, audit = auditDe
           const reviewReasons = reviewReasonList(event.reviewReasons).filter((reason) => reason !== DEVICE_TRANSFER_REJECTED);
           await tx.attendanceEvent.update({ where: { id: event.id }, data: { reviewRequired: reviewReasons.length > 0 || (event.reviewRequired && !Array.isArray(event.reviewReasons)), reviewReasons: reviewReasons.length ? reviewReasons : null } });
         }
-        const approvalMetadata = { requestId: request.id, requestType: request.requestType, employeeId: request.employeeId, candidateEnrollmentId: candidate.id, currentEnrollmentId: active?.id || null, previousDeviceEnrollmentId: active?.id || null, activeDeviceEnrollmentId: candidate.id, adminUserId: actor.sub, reviewedByUserId: actor.sub, reviewedAt: now, status: 'APPROVED' };
+        const approvalMetadata = { requestId: request.id, supersededRequestIds, requestType: request.requestType, employeeId: request.employeeId, candidateEnrollmentId: candidate.id, currentEnrollmentId: active?.id || null, previousDeviceEnrollmentId: active?.id || null, activeDeviceEnrollmentId: candidate.id, adminUserId: actor.sub, reviewedByUserId: actor.sub, reviewedAt: now, status: 'APPROVED' };
         await audit.log({ actorUserId: actor.sub, action: 'UPDATE', entityType: 'AttendanceDeviceChangeRequest', entityId: request.id, metadata: deviceRequestAuditMetadata({ ...approvalMetadata, event: 'APPROVED' }) }, tx);
         await audit.log({ actorUserId: actor.sub, action: 'UPDATE', entityType: 'AttendanceDeviceChangeRequest', entityId: request.id, metadata: deviceRequestAuditMetadata({ ...approvalMetadata, event: 'FINAL_APPROVE' }) }, tx);
         const approved = await tx.attendanceDeviceChangeRequest.findUnique({ where: { id: request.id }, include: { candidateDevice: { include: { approvedBy: { select: { id: true, displayName: true, role: true } } } }, reviewedBy: { select: { id: true, displayName: true, role: true } } } });
