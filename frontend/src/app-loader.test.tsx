@@ -14,9 +14,12 @@ describe('T32 accessible loading and offline brand',()=>{
   it('keeps both independently generated splash assets below 30KB',()=>{
     for(const tone of ['','-dark']) expect(statSync(new URL(`../public/brand/sms-logo-splash${tone}.webp`,import.meta.url)).size).toBeLessThanOrEqual(30000);
   });
-  it('pre-caches all brand variants and leaves API and cross-origin requests alone',async()=>{
+  it('pre-caches all brand variants under the current brand cache revision and leaves API and cross-origin requests alone',async()=>{
     const handlers:Record<string,(event:any)=>void>={};let cached:string[]=[];
-    runInNewContext(readFileSync(new URL('../public/sw.js',import.meta.url),'utf8'),{
+    const worker=readFileSync(new URL('../public/sw.js',import.meta.url),'utf8');
+    expect(worker).toContain("const CACHE_NAME = 'sms-pwa-shell-v6'");
+    for(const tone of ['','-dark']) expect(worker).toContain(`/brand/sms-logo-horizontal${tone}.webp`);
+    runInNewContext(worker,{
       URL,self:{location:{origin:'https://fixture.test'},skipWaiting(){},addEventListener:(name:string,handler:any)=>handlers[name]=handler},
       caches:{open:async()=>({addAll:async(urls:string[])=>{cached=urls;}})}
     });
