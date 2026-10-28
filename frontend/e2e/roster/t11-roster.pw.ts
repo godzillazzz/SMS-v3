@@ -161,7 +161,10 @@ test(`monthly roster shows compact shift codes with times in tooltips, natural d
   // Owner issue 10 (2026-10-28): desktop cells show only the code; the time lives in the cell tooltip.
   await expect(grid.locator('.schedule-time').first()).toBeHidden();
   await expect(grid.locator('.calendar-shift').first()).toHaveAttribute('title', /\d{2}:\d{2}/);
-  await expect(grid.locator('.schedule-shift-kind')).toHaveCount(2);
+  // Owner 2026-10-28: OFF cells show only the code, without the Thai "วันหยุด" sub-label.
+  await expect(grid.locator('.schedule-shift-kind')).toHaveCount(0);
+  await expect(grid.locator('.calendar-shift.shift-off b')).toHaveCount(2);
+  await expect(grid.getByText('วันหยุด', { exact: true })).toHaveCount(0);
   await expect(grid.getByRole('img', { name: 'กะล็อก' }).first()).toBeVisible();
   await expect(grid.locator('[data-label-type="manual"]')).toHaveCount(1);
   await expect(grid.locator('[data-label-type="license-block"]')).toHaveCount(2);
