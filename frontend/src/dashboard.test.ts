@@ -13,6 +13,7 @@ const filters = read('components/dashboard/DashboardFilterBar.tsx');
 const today = read('components/dashboard/TodayOperationsCard.tsx');
 const recent = read('components/dashboard/RecentActivityCard.tsx');
 const styles = read('styles/dashboard.css');
+const redesignStyles = read('pages/dashboard/dashboard-redesign.css');
 
 describe('executive dashboard contract', () => {
   it('renders real summary fields for KPI, action, license, leave, and activity widgets', () => {
@@ -64,6 +65,13 @@ describe('executive dashboard contract', () => {
 
   it('formats dashboard counts with Thai number formatting', () => {
     expect(formatMetric(1234)).toMatch(/[0-9๑-๙],[0-9๑-๙]{3}/);
+  });
+
+  it('gives every dashboard shortcut a descriptive label and visible keyboard focus', () => {
+    const quick = read('components/dashboard/QuickActionsCard.tsx');
+    expect(quick).toContain('aria-label={`${action.title} — ${action.detail}`}');
+    expect(quick).toContain('<i aria-hidden="true">›</i>');
+    expect(redesignStyles).toContain('.dashboard-quick-actions__grid > button:focus-visible');
   });
 
   it('keeps expiring license records actionable without exposing file URLs', () => {
