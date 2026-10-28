@@ -43,6 +43,15 @@ describe('SMSv3 UI foundation on the corporate tokens', () => {
     expect(shell).not.toContain('#sms-app .sidebar-collapse-toggle { display: none; }');
   });
 
+  it('keeps Sidebar icons and user controls readable with spacing and visible interaction states', () => {
+    const shell = fs.readFileSync(path.join(__dirname, 'styles/hrpro-shell.css'), 'utf8');
+    expect(shell).toContain('#sms-app .sidebar .nav-item .nav-icon { color: inherit !important;');
+    expect(shell).toContain('#sms-app .user-menu .topbar-profile:focus-visible');
+    expect(shell).toContain('#sms-app .sidebar-user {');
+    expect(shell).toContain('gap: 10px !important;');
+    expect(shell).toContain('#sms-app .user-menu__chevron { color: var(--color-text-secondary); }');
+  });
+
   it('maps business statuses to badge tones without changing their values', () => {
     expect(statusBadgeTone('APPROVED')).toBe('success');
     expect(statusBadgeTone('pending')).toBe('warning');

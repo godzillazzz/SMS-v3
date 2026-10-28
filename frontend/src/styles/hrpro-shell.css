@@ -23,7 +23,7 @@
 #sms-app .sidebar .nav-item.active::before, #sms-app .sidebar .nav-item.active::after { display: none !important; }
 #sms-app .sidebar .nav-item:focus-visible { outline: 2px solid #9fbaff !important; outline-offset: 1px; }
 #sms-app .sidebar-footer { border-top: 1px solid var(--color-sidebar-border) !important; background: transparent !important; }
-#sms-app .sidebar-user { background: rgba(255, 255, 255, 0.04) !important; border: 1px solid var(--color-sidebar-border) !important; box-shadow: none !important; }
+#sms-app .sidebar-user { display: flex; align-items: center; gap: 10px !important; padding: 10px !important; background: rgba(255, 255, 255, 0.04) !important; border: 1px solid var(--color-sidebar-border) !important; box-shadow: none !important; }
 #sms-app .sidebar-user b { color: #ffffff !important; }
 #sms-app .sidebar-user small { color: var(--color-sidebar-muted) !important; }
 #sms-app .sidebar-logout { background: transparent !important; border: 1px solid var(--color-sidebar-border) !important; color: var(--sidebar-item) !important; box-shadow: none !important; }
@@ -135,7 +135,8 @@
 #sms-app .user-menu { position: relative; display: flex; }
 #sms-app .user-menu .topbar-profile { display: flex; align-items: center; gap: 8px; padding: 4px 8px 4px 4px; border: 1px solid transparent; border-radius: 7px; background: transparent !important; color: var(--color-text); }
 #sms-app .user-menu .topbar-profile:hover, #sms-app .user-menu .topbar-profile[aria-expanded="true"] { border-color: var(--color-border) !important; background: var(--color-surface-muted) !important; }
-#sms-app .user-menu__chevron { color: var(--color-text-muted); }
+#sms-app .user-menu .topbar-profile:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; }
+#sms-app .user-menu__chevron { color: var(--color-text-secondary); }
 #sms-app .user-menu__panel { position: absolute; top: calc(100% + 8px); right: 0; z-index: 90; display: grid; gap: 4px; width: 280px; padding: 8px; border: 1px solid var(--color-border); border-radius: 10px; background: var(--color-surface-elevated, var(--color-surface)); color: var(--color-text); box-shadow: var(--shadow-lg); }
 #sms-app .user-menu__panel[hidden] { display: none; }
 #sms-app .user-menu__profile { display: flex; align-items: center; gap: 10px; padding: 6px 6px 10px; margin-bottom: 4px; border-bottom: 1px solid var(--color-border); }
