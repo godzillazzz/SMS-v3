@@ -97,12 +97,13 @@ describe('SMS Signature Experience V1.2 visual reconciliation', () => {
 });
 
 describe('SMS V1.2 Passkey product/security UI contract', () => {
-  it('keeps password login and exposes Passkey plus Hardware Key as explicit Zero-Trust methods with truthful device-verification language', () => {
+  it('keeps password login and exposes Passkey as the sole WebAuthn method with truthful device-verification language', () => {
     expect(main).toContain('nexus-auth-methods');
     expect(main).toContain("setAuthMethod('passkey')");
-    expect(main).toContain("setAuthMethod('hardware')");
+    expect(main).not.toContain("setAuthMethod('hardware')");
+    expect(main).not.toContain('กุญแจฮาร์ดแวร์');
     expect(main).toContain('Touch ID, Face ID, Windows Hello');
-    expect(main).toContain('FIDO2 / WEBAUTHN · ROAMING SECURITY KEY');
+    expect(main).toContain('FIDO2 / WEBAUTHN · PLATFORM AUTHENTICATOR');
     expect(main).toContain("type={showPassword ? 'text' : 'password'}");
     expect(main).toContain('auth-primary-action');
     expect(main).not.toMatch(/face recognition only/i);

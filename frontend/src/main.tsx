@@ -397,7 +397,7 @@ function Login() {
   const [registrationState, setRegistrationState] = useState<string>();
   const [resendSeconds, setResendSeconds] = useState(0);
   const [passkeyEnabled, setPasskeyEnabled] = useState(false);
-  const [authMethod, setAuthMethod] = useState<'password' | 'passkey' | 'hardware'>('password');
+  const [authMethod, setAuthMethod] = useState<'password' | 'passkey'>('password');
 
   useEffect(() => {
     api.passkeyConfig().then((result) => setPasskeyEnabled(Boolean(result?.enabled) && browserSupportsWebAuthn())).catch(() => setPasskeyEnabled(false));
@@ -410,10 +410,10 @@ function Login() {
   }, [mode, resendSeconds]);
 
   const resetView = (next: typeof mode) => { setMode(next); setAuthMethod('password'); setFormError(undefined); setFormMessage(undefined); setCode(''); setRegistrationState(undefined); if (next !== 'registerVerify') setResendSeconds(0); };
-  const signInWithPasskey = async (method: 'passkey' | 'hardware' = 'passkey') => {
+  const signInWithPasskey = async () => {
     setFormError(undefined); setFormMessage(undefined); setBusy(true);
     try { await auth.passkeyLogin(); }
-    catch (reason) { setFormError(formatRequestErrorMessage(reason, method === 'hardware' ? 'ไม่สามารถเข้าสู่ระบบด้วย Hardware Key ได้' : 'ไม่สามารถเข้าสู่ระบบด้วย Passkey ได้')); }
+    catch (reason) { setFormError(formatRequestErrorMessage(reason, 'ไม่สามารถเข้าสู่ระบบด้วย Passkey ได้')); }
     finally { setBusy(false); }
   };
 
@@ -568,7 +568,7 @@ function Login() {
               {(mode === 'reset' || mode === 'resetVerify') && <AuthProgress flow="reset" current={resetStep} />}
               {(formError || (mode === 'login' ? auth.error : undefined)) && <div className="alert alert-error auth-alert" role="alert" aria-live="assertive"><SmsIcon name="shield" size={18} /><span>{formError || auth.error}</span></div>}
               {formMessage && <div className="login-help-action auth-notice" role="status" aria-live="polite"><SmsIcon name="approval" size={18} /><span>{formMessage}</span></div>}
-              {mode === 'login' && <div className="nexus-auth-methods" role="tablist" aria-label="วิธีเข้าสู่ระบบ"><button type="button" role="tab" aria-selected={authMethod === 'password'} className={authMethod === 'password' ? 'is-active' : ''} onClick={() => setAuthMethod('password')}>อีเมล / รหัสผ่าน</button><button type="button" role="tab" aria-selected={authMethod === 'passkey'} className={authMethod === 'passkey' ? 'is-active' : ''} onClick={() => setAuthMethod('passkey')}>Passkey</button><button type="button" role="tab" aria-selected={authMethod === 'hardware'} className={authMethod === 'hardware' ? 'is-active' : ''} onClick={() => setAuthMethod('hardware')}>กุญแจฮาร์ดแวร์</button></div>}
+              {mode === 'login' && <div className="nexus-auth-methods" role="tablist" aria-label="วิธีเข้าสู่ระบบ"><button type="button" role="tab" aria-selected={authMethod === 'password'} className={authMethod === 'password' ? 'is-active' : ''} onClick={() => setAuthMethod('password')}>อีเมล / รหัสผ่าน</button><button type="button" role="tab" aria-selected={authMethod === 'passkey'} className={authMethod === 'passkey' ? 'is-active' : ''} onClick={() => setAuthMethod('passkey')}>Passkey</button></div>}
 
               {mode === 'register' && <>
                 <label className="field-group auth-field" htmlFor="registration-name"><span>ชื่อ-นามสกุล</span><input id="registration-name" value={submittedName} onChange={(event) => setSubmittedName(event.target.value)} type="text" minLength={2} maxLength={200} required autoComplete="name" /><small className="field-hint">ใช้สำหรับส่งคำขอให้ผู้ดูแลตรวจสอบ ข้อมูลนี้ไม่ใช่ข้อมูลยืนยันตัวบุคคลจากทะเบียนพนักงาน</small></label>
@@ -587,8 +587,7 @@ function Login() {
               {mode === 'login' && authMethod === 'password' && <div className="nexus-password-meta"><button type="button" onClick={() => resetView('reset')}>ลืมรหัสผ่าน?</button></div>}
               {(mode !== 'login' || authMethod === 'password') && <button className="btn-primary auth-primary-action" type="submit" disabled={submitDisabled}>{busy ? 'กำลังดำเนินการ…' : mode === 'login' ? 'เข้าสู่ระบบ →' : mode === 'register' ? 'ส่งคำขอและรหัส OTP' : mode === 'registerVerify' ? 'ยืนยันอีเมล' : mode === 'reset' ? 'ส่งรหัส OTP' : 'ตั้งรหัสผ่านใหม่'}</button>}
 
-              {mode === 'login' && authMethod === 'passkey' && <div className="nexus-webauthn-panel"><div className="nexus-auth-method-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 11c0 3.5-1 6.8-2.75 9.57M5.8 18.53l.06-.09A13.9 13.9 0 008 11a4 4 0 118 0c0 1.02-.07 2.02-.2 3M13.68 20.84A21.9 21.9 0 0015.17 17M19 18.13A20.7 20.7 0 0020 11.8 8 8 0 004 12m0 0c0 1.55.29 3.04.82 4.4M7.3 19.71A16 16 0 0012 21c2.25 0 4.36-.47 6.28-1.3"/></svg></div><h4>สแกนลายนิ้วมือหรือใบหน้า (Passkey)</h4><p>ใช้ Touch ID, Face ID, Windows Hello หรือ Passkey บนอุปกรณ์ของคุณ</p><small>FIDO2 / WEBAUTHN · PLATFORM AUTHENTICATOR</small>{!passkeyEnabled && <em>WebAuthn ยังไม่พร้อมใช้งานใน environment นี้</em>}<button type="button" disabled={busy || !passkeyEnabled} onClick={() => signInWithPasskey('passkey')}>เริ่มการยืนยันด้วย Passkey →</button></div>}
-              {mode === 'login' && authMethod === 'hardware' && <div className="nexus-webauthn-panel"><div className="nexus-auth-method-icon is-hardware" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.74 5.74L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.59a1 1 0 01.29-.7l5.97-5.97A6 6 0 1121 9z"/></svg></div><h4>เสียบกุญแจฮาร์ดแวร์ความปลอดภัย</h4><p>เสียบ YubiKey หรือ USB Security Key แล้วแตะเซนเซอร์เพื่อยืนยันตัวตน</p><small>FIDO2 / WEBAUTHN · ROAMING SECURITY KEY</small>{!passkeyEnabled && <em>WebAuthn ยังไม่พร้อมใช้งานใน environment นี้</em>}<button type="button" disabled={busy || !passkeyEnabled} onClick={() => signInWithPasskey('hardware')}>เริ่มยืนยันด้วยกุญแจฮาร์ดแวร์ →</button></div>}
+              {mode === 'login' && authMethod === 'passkey' && <div className="nexus-webauthn-panel"><div className="nexus-auth-method-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 11c0 3.5-1 6.8-2.75 9.57M5.8 18.53l.06-.09A13.9 13.9 0 008 11a4 4 0 118 0c0 1.02-.07 2.02-.2 3M13.68 20.84A21.9 21.9 0 0015.17 17M19 18.13A20.7 20.7 0 0020 11.8 8 8 0 004 12m0 0c0 1.55.29 3.04.82 4.4M7.3 19.71A16 16 0 0012 21c2.25 0 4.36-.47 6.28-1.3"/></svg></div><h4>สแกนลายนิ้วมือหรือใบหน้า (Passkey)</h4><p>ใช้ Touch ID, Face ID, Windows Hello หรือ Passkey บนอุปกรณ์ของคุณ</p><small>FIDO2 / WEBAUTHN · PLATFORM AUTHENTICATOR</small>{!passkeyEnabled && <em>Passkey ยังไม่เปิดใช้งานในระบบนี้ กรุณาใช้อีเมลและรหัสผ่าน หรือติดต่อผู้ดูแลระบบ</em>}<button type="button" disabled={busy || !passkeyEnabled} onClick={signInWithPasskey}>เริ่มการยืนยันด้วย Passkey →</button></div>}
 
               {mode === 'registerVerify' && <div className="auth-resend" id="registration-otp-help"><p>หากยังไม่พบอีเมล กรุณาตรวจสอบ Spam/Junk</p><button type="button" disabled={busy || resendSeconds > 0} onClick={resendRegistrationCode}>{resendSeconds > 0 ? `ส่งรหัสอีกครั้งใน ${resendSeconds} วินาที` : 'ส่งรหัสอีกครั้ง'}</button></div>}
 
