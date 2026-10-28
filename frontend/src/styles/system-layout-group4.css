@@ -105,7 +105,7 @@ html[data-theme] .app-shell .content-area .security-site-admin--layout .security
 html[data-theme] .app-shell .content-area .security-site-admin--layout .security-site-admin__grid { margin-top: 0; }
 html[data-theme] .app-shell .content-area .security-site-admin--layout .security-site-map-card .gis-tactical-workspace { min-width: 0; }
 html[data-theme] .app-shell .content-area .security-site-admin--layout :is(.security-site-map,.security-site-map-empty,.gis-map-deck,.gis-intelligence-sheet) { border-radius: 10px; }
-html[data-theme] .app-shell .content-area .security-site-admin--layout .nexus-gis-status-strip { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); overflow: hidden; gap: 10px; }
+html[data-theme] .app-shell .content-area .security-site-admin--layout .nexus-gis-status-strip { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); overflow: hidden; gap: 10px; margin: 0; border: 0; border-radius: 0; background: transparent; }
 html[data-theme] .app-shell .content-area .security-site-admin--layout .nexus-gis-status-strip > span { min-width: 0; padding: 14px; border: 1px solid var(--color-border); border-radius: 10px; background: var(--color-surface-muted); }
 html[data-theme] .app-shell .content-area .security-site-admin--layout .nexus-gis-status-strip :is(small,em) { color: var(--color-text-secondary); font-family: var(--layout-body-font); font-size: 12px; font-style: normal; }
 html[data-theme] .app-shell .content-area .security-site-admin--layout .nexus-gis-status-strip b { color: var(--color-text); font-family: var(--layout-heading-font); font-size: 22px; }
