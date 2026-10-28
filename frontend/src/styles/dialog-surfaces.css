@@ -1,0 +1,25 @@
+/* Owner issues 4-6 (2026-10-28): dialogs, drawers and modals stay readable in light and dark.
+   Older Command Nexus rules give modal surfaces light (dark-theme) text; some modals hard-code a white panel.
+   Dialog content follows the theme tokens instead. Loaded last so it settles those conflicts. */
+:is([data-theme="light"], [data-theme="dark"]) :is([role="dialog"], [role="alertdialog"], .employee-governed-modal, .employee-review-modal, .signature-record-drawer) {
+  color: var(--color-text) !important;
+}
+:is([data-theme="light"], [data-theme="dark"]) :is(.employee-governed-modal, .employee-review-modal) {
+  background: var(--color-surface) !important;
+}
+:is([data-theme="light"], [data-theme="dark"]) :is([role="dialog"], [role="alertdialog"]) :is(p, small, .muted, [class*="hint"], [class*="note"], [class*="subtitle"], [class*="description"]):not([class*="alert"]):not([class*="error"]) {
+  color: var(--color-text-secondary) !important;
+}
+:is([data-theme="light"], [data-theme="dark"]) :is([role="dialog"], [role="alertdialog"]) :is(.btn-neutral, .btn-secondary, .small-action) {
+  border-color: var(--color-border) !important;
+  background: var(--color-surface) !important;
+  color: var(--color-text) !important;
+}
+/* Icon-only close buttons ("ปิด…") never take the panel colour. */
+:is([data-theme="light"], [data-theme="dark"]) :is([role="dialog"], [role="alertdialog"], .signature-record-drawer) button[aria-label^="ปิด"] {
+  color: var(--color-text-secondary) !important;
+}
+:is([data-theme="light"], [data-theme="dark"]) :is([role="dialog"], [role="alertdialog"], .signature-record-drawer) button[aria-label^="ปิด"]:hover:not(:disabled) {
+  background: var(--color-surface-muted) !important;
+  color: var(--color-text) !important;
+}

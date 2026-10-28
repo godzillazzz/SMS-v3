@@ -130,6 +130,7 @@ import './styles/personnel-layout.css';
 import './styles/system-layout-group4.css';
 import './styles/r71-theme-contrast.css';
 import './styles/hrpro-shell.css';
+import './styles/dialog-surfaces.css';
 import { avatarTone } from './avatar';
 import { showToast } from './toast';
 import { ToastHost } from './components/ToastHost';
