@@ -17,7 +17,7 @@
   background: var(--dlg-surface) !important;
   border-color: var(--dlg-border) !important;
 }
-:is([data-theme="light"], [data-theme="dark"]) :is(.employee-governed-modal, .employee-review-modal) :is(header, footer, section, aside, .employee-governed-section, .employee-governed-actions, .employee-impact, .employee-governed-body, [class*="__panel"], [class*="-panel"], [class*="-list"]):not([class*="banner"]):not([class*="alert"]) {
+:is([data-theme="light"], [data-theme="dark"]) :is(.employee-governed-modal, .employee-review-modal) :is(header, footer, section, aside, .employee-governed-section, .employee-governed-actions, .employee-impact, .employee-governed-body, .employee-governed-empty, .employee-critical-empty, .employee-critical-before-after, .employee-revision-list article, .employee-review-queue, [class*="__panel"], [class*="-panel"], [class*="-list"]):not([class*="banner"]):not([class*="alert"]) {
   background: var(--dlg-surface) !important;
   border-color: var(--dlg-border) !important;
 }
