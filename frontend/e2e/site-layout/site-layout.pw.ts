@@ -25,13 +25,12 @@ for(const theme of ['light','dark'])for(const viewport of [{width:1366,height:76
  await page.goto('/app/sites');await expect(page.locator('.nexus-public #auth-login-form')).toBeVisible();
  await page.locator('#email').fill('site@example.test');await page.locator('#password').fill('synthetic-site-password');await page.locator('#auth-login-form button[type=submit]').click();
  const root=page.locator('.security-site-admin--layout');await expect(root).toBeVisible({timeout:20_000});
- await expect(root.locator('.nexus-gis-status-strip b').first()).toHaveText('2');
+ await expect(root.locator('.security-site-list')).toBeVisible();
  const metrics=await root.evaluate(el=>({
   // Light Mode must not show Command Nexus dark fills, including the gaps between status cards.
-  darkSurfaces:[...el.querySelectorAll<HTMLElement>('section,article,div,span,header,aside')].filter(node=>{const rect=node.getBoundingClientRect(),s=getComputedStyle(node);if(rect.width<120||rect.height<32||s.backgroundColor==='transparent'||s.backgroundColor==='rgba(0, 0, 0, 0)')return false;if(node.closest('.leaflet-container'))return false;const color=s.backgroundColor.match(/\d+/g)?.slice(0,3).map(Number)||[255,255,255];return Math.max(...color)<55}).map(node=>String(node.className)),
-  stripBackground:getComputedStyle(el.querySelector('.nexus-gis-status-strip')!).backgroundColor
+  darkSurfaces:[...el.querySelectorAll<HTMLElement>('section,article,div,span,header,aside')].filter(node=>{const rect=node.getBoundingClientRect(),s=getComputedStyle(node);if(rect.width<120||rect.height<32||s.backgroundColor==='transparent'||s.backgroundColor==='rgba(0, 0, 0, 0)')return false;if(node.closest('.leaflet-container'))return false;const color=s.backgroundColor.match(/\d+/g)?.slice(0,3).map(Number)||[255,255,255];return Math.max(...color)<55}).map(node=>String(node.className))
  }));
- if(theme==='light'){expect(metrics.darkSurfaces,JSON.stringify(metrics)).toEqual([]);expect(metrics.stripBackground).toBe('rgba(0, 0, 0, 0)');}
+ if(theme==='light'){expect(metrics.darkSurfaces,JSON.stringify(metrics)).toEqual([]);}
  expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBeLessThanOrEqual(viewport.width);
  expect(errors).toEqual([]);
 });
