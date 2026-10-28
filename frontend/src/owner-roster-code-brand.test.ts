@@ -55,6 +55,13 @@ describe('Owner-approved roster and brand contracts', () => {
     expect(main).not.toContain('แสดง {calendarEmployees.length} จาก {operationResponse.meta?.total || 0} คน');
   });
 
+  it('keeps all 1–31 roster day cells readable through horizontal scrolling instead of compressing them', () => {
+    const rosterCss = fs.readFileSync(path.join(root, 'components/schedule/schedule-rule-panel.css'), 'utf8');
+    expect(rosterCss).toContain('#sms-app .schedule-grid { border-collapse: separate !important; border-spacing: 0 !important; width: max-content; min-width: 100%;');
+    expect(rosterCss).toContain('#sms-app .schedule-grid th, #sms-app .schedule-grid td { min-width: 48px !important;');
+    expect(rosterCss).toMatch(/#sms-app \.schedule-grid-scroll \{[^}]*overflow: auto !important;[^}]*overscroll-behavior: contain;/);
+  });
+
   it('preserves existing printed department headings without inserting rows in the on-screen grid', () => {
     expect(operational).toContain('@media print');
     expect(operational).toContain('.print-table tbody .print-department-group-row > .schedule-department-group-sticky');
