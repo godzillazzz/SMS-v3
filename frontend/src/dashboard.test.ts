@@ -67,10 +67,10 @@ describe('executive dashboard contract', () => {
     expect(formatMetric(1234)).toMatch(/[0-9๑-๙],[0-9๑-๙]{3}/);
   });
 
-  it('gives every dashboard shortcut a descriptive label and visible keyboard focus', () => {
+  it('uses visible shortcut text as the accessible name with a decorative chevron and keyboard focus', () => {
     const quick = read('components/dashboard/QuickActionsCard.tsx');
-    expect(quick).toContain('aria-label={`${action.title} — ${action.detail}`}');
-    expect(quick).toContain('<i aria-hidden="true">›</i>');
+    expect(quick).not.toContain('aria-label={`${action.title}');
+    expect(quick).toContain('<b>{action.title}</b><small>{action.detail}</small><i aria-hidden="true">›</i>');
     expect(redesignStyles).toContain('.dashboard-quick-actions__grid > button:focus-visible');
   });
 

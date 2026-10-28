@@ -15,6 +15,6 @@ export function QuickActionsCard({ canManage, onNavigate }: QuickActionsCardProp
   ];
   return <section className="dashboard-panel dashboard-quick-actions">
     <header className="dashboard-panel__header"><div><h2>ทางลัดการทำงาน</h2><span>เปิดโมดูลที่ใช้งานบ่อยจากข้อมูลและสิทธิ์ปัจจุบัน</span></div></header>
-    <div className="dashboard-quick-actions__grid">{actions.map((action) => <button className="btn-ghost" key={action.title} aria-label={`${action.title} — ${action.detail}`} onClick={() => onNavigate(action.page)}><span><SmsIcon name={action.icon} size={20} /></span><b>{action.title}</b><small>{action.detail}</small><i aria-hidden="true">›</i></button>)}</div>
+    <div className="dashboard-quick-actions__grid">{actions.map((action) => <button className="btn-ghost" key={action.title} onClick={() => onNavigate(action.page)}><span><SmsIcon name={action.icon} size={20} /></span><b>{action.title}</b><small>{action.detail}</small><i aria-hidden="true">›</i></button>)}</div>
   </section>;
 }
