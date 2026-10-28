@@ -158,7 +158,7 @@ export function LicenseTableDocumentColumns({ license, summary, services, isAdmi
 
 function DocumentFacts({ document }: { document: LicenseDocument }) {
   return <dl className="license-document-facts">
-    <div><dt>ชื่อไฟล์</dt><dd>{document.safeDisplayFileName}</dd></div>
+    <div><dt>ชื่อไฟล์</dt><dd>{normalizeLicenseDisplayFileName(document.safeDisplayFileName)}</dd></div>
     <div><dt>ขนาด / ชนิด</dt><dd>{formatFileSize(document.fileSize)} · {document.mimeType}</dd></div>
     <div><dt>ผู้แนบ</dt><dd>{document.uploadedBy?.displayName || '-'}</dd></div>
     <div><dt>แนบเมื่อ</dt><dd>{formatLicenseDateTime(document.uploadedAt)}</dd></div>
@@ -236,7 +236,7 @@ function PermanentDeleteModal({ document, services, onClose, onDeleted }: { docu
     <header className="license-modal-heading"><div><p>ลบเอกสารถาวร</p><h2 id="license-hard-delete-title">ยืนยันการลบถาวร</h2></div></header>
     <div className="license-confirm-panel license-hard-delete-panel">
       <p>การลบนี้ไม่สามารถกู้คืนได้ และจะลบไฟล์กับประวัติการดำเนินการของรายการนี้</p>
-      <dl className="license-document-facts"><div><dt>เลขใบอนุญาต</dt><dd>{document.proposedLicenseNumber || '-'}</dd></div><div><dt>ชื่อไฟล์</dt><dd>{document.safeDisplayFileName}</dd></div><div><dt>สถานะ</dt><dd>{licenseDocumentStatusLabel[document.status]}</dd></div></dl>
+      <dl className="license-document-facts"><div><dt>เลขใบอนุญาต</dt><dd>{document.proposedLicenseNumber || '-'}</dd></div><div><dt>ชื่อไฟล์</dt><dd>{normalizeLicenseDisplayFileName(document.safeDisplayFileName)}</dd></div><div><dt>สถานะ</dt><dd>{licenseDocumentStatusLabel[document.status]}</dd></div></dl>
       <label className="field-group"><span>พิมพ์ DELETE เพื่อยืนยัน</span><input value={confirmation} onChange={(event) => setConfirmation(event.target.value)} autoComplete="off" /></label>
       {error && <div className="license-modal-error" role="alert"><RequestErrorContent error={error} /></div>}
       <div className="license-modal-actions"><button type="button" className="btn-neutral" disabled={busy} onClick={onClose}>ยกเลิก</button><button type="button" className="btn-danger" disabled={busy || confirmation !== 'DELETE'} onClick={() => void submit()}>{busy ? 'กำลังลบ…' : 'ลบถาวร'}</button></div>
@@ -254,7 +254,7 @@ function HistoryModal({ documents, services, isAdmin, onClose, onDeleted }: { do
       {!sorted.length && <div className="license-modal-state">ยังไม่มีประวัติเอกสาร</div>}
       <div className="license-history-list">{sorted.map((document) => <article key={document.id} className="license-history-card">
         <header><strong>ประวัติการดำเนินการ</strong><span className={`license-doc-badge ${licenseStatusClass(document.status)}`}>{licenseDocumentStatusLabel[document.status]}</span></header>
-        <p className="license-history-file">{document.safeDisplayFileName}</p>
+        <p className="license-history-file">{normalizeLicenseDisplayFileName(document.safeDisplayFileName)}</p>
         <p>{formatLicenseDate(document.proposedStartDate)} – {formatLicenseDate(document.proposedExpiryDate)}</p>
         <small>ผู้แนบ: {document.uploadedBy?.displayName || '-'} · {formatLicenseDateTime(document.uploadedAt)}</small>
         <small>{document.status === 'APPROVED' ? 'ผู้อนุมัติ' : 'ผู้ตรวจ'}: {document.reviewedBy?.displayName || (document.status === 'APPROVED' ? 'ไม่พบชื่อผู้อนุมัติ' : '-')} · {formatLicenseDateTime(document.reviewedAt)}</small>
@@ -266,7 +266,7 @@ function HistoryModal({ documents, services, isAdmin, onClose, onDeleted }: { do
           {document.revisions.map((revision) => <section key={revision.id} className="license-revision-card">
             <div><strong>Revision {revision.revision}</strong><span>{revision.proposedLicenseNumber || '-'}</span></div>
             <p>{formatLicenseDate(revision.proposedStartDate)} → {formatLicenseDate(revision.proposedExpiryDate)}</p>
-            <small>{revision.safeDisplayFileName} · {formatFileSize(revision.fileSize)}</small>
+            <small>{normalizeLicenseDisplayFileName(revision.safeDisplayFileName)} · {formatFileSize(revision.fileSize)}</small>
             <small>ส่งโดย {revision.submittedBy?.displayName || '-'} · {formatLicenseDateTime(revision.submittedAt)}</small>
             {revision.correctionReason && <small className="license-correction-reason">บริบทการแก้ไข: {revision.correctionReason}</small>}
           </section>)}

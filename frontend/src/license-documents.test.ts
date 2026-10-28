@@ -163,6 +163,13 @@ describe('license document filename presentation', () => {
     expect(normalizeLicenseDisplayFileName('license.pdf')).toBe('license.pdf');
     expect(normalizeLicenseDisplayFileName('')).toBe('เอกสารใบอนุญาต');
   });
+
+  it('normalizes every document filename presentation surface without changing document transport', () => {
+    expect(componentSource).toContain('{normalizeLicenseDisplayFileName(document.safeDisplayFileName)}');
+    expect(componentSource).toContain('{normalizeLicenseDisplayFileName(revision.safeDisplayFileName)}');
+    expect(componentSource).toContain('download={fileName}');
+    expect(componentSource).not.toContain('url={normalizeLicenseDisplayFileName');
+  });
 });
 
 describe('license document viewer and review', () => {
