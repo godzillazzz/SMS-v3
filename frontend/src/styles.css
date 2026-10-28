@@ -1627,6 +1627,8 @@ button, select, input, textarea {
 .leave-mode-history .leave-data-table th:nth-child(6),
 .leave-mode-history .leave-data-table td:nth-child(6) { display: none; }
 .leave-mode-all .leave-pending-card { display: none; }
+/* Owner 2026-10-28: the PWA Leave tab (mode all) is where supervisors/managers decide on mobile. */
+.pwa-shell .leave-page.leave-mode-all .leave-pending-card { display: block; }
 .leave-mode-all .my-leave-quota-heading,
 .leave-mode-all .my-leave-quota-grid { display: none; }
 .nav-count-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 20px; height: 20px; margin-left: 8px; padding: 0 6px; border-radius: 999px; background: #b91c1c; color: #fff; font-size: 11px; line-height: 1; }

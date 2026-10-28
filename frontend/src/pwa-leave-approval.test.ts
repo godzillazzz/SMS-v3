@@ -17,3 +17,14 @@ describe('PWA leave page lets reviewers decide', () => {
     expect(main).toMatch(/<LeaveManagementPage [^>]*mutationsEnabled=\{!pwaShell \|\| pwaOnline\}/);
   });
 });
+
+// Owner follow-up (2026-10-28): supervisors still could not approve on mobile. The PWA "ลา" tab renders the
+// leave page in mode "all", where the desktop stylesheet hides the pending-approval card. Inside the PWA the
+// card is the only place reviewers can decide, so it must be visible there (role gate stays canManage).
+describe("PWA leave page shows the pending-approval card", () => {
+  const styles = fs.readFileSync(path.join(__dirname, "styles.css"), "utf8");
+  it("overrides the desktop mode-all hide rule inside the PWA shell", () => {
+    expect(styles).toContain(".leave-mode-all .leave-pending-card { display: none; }");
+    expect(styles).toMatch(/\.pwa-shell \.leave-page\.leave-mode-all \.leave-pending-card \{ display: block; \}/);
+  });
+});

@@ -8,7 +8,9 @@ describe('public login and Thailand map layout', () => {
   it('contains the decorative map within its grid cell and keeps it out of login hit testing', () => {
     const mapColumn = css.slice(css.indexOf('/* map column */'), css.indexOf('/* login card column */'));
     expect(mapColumn).toMatch(/\.nexus-onescreen__map\s*\{[^}]*min-width:\s*0[^}]*overflow:\s*clip[^}]*pointer-events:\s*none/s);
-    expect(mapColumn).toMatch(/\.th-map\s*\{[^}]*width:\s*min\(100cqw,/s);
+    // Owner 2026-10-28: the outer orbit (wider than the SVG) must fit the column, so the width is divided by the orbit span.
+    expect(mapColumn).toMatch(/--th-map-orbit-span:\s*1\.62/);
+    expect(mapColumn).toMatch(/\.th-map\s*\{[^}]*width:\s*min\(100cqw \/ var\(--th-map-orbit-span\),/s);
     expect(mapColumn).toMatch(/\.th-map\s*\{[^}]*max-width:\s*100%/s);
   });
 
