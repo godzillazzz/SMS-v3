@@ -9,7 +9,7 @@ import { SmsIcon } from '../../components/SmsIcon';
 import { avatarTone } from '../../avatar';
 import { auditEventLabel } from '../../components/audit/audit-utils';
 import { useActionDialog } from '../../components/useActionDialog';
-import { attendanceDeviceAdminOverview, attendanceDeviceSelfieBlob, promoteAttendanceDevice, revokeAttendanceDeviceCurrent } from '../attendance/attendance-client';
+import { attendanceDeviceAdminOverview, attendanceDeviceSelfieBlob, promoteAttendanceDevice, rejectAttendanceDevice, revokeAttendanceDeviceCurrent } from '../attendance/attendance-client';
 import { formatThaiDateTime } from '../../thai-date-time';
 import {
   ATTENDANCE_DEVICE_KEY_ALGORITHM,
@@ -379,6 +379,21 @@ export function AttendanceDevicePage({ token, role, readOnly = false, initialReq
     finally { setBusy(false); }
   };
 
+  const submitRejectDevice = async () => {
+    if (!promoteTarget || readOnly || role !== 'ADMIN') return;
+    const text = promoteReason.trim();
+    if (text.length < 3) { setQueueError('กรุณาระบุเหตุผลอย่างน้อย 3 ตัวอักษร'); return; }
+    setBusy(true); setQueueError(undefined); setMessage(undefined);
+    try {
+      await rejectAttendanceDevice(token, promoteTarget.row.employeeId, promoteTarget.device.id, text);
+      setMessage(`ไม่อนุมัติ ${promoteTarget.device.displayName} ของ ${adminEmployeeName(promoteTarget.row)} แล้ว`);
+      setPromoteTarget(null); setPromoteReason('');
+      onApprovalQueueChanged?.();
+      await refresh();
+    } catch (error) { setQueueError(formatRequestErrorMessage(error, 'ไม่อนุมัติอุปกรณ์ไม่สำเร็จ')); }
+    finally { setBusy(false); }
+  };
+
   const submitPromote = async () => {
     if (!promoteTarget || readOnly || role !== 'ADMIN') return;
     const text = promoteReason.trim();
@@ -604,7 +619,7 @@ export function AttendanceDevicePage({ token, role, readOnly = false, initialReq
           <small>ถ่ายเมื่อ {formatDate(promoteTarget.device.latestSelfieAt)} · ตรวจว่าเป็นพนักงานคนนี้ก่อนยืนยัน</small>
           {promoteSelfie.url && <img src={promoteSelfie.url} alt={`รูปเซลฟี่จากการลงเวลาของ ${adminEmployeeName(promoteTarget.row)}`} />}
           {promoteSelfie.error && <div className="alert alert-error" role="alert">{promoteSelfie.error}</div>}
-        </> : <small>ยังไม่มีรูปเซลฟี่จากเครื่องนี้ ตรวจตัวตนพนักงานด้วยวิธีอื่นก่อนยืนยัน</small>}</div><label className="attendance-device-field"><span>เหตุผล (บังคับ)</span><textarea autoFocus value={promoteReason} maxLength={1000} onChange={(event) => setPromoteReason(event.target.value)} placeholder="เช่น พนักงานเปลี่ยนโทรศัพท์ใหม่" /></label><footer><button type="button" className="btn-neutral" disabled={busy} onClick={() => setPromoteTarget(null)}>ยกเลิก</button>{promoteTarget.row.activeRequest?.status === 'PENDING_APPROVAL' && promoteTarget.row.activeRequest.candidateDeviceEnrollmentId === promoteTarget.device.id && <button type="button" className="btn-danger-outline" disabled={busy} onClick={() => { setPromoteTarget(null); setReviewTarget({ row: promoteTarget.row.activeRequest!, action: 'REJECT' }); setReviewReason(''); }}>ไม่อนุมัติคำขอ</button>}<button type="button" className="btn-primary" disabled={busy || promoteReason.trim().length < 3} onClick={() => void submitPromote()}>{busy ? 'กำลังบันทึก…' : 'ยืนยันตั้งเป็นเครื่องหลัก'}</button></footer></div></div>}
+        </> : <small>ยังไม่มีรูปเซลฟี่จากเครื่องนี้ ตรวจตัวตนพนักงานด้วยวิธีอื่นก่อนยืนยัน</small>}</div><label className="attendance-device-field"><span>เหตุผล (บังคับ)</span><textarea autoFocus value={promoteReason} maxLength={1000} onChange={(event) => setPromoteReason(event.target.value)} placeholder="เช่น พนักงานเปลี่ยนโทรศัพท์ใหม่" /></label><footer><button type="button" className="btn-neutral" disabled={busy} onClick={() => setPromoteTarget(null)}>ยกเลิก</button>{promoteTarget.row.activeRequest?.status === 'PENDING_APPROVAL' && promoteTarget.row.activeRequest.candidateDeviceEnrollmentId === promoteTarget.device.id ? <button type="button" className="btn-danger-outline" disabled={busy} onClick={() => { setPromoteTarget(null); setReviewTarget({ row: promoteTarget.row.activeRequest!, action: 'REJECT' }); setReviewReason(''); }}>ไม่อนุมัติคำขอ</button> : promoteTarget.device.status === 'PENDING_APPROVAL' && <button type="button" className="btn-danger-outline" disabled={busy || promoteReason.trim().length < 3} title="ระบุเหตุผลก่อนไม่อนุมัติ" onClick={() => void submitRejectDevice()}>ไม่อนุมัติ</button>}<button type="button" className="btn-primary" disabled={busy || promoteReason.trim().length < 3} onClick={() => void submitPromote()}>{busy ? 'กำลังบันทึก…' : 'ยืนยันตั้งเป็นเครื่องหลัก'}</button></footer></div></div>}
 
     {revokeTarget?.activeDevice && <div className="attendance-device-review-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !busy) setRevokeTarget(null); }}><div className="attendance-device-review-modal" role="dialog" aria-modal="true" aria-labelledby="attendance-device-revoke-title"><header><div><p>การดูแลอุปกรณ์โดยผู้ดูแลระบบ</p><h3 id="attendance-device-revoke-title">ยกเลิกอุปกรณ์ปัจจุบัน</h3><span>{adminEmployeeName(revokeTarget)} · {revokeTarget.activeDevice.displayName}</span></div><button type="button" className="drawer-close overlay-close" disabled={busy} onClick={() => setRevokeTarget(null)} aria-label="ปิด"><SmsIcon name="close" size={20} /></button></header><div className="settings-notice">การยกเลิกมีผลทันที ระบบจะไม่เปิดใช้อุปกรณ์อื่นอัตโนมัติ และคำขอเปลี่ยนอุปกรณ์ที่ค้างอยู่จะถูกยกเลิกเพื่อป้องกันคำขอเก่าค้างอยู่</div><label className="attendance-device-field"><span>เหตุผลการยกเลิก (บังคับ)</span><textarea autoFocus value={revokeReason} maxLength={1000} onChange={(event) => setRevokeReason(event.target.value)} placeholder="เช่น อุปกรณ์สูญหาย / เลิกใช้งาน / เปลี่ยนเครื่อง" /></label><footer><button type="button" className="btn-neutral" disabled={busy} onClick={() => setRevokeTarget(null)}>ยกเลิก</button><button type="button" className="btn-danger" disabled={busy || revokeReason.trim().length < 3} onClick={() => void submitRevoke()}>{busy ? 'กำลังบันทึก…' : 'ยืนยันยกเลิกอุปกรณ์'}</button></footer></div></div>}
 

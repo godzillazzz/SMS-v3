@@ -123,8 +123,9 @@
   #sms-app[data-sidebar="collapsed"] .sidebar .nav-menu::-webkit-scrollbar { display: none; }
   #sms-app[data-sidebar="collapsed"] .sidebar-brand { display: flex !important; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding-inline: 0 !important; }
   #sms-app[data-sidebar="collapsed"] .sidebar-footer .sidebar-collapse-toggle { justify-content: center; width: 48px; margin-inline: auto; padding-inline: 0; }
-  /* Collapsed: show only the shield of the horizontal logo, scaled to 40px. */
-  #sms-app[data-sidebar="collapsed"] .sidebar-brand :is(picture, a, .brand-logo) { display: block; width: 40px !important; height: 40px !important; overflow: hidden; }
+  /* Collapsed: show only the shield of the horizontal logo, scaled to 40px tall. The 248x96 artwork puts the
+     "SMS" wordmark at x~94, i.e. ~39px at this scale, so the window stops at 34px to keep the letter out. */
+  #sms-app[data-sidebar="collapsed"] .sidebar-brand :is(picture, a, .brand-logo) { display: block; width: 34px !important; height: 40px !important; overflow: hidden; }
   #sms-app[data-sidebar="collapsed"] .sidebar-brand img { width: auto !important; height: 40px !important; max-width: none !important; object-fit: contain; }
   #sms-app[data-sidebar="collapsed"] .sidebar-user { justify-content: center; }
   #sms-app[data-sidebar="collapsed"] .nav-count-badge { position: absolute; top: 2px; right: 2px; transform: scale(.8); }

@@ -394,6 +394,21 @@ export async function promoteAttendanceDevice(token: string, employeeId: string,
   return payload.data;
 }
 
+/** ADMIN rejection of a device still waiting for approval (for example one first seen at clock-in). */
+export async function rejectAttendanceDevice(token: string, employeeId: string, deviceId: string, reason: string) {
+  const path = `/attendance/devices/admin/employees/${encodeURIComponent(employeeId)}/devices/${encodeURIComponent(deviceId)}/reject`;
+  const response = await attendanceAuthenticatedRequest(path, token, {
+    method: 'POST',
+    credentials: 'include',
+    headers: authHeaders(token, true),
+    body: JSON.stringify({ reason })
+  });
+  const requestId = safeRequestId(response.headers.get('x-request-id'));
+  const payload = await jsonPayload(response);
+  if (!response.ok) throw new AttendanceFlowError(publicError(payload, response.status, 'ไม่สามารถไม่อนุมัติอุปกรณ์ได้'), response.status, requestId, publicCode(payload));
+  return payload.data;
+}
+
 /** ADMIN review image: the latest clock-in selfie taken on this device, proxied by the API. */
 export async function attendanceDeviceSelfieBlob(token: string, employeeId: string, deviceId: string): Promise<Blob> {
   const path = `/attendance/devices/admin/employees/${encodeURIComponent(employeeId)}/devices/${encodeURIComponent(deviceId)}/selfie`;

@@ -22,7 +22,7 @@ for(const displayMode of ['auto','desktop'] as const)test(`sidebar collapses to 
  await page.getByRole('button',{name:'ย่อเมนู'}).click();
  await expect.poll(()=>sidebar.evaluate(el=>Math.round(el.getBoundingClientRect().width))).toBe(72);
  const logo=await page.locator('#sms-app .sidebar-brand picture').evaluate(el=>{const r=el.getBoundingClientRect();return {w:Math.round(r.width),h:Math.round(r.height)};});
- expect(logo).toEqual({w:40,h:40});
+ expect(logo).toEqual({w:34,h:40});
  const activeIcon=await page.locator('#sms-app .sidebar .nav-item.active .nav-icon').first().evaluate(el=>getComputedStyle(el).color);
  expect(activeIcon).toBe('rgb(255, 255, 255)');
  const mainLeft=await page.locator('#sms-app .main-area').evaluate(el=>Math.round(el.getBoundingClientRect().left));

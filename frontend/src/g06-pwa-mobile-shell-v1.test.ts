@@ -49,8 +49,10 @@ describe('Attendance UX V4 Employee Mobile/PWA shell', () => {
     expect(main).toContain("activePage !== 'attendance'");
   });
 
-  it('keeps Leave self-service-only inside PWA even for Manager/Admin accounts', () => {
-    expect(main).toContain('canManage={pwaShell ? false : canManage}');
+  // Owner 2026-10-28: supervisors/managers approve leave from the PWA Leave page again (API role gate unchanged).
+  it('lets Manager/Admin reviewers decide leave inside PWA with the normal role gate', () => {
+    expect(main).not.toContain('canManage={pwaShell ? false : canManage}');
+    expect(main).toMatch(/<LeaveManagementPage [^>]*canManage=\{canManage\}/);
     expect(main).toContain("historyScope={activePage === 'leaveHistory' ? 'all' : 'mine'}");
     expect(main).toContain("mode={activePage === 'leavePending' ? 'pending' : activePage === 'leaveHistory' ? 'history' : 'all'}");
   });

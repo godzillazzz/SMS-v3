@@ -76,7 +76,7 @@ describe('G06 Employee PWA mobile UAT/hardening', () => {
     expect(main).toContain('mutationsEnabled={!pwaShell || pwaOnline}');
     expect(main).toContain('if (!mutationsEnabled || !formReady) return');
     expect(main).toContain('disabled={!mutationsEnabled || !canSubmit || !formReady || submitting}');
-    expect(main).toContain('canManage={pwaShell ? false : canManage}');
+    expect(main).toMatch(/<LeaveManagementPage [^>]*canManage=\{canManage\}[^>]*mutationsEnabled=\{!pwaShell \|\| pwaOnline\}/);
   });
 
   it('reports device PWA capabilities without requesting camera or location permission', () => {

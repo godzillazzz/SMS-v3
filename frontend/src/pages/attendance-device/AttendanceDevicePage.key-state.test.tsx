@@ -16,6 +16,7 @@ vi.mock('../../pages/attendance/attendance-client', () => ({
   attendanceDeviceAdminOverview: vi.fn(),
   revokeAttendanceDeviceCurrent: vi.fn(),
   promoteAttendanceDevice: vi.fn(),
+  rejectAttendanceDevice: vi.fn(),
   attendanceDeviceSelfieBlob: vi.fn()
 }));
 vi.mock('../../lib/attendance-device-key', async (importOriginal) => {
@@ -251,6 +252,30 @@ describe('AttendanceDevicePage ADMIN promote with selfie review', () => {
     expect(screen.getByRole('button', { name: 'ไม่อนุมัติคำขอ' })).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'ยกเลิก' }));
     await waitFor(() => expect(revokeObjectURL).toHaveBeenCalledWith('blob:selfie'));
+  });
+});
+
+describe('AttendanceDevicePage ADMIN rejects a device that has no request (owner 2026-10-28)', () => {
+  it('shows ไม่อนุมัติ inside the detail dialog and rejects the device with the typed reason', async () => {
+    vi.mocked(api.attendanceDeviceState).mockResolvedValue({ data: { employeeId: 'employee-1', activeDevice: null, activeRequest: null } } as never);
+    vi.mocked(api.attendanceDeviceRequests).mockResolvedValue({ data: [] } as never);
+    const attendanceClient = await import('../../pages/attendance/attendance-client');
+    const stray = { id: 'device-stray', employeeId: 'employee-1', displayName: 'เครื่องลงเวลา', keyAlgorithm: 'ECDSA_P256_SHA256', status: 'PENDING_APPROVAL' as const, proofVerifiedAt: '2026-10-26T15:52:00.000Z' };
+    vi.mocked(attendanceClient.attendanceDeviceAdminOverview).mockResolvedValue([{ employeeId: 'employee-1', employee: { id: 'employee-1', displayName: 'พนักงานตัวอย่าง' }, activeDevice: active, activeRequest: null, history: [active, stray], recentAudit: [] }] as never);
+    vi.mocked(attendanceClient.rejectAttendanceDevice).mockResolvedValue({} as never);
+    const keyModule = await import('../../lib/attendance-device-key');
+    vi.mocked(keyModule.listAttendanceDeviceKeyIds).mockResolvedValue(inventory([]));
+
+    render(<AttendanceDevicePage token="test" role="ADMIN" />);
+    fireEvent.click(await screen.findByRole('button', { name: /^แก้ไขอุปกรณ์ของ/ }));
+    fireEvent.click(await screen.findByRole('button', { name: 'ตั้งเป็นเครื่องหลัก' }));
+    const reject = await screen.findByRole('button', { name: 'ไม่อนุมัติ' });
+    expect((reject as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.change(within(screen.getByRole('dialog', { name: 'ตั้งเป็นเครื่องหลัก' })).getByRole('textbox'), { target: { value: 'ไม่ใช่เครื่องของพนักงาน' } });
+    expect((reject as HTMLButtonElement).disabled).toBe(false);
+    fireEvent.click(reject);
+    await waitFor(() => expect(attendanceClient.rejectAttendanceDevice).toHaveBeenCalledWith('test', 'employee-1', 'device-stray', 'ไม่ใช่เครื่องของพนักงาน'));
+    expect(attendanceClient.promoteAttendanceDevice).not.toHaveBeenCalled();
   });
 });
 

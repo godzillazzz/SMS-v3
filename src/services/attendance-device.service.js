@@ -379,6 +379,34 @@ function createAttendanceDeviceService({ prisma = prismaDefault, audit = auditDe
     });
   }
 
+  // ADMIN rejection of a device that is still PENDING_APPROVAL. Devices observed at clock-in have no
+  // change request, so without this they could never leave "รออนุมัติ". The current primary device is
+  // never touched; an open request for the same device is rejected in the same transaction.
+  async function rejectDevice({ actor, employeeId, deviceEnrollmentId, reason }) {
+    assertAdmin(actor);
+    const text = cleanText(reason);
+    if (!text || text.length < 3) throw http(400, 'ATTENDANCE_DEVICE_REJECT_REASON_REQUIRED', 'A rejection reason of at least 3 characters is required.');
+    const now = clock();
+    try {
+      return await prisma.$transaction(async (tx) => {
+        const device = await tx.attendanceDeviceEnrollment.findUnique({ where: { id: deviceEnrollmentId } });
+        if (!device || device.employeeId !== employeeId) throw http(404, 'ATTENDANCE_DEVICE_NOT_FOUND', 'Attendance device not found.');
+        if (device.status !== 'PENDING_APPROVAL') throw http(409, 'ATTENDANCE_DEVICE_NOT_ACTIONABLE', 'Only a pending device can be rejected.');
+        const open = await tx.attendanceDeviceChangeRequest.findFirst({ where: { employeeId, candidateDeviceEnrollmentId: device.id, status: { in: ACTIVE_REQUEST_STATUSES } } });
+        const claimed = await tx.attendanceDeviceEnrollment.updateMany({ where: { id: device.id, employeeId, status: 'PENDING_APPROVAL' }, data: { status: 'REJECTED', revokedAt: now, revokedReason: text } });
+        if (claimed.count !== 1) throw http(409, 'ATTENDANCE_DEVICE_STATE_CONFLICT', 'Attendance device state changed. Please refresh and try again.');
+        let rejectedRequestId = null;
+        if (open) {
+          const rejected = await tx.attendanceDeviceChangeRequest.updateMany({ where: { id: open.id, status: { in: ACTIVE_REQUEST_STATUSES } }, data: { status: 'REJECTED', reviewerComment: text, reviewedByUserId: actor.sub, reviewedAt: now } });
+          if (rejected.count !== 1) throw http(409, 'ATTENDANCE_DEVICE_STATE_CONFLICT', 'Attendance device state changed. Please refresh and try again.');
+          rejectedRequestId = open.id;
+        }
+        await audit.log({ actorUserId: actor.sub, action: 'UPDATE', entityType: 'AttendanceDeviceEnrollment', entityId: device.id, metadata: { event: 'ADMIN_REJECT_DEVICE', employeeId, deviceEnrollmentId: device.id, reason: text, rejectedAt: now, rejectedRequestId } }, tx);
+        return { employeeId, device: safeEnrollment({ ...device, status: 'REJECTED', revokedAt: now, revokedReason: text }), rejectedRequestId };
+      });
+    } catch (error) { throw mapConflict(error); }
+  }
+
   async function reject({ actor, requestId, reason }) {
     assertAdmin(actor);
     const text = cleanText(reason);
@@ -426,7 +454,7 @@ function createAttendanceDeviceService({ prisma = prismaDefault, audit = auditDe
     });
   }
 
-  return { getMyState, createRequest, createProofChallenge, createSelfieChallenge, verifyProof, listRequests, listAdminOverview, revokeCurrent, getDeviceSelfie, promoteDevice, approve, returnForCorrection, resubmit, reject, cancel };
+  return { getMyState, createRequest, createProofChallenge, createSelfieChallenge, verifyProof, listRequests, listAdminOverview, revokeCurrent, getDeviceSelfie, promoteDevice, rejectDevice, approve, returnForCorrection, resubmit, reject, cancel };
 }
 
 module.exports = { ACTIVE_REQUEST_STATUSES, SUPPORTED_KEY_ALGORITHMS, CHALLENGE_TTL_MS, DEVICE_REQUEST_AUDIT_FIELDS, challengeHash, fingerprint, safeAudit, createAttendanceDeviceService };
