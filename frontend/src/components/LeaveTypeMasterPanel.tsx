@@ -6,6 +6,7 @@ import { DataTableSkeletonCards, DataTableSkeletonRows, DataTableState, Responsi
 import { SmsIcon } from './SmsIcon';
 import { useAccessibleOverlay } from './useAccessibleOverlay';
 import '../styles/leave-type-master.css';
+import { EditIconButton } from './EditIconButton';
 
 type CreateInput = {
   code: string;
@@ -176,7 +177,7 @@ export function LeaveTypeMasterPanel({
       <td className="leave-type-kind" title={row.isSystem ? 'ประเภทหลัก · ป้องกันรหัส/โควตา' : 'ผู้ดูแลระบบ · รหัสคงที่'}>{row.isSystem ? 'ประเภทหลัก' : 'กำหนดเอง'}</td>
       <td><StatusPill active={row.isActive} /></td>
       <td><div className="leave-type-row-actions">
-        <button type="button" className="leave-type-icon-button" disabled={busy} aria-label={`แก้ไข ${displayName(row)}`} title="แก้ไข" onClick={() => beginEdit(row, true)}><SmsIcon name="edit" size={16} /></button>
+        <EditIconButton label={`แก้ไข ${displayName(row)}`} disabled={busy} onClick={() => beginEdit(row, true)} />
         <button type="button" className={`leave-type-icon-button ${row.isActive ? 'is-danger' : 'is-success'}`} disabled={busy} aria-label={`${row.isActive ? 'ปิดใช้งาน' : 'เปิดใช้งาน'} ${displayName(row)}`} title={row.isActive ? 'ปิดใช้งาน' : 'เปิดใช้งาน'} onClick={() => void toggleActive(row)}><SmsIcon name={row.isActive ? 'pause' : 'check'} size={16} /></button>
       </div></td>
     </tr>) : <tr><td colSpan={7} className="data-table-empty-cell"><DataTableState variant="empty" title="ยังไม่มีประเภทการลา" description="กด “เพิ่มประเภทการลา” เพื่อสร้างรายการแรก" announce={false} /></td></tr>}

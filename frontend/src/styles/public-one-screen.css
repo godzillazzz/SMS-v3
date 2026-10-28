@@ -203,3 +203,11 @@
 .nexus-auth-shell .auth-progress__step.is-complete .auth-progress__number{border-color:#34D399;background:rgba(52,211,153,.14);color:#6EE7B7}
 .nexus-auth-shell .auth-form input:not([type=checkbox]):not([type=radio]){border:1px solid rgba(148,163,184,.35)!important;border-radius:10px!important;background:rgba(2,8,19,.55)!important}
 .nexus-auth-shell .auth-form input:focus-visible{border-color:#22D3EE!important;box-shadow:0 0 0 3px rgba(34,211,238,.2)!important}
+
+/* Owner issue 1 (2026-10-28): on wide screens use the width instead of squeezing the map between copy and card. */
+@media (min-width: 1440px) {
+  .nexus-public.nexus-onescreen { --os-copy: clamp(420px, 27vw, 560px); --os-card: clamp(400px, 24vw, 460px); }
+  .nexus-public.nexus-onescreen .nexus-shell { width: min(1760px, calc(100% - 96px)); }
+  .nexus-onescreen__grid { grid-template-columns: var(--os-copy) minmax(420px, 1fr) var(--os-card); gap: clamp(24px, 2.4vw, 56px); }
+  .nexus-onescreen .th-map { width: min(100cqw, 100cqh * 0.6512, 640px); }
+}

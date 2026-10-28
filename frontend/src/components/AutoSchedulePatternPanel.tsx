@@ -11,6 +11,7 @@ import {
   type UpdateAutoSchedulePatternInput
 } from '../auto-schedule-pattern-client';
 import { getShiftTypes } from '../shift-type-client';
+import { EditIconButton } from './EditIconButton';
 
 const thaiWeekdays = ['จันทร์', 'อังคาร', 'พุธ', 'พฤหัสบดี', 'ศุกร์', 'เสาร์', 'อาทิตย์'];
 const weeklyPhaseCodes = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
@@ -341,7 +342,7 @@ export function AutoSchedulePatternPanel({ token }: { token: string }) {
                     <button className="btn-primary compact" disabled={busy} onClick={() => void submitEdit(row)}>บันทึก</button>
                     <button className="btn-neutral small-action" disabled={busy} onClick={() => { setEditingId(undefined); setEditForm({}); }}>ยกเลิก</button>
                   </div>
-                : <button className="btn-neutral small-action" disabled={busy} onClick={() => beginEdit(row)}>แก้ไข</button>}</td>
+                : <EditIconButton label={`แก้ไข ${row.name}`} disabled={busy} onClick={() => beginEdit(row)} />}</td>
             </tr>;
           })}</tbody>
         </table>

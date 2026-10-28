@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { api } from '../../api';
 import { AttendanceDevicePage } from './AttendanceDevicePage';
@@ -90,6 +90,8 @@ describe('AttendanceDevicePage local key readiness', () => {
     vi.mocked(keyModule.listAttendanceDeviceKeyIds).mockResolvedValue(inventory([]));
 
     render(<AttendanceDevicePage token="test" role="ADMIN" />);
+    // Owner issue 9: employee devices now open from the table's edit button.
+    fireEvent.click(await screen.findByRole('button', { name: /^แก้ไขอุปกรณ์ของ/ }));
 
     expect(await screen.findByText('เปลี่ยนอุปกรณ์ · ส่งกลับให้แก้ไข')).toBeTruthy();
     expect(await screen.findByText('ยกเลิกการใช้งาน')).toBeTruthy();
@@ -213,6 +215,8 @@ describe('AttendanceDevicePage admin history presentation', () => {
     vi.mocked(keyModule.listAttendanceDeviceKeyIds).mockResolvedValue(inventory([]));
 
     render(<AttendanceDevicePage token="test" role="ADMIN" />);
+    // Owner issue 9: employee devices now open from the table's edit button.
+    fireEvent.click(await screen.findByRole('button', { name: /^แก้ไขอุปกรณ์ของ/ }));
 
     expect(await screen.findByText('รายละเอียดอุปกรณ์และประวัติ (1)')).toBeTruthy();
     expect(screen.getByText('อุปกรณ์ก่อนหน้า')).toBeTruthy();
@@ -235,6 +239,8 @@ describe('AttendanceDevicePage ADMIN promote with selfie review', () => {
     Object.assign(URL, { createObjectURL, revokeObjectURL });
 
     render(<AttendanceDevicePage token="test" role="ADMIN" />);
+    // Owner issue 9: employee devices now open from the table's edit button.
+    fireEvent.click(await screen.findByRole('button', { name: /^แก้ไขอุปกรณ์ของ/ }));
     expect(await screen.findByText(/มีรูปเซลฟี่ให้ตรวจ/)).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'ตั้งเป็นเครื่องหลัก' }));
     fireEvent.click(await screen.findByRole('button', { name: /ดูรูปเซลฟี่จากการลงเวลา/ }));
@@ -245,5 +251,25 @@ describe('AttendanceDevicePage ADMIN promote with selfie review', () => {
     expect(screen.getByRole('button', { name: 'ไม่อนุมัติคำขอ' })).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'ยกเลิก' }));
     await waitFor(() => expect(revokeObjectURL).toHaveBeenCalledWith('blob:selfie'));
+  });
+});
+
+describe('AttendanceDevicePage opened from the Approval Center (owner issue 9)', () => {
+  it('opens the employee pop-up with approve, reject and return for the pending request', async () => {
+    vi.mocked(api.attendanceDeviceState).mockResolvedValue({ data: { employeeId: 'employee-1', activeDevice: null, activeRequest: null } } as never);
+    const candidate = { id: 'device-new', employeeId: 'employee-1', displayName: 'อุปกรณ์ใหม่', keyAlgorithm: 'ECDSA_P256_SHA256', status: 'PENDING_APPROVAL' as const, proofVerifiedAt: '2026-10-26T15:52:00.000Z' };
+    const pendingRequest = { id: 'request-new', employeeId: 'employee-1', requestType: 'REPLACEMENT', status: 'PENDING_APPROVAL', requestedByUserId: 'employee-user', candidateDeviceEnrollmentId: 'device-new', createdAt: '2026-10-26T15:52:00.000Z', candidateDevice: candidate, employee: { id: 'employee-1', displayName: 'พนักงานตัวอย่าง' } };
+    vi.mocked(api.attendanceDeviceRequests).mockResolvedValue({ data: [pendingRequest] } as never);
+    const attendanceClient = await import('../../pages/attendance/attendance-client');
+    vi.mocked(attendanceClient.attendanceDeviceAdminOverview).mockResolvedValue([{ employeeId: 'employee-1', employee: { id: 'employee-1', displayName: 'พนักงานตัวอย่าง' }, activeDevice: null, activeRequest: pendingRequest, history: [candidate], recentAudit: [] }] as never);
+    const keyModule = await import('../../lib/attendance-device-key');
+    vi.mocked(keyModule.listAttendanceDeviceKeyIds).mockResolvedValue(inventory([]));
+    const handled = vi.fn();
+
+    render(<AttendanceDevicePage token="test" role="ADMIN" initialRequestId="request-new" onInitialRequestHandled={handled} />);
+
+    const dialog = await screen.findByRole('dialog', { name: 'อุปกรณ์ของ พนักงานตัวอย่าง' });
+    expect(handled).toHaveBeenCalled();
+    for (const name of ['อนุมัติ', 'ไม่อนุมัติ', 'ส่งกลับแก้ไข']) expect(within(dialog).getByRole('button', { name })).toBeTruthy();
   });
 });

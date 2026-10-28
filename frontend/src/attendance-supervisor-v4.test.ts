@@ -78,7 +78,8 @@ describe('Attendance Supervisor UX V4', () => {
     expect(page).toContain("import { printDocument } from '../../schedule-print'");
     expect(page).toContain('รายงานวันนี้');
     expect(page).toContain('พิมพ์ทั้งหมด');
-    expect(page).toContain("mode === 'daily' && <button type=\"button\" className=\"attendance-supervisor-v4__detail-btn\" onClick={() => void printAttendance(row.employeeId)} aria-label={`พิมพ์รายบุคคล ${row.employeeName}`}>พิมพ์รายบุคคล</button>");
+    // Owner issue 8 (2026-10-28): per-employee print moved from the row into the details dialog footer.
+    expect(page).toContain("{mode === 'daily' && <button type=\"button\" className=\"btn-neutral\" onClick={() => void printAttendance(detailRow.employeeId)}>");
     expect(page).toContain("printDocument('.attendance-supervisor-print'");
     expect(page).toContain('attendance-supervisor-print-page');
     expect(page).toContain('rows.filter((item) => item.employeeId === employeeId)');
@@ -88,7 +89,8 @@ describe('Attendance Supervisor UX V4', () => {
 
   it('restricts per-employee printing exclusively to daily mode and hides it in history mode (UX-737-M1)', () => {
     expect(page).toContain("if (mode !== 'daily' || !rows.length) return;");
-    expect(page).toContain("{mode === 'daily' && <button type=\"button\" className=\"attendance-supervisor-v4__detail-btn\" onClick={() => void printAttendance(row.employeeId)} aria-label={`พิมพ์รายบุคคล ${row.employeeName}`}>พิมพ์รายบุคคล</button>}");
+    // Owner issue 8 (2026-10-28): per-employee print moved from the row into the details dialog footer.
+    expect(page).toContain("{mode === 'daily' && <button type=\"button\" className=\"btn-neutral\" onClick={() => void printAttendance(detailRow.employeeId)}>");
     expect(page).toContain("{mode === 'daily' && <AttendanceSupervisorPrint rows={rows} date={date} employeeId={printEmployeeId || undefined} />}");
   });
 
@@ -124,10 +126,10 @@ describe('Attendance Supervisor UX V4', () => {
     expect(adjustmentClient).not.toContain('/attendance/governance/assignments/');
   });
 
-  it('adds a direct per-employee on-behalf keying action without requiring the detail drawer', () => {
+  it('keeps on-behalf keying one click away in the row details dialog (owner issue 8)', () => {
     expect(page).toContain('ลงเวลาแทน');
-    expect(page).toContain('attendance-supervisor-v4__onbehalf-btn');
-    expect(page).toContain('onClick={() => openRowAdjustment(row)}');
+    expect(page).toContain('onClick={() => { setDetailRow(row); void openDetail(row.assignmentId); }}');
+    expect(page).toContain('openRowAdjustment(row); }}><SmsIcon name="clock" size={16} />ลงเวลาแทน</button>');
     expect(page).toContain("type: 'CONFIRM_WORK_PERFORMED'");
     expect(page).toContain("checkInAt: bangkokInput(row.checkInAt || row.originalCheckInAt || '')");
     expect(page).toContain("checkOutAt: bangkokInput(row.checkOutAt || row.originalCheckOutAt || '')");
