@@ -25,6 +25,7 @@
 #sms-app .sidebar .nav-item .nav-icon { color: inherit !important; background: transparent !important; }
 #sms-app .sidebar .nav-item:hover { background: var(--color-sidebar-hover) !important; color: #ffffff !important; }
 #sms-app .sidebar .nav-item.active { background: var(--sidebar-active) !important; color: #ffffff !important; font-weight: 600 !important; }
+#sms-app .sidebar .nav-item.active :is(.nav-icon, .nav-icon svg) { color: #ffffff !important; }
 #sms-app .sidebar .nav-item.active::before, #sms-app .sidebar .nav-item.active::after { display: none !important; }
 #sms-app .sidebar .nav-item:focus-visible { outline: 2px solid #9fbaff !important; outline-offset: 1px; }
 #sms-app .sidebar-footer { border-top: 1px solid var(--color-sidebar-border) !important; background: transparent !important; }
@@ -106,10 +107,10 @@
 /* Shell (owner decision 2026-10-27): sidebar 252px with a remembered collapse to a 72px icon rail, 60px topbar, content capped at 1280px. */
 #sms-app .sidebar-footer .sidebar-collapse-toggle { display: none; }
 @media (min-width: 1025px) {
-  #sms-app:not(.desktop-view) { --shell-sidebar-w: 252px; }
-  #sms-app:not(.desktop-view)[data-sidebar="collapsed"] { --shell-sidebar-w: 72px; }
-  #sms-app:not(.desktop-view) .sidebar { width: var(--shell-sidebar-w) !important; flex: 0 0 var(--shell-sidebar-w) !important; transition: width .18s ease; }
-  #sms-app:not(.desktop-view) .main-area { width: calc(100% - var(--shell-sidebar-w)) !important; margin-left: var(--shell-sidebar-w) !important; transition: margin-left .18s ease, width .18s ease; }
+  #sms-app { --shell-sidebar-w: 252px; }
+  #sms-app[data-sidebar="collapsed"] { --shell-sidebar-w: 72px; }
+  #sms-app .sidebar { width: var(--shell-sidebar-w) !important; flex: 0 0 var(--shell-sidebar-w) !important; transition: width .18s ease; }
+  #sms-app .main-area { width: calc(100% - var(--shell-sidebar-w)) !important; margin-left: var(--shell-sidebar-w) !important; transition: margin-left .18s ease, width .18s ease; }
   #sms-app .sidebar-footer .sidebar-collapse-toggle { display: inline-flex; min-height: 40px; align-items: center; justify-content: center; gap: 8px; width: 100%; margin-bottom: 8px; border: 1px solid var(--color-sidebar-border, rgba(255,255,255,.14)); border-radius: 8px; padding: 8px 10px; background: transparent; color: var(--sidebar-item, #cbd5e1); font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; }
   #sms-app .sidebar-footer .sidebar-collapse-toggle:hover { background: rgba(255,255,255,.08); color: #fff; }
   #sms-app .sidebar-footer .sidebar-collapse-toggle:focus-visible { outline: 2px solid #93c5fd; outline-offset: 2px; }
@@ -122,8 +123,9 @@
   #sms-app[data-sidebar="collapsed"] .sidebar .nav-menu::-webkit-scrollbar { display: none; }
   #sms-app[data-sidebar="collapsed"] .sidebar-brand { display: flex !important; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding-inline: 0 !important; }
   #sms-app[data-sidebar="collapsed"] .sidebar-footer .sidebar-collapse-toggle { justify-content: center; width: 48px; margin-inline: auto; padding-inline: 0; }
-  #sms-app[data-sidebar="collapsed"] .sidebar-brand :is(picture, a, .brand-logo) { width: 40px; overflow: hidden; }
-  #sms-app[data-sidebar="collapsed"] .sidebar-brand img { max-width: none; object-fit: cover; object-position: left; }
+  /* Collapsed: show only the shield of the horizontal logo, scaled to 40px. */
+  #sms-app[data-sidebar="collapsed"] .sidebar-brand :is(picture, a, .brand-logo) { display: block; width: 40px !important; height: 40px !important; overflow: hidden; }
+  #sms-app[data-sidebar="collapsed"] .sidebar-brand img { width: auto !important; height: 40px !important; max-width: none !important; object-fit: contain; }
   #sms-app[data-sidebar="collapsed"] .sidebar-user { justify-content: center; }
   #sms-app[data-sidebar="collapsed"] .nav-count-badge { position: absolute; top: 2px; right: 2px; transform: scale(.8); }
 
@@ -186,3 +188,8 @@ body > .workflow-command-layer .workflow-command__employee-search { border-top: 
 #sms-app .user-menu .topbar-profile > span:not(.avatar) { display: grid !important; gap: 1px; min-width: 0; text-align: left; line-height: 1.25; }
 #sms-app .user-menu .topbar-profile b { overflow: hidden; font-size: 13.5px; text-overflow: ellipsis; white-space: nowrap; }
 #sms-app .user-menu .topbar-profile small { color: var(--color-text-secondary); font-size: 11.5px; }
+/* Row edit action (owner request 2026-10-28): square-pen icon, primary colour, no button chrome. */
+.sms-edit-button { display: inline-grid; place-items: center; width: 36px; height: 36px; min-height: 36px; padding: 0; border: 0; border-radius: 7px; background: transparent; color: var(--color-primary); cursor: pointer; }
+.sms-edit-button:hover:not(:disabled) { background: var(--color-primary-soft); }
+.sms-edit-button:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; }
+.sms-edit-button:disabled { opacity: .45; cursor: not-allowed; }

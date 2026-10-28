@@ -1,9 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
+import '../../styles/attendance-device.css';
 import { api } from '../../api';
 import { formatRequestErrorMessage, RequestErrorReference, toRequestErrorState } from '../../request-error';
 import { PageHeader, SectionCard, StepFlow } from '../../components/layout';
 import '../../styles/personnel-layout.css';
+import './attendance-device-admin.css';
 import { SmsIcon } from '../../components/SmsIcon';
+import { avatarTone } from '../../avatar';
 import { auditEventLabel } from '../../components/audit/audit-utils';
 import { useActionDialog } from '../../components/useActionDialog';
 import { attendanceDeviceAdminOverview, attendanceDeviceSelfieBlob, promoteAttendanceDevice, revokeAttendanceDeviceCurrent } from '../attendance/attendance-client';
@@ -56,7 +59,7 @@ export type AttendanceDeviceRequest = {
   cancelledAt?: string | null;
   createdAt: string;
   candidateDevice?: AttendanceDeviceEnrollment;
-  employee?: { id: string; displayName?: string | null; firstName?: string | null; lastName?: string | null; department?: string | null };
+  employee?: { id: string; employeeCode?: string | null; displayName?: string | null; firstName?: string | null; lastName?: string | null; department?: string | null };
   requestedBy?: { id: string; displayName?: string | null; role?: string | null };
   reviewedBy?: { id: string; displayName?: string | null; role?: string | null };
 };
@@ -80,7 +83,7 @@ type AttendanceDeviceAudit = {
 
 type AttendanceDeviceAdminEmployee = {
   employeeId: string;
-  employee?: { id: string; displayName?: string | null; firstName?: string | null; lastName?: string | null; department?: string | null };
+  employee?: { id: string; employeeCode?: string | null; displayName?: string | null; firstName?: string | null; lastName?: string | null; department?: string | null };
   activeDevice: AttendanceDeviceEnrollment | null;
   activeRequest: AttendanceDeviceRequest | null;
   history: AttendanceDeviceEnrollment[];
@@ -227,6 +230,8 @@ export function AttendanceDevicePage({ token, role, readOnly = false, initialReq
     }
   };
   const [adminSearch, setAdminSearch] = useState('');
+  // Owner issue 9 (2026-10-28): the employee list is a table; editing opens the employee's devices in a pop-up.
+  const [detailEmployeeId, setDetailEmployeeId] = useState<string>();
   // Devices an employee has already proven with a key (first clock-in on a new phone
   // or an enrollment request) can be made primary directly; rows needing action sort first.
   const adminRows = useMemo(() => {
@@ -299,7 +304,7 @@ export function AttendanceDevicePage({ token, role, readOnly = false, initialReq
     if (!initialRequestId || role !== 'ADMIN' || !queue.length) return;
     const request = queue.find((row) => String(row.id) === String(initialRequestId));
     if (request) {
-      setReviewTarget({ row: request, action: 'RETURN' });
+      setDetailEmployeeId(request.employee?.id);
       onInitialRequestHandled?.();
     }
   }, [initialRequestId, queue, role]);
@@ -542,7 +547,34 @@ export function AttendanceDevicePage({ token, role, readOnly = false, initialReq
     {role === 'ADMIN' && <SectionCard className="attendance-device-admin-section" kicker="การดูแลอุปกรณ์" title="เครื่องหลักของพนักงาน" description="ตั้งหรือยกเลิกเครื่องหลักให้พนักงาน เปิดรายละเอียดอุปกรณ์และประวัติของแต่ละคนเพื่อตรวจอุปกรณ์ก่อนหน้าและกิจกรรมล่าสุด" actions={<>{!overviewLoading && !queueError && <span className="attendance-device-queue-count">{adminOverview.length}</span>}</>}>
       {overviewLoading ? <div className="attendance-device-state">กำลังโหลดประวัติอุปกรณ์…</div> : adminOverview.length ? <>
         <input className="attendance-device-admin-search" type="search" value={adminSearch} onChange={(event) => setAdminSearch(event.target.value)} placeholder="ค้นหาชื่อพนักงานหรือหน่วยงาน" aria-label="ค้นหาพนักงานในรายการอุปกรณ์" />
-        <div className="attendance-device-admin-list">{adminRows.map(({ row, candidates }) => { const history = row.history.filter((device) => device.id !== row.activeDevice?.id && device.id !== row.activeRequest?.candidateDeviceEnrollmentId); return <article className="attendance-device-review-card attendance-device-admin-row" key={row.employeeId}>
+        <div className="data-table-scroll attendance-device-admin-table-wrap"><table className="data-surface-table attendance-device-admin-table">
+          <thead><tr><th scope="col">พนักงาน</th><th scope="col">สถานะ</th><th scope="col">เครื่องหลัก</th><th scope="col">ใช้งานตั้งแต่</th><th scope="col">รอตั้ง</th><th scope="col"><span className="sr-only">จัดการ</span></th></tr></thead>
+          <tbody>{adminRows.map(({ row, candidates }) => <tr key={row.employeeId}>
+            <td><span className="attendance-device-admin-identity"><span className="personnel-avatar" aria-hidden="true" data-avatar-tone={avatarTone(row.employee?.employeeCode || row.employeeId)}>{adminEmployeeName(row).split(/\s+/).filter(Boolean).map((part) => part.replace(/^[เแโใไ]+/, '').charAt(0)).join('').slice(0, 2)}</span><span><strong>{adminEmployeeName(row)}</strong><small>{row.employee?.department || 'ไม่ระบุหน่วยงาน'}</small></span></span></td>
+            <td><span className={`status-badge ${row.activeDevice ? 'active' : candidates.length ? 'returned' : 'muted'}`}>{row.activeDevice ? 'มีเครื่องหลัก' : candidates.length ? 'รอตั้งเครื่องหลัก' : 'ไม่มีเครื่องหลัก'}</span>{row.activeRequest && <small className="attendance-device-admin-pending">มีคำขอรออนุมัติ</small>}</td>
+            <td>{row.activeDevice ? <>{row.activeDevice.displayName}{row.activeDevice.platformHint ? <small>{row.activeDevice.platformHint}</small> : null}</> : '—'}</td>
+            <td className="tabular">{row.activeDevice ? formatDate(row.activeDevice.activatedAt) : '—'}</td>
+            <td className="tabular">{candidates.length || '—'}</td>
+            <td><button type="button" className="sms-edit-button attendance-device-admin-open" title="แก้ไข" aria-label={`แก้ไขอุปกรณ์ของ ${adminEmployeeName(row)}`} onClick={() => setDetailEmployeeId(row.employeeId)}><SmsIcon name="edit" size={18} /></button></td>
+          </tr>)}{!adminRows.length && <tr><td colSpan={6}><div className="attendance-device-state attendance-device-state--empty"><strong>ไม่พบพนักงานตามคำค้น</strong></div></td></tr>}</tbody>
+        </table></div>
+      </> : <div className="attendance-device-state attendance-device-state--empty"><strong>ยังไม่มีอุปกรณ์ในระบบ</strong><span>เมื่อพนักงานลงเวลาหรือลงทะเบียนอุปกรณ์ รายการจะปรากฏที่นี่</span></div>}
+    </SectionCard>}
+
+    {role === 'ADMIN' && detailEmployeeId && (() => {
+      const entry = adminRows.find((item) => item.row.employeeId === detailEmployeeId) || (() => { const found = adminOverview.find((item) => item.employeeId === detailEmployeeId); return found ? { row: found, candidates: found.history.filter((device) => device.status === 'PENDING_APPROVAL' && Boolean(device.proofVerifiedAt)) } : undefined; })();
+      if (!entry) return null;
+      const { row, candidates } = entry;
+      const history = row.history.filter((device) => device.id !== row.activeDevice?.id && device.id !== row.activeRequest?.candidateDeviceEnrollmentId);
+      const pending = queue.filter((request) => request.employee?.id === row.employeeId);
+      return <div className="attendance-device-review-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !busy) setDetailEmployeeId(undefined); }}>
+        <div className="attendance-device-review-modal attendance-device-employee-modal" role="dialog" aria-modal="true" aria-label={`อุปกรณ์ของ ${adminEmployeeName(row)}`}>
+          <header className="attendance-device-employee-modal__head"><div><p>การดูแลอุปกรณ์</p><h3>{adminEmployeeName(row)}</h3></div><button type="button" aria-label="ปิด" disabled={busy} onClick={() => setDetailEmployeeId(undefined)}><SmsIcon name="close" size={18} /></button></header>
+          {pending.map((request) => <section key={request.id} className="attendance-device-employee-modal__request" aria-label="คำขอที่รออนุมัติ">
+            <div><strong>คำขอ{request.requestType === 'INITIAL' ? 'เครื่องแรก' : 'เปลี่ยนอุปกรณ์'} · {request.candidateDevice?.displayName || 'อุปกรณ์ใหม่'}</strong><span>{request.candidateDevice?.proofVerifiedAt ? 'ยืนยันคีย์แล้ว' : 'ยังไม่ยืนยันคีย์'}{request.reason ? ` · เหตุผล: ${request.reason}` : ''}</span></div>
+            <footer><button type="button" className="btn-neutral" disabled={busy || readOnly} onClick={() => { setReviewTarget({ row: request, action: 'RETURN' }); setReviewReason(''); }}>ส่งกลับแก้ไข</button><button type="button" className="btn-danger-outline" disabled={busy || readOnly} onClick={() => { setReviewTarget({ row: request, action: 'REJECT' }); setReviewReason(''); }}>ไม่อนุมัติ</button><button type="button" className="btn-primary" disabled={busy || readOnly || !request.candidateDevice?.proofVerifiedAt} onClick={() => void approve(request)}><SmsIcon name="check" size={17} />อนุมัติ</button></footer>
+          </section>)}
+          <article className="attendance-device-admin-row attendance-device-admin-row--dialog">
           <header>
             <div><strong>{adminEmployeeName(row)}</strong><span>{row.employee?.department || 'ไม่ระบุหน่วยงาน'}</span></div>
             <span className={`status-badge ${row.activeDevice ? 'active' : candidates.length ? 'returned' : 'muted'}`}>{row.activeDevice ? 'มีเครื่องหลัก' : candidates.length ? 'รอตั้งเครื่องหลัก' : 'ไม่มีเครื่องหลัก'}</span>
@@ -562,9 +594,10 @@ export function AttendanceDevicePage({ token, role, readOnly = false, initialReq
             </details>
             {row.activeDevice && <button type="button" className="btn-danger-outline small-action" disabled={busy || readOnly} onClick={() => { setRevokeTarget(row); setRevokeReason(''); }}>ยกเลิกเครื่องหลัก</button>}
           </footer>
-        </article>; })}{!adminRows.length && <div className="attendance-device-state attendance-device-state--empty"><strong>ไม่พบพนักงานตามคำค้น</strong></div>}</div>
-      </> : <div className="attendance-device-state attendance-device-state--empty"><strong>ยังไม่มีอุปกรณ์ในระบบ</strong><span>เมื่อพนักงานลงเวลาหรือลงทะเบียนอุปกรณ์ รายการจะปรากฏที่นี่</span></div>}
-    </SectionCard>}
+        </article>
+        </div>
+      </div>;
+    })()}
 
     {promoteTarget && <div className="attendance-device-review-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !busy) setPromoteTarget(null); }}><div className="attendance-device-review-modal" role="dialog" aria-modal="true" aria-labelledby="attendance-device-promote-title"><header><div><p>การดูแลอุปกรณ์โดยผู้ดูแลระบบ</p><h3 id="attendance-device-promote-title">ตั้งเป็นเครื่องหลัก</h3><span>{adminEmployeeName(promoteTarget.row)} · {promoteTarget.device.displayName}</span></div><button type="button" className="drawer-close overlay-close" disabled={busy} onClick={() => setPromoteTarget(null)} aria-label="ปิด"><SmsIcon name="close" size={20} /></button></header><div className="settings-notice">{promoteTarget.row.activeDevice ? `เครื่องหลักเดิม (${promoteTarget.row.activeDevice.displayName}) จะถูกยกเลิกทันที และเครื่องนี้จะใช้ลงเวลาได้โดยไม่ติดธง` : 'เครื่องนี้จะเป็นเครื่องหลักและใช้ลงเวลาได้ทันที'} คำขอเปลี่ยนเครื่องที่ค้างอยู่ของพนักงานคนนี้จะถูกยกเลิก</div><div className="attendance-device-selfie-review">{promoteTarget.device.latestSelfieAt ? <>
           <button type="button" className="btn-neutral attendance-device-selfie-review__toggle" aria-pressed={Boolean(promoteSelfie.url)} disabled={busy || promoteSelfie.loading} onClick={() => { if (promoteSelfie.url) setPromoteSelfie({}); else void openPromoteSelfie(); }}><SmsIcon name="eye" size={18} />{promoteSelfie.loading ? 'กำลังโหลดรูป…' : promoteSelfie.url ? 'ซ่อนรูปเซลฟี่' : 'ดูรูปเซลฟี่จากการลงเวลา'}</button>
