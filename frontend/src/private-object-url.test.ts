@@ -8,7 +8,9 @@ describe('privateObjectUrl', () => {
   afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 
   it('fetches the proxy file under the API base with the token and returns an object URL', async () => {
-    const fetchMock = vi.fn(async () => new Response(new Blob(['%PDF-1.7'], { type: 'application/pdf' }), { status: 200 }));
+    const blob = new Blob(['%PDF-1.7'], { type: 'application/pdf' });
+    // Plain response object: jsdom's Blob cannot back a real Response body.
+    const fetchMock = vi.fn(async () => ({ ok: true, status: 200, headers: new Headers({ 'content-type': 'application/pdf' }), blob: async () => blob, clone() { return this; } }));
     vi.stubGlobal('fetch', fetchMock);
     const createObjectURL = vi.fn(() => 'blob:licence');
     Object.assign(URL, { createObjectURL });
@@ -23,7 +25,7 @@ describe('privateObjectUrl', () => {
 
   it('leaves blob and data URLs untouched and reports a gone file in Thai', async () => {
     expect(await privateObjectUrl('t', 'blob:already')).toBe('blob:already');
-    vi.stubGlobal('fetch', vi.fn(async () => new Response('{}', { status: 410 })));
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, status: 410, headers: new Headers(), blob: async () => new Blob([]), json: async () => ({}), text: async () => '{}', clone() { return this; } })));
     await expect(privateObjectUrl('t', '/api/storage-proxy/license/gone')).rejects.toThrow('ไฟล์นี้ถูกลบหรือไม่สามารถเปิดได้แล้ว');
   });
 });
