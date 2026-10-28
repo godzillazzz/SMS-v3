@@ -1138,8 +1138,8 @@ export function AttendanceSupervisorPage({ token, role, department, employeeAuth
       <section className="attendance-supervisor-v4__kpis">
         <KPI label="ต้องตรวจสอบ" value={summary.requiresAttention} icon="quality" tone="danger" onClick={() => setStatus('REQUIRES_ATTENTION')} active={status === 'REQUIRES_ATTENTION'} />
         <KPI label="มีตาราง" value={summary.scheduledToday} icon="calendar" onClick={() => setStatus('')} active={status === ''} />
-        <KPI label="ลงเวลาแล้ว" value={summary.checkedIn} icon="check" tone="good" />
-        <KPI label="กำลังปฏิบัติงาน" value={summary.currentlyWorking} icon="attendance" tone="good" />
+        <KPI label="ลงเวลาแล้ว" value={summary.checkedIn} icon="check" tone="good" onClick={() => setStatus('COMPLETE')} active={status === 'COMPLETE'} />
+        <KPI label="กำลังปฏิบัติงาน" value={summary.currentlyWorking} icon="attendance" tone="good" onClick={() => setStatus('CURRENTLY_WORKING')} active={status === 'CURRENTLY_WORKING'} />
         <KPI label="ยังไม่ลงเวลา" value={summary.notCheckedInYet} icon="clock" onClick={() => setStatus('NOT_CHECKED_IN_YET')} active={status === 'NOT_CHECKED_IN_YET'} />
         <KPI label="มาสาย" value={summary.late} icon="clock" tone="warning" onClick={() => setStatus('LATE')} active={status === 'LATE'} />
         <KPI label="ออกก่อนเวลา" value={summary.earlyOut} icon="history" tone="warning" onClick={() => setStatus('EARLY_OUT')} active={status === 'EARLY_OUT'} />

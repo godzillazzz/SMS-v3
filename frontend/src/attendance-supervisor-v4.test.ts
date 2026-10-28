@@ -69,6 +69,8 @@ describe('Attendance Supervisor UX V4', () => {
     expect(page).toContain("['REQUIRES_ATTENTION', 'ต้องตรวจสอบ']");
     expect(page).toContain("onClick={() => setStatus('REQUIRES_ATTENTION')}");
     expect(page).toContain("onClick={() => setStatus('WRONG_SHIFT')}");
+    expect(page).toContain("onClick={() => setStatus('COMPLETE')}");
+    expect(page).toContain("onClick={() => setStatus('CURRENTLY_WORKING')}");
     expect(page).toContain("role={onClick ? 'button' : undefined}");
     for (const column of ['สถานที่ตามตาราง', 'สถานที่ลงเวลาจริง', 'ประเภท', 'เวลาปฏิบัติงาน', 'ข้อสังเกต', 'การทำงาน']) expect(page).toContain(column);
   });
