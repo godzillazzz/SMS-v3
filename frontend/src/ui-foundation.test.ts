@@ -18,9 +18,9 @@ describe('SMSv3 UI foundation on the corporate tokens', () => {
     expect(css).toContain('var(--color-primary)');
   });
 
-  it('offers navy as default plus three accent hues and falls back safely', () => {
-    expect(ACCENT_OPTIONS.map((option) => option.value)).toEqual(['navy', 'teal', 'emerald']);
-    expect(normalizeAccent('pink')).toBe('navy');
+  it('offers the owner-approved five primary palettes and falls back safely', () => {
+    expect(ACCENT_OPTIONS.map((option) => option.value)).toEqual(['teal', 'indigo', 'navy', 'emerald', 'plum']);
+    expect(normalizeAccent('pink')).toBe('teal');
     const store = new Map<string, string>();
     const storage = { getItem: (k: string) => store.get(k) ?? null, setItem: (k: string, v: string) => void store.set(k, v) };
     persistAccent('teal', storage);
@@ -29,7 +29,34 @@ describe('SMSv3 UI foundation on the corporate tokens', () => {
     applyAccent('emerald', shell);
     expect(shell.dataset.accent).toBe('emerald');
     applyAccent('navy', shell);
-    expect(shell.dataset.accent).toBeUndefined();
+    expect(shell.dataset.accent).toBe('navy');
+  });
+
+  it('keeps the Sidebar collapse control in the footer with a readable label', () => {
+    const main = fs.readFileSync(path.join(__dirname, 'main.tsx'), 'utf8');
+    const footer = main.slice(main.indexOf('<div className="sidebar-footer">'), main.indexOf('</div>', main.indexOf('<div className="sidebar-footer">')) + 6);
+    expect(footer).toContain('sidebar-collapse-toggle');
+    expect(footer).toContain("sidebarCollapsed ? 'ขยายเมนู' : 'ย่อเมนู'");
+    expect(footer).toContain('<span>{sidebarCollapsed ? \'ขยายเมนู\' : \'ย่อเมนู\'}</span>');
+    const shell = fs.readFileSync(path.join(__dirname, 'styles/hrpro-shell.css'), 'utf8');
+    expect(shell).toContain('#sms-app .sidebar-footer .sidebar-collapse-toggle');
+    expect(shell).not.toContain('#sms-app .sidebar-collapse-toggle { display: none; }');
+  });
+
+  it('keeps Sidebar icons and user controls readable with spacing and visible interaction states', () => {
+    const shell = fs.readFileSync(path.join(__dirname, 'styles/hrpro-shell.css'), 'utf8');
+    expect(shell).toContain('#sms-app .sidebar .nav-item .nav-icon { color: inherit !important;');
+    expect(shell).toContain('#sms-app .user-menu .topbar-profile:focus-visible');
+    expect(shell).toContain('#sms-app .sidebar-user {');
+    expect(shell).toContain('gap: 10px !important;');
+    expect(shell).toContain('#sms-app .user-menu__chevron { color: var(--color-text-secondary); }');
+  });
+
+  it('keeps shared modal and drawer close controls visible and keyboard-focusable', () => {
+    const shell = fs.readFileSync(path.join(__dirname, 'styles/hrpro-shell.css'), 'utf8');
+    expect(shell).toContain('#sms-app :is(.drawer-close, .overlay-close, .license-modal-close)');
+    expect(shell).toContain('#sms-app :is(.drawer-close, .overlay-close, .license-modal-close):focus-visible');
+    expect(shell).toContain('color: var(--color-text) !important;');
   });
 
   it('maps business statuses to badge tones without changing their values', () => {

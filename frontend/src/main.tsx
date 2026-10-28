@@ -3482,7 +3482,7 @@ function Dashboard() {
         <div className="sidebar-brand">
           <BrandLogo />
           <button type="button" className="sidebar-close-button" aria-label="ปิดเมนูหลัก" onClick={() => setMobileMenuOpen(false)}><SmsIcon name="close" size={20} /></button>
-          <button type="button" className="sidebar-collapse-toggle" aria-pressed={sidebarCollapsed} aria-label={sidebarCollapsed ? 'ขยายเมนู' : 'ย่อเมนู'} title={sidebarCollapsed ? 'ขยายเมนู' : 'ย่อเมนู'} onClick={toggleSidebarCollapsed}><SmsIcon name="menu" size={18} /></button>
+
         </div>
         <nav className="nav-menu" aria-label="เมนูหลัก">{visibleNavigation.map((section) => (
           <div className="nav-section" key={section.label || section.items.map((item) => item.id).join('-')}>{section.label && <p>{section.label}</p>}{section.items.map((item) => {
@@ -3497,6 +3497,7 @@ function Dashboard() {
           })}</div>
         ))}</nav>
         <div className="sidebar-footer">
+          <button type="button" className="sidebar-collapse-toggle" aria-pressed={sidebarCollapsed} aria-label={sidebarCollapsed ? 'ขยายเมนู' : 'ย่อเมนู'} title={sidebarCollapsed ? 'ขยายเมนู' : 'ย่อเมนู'} onClick={toggleSidebarCollapsed}><SmsIcon name="menu" size={18} /><span>{sidebarCollapsed ? 'ขยายเมนู' : 'ย่อเมนู'}</span></button>
           <div className="sidebar-user sidebar-profile"><span className="avatar" data-avatar-tone={avatarTone(auth.user?.id)}>{initials}</span><span><b>{auth.user?.displayName || 'ผู้ใช้งาน'}</b><small>{roleDisplayName(auth.user?.role || 'VIEWER')}</small></span></div>
           <button type="button" className="sidebar-logout" onClick={() => auth.logout()}><SmsIcon name="logout" size={18} /><span>ออกจากระบบ</span></button>
         </div>
