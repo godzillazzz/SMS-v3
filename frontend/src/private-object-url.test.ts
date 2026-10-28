@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { privateObjectUrl } from './api';
+import { privateObjectUrl } from './private-object-url';
 
 // Owner issue 6 (2026-10-28): licence documents did not show because the viewer pointed an <iframe> at the
 // authenticated storage proxy (no Bearer header) using a path outside the API base.
