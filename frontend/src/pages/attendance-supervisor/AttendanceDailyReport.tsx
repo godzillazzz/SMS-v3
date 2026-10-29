@@ -33,7 +33,7 @@ export function dailyReportSummary(rows: DailyReportRow[]) {
     checkedIn: count((row) => Boolean(row.checkInAt)),
     late: count((row) => has(row, 'LATE')),
     earlyOut: count((row) => has(row, 'EARLY_OUT')),
-    leave: count(isLeave),
+    absent: count((row) => has(row, 'ABSENT')),
     noRecord: count((row) => isNoRecord(row) && !withRecord.has(key(row))),
     offSite: count((row) => has(row, 'OUTSIDE_ALL_SITES') || has(row, 'ASSIST_OTHER_SITE') || row.workSiteContext === 'SUPPORT_SITE')
   };
@@ -81,12 +81,12 @@ export function AttendanceDailyReport({ date, rows, loading = false, error, filt
   const summary = dailyReportSummary(rows);
   const cards: Array<[string, number]> = [
     ['พนักงานทั้งหมด', summary.total], ['ลงเวลาเข้า', summary.checkedIn], ['มาสาย', summary.late],
-    ['ออกก่อน', summary.earlyOut], ['ลา', summary.leave], ['ไม่มีบันทึก', summary.noRecord], ['นอกสถานที่', summary.offSite]
+    ['ออกก่อน', summary.earlyOut], ['ขาดงาน', summary.absent], ['ไม่มีบันทึก', summary.noRecord], ['นอกสถานที่', summary.offSite]
   ];
   const print = async () => {
     setPrintError(undefined);
     try {
-      await printDocument('.attendance-daily-report__sheet', `รายงานการลงเวลาประจำวัน-${date}.pdf`, { orientation: 'portrait', margin: '10mm' });
+      await printDocument('.attendance-daily-report__sheet', `รายงานการลงเวลาประจำวัน-${date}.pdf`, { orientation: 'landscape', margin: '10mm' });
     } catch {
       setPrintError('ไม่สามารถจัดเตรียมรายงานสำหรับพิมพ์ได้');
     }
@@ -114,20 +114,23 @@ export function AttendanceDailyReport({ date, rows, loading = false, error, filt
         </section>
         <table>
           <thead><tr>
-            <th scope="col">ลำดับ</th><th scope="col">รหัส</th><th scope="col">ชื่อ-สกุล</th><th scope="col">แผนก</th>
+            <th scope="col">ลำดับ</th><th scope="col">ชื่อ-สกุล</th><th scope="col">รหัส</th><th scope="col">แผนก</th>
             <th scope="col">เวลาเข้า</th><th scope="col">เวลาออก</th><th scope="col">ชั่วโมง</th><th scope="col">สถานะ</th>
+            <th scope="col">สถานที่</th><th scope="col">หมายเหตุ</th>
           </tr></thead>
           <tbody>
-            {loading ? <tr><td colSpan={8}>กำลังโหลดข้อมูล</td></tr>
-              : error ? <tr><td colSpan={8} role="alert">{error}</td></tr>
-              : !rows.length ? <tr><td colSpan={8}>ไม่มีข้อมูลในระบบ</td></tr>
+            {loading ? <tr><td colSpan={10}>กำลังโหลดข้อมูล</td></tr>
+              : error ? <tr><td colSpan={10} role="alert">{error}</td></tr>
+              : !rows.length ? <tr><td colSpan={10}>ไม่มีข้อมูลในระบบ</td></tr>
               : rows.map((row, index) => {
                 const status = dailyReportStatus(row);
                 const anomalies = ([['WRONG_SHIFT', 'ผิดกะ'], ['DEVICE_MISMATCH', 'อุปกรณ์ไม่ตรง'], ['OUTSIDE_ALL_SITES', 'นอกพื้นที่'], ['ASSIST_OTHER_SITE', 'ช่วย Site อื่น'], ['TIME_ABNORMAL', 'เวลาผิดปกติ'], ['MISSING_CHECK_IN', 'ไม่ได้ลงเวลาเข้า'], ['MISSING_CHECK_OUT', 'ไม่ได้ลงเวลาออก'], ['EARLY_OUT', 'ออกก่อนเวลา']] as const).filter(([flag]) => has(row, flag) || (flag === 'TIME_ABNORMAL' && row.abnormalTime) || (flag === 'ASSIST_OTHER_SITE' && row.workSiteContext === 'SUPPORT_SITE')).map(([, label]) => label);
+                const offSite = has(row, 'OUTSIDE_ALL_SITES') || has(row, 'ASSIST_OTHER_SITE') || row.workSiteContext === 'SUPPORT_SITE';
                 return <tr key={row.assignmentId}>
-                  <td>{index + 1}</td><td>{row.employeeCode || DASH}</td><td>{row.employeeName || DASH}</td><td>{row.department || DASH}</td>
+                  <td>{index + 1}</td><td>{row.employeeName || DASH}</td><td>{row.employeeCode || DASH}</td><td>{row.department || DASH}</td>
                   <td>{clock(row.checkInAt)}</td><td>{clock(row.checkOutAt)}</td><td>{hours(row.workedMinutes)}</td>
-                  <td><span className={`attendance-daily-report__status attendance-daily-report__status--${status.tone}`}>{status.label}{anomalies.length > 0 && ` · ${anomalies.join(' · ')}`}</span></td>
+                  <td><span className={`attendance-daily-report__status attendance-daily-report__status--${status.tone}`}>{status.label}</span></td>
+                  <td>{offSite ? 'นอกสถานที่' : DASH}</td><td>{anomalies.length ? anomalies.join(' · ') : DASH}</td>
                 </tr>;
               })}
           </tbody>

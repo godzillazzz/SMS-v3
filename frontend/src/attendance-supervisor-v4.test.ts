@@ -74,31 +74,45 @@ describe('Attendance Supervisor UX V4', () => {
     expect(page).toContain("role={onClick ? 'button' : undefined}");
   });
 
-  it('offers read-only daily, all-employee, and per-employee print actions from filtered rows', () => {
-    expect(page).toContain("import { printDocument } from '../../schedule-print'");
+  it('offers daily, all-active-employee, and per-row month-to-date print actions', () => {
+    expect(page).toContain('attendanceSupervisorMonthPrint(token, date)');
+    expect(page).toContain('response.data.employees.filter((employee) => employee.id === nextEmployeeId)');
+    expect(page).toContain('attendanceMonthPrintRows({ ...response.data, employees: sourceEmployees })');
     expect(page).toContain('รายงานวันนี้');
     expect(page).toContain('พิมพ์ทั้งหมด');
-    // Owner issue 8 (2026-10-28): per-employee print moved from the row into the details dialog footer.
-    expect(page).toContain("{mode === 'daily' && <button type=\"button\" className=\"btn-neutral\" onClick={() => void printAttendance(detailRow.employeeId)}>");
+    expect(page).toContain('aria-label={`พิมพ์ ${row.employeeName}`}');
+    expect(page).toContain('<SmsIcon name="report" size={18} />');
     expect(page).toContain("printDocument('.attendance-supervisor-print'");
-    expect(page).toContain('attendance-supervisor-print-page');
-    expect(page).toContain('rows.filter((item) => item.employeeId === employeeId)');
-    expect(page).toContain('หนึ่งคนต่อหนึ่งแผ่น');
-    expect(page).not.toContain("printDocument('.attendance-supervisor-print', 'Attendance'");
+    expect(page).toContain('<AttendanceMonthToDatePrint date={date} employees={printEmployees} rows={printRows} />');
+    expect(page).not.toContain('AttendanceSupervisorPrint');
   });
 
-  it('restricts per-employee printing exclusively to daily mode and hides it in history mode (UX-737-M1)', () => {
-    expect(page).toContain("if (mode !== 'daily' || !rows.length) return;");
-    // Owner issue 8 (2026-10-28): per-employee print moved from the row into the details dialog footer.
-    expect(page).toContain("{mode === 'daily' && <button type=\"button\" className=\"btn-neutral\" onClick={() => void printAttendance(detailRow.employeeId)}>");
-    expect(page).toContain("{mode === 'daily' && <AttendanceSupervisorPrint rows={rows} date={date} employeeId={printEmployeeId || undefined} />}");
+  it('keeps report controls together and supports per-person print in daily mode', () => {
+    expect(css).toContain('.attendance-supervisor-v4__print-actions { display: flex; flex-wrap: nowrap;');
+    expect(page).toContain("if (mode !== 'daily' || printLoading) return;");
+    expect(page).toContain('void printAttendance(row.employeeId)');
   });
 
-  it('implements approved dashboard filters and KPI/read-model fields', () => {
-    for (const column of ['สถานที่ตามตาราง', 'สถานที่ลงเวลาจริง', 'ประเภท', 'เวลาปฏิบัติงาน', 'ข้อสังเกต', 'การทำงาน']) expect(page).toContain(column);
+  it('implements the reduced owner supervisor table columns', () => {
+    for (const column of ['สถานที่ตามตาราง', 'สถานที่ลงเวลาจริง', 'เวลาปฏิบัติงาน', 'ข้อสังเกต', 'จัดการ']) expect(page).toContain(column);
+    expect(page).not.toContain('<th scope="col">เวลาตามกะ</th>');
+    expect(page).not.toContain('<th scope="col">ประเภท</th>');
+    expect(page).not.toContain('<th scope="col">การทำงาน</th>');
   });
 
-  it('shows original versus effective Attendance and immutable raw events in the detail drawer', () => {
+  it('opens Attendance Detail as a centered accessible modal with standard typography', () => {
+    expect(page).toContain('className="attendance-supervisor-v4__detail-backdrop"');
+    expect(page).toContain('className="attendance-supervisor-v4__detail-modal" role="dialog" aria-modal="true"');
+    expect(css).toContain('.attendance-supervisor-v4__detail-backdrop {');
+    expect(css).toContain('place-items: center;');
+    expect(css).toContain('.attendance-supervisor-v4__detail-modal {');
+    expect(css).toContain('max-height: min(88vh, 880px);');
+    expect(css).toContain('font-family: inherit;');
+    expect(css).toContain('overflow-y: auto;');
+    expect(css).not.toContain('.attendance-supervisor-v4__drawer-backdrop {');
+  });
+
+  it('shows original versus effective Attendance and immutable raw events in the detail modal', () => {
     expect(page).toContain('Original → Effective');
     expect(page).toContain('Immutable Attendance Events');
     expect(page).toContain('originalCheckInAt');
@@ -198,7 +212,7 @@ describe('Attendance Supervisor UX V4', () => {
     expect(css).toContain('grid-template-columns: repeat(6, minmax(120px, 1fr));');
     expect(css).toContain('.attendance-supervisor-v4__workflow-modal');
     expect(css).toContain('.attendance-supervisor-v4__request-card');
-    expect(css).toContain('.attendance-supervisor-v4__drawer');
+    expect(css).toContain('.attendance-supervisor-v4__detail-modal');
     expect(css).toContain('@media (max-width: 820px)');
     expect(css).toContain('@media (max-width: 520px)');
   });

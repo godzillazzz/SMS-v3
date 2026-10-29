@@ -588,27 +588,34 @@
   font-size: 12px;
 }
 
-.attendance-supervisor-v4__drawer-backdrop {
+.attendance-supervisor-v4__detail-backdrop {
   position: fixed;
   inset: 0;
   z-index: 700;
-  display: flex;
-  justify-content: flex-end;
+  display: grid;
+  place-items: center;
+  padding: 24px;
   background: rgba(6, 21, 45, .34);
   backdrop-filter: blur(4px);
 }
 
-.attendance-supervisor-v4__drawer {
+.attendance-supervisor-v4__detail-modal {
+  display: flex;
+  flex-direction: column;
   overflow-y: auto;
-  width: min(560px, 96vw);
-  height: 100%;
-  border-left: 1px solid #dbe5f0;
+  width: min(860px, 94vw);
+  max-height: min(88vh, 880px);
+  border: 1px solid #dbe5f0;
+  border-radius: 16px;
   padding: 20px;
   background: #fff;
-  box-shadow: -22px 0 60px rgba(13, 38, 75, .22);
+  box-shadow: 0 24px 60px rgba(13, 38, 75, .22);
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 1.5;
 }
 
-.attendance-supervisor-v4__drawer > header {
+.attendance-supervisor-v4__detail-modal > header {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
@@ -617,25 +624,25 @@
   padding-bottom: 15px;
 }
 
-.attendance-supervisor-v4__drawer > header div {
+.attendance-supervisor-v4__detail-modal > header div {
   display: grid;
   gap: 3px;
 }
 
-.attendance-supervisor-v4__drawer > header span {
+.attendance-supervisor-v4__detail-modal > header span {
   color: #4281d3;
-  font-size: 9px;
+  font-size: 12px;
   font-weight: 800;
   letter-spacing: .1em;
 }
 
-.attendance-supervisor-v4__drawer > header h3 {
+.attendance-supervisor-v4__detail-modal > header h3 {
   margin: 0;
   color: #102b59;
   font-size: 21px;
 }
 
-.attendance-supervisor-v4__drawer > header button {
+.attendance-supervisor-v4__detail-modal > header button {
   display: grid;
   width: 36px;
   height: 36px;
@@ -648,7 +655,7 @@
   cursor: pointer;
 }
 
-.attendance-supervisor-v4__drawer-loading {
+.attendance-supervisor-v4__detail-modal-loading {
   padding: 50px 0;
   color: #7a879b;
   text-align: center;
@@ -1464,8 +1471,15 @@
     height: 32px;
   }
 
-  .attendance-supervisor-v4__drawer {
+  .attendance-supervisor-v4__detail-backdrop {
+    place-items: end center;
+    padding: 0;
+  }
+
+  .attendance-supervisor-v4__detail-modal {
     width: 100vw;
+    max-height: 92dvh;
+    border-radius: 16px 16px 0 0;
     padding: 15px;
   }
 
@@ -1508,7 +1522,9 @@
   }
 }
 
-.attendance-supervisor-v4__print-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.attendance-supervisor-v4__print-actions { display: flex; flex-wrap: nowrap; gap: 8px; }
+.attendance-supervisor-v4__print-actions button { flex: 0 0 auto; white-space: nowrap; }
+.attendance-supervisor-v4__print-btn { color: #1d4ed8; }
 .attendance-supervisor-print { display: none; }
 
 .attendance-supervisor-v4__evidence-view {
@@ -1603,8 +1619,12 @@ html[data-theme] .app-shell:not(.pwa-shell) .content-area .attendance-supervisor
 .attendance-supervisor-v4__open-btn:hover { background: var(--color-primary-soft); }
 .attendance-supervisor-v4__open-btn:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; }
 .attendance-supervisor-v4__status { display: inline-flex; align-items: center; padding: 3px 10px; border-radius: 999px; font-size: 12px !important; font-weight: 600; white-space: nowrap; }
-.attendance-supervisor-v4__drawer-footer { position: sticky; bottom: 0; display: flex; justify-content: flex-end; gap: 8px; margin-top: auto; padding: 14px 18px; border-top: 1px solid var(--color-border); background: var(--color-surface); }
-.attendance-supervisor-v4__drawer-footer button { display: inline-flex; align-items: center; gap: 6px; }
+.attendance-supervisor-v4__detail-modal-footer { position: sticky; bottom: 0; display: flex; justify-content: flex-end; gap: 8px; margin-top: auto; padding: 14px 18px; border-top: 1px solid var(--color-border); background: var(--color-surface); }
+.attendance-supervisor-v4__detail-modal-footer button { display: inline-flex; align-items: center; gap: 6px; }
+.attendance-supervisor-v4__detail-modal :is(.attendance-supervisor-v4__detail-grid span, .attendance-supervisor-v4__compare span, .attendance-supervisor-v4__raw-events article span, .attendance-supervisor-v4__raw-events article small, .attendance-supervisor-v4__raw-events p, .attendance-supervisor-v4__detail-requests > p, .attendance-supervisor-v4__detail-requests article small, .attendance-supervisor-v4__detail-requests article p, .attendance-supervisor-v4__governance-actions small) { font-size: 12px; line-height: 1.5; }
+.attendance-supervisor-v4__detail-modal :is(.attendance-supervisor-v4__detail-grid strong, .attendance-supervisor-v4__compare strong, .attendance-supervisor-v4__raw-events article strong, .attendance-supervisor-v4__detail-requests article strong) { font-size: 13px; line-height: 1.45; }
+.attendance-supervisor-v4__detail-modal :is(.attendance-supervisor-v4__compare h4, .attendance-supervisor-v4__raw-events h4, .attendance-supervisor-v4__detail-requests h4) { font-size: 15px; line-height: 1.4; }
+.attendance-supervisor-v4__detail-modal .attendance-supervisor-v4__governance-actions button { font-size: 13px; }
 
 /* Daily attendance report (owner A4 reference) */
 .attendance-daily-report { display: grid; gap: 12px; min-width: 0; margin: 0 0 16px; }
@@ -1615,7 +1635,7 @@ html[data-theme] .app-shell:not(.pwa-shell) .content-area .attendance-supervisor
 .attendance-daily-report__toolbar small { flex-basis: 100%; color: var(--color-text-muted, #64748b); font-size: 12px; }
 .attendance-daily-report__error { margin: 0; color: #b91c1c; }
 .attendance-daily-report__scroll { max-width: 100%; overflow-x: auto; }
-.attendance-daily-report__sheet { box-sizing: border-box; width: 100%; max-width: 210mm; margin: 0 auto; padding: 12mm 10mm; color: #0f172a; background: #fff; border: 1px solid #cbd5e1; border-radius: 8px; font-family: 'Noto Sans Thai', 'IBM Plex Sans Thai', sans-serif; font-size: 10pt; }
+.attendance-daily-report__sheet { box-sizing: border-box; width: 100%; max-width: 297mm; margin: 0 auto; padding: 10mm 12mm; color: #0f172a; background: #fff; border: 1px solid #cbd5e1; border-radius: 8px; font-family: 'Noto Sans Thai', 'IBM Plex Sans Thai', sans-serif; font-size: 9pt; }
 .attendance-daily-report__sheet header { text-align: center; padding-bottom: 4mm; border-bottom: 2px solid #0f172a; }
 .attendance-daily-report__sheet h1 { margin: 0; font-size: 18pt; color: #0f172a; }
 .attendance-daily-report__subtitle { margin: 1mm 0 0; color: #475569; font-size: 10pt; letter-spacing: .04em; }

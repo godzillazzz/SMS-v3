@@ -21,7 +21,7 @@ afterEach(() => { cleanup(); vi.clearAllMocks(); });
 
 describe('AttendanceDailyReport (owner A4 reference)', () => {
   it('derives summary cards only from API rows', () => {
-    expect(dailyReportSummary(rows)).toEqual({ total: 5, checkedIn: 3, late: 1, earlyOut: 1, leave: 1, noRecord: 1, offSite: 1 });
+    expect(dailyReportSummary(rows)).toEqual({ total: 5, checkedIn: 3, late: 1, earlyOut: 1, absent: 0, noRecord: 1, offSite: 1 });
   });
 
   it('maps statuses to มาทำงาน / มาสาย / ลา / ไม่มีบันทึก', () => {
@@ -38,13 +38,13 @@ describe('AttendanceDailyReport (owner A4 reference)', () => {
     expect(report.textContent).toContain('Daily Attendance');
     expect(report.textContent).toContain('วันพุธที่ 28 ตุลาคม พ.ศ. 2569');
     const cards = Array.from(report.querySelectorAll('.attendance-daily-report__card'), (card) => card.textContent);
-    expect(cards).toEqual(['พนักงานทั้งหมด5', 'ลงเวลาเข้า3', 'มาสาย1', 'ออกก่อน1', 'ลา1', 'ไม่มีบันทึก1', 'นอกสถานที่1']);
+    expect(cards).toEqual(['พนักงานทั้งหมด5', 'ลงเวลาเข้า3', 'มาสาย1', 'ออกก่อน1', 'ขาดงาน0', 'ไม่มีบันทึก1', 'นอกสถานที่1']);
     const headers = Array.from(report.querySelectorAll('thead th'), (th) => th.textContent);
-    expect(headers).toEqual(['ลำดับ', 'รหัส', 'ชื่อ-สกุล', 'แผนก', 'เวลาเข้า', 'เวลาออก', 'ชั่วโมง', 'สถานะ']);
+    expect(headers).toEqual(['ลำดับ', 'ชื่อ-สกุล', 'รหัส', 'แผนก', 'เวลาเข้า', 'เวลาออก', 'ชั่วโมง', 'สถานะ', 'สถานที่', 'หมายเหตุ']);
     const body = Array.from(report.querySelectorAll('tbody tr'), (tr) => Array.from(tr.querySelectorAll('td'), (td) => td.textContent));
-    expect(body[0]).toEqual(['1', 'EMP-101', 'อนันต์ ตัวอย่าง', 'รปภ.', '07:55', '17:05', '9:10', 'มาทำงาน']);
-    expect(body[1]).toEqual(['2', 'EMP-202', 'บุญ ตัวอย่าง', '–', '08:20', '–', '–', 'มาสาย · อุปกรณ์ไม่ตรง · นอกพื้นที่']);
-    expect(body[2]).toEqual(['3', '–', 'ชัย ตัวอย่าง', 'ธุรการ', '–', '–', '–', 'ไม่มีบันทึก']);
+    expect(body[0]).toEqual(['1', 'อนันต์ ตัวอย่าง', 'EMP-101', 'รปภ.', '07:55', '17:05', '9:10', 'มาทำงาน', '–', '–']);
+    expect(body[1]).toEqual(['2', 'บุญ ตัวอย่าง', 'EMP-202', '–', '08:20', '–', '–', 'มาสาย', 'นอกสถานที่', 'อุปกรณ์ไม่ตรง · นอกพื้นที่']);
+    expect(body[2]).toEqual(['3', 'ชัย ตัวอย่าง', '–', 'ธุรการ', '–', '–', '–', 'ไม่มีบันทึก', '–', '–']);
     expect(report.querySelector('tbody tr:nth-child(3) .attendance-daily-report__status--danger')).not.toBeNull();
     expect(report.textContent).not.toContain('DEVICE_MISMATCH');
 
@@ -54,7 +54,7 @@ describe('AttendanceDailyReport (owner A4 reference)', () => {
     expect(onShow).toHaveBeenCalledWith('2026-10-27');
 
     fireEvent.click(screen.getByRole('button', { name: 'พิมพ์ / บันทึก PDF' }));
-    expect(mocks.printDocument).toHaveBeenCalledWith('.attendance-daily-report__sheet', 'รายงานการลงเวลาประจำวัน-2026-10-28.pdf', { orientation: 'portrait', margin: '10mm' });
+    expect(mocks.printDocument).toHaveBeenCalledWith('.attendance-daily-report__sheet', 'รายงานการลงเวลาประจำวัน-2026-10-28.pdf', { orientation: 'landscape', margin: '10mm' });
   });
 
   it('shows explicit empty and loading states without fabricating rows', () => {
@@ -79,6 +79,7 @@ describe('AttendanceDailyReport (owner A4 reference)', () => {
     expect(page).toContain('{mode === \'daily\' && dailyReportOpen && <AttendanceDailyReport');
     const css = readFileSync('src/pages/attendance-supervisor/attendance-supervisor-v4.css', 'utf8');
     expect(css).toContain('.attendance-daily-report__sheet');
+    expect(css).toContain('max-width: 297mm');
     expect(css).toContain('.attendance-daily-report__status--danger');
   });
   it('aggregates no-record at employee level and excludes scheduled shifts not yet due', () => {

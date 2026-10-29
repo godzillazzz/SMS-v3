@@ -50,7 +50,7 @@ test('T31 31-day employee timesheet prints on one isolated A4 portrait page at 7
   expect(frameText).toContain('เสาร์');
   // Owner reference layout (2026-10-29): Monthly Timesheet with 8 summary boxes and three signature parties.
   expect(frameText).toContain('ใบลงเวลาทำงาน');
-  for (const label of ['วันทำงาน', 'มาทำงาน', 'มาสาย', 'ออกก่อน', 'ลา', 'ขาดงาน', 'นอกสถานที่', 'ชั่วโมงรวม']) expect(frameText).toContain(label);
+  for (const label of ['วันทำงาน', 'มาทำงาน', 'มาสาย', 'ออกก่อนเวลา', 'ลางาน', 'ไม่มีบันทึก', 'นอกสถานที่', 'ชั่วโมงรวม']) expect(frameText).toContain(label);
   for (const party of ['พนักงาน', 'หัวหน้างาน', 'ฝ่ายบุคคล']) expect(frameText).toContain(party);
   expect(frameText).not.toContain('Dashboard');
   expect(frameText).not.toContain('Topbar');
@@ -78,8 +78,8 @@ test('T31 31-day employee timesheet prints on one isolated A4 portrait page at 7
     };
   });
   expect(metrics.rows).toBe(31);
-  expect(metrics.columns).toBe(7);
-  expect(metrics.headers).toEqual(['วันที่', 'วัน', 'เวลาเข้า', 'เวลาออก', 'ชั่วโมง', 'สถานะ', 'หมายเหตุ']);
+  expect(metrics.columns).toBe(8);
+  expect(metrics.headers).toEqual(['วันที่', 'วัน', 'เข้างาน', 'ออกงาน', 'ชั่วโมง', 'สถานะ', 'สถานที่', 'หมายเหตุ']);
   expect(metrics.minCellFontSizePx).toBeGreaterThanOrEqual(7.5 * 96 / 72);
   expect(metrics.tableWidth).toBeLessThanOrEqual(metrics.pageWidth + 1);
   expect(metrics.signatureBottom).toBeLessThanOrEqual(metrics.pageBottom + 1);
@@ -91,12 +91,12 @@ test('T31 31-day employee timesheet prints on one isolated A4 portrait page at 7
   expect(pageErrors).toEqual([]);
 });
 
-test('T31 department print creates exactly one portrait page per employee', async ({ page }, testInfo) => {
+test('T31 official report keeps individual-only printing even when multiple employees are supplied', async ({ page }, testInfo) => {
   const html = await printFromFixture(page, '#trigger-t31-all');
   const { pdf, page: pdfPage } = await renderPdf(html, page.context(), testInfo, 't31-department-pages.png');
-  expect(pdf.getPageCount()).toBe(2);
+  expect(pdf.getPageCount()).toBe(1);
   expectPortraitA4(pdf);
-  await expect(pdfPage.locator('.attendance-timesheet-page')).toHaveCount(2);
+  await expect(pdfPage.locator('.attendance-timesheet-page')).toHaveCount(1);
   await expect(pdfPage.locator('.attendance-timesheet-page').nth(0)).toContainText('FIXTURE-001');
-  await expect(pdfPage.locator('.attendance-timesheet-page').nth(1)).toContainText('FIXTURE-002');
+  await expect(pdfPage.locator('.attendance-timesheet-page')).not.toContainText('FIXTURE-002');
 });
