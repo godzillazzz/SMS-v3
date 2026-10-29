@@ -322,23 +322,21 @@ export function ApprovalCenterPage({
   const selected = items.find((item) => item.id === selectedId);
   const [decisionId, setDecisionId] = useState('');
   const [deviceSelfie, setDeviceSelfie] = useState<{ id?: string; url?: string; loading?: boolean; error?: string }>({});
+  const selfieGeneration = useRef(0);
 
-  useEffect(() => {
-    return () => {
-      if (deviceSelfie.url) URL.revokeObjectURL(deviceSelfie.url);
-    };
+  useEffect(() => () => {
+    if (deviceSelfie.url) URL.revokeObjectURL(deviceSelfie.url);
   }, [deviceSelfie.url]);
 
+  useEffect(() => () => { selfieGeneration.current += 1; }, [token]);
+
   useEffect(() => {
-    setDeviceSelfie((prev) => {
-      if (prev.url) URL.revokeObjectURL(prev.url);
-      return {};
-    });
-  }, [decisionId]);
+    setDeviceSelfie({});
+  }, [decisionId, token]);
 
   const toggleDeviceSelfie = async (item: ApprovalCenterItem) => {
     if (deviceSelfie.url) {
-      URL.revokeObjectURL(deviceSelfie.url);
+      selfieGeneration.current += 1;
       setDeviceSelfie({});
       return;
     }
@@ -348,18 +346,27 @@ export function ApprovalCenterPage({
       setDeviceSelfie({ id: item.id, error: 'ไม่พบรหัสอุปกรณ์หรือพนักงานสำหรับดึงรูปเซลฟี่' });
       return;
     }
+    const generation = ++selfieGeneration.current;
     setDeviceSelfie({ id: item.id, loading: true });
     try {
       const blob = await attendanceDeviceSelfieBlob(token, employeeId, deviceId);
+      if (generation !== selfieGeneration.current) return;
       setDeviceSelfie({ id: item.id, url: URL.createObjectURL(blob) });
     } catch {
+      if (generation !== selfieGeneration.current) return;
       setDeviceSelfie({ id: item.id, error: 'ไม่มีรูปเซลฟี่จากการลงเวลา หรือดึงรูปไม่สำเร็จ' });
     }
   };
   const decision = items.find((item) => item.id === decisionId);
+  const visibleSelfie = deviceSelfie.id === decisionId ? deviceSelfie : {};
   const decisionPanelRef = useRef<HTMLElement>(null);
   useEffect(() => { if (decisionId) decisionPanelRef.current?.focus(); }, [decisionId]);
-  const openDecision = (item: ApprovalCenterItem) => { setSelectedId(item.id); setDecisionId(item.id); };
+  const changeDecision = (id: string) => {
+    selfieGeneration.current += 1;
+    setDecisionId(id);
+    setDeviceSelfie({});
+  };
+  const openDecision = (item: ApprovalCenterItem) => { setSelectedId(item.id); changeDecision(item.id); };
 
   useEffect(() => {
     if (selected?.type !== 'SCHEDULE_APPROVAL') return;
@@ -836,20 +843,20 @@ export function ApprovalCenterPage({
       </p>}
 
       {decision && decision.type !== 'SCHEDULE_APPROVAL' && decision.type !== 'EMPLOYEE_MASTER_CHANGE' && <>
-        <div className="approval-decision-backdrop" aria-hidden="true" onClick={() => setDecisionId('')} />
+        <div className="approval-decision-backdrop" aria-hidden="true" onClick={() => changeDecision('')} />
         <aside
           className="approval-decision-panel"
           aria-labelledby="approval-decision-title"
           tabIndex={-1}
           ref={decisionPanelRef}
-          onKeyDown={(event) => { if (event.key === 'Escape') setDecisionId(''); }}
+          onKeyDown={(event) => { if (event.key === 'Escape') changeDecision(''); }}
         >
           <header className="approval-decision-panel__head">
             <div className="approval-decision-panel__chips">
               <span className="approval-type-label">{typeLabel[decision.type]}</span>
               <span className={urgencyTone(decision)}>{urgencyText(decision)}</span>
             </div>
-            <button type="button" className="approval-decision-panel__close" aria-label="ปิดแผงรายละเอียด" onClick={() => setDecisionId('')}>×</button>
+            <button type="button" className="approval-decision-panel__close" aria-label="ปิดแผงรายละเอียด" onClick={() => changeDecision('')}>×</button>
             <h2 id="approval-decision-title">{employeeName(decision)} · {typeLabel[decision.type]}</h2>
             {(decision.employee?.department || decision.employee?.employeeCode) && <p>{[decision.employee?.employeeCode, decision.employee?.department].filter(Boolean).join(' · ')}</p>}
           </header>
@@ -866,16 +873,16 @@ export function ApprovalCenterPage({
                 type="button"
                 className="btn-neutral approval-device-selfie-toggle"
                 style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '8px 14px', borderRadius: '8px', cursor: 'pointer', fontWeight: 600, width: '100%', justifyContent: 'center' }}
-                disabled={deviceSelfie.loading}
+                disabled={visibleSelfie.loading}
                 onClick={() => void toggleDeviceSelfie(decision)}
               >
                 <SmsIcon name="eye" size={16} />
-                {deviceSelfie.loading ? 'กำลังโหลดรูปเซลฟี่…' : deviceSelfie.url ? 'ซ่อนรูปเซลฟี่' : 'ดูรูปเซลฟี่จากการลงเวลา'}
+                {visibleSelfie.loading ? 'กำลังโหลดรูปเซลฟี่…' : visibleSelfie.url ? 'ซ่อนรูปเซลฟี่' : 'ดูรูปเซลฟี่จากการลงเวลา'}
               </button>
-              {deviceSelfie.url && (
+              {visibleSelfie.url && (
                 <div className="approval-device-selfie-preview" style={{ marginTop: '12px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
                   <img
-                    src={deviceSelfie.url}
+                    src={visibleSelfie.url}
                     alt={`รูปเซลฟี่จากการลงเวลาของ ${employeeName(decision)}`}
                     style={{ maxWidth: '100%', maxHeight: '240px', borderRadius: '8px', border: '1px solid var(--color-border, #cbd5e1)', objectFit: 'contain' }}
                   />
@@ -884,9 +891,9 @@ export function ApprovalCenterPage({
                   </small>
                 </div>
               )}
-              {deviceSelfie.error && (
+              {visibleSelfie.error && (
                 <div style={{ marginTop: '8px', color: 'var(--color-danger, #ef4444)', fontSize: '12px', textAlign: 'center' }}>
-                  {deviceSelfie.error}
+                  {visibleSelfie.error}
                 </div>
               )}
             </div>
