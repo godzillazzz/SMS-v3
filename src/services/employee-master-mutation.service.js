@@ -7,9 +7,9 @@ const lifecycle = require('./employee-lifecycle.service');
 const HttpError = require('../utils/http-error');
 const personnelMaster = require('./personnel-master.service');
 
-const ADMIN_FIELDS = ['firstName', 'lastName', 'email', 'phone', 'department', 'jobTitle', 'skill', 'isActive'];
+const ADMIN_FIELDS = ['firstName', 'lastName', 'email', 'phone', 'address', 'emergencyContact', 'emergencyPhone', 'department', 'jobTitle', 'skill', 'isActive'];
 const MANAGER_FIELDS = ['firstName', 'lastName', 'department', 'jobTitle', 'isActive'];
-const IMMEDIATE_ONLY_FIELDS = ['email', 'phone', 'skill'];
+const IMMEDIATE_ONLY_FIELDS = ['email', 'phone', 'address', 'emergencyContact', 'emergencyPhone', 'skill'];
 const GOVERNED_REASON_FIELDS = ['firstName', 'lastName', 'department', 'jobTitle', 'isActive'];
 const EFFECTIVE_MODES = ['IMMEDIATE', 'FUTURE_EFFECTIVE'];
 const MASTER_TRANSACTION_OPTIONS = lifecycle.LIFECYCLE_TRANSACTION_OPTIONS;
@@ -53,7 +53,9 @@ function normalizeChanges(input, scope = 'ADMIN') {
       const email = cleanString(value, field, 255, true);
       if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw businessError(400, 'EMPLOYEE_CHANGE_INVALID_FIELD', 'email must be valid.', { field });
       normalized[field] = email;
-    } else if (field === 'phone') normalized[field] = cleanString(value, field, 50, true);
+    } else if (field === 'phone' || field === 'emergencyPhone') normalized[field] = cleanString(value, field, 50, true);
+    else if (field === 'address') normalized[field] = cleanString(value, field, 500, true);
+    else if (field === 'emergencyContact') normalized[field] = cleanString(value, field, 255, true);
     else if (field === 'department' || field === 'jobTitle') normalized[field] = cleanString(value, field, 100, true);
     else if (field === 'hiredAt') normalized[field] = normalizeDate(value, field);
     else if (field === 'skill') normalized[field] = cleanString(value, field, 255, true);
