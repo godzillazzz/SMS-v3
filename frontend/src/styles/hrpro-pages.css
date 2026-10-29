@@ -112,3 +112,6 @@ html[data-theme] .app-shell.pwa-shell .content-area .layout-page-surface.leave-p
 .pwa-shell .leave-page .leave-date-grid input{width:100%;min-width:0;padding-inline:10px}
 .pwa-shell .leave-page .leave-quota-metric svg{display:none}
 .pwa-shell .leave-page .leave-quota-metric :is(h2,h3,span){font-size:13px!important}
+/* Owner 2026-10-29: an empty state nested in a table/list card is flat and spans the card. */
+:root .app-shell :is(.data-table-empty-cell .data-state,.leave-history-mobile-list>.data-state).data-state{width:100%!important;margin:0!important;border:0!important;background:none!important;box-shadow:none!important}
+:root .app-shell .data-table-shell:has(.data-table-empty-cell,.leave-history-mobile-list>.data-state){box-shadow:none!important}
