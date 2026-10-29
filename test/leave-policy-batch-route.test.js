@@ -34,6 +34,22 @@ test('batch endpoint permits only ADMIN and requires authentication', async () =
   assert.equal(transactions, 1);
 });
 
+test('notification matrix requires ADMIN and does not expose provider credentials', async () => {
+  let reads = 0;
+  prisma.systemSetting.findMany = async () => { reads++; return []; };
+  for (const role of ['MANAGER', 'SUPERVISOR', 'VIEWER']) {
+    assert.equal((await request(app).get('/notification-center').set('x-test-role', role)).status, 403);
+  }
+  assert.equal((await request(app).get('/notification-center')).status, 401);
+  assert.equal(reads, 0);
+  const response = await request(app).get('/notification-center').set('x-test-role', 'ADMIN');
+  assert.equal(response.status, 200);
+  assert.equal(response.headers['cache-control'], 'no-store');
+  assert.equal(response.body.data.events.length, 10);
+  assert.equal(JSON.stringify(response.body).toLowerCase().includes('password'), false);
+  assert.equal(reads, 1);
+});
+
 test('batch endpoint rejects malformed policy without starting transaction', async () => {
   transactions = 0;
   const response = await request(app).put('/leave-policy').set('x-test-role', 'ADMIN').send({ ...DEFAULT_LEAVE_POLICY, viewerRetroactiveMaxDaysBack: -5 });
