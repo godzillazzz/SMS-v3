@@ -214,6 +214,7 @@ export function AttendanceDevicePage({ token, role, readOnly = false, initialReq
   const [promoteTarget, setPromoteTarget] = useState<{ row: AttendanceDeviceAdminEmployee; device: AttendanceDeviceEnrollment } | null>(null);
   const [promoteReason, setPromoteReason] = useState('');
   const [promoteSelfie, setPromoteSelfie] = useState<{ url?: string; loading?: boolean; error?: string }>({});
+  const [requestSelfie, setRequestSelfie] = useState<{ requestId?: string; url?: string; loading?: boolean; error?: string }>({});
   // The selfie is held only as an in-memory object URL while the dialog is open.
   useEffect(() => {
     setPromoteSelfie({});
@@ -227,6 +228,16 @@ export function AttendanceDevicePage({ token, role, readOnly = false, initialReq
       setPromoteSelfie({ url: URL.createObjectURL(blob) });
     } catch (error) {
       setPromoteSelfie({ error: formatRequestErrorMessage(error, 'ไม่สามารถเปิดรูปเซลฟี่ได้') });
+    }
+  };
+  const openRequestSelfie = async (row: AttendanceDeviceRequest) => {
+    if (!row.candidateDevice || requestSelfie.loading) return;
+    setRequestSelfie({ requestId: row.id, loading: true });
+    try {
+      const blob = await attendanceDeviceSelfieBlob(token, row.employeeId, row.candidateDevice.id);
+      setRequestSelfie({ requestId: row.id, url: URL.createObjectURL(blob) });
+    } catch (error) {
+      setRequestSelfie({ requestId: row.id, error: formatRequestErrorMessage(error, 'ไม่สามารถเปิดรูปเซลฟี่ได้') });
     }
   };
   const [adminSearch, setAdminSearch] = useState('');
@@ -555,6 +566,7 @@ export function AttendanceDevicePage({ token, role, readOnly = false, initialReq
         <div className="attendance-device-review-card__head"><div><strong>{employeeName(row)}</strong><span>{row.employee?.department || 'ไม่ระบุหน่วยงาน'} · ผู้ยื่น {row.requestedBy?.displayName || 'บัญชีพนักงาน'}</span></div><span className={`status-badge ${row.candidateDevice?.proofVerifiedAt ? 'active' : 'pending'}`}>{row.candidateDevice?.proofVerifiedAt ? 'ยืนยันอุปกรณ์แล้ว' : 'รอยืนยันอุปกรณ์'}</span></div>
         <div className="attendance-device-review-meta"><div><span>ประเภท</span><b>{row.requestType === 'INITIAL' ? 'เครื่องแรก' : 'เปลี่ยนอุปกรณ์'}</b></div><div><span>อุปกรณ์</span><b>{row.candidateDevice?.displayName || '—'}</b></div><div><span>แพลตฟอร์ม</span><b>{row.candidateDevice?.platformHint || 'Web'}</b></div><div><span>ยื่นเมื่อ</span><b>{formatDate(row.createdAt)}</b></div></div>
         {row.reason && <p className="attendance-device-reason"><b>เหตุผล:</b> {row.reason}</p>}
+        {row.candidateDevice?.latestSelfieAt && <div className="attendance-device-selfie-review"><button type="button" className="btn-neutral attendance-device-selfie-review__toggle" aria-pressed={Boolean(requestSelfie.requestId === row.id && requestSelfie.url)} disabled={busy || readOnly || requestSelfie.loading} onClick={() => { if (requestSelfie.requestId === row.id && requestSelfie.url) setRequestSelfie({}); else void openRequestSelfie(row); }}><SmsIcon name="eye" size={18} />{requestSelfie.requestId === row.id && requestSelfie.loading ? 'กำลังโหลดรูป…' : requestSelfie.requestId === row.id && requestSelfie.url ? 'ซ่อนรูปเซลฟี่' : 'ดูรูปเซลฟี่จากการลงเวลา'}</button><small>รูปเซลฟี่จากการลงเวลา ไม่ใช่รูปแนบคำขอ · ถ่ายเมื่อ {formatDate(row.candidateDevice.latestSelfieAt)}</small>{requestSelfie.requestId === row.id && requestSelfie.url && <img src={requestSelfie.url} alt={`รูปเซลฟี่จากการลงเวลาของ ${employeeName(row)}`} />}{requestSelfie.requestId === row.id && requestSelfie.error && <div className="alert alert-error" role="alert">{requestSelfie.error}</div>}</div>}
         <footer><button type="button" className="btn-neutral" disabled={busy || readOnly} onClick={() => { setReviewTarget({ row, action: 'RETURN' }); setReviewReason(''); }}>ส่งกลับแก้ไข</button><button type="button" className="btn-danger-outline" disabled={busy || readOnly} onClick={() => { setReviewTarget({ row, action: 'REJECT' }); setReviewReason(''); }}>ไม่อนุมัติ</button><button type="button" className="btn-primary" disabled={busy || readOnly || !row.candidateDevice?.proofVerifiedAt} onClick={() => void approve(row)}><SmsIcon name="check" size={17} />อนุมัติ</button></footer>
       </article>)}</div> : <div className="attendance-device-state attendance-device-state--empty"><strong>ไม่มีคำขอรออนุมัติ</strong><span>คำขอใหม่จะแสดงที่นี่หลังพนักงานลงทะเบียนและยืนยันคีย์</span></div>}
     </SectionCard>}

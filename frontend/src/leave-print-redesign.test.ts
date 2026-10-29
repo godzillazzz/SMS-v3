@@ -20,6 +20,13 @@ describe('Leave Print Document Redesign (Matching Reference Image)', () => {
     expect(mainTsx).toContain('leave-print-applicant-sig');
   });
 
+  test('shows system submission only when the submitter account is linked to this employee', () => {
+    expect(mainTsx).toContain('leave-print-system-signature');
+    expect(mainTsx).toContain('ลงนามในระบบแล้ว');
+    expect(mainTsx).toContain('row.selfSubmitted === true');
+    expect(mainTsx).not.toContain('row.createdByUserId &&');
+  });
+
   test('renders quota statistics table with all 6 columns', () => {
     expect(mainTsx).toContain('สถิติการลาประเภทนี้ในปี');
     expect(mainTsx).toContain('<th>ประเภทการลา</th>');
@@ -32,7 +39,8 @@ describe('Leave Print Document Redesign (Matching Reference Image)', () => {
 
   test('renders two side-by-side signature boxes for supervisor and HR', () => {
     expect(mainTsx).toContain('ความเห็นผู้บังคับบัญชา / ผู้อนุมัติ');
-    expect(mainTsx).toContain('สำหรับฝ่ายบุคคล');
+    expect(mainTsx).toContain('สำหรับบริษัท');
+    expect(mainTsx).toContain('ผู้มีอำนาจอนุมัติ');
     expect(mainTsx).toContain('className="leave-print-notice">ทราบ /</span>');
     expect(mainTsx).toContain('className="leave-print-sig-label">ลงชื่อ</span>');
     expect(stylesCss).toContain('.leave-print-boxes-grid');

@@ -23,7 +23,11 @@ function policyFromRows(settings: SettingRow[]): LeavePolicyForm {
     defaultVacationDays: bounded(settingValue(settings, leavePolicyKeys.defaultVacationDays, '6'), 6, 0, 999),
     sickAttachmentRequiredAfterDays: bounded(settingValue(settings, leavePolicyKeys.sickAttachmentRequiredAfterDays, '3'), 3, 0, 30),
     managerRetroactiveOnBehalfEnabled: settingValue(settings, leavePolicyKeys.managerRetroactiveOnBehalfEnabled, 'true').toLowerCase() !== 'false',
-    managerRetroactiveMaxDaysBack: bounded(settingValue(settings, leavePolicyKeys.managerRetroactiveMaxDaysBack, '0'), 0, 0, 3650)
+    managerRetroactiveMaxDaysBack: bounded(settingValue(settings, leavePolicyKeys.managerRetroactiveMaxDaysBack, '0'), 0, 0, 3650),
+    supervisorRetroactiveOnBehalfEnabled: settingValue(settings, leavePolicyKeys.supervisorRetroactiveOnBehalfEnabled, settingValue(settings, leavePolicyKeys.managerRetroactiveOnBehalfEnabled, 'true')).toLowerCase() === 'true',
+    supervisorRetroactiveMaxDaysBack: bounded(settingValue(settings, leavePolicyKeys.supervisorRetroactiveMaxDaysBack, settingValue(settings, leavePolicyKeys.managerRetroactiveMaxDaysBack, '0')), 0, 0, 3650),
+    viewerRetroactiveSelfEnabled: settingValue(settings, leavePolicyKeys.viewerRetroactiveSelfEnabled, 'false').toLowerCase() === 'true',
+    viewerRetroactiveMaxDaysBack: bounded(settingValue(settings, leavePolicyKeys.viewerRetroactiveMaxDaysBack, '0'), 0, 0, 3650)
   };
 }
 
@@ -101,10 +105,14 @@ export function LeavePolicySettingsCard({ settings, onSave, onRefresh }: {
         <input type="number" min={0} max={3650} value={form.managerRetroactiveMaxDaysBack} onChange={(event) => updateNumber('managerRetroactiveMaxDaysBack', event.target.value)} />
         <small>0 = ไม่จำกัดระยะย้อนหลัง; ค่านี้ไม่ลดอำนาจของ{roleDisplayName('ADMIN')}</small>
       </label>
+      <label className="field-group"><span>หัวหน้างานบันทึกย้อนหลังแทนพนักงาน</span><select value={String(form.supervisorRetroactiveOnBehalfEnabled)} onChange={(event) => setForm((current) => ({ ...current, supervisorRetroactiveOnBehalfEnabled: event.target.value === 'true' }))}><option value="true">อนุญาต</option><option value="false">ไม่อนุญาต</option></select><small>ห้ามบันทึกย้อนหลังให้ตนเอง</small></label>
+      <label className="field-group"><span>หัวหน้างานย้อนได้สูงสุด (วัน)</span><input type="number" min={0} max={3650} value={form.supervisorRetroactiveMaxDaysBack} onChange={(event) => updateNumber('supervisorRetroactiveMaxDaysBack', event.target.value)} /><small>0 = ไม่จำกัด</small></label>
+      <label className="field-group"><span>ผู้ใช้งานยื่นลาย้อนหลังของตนเอง</span><select value={String(form.viewerRetroactiveSelfEnabled)} onChange={(event) => setForm((current) => ({ ...current, viewerRetroactiveSelfEnabled: event.target.value === 'true' }))}><option value="true">อนุญาต</option><option value="false">ไม่อนุญาต</option></select></label>
+      <label className="field-group"><span>ผู้ใช้งานย้อนได้สูงสุด (วัน)</span><input type="number" min={0} max={3650} value={form.viewerRetroactiveMaxDaysBack} onChange={(event) => updateNumber('viewerRetroactiveMaxDaysBack', event.target.value)} /><small>0 = ไม่จำกัด</small></label>
     </div>
 
     <div className="alert alert-info">
-      ข้อบังคับที่แก้จากหน้านี้ไม่ได้: {roleDisplayName('VIEWER')} บันทึกย้อนหลังไม่ได้, {roleDisplayName('MANAGER')} ห้ามบันทึกย้อนหลังให้ตนเอง, การลาย้อนหลังต้องมีเหตุผล และห้ามอนุมัติคำขอของตนเอง
+      ข้อบังคับที่แก้จากหน้านี้ไม่ได้: {roleDisplayName('VIEWER')} ต้องได้รับอนุญาตจึงยื่นย้อนหลังได้, {roleDisplayName('MANAGER')} และ {roleDisplayName('SUPERVISOR')} ห้ามบันทึกย้อนหลังให้ตนเอง, การลาย้อนหลังต้องมีเหตุผล และห้ามอนุมัติคำขอของตนเอง
     </div>
 
     {notice && <div className={notice.includes('สำเร็จ') ? 'settings-notice success' : 'settings-notice error'}>{notice}</div>}

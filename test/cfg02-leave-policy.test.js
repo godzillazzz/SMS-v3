@@ -25,7 +25,11 @@ test('CFG-02 defaults preserve current leave behavior', () => {
     defaultVacationDays: 6,
     sickAttachmentRequiredAfterDays: 3,
     managerRetroactiveOnBehalfEnabled: true,
-    managerRetroactiveMaxDaysBack: 0
+    managerRetroactiveMaxDaysBack: 0,
+    supervisorRetroactiveOnBehalfEnabled: true,
+    supervisorRetroactiveMaxDaysBack: 0,
+    viewerRetroactiveSelfEnabled: false,
+    viewerRetroactiveMaxDaysBack: 0
   });
   assert.deepEqual(defaultEntitlementFromPolicy(DEFAULT_LEAVE_POLICY), {
     sickLeave: 30,
@@ -49,7 +53,11 @@ test('CFG-02 parses governed leave policy and fails safe for invalid persisted v
     defaultVacationDays: 7,
     sickAttachmentRequiredAfterDays: 2,
     managerRetroactiveOnBehalfEnabled: false,
-    managerRetroactiveMaxDaysBack: 14
+    managerRetroactiveMaxDaysBack: 14,
+    supervisorRetroactiveOnBehalfEnabled: false,
+    supervisorRetroactiveMaxDaysBack: 14,
+    viewerRetroactiveSelfEnabled: false,
+    viewerRetroactiveMaxDaysBack: 0
   });
 
   assert.deepEqual(policyFromSettings([
@@ -99,9 +107,9 @@ test('CFG-02 service reads only registered leave policy keys', async () => {
   assert.deepEqual(calls[0].select, { key: true, value: true });
 });
 
-test('CFG-02 registry exposes exactly six Leave Policy keys with typed governance', () => {
+test('CFG-02 registry exposes all Leave Policy keys with typed governance', () => {
   const leaveDefinitions = DEFINITIONS.filter((definition) => definition.group === 'LEAVE');
-  assert.equal(leaveDefinitions.length, 6);
+  assert.equal(leaveDefinitions.length, Object.values(LEAVE_POLICY_KEYS).length);
   assert.deepEqual(new Set(leaveDefinitions.map((definition) => definition.key)), new Set(Object.values(LEAVE_POLICY_KEYS)));
   for (const key of Object.values(LEAVE_POLICY_KEYS)) {
     const definition = getSystemSettingDefinition(key);
@@ -119,13 +127,12 @@ test('CFG-02 route applies one policy snapshot to retroactive, quota and attachm
   assert.match(source, /managerRetroactiveMaxDaysBack/);
   assert.match(source, /sickAttachmentRequiredAfterDays/);
   assert.match(source, /leavePolicySnapshot/);
-  assert.match(source, /พนักงานทั่วไปไม่สามารถบันทึกการลาย้อนหลังได้/);
-  assert.match(source, /ผู้จัดการไม่สามารถบันทึกการลาย้อนหลังให้ตนเองได้/);
+  assert.match(source, /assertRetroactiveLeaveAllowed/);
   assert.match(source, /ต้องระบุเหตุผลในการบันทึกการลาย้อนหลัง/);
   assert.match(source, /LEAVE_OWNER_SELF_APPROVAL_NOT_ALLOWED/);
   assert.doesNotMatch(source, /leaveType === 'SICK' && dayCount > 3/);
   assert.match(source, /router\.get\('\/leave-policy'/);
-  assert.match(source, /viewerRetroactiveAllowed: false/);
+  assert.match(source, /viewerRetroactiveAllowed: policy\.viewerRetroactiveSelfEnabled/);
   assert.match(source, /managerSelfRetroactiveAllowed: false/);
   assert.match(source, /selfApprovalAllowed: false/);
 });

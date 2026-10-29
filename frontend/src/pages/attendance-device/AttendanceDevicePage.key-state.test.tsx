@@ -298,3 +298,25 @@ describe('AttendanceDevicePage opened from the Approval Center (owner issue 9)',
     for (const name of ['อนุมัติ', 'ไม่อนุมัติ', 'ส่งกลับแก้ไข']) expect(within(dialog).getByRole('button', { name })).toBeTruthy();
   });
 });
+
+
+describe('AttendanceDevicePage pending request selfie review', () => {
+  it('places a private eye review action on the pending request card without treating it as request evidence', async () => {
+    vi.mocked(api.attendanceDeviceState).mockResolvedValue({ data: { employeeId: 'employee-1', activeDevice: null, activeRequest: null } } as never);
+    const candidate = { id: 'device-new', employeeId: 'employee-1', displayName: 'อุปกรณ์ลงเวลา', keyAlgorithm: 'ECDSA_P256_SHA256', status: 'PENDING_APPROVAL' as const, proofVerifiedAt: '2026-10-26T15:52:00.000Z', latestSelfieAt: '2026-10-26T15:52:00.000Z' };
+    const pendingRequest = { id: 'request-new', employeeId: 'employee-1', requestType: 'REPLACEMENT', status: 'PENDING_APPROVAL', requestedByUserId: 'employee-user', candidateDeviceEnrollmentId: 'device-new', createdAt: '2026-10-26T15:52:00.000Z', candidateDevice: candidate, employee: { id: 'employee-1', displayName: 'พนักงานตัวอย่าง' } };
+    vi.mocked(api.attendanceDeviceRequests).mockResolvedValue({ data: [pendingRequest] } as never);
+    const attendanceClient = await import('../../pages/attendance/attendance-client');
+    vi.mocked(attendanceClient.attendanceDeviceAdminOverview).mockResolvedValue([] as never);
+    vi.mocked(attendanceClient.attendanceDeviceSelfieBlob).mockResolvedValue(new Blob(['jpeg'], { type: 'image/jpeg' }));
+    Object.assign(URL, { createObjectURL: vi.fn(() => 'blob:request-selfie'), revokeObjectURL: vi.fn() });
+    const keyModule = await import('../../lib/attendance-device-key');
+    vi.mocked(keyModule.listAttendanceDeviceKeyIds).mockResolvedValue(inventory([]));
+
+    render(<AttendanceDevicePage token="test" role="ADMIN" />);
+    fireEvent.click(await screen.findByRole('button', { name: 'ดูรูปเซลฟี่จากการลงเวลา' }));
+    expect(await screen.findByText(/รูปเซลฟี่จากการลงเวลา ไม่ใช่รูปแนบคำขอ/)).toBeTruthy();
+    expect(await screen.findByRole('img', { name: /รูปเซลฟี่จากการลงเวลาของ พนักงานตัวอย่าง/ })).toBeTruthy();
+    expect(attendanceClient.attendanceDeviceSelfieBlob).toHaveBeenCalledWith('test', 'employee-1', 'device-new');
+  });
+});

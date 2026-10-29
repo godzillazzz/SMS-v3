@@ -16,7 +16,9 @@ vi.mock('../../approval-center-client', () => ({
 }));
 vi.mock('../../pages/attendance-supervisor/attendance-adjustment-client', () => ({
   approveAttendanceAdjustment: vi.fn(),
-  rejectAttendanceAdjustment: vi.fn()
+  rejectAttendanceAdjustment: vi.fn(),
+  reviewAttendanceAdjustment: vi.fn(),
+  returnAttendanceAdjustment: vi.fn()
 }));
 
 afterEach(() => cleanup());

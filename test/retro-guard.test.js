@@ -1,0 +1,10 @@
+'use strict';
+process.env.NODE_ENV='test';
+const {test}=require('node:test');
+const assert=require('node:assert/strict');
+const {assertRetroactiveLeaveAllowed}=require('../src/services/leave-retroactive-policy');
+const policy={managerRetroactiveOnBehalfEnabled:true,managerRetroactiveMaxDaysBack:5,supervisorRetroactiveOnBehalfEnabled:true,supervisorRetroactiveMaxDaysBack:3,viewerRetroactiveSelfEnabled:true,viewerRetroactiveMaxDaysBack:2};
+const base={policy,employeeId:'e1',actorEmployeeId:'e1',daysBack:1};
+test('viewer can submit only their own within configured limit',()=>{assert.doesNotThrow(()=>assertRetroactiveLeaveAllowed({...base,actorRole:'VIEWER'}));assert.throws(()=>assertRetroactiveLeaveAllowed({...base,actorRole:'VIEWER',employeeId:'other'}));assert.throws(()=>assertRetroactiveLeaveAllowed({...base,actorRole:'VIEWER',daysBack:3}));assert.throws(()=>assertRetroactiveLeaveAllowed({...base,actorRole:'VIEWER',policy:{...policy,viewerRetroactiveSelfEnabled:false}}));});
+test('supervisor only on behalf and within separate limit',()=>{assert.throws(()=>assertRetroactiveLeaveAllowed({...base,actorRole:'SUPERVISOR'}));assert.doesNotThrow(()=>assertRetroactiveLeaveAllowed({...base,actorRole:'SUPERVISOR',employeeId:'other',daysBack:3}));assert.throws(()=>assertRetroactiveLeaveAllowed({...base,actorRole:'SUPERVISOR',employeeId:'other',daysBack:4}));});
+test('manager existing scope and admin remain unchanged',()=>{assert.throws(()=>assertRetroactiveLeaveAllowed({...base,actorRole:'MANAGER'}));assert.doesNotThrow(()=>assertRetroactiveLeaveAllowed({...base,actorRole:'MANAGER',employeeId:'other',daysBack:5}));assert.doesNotThrow(()=>assertRetroactiveLeaveAllowed({...base,actorRole:'ADMIN',daysBack:100}));});

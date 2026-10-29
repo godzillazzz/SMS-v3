@@ -5,6 +5,11 @@ export type LeavePolicyForm = {
   sickAttachmentRequiredAfterDays: number;
   managerRetroactiveOnBehalfEnabled: boolean;
   managerRetroactiveMaxDaysBack: number;
+  supervisorRetroactiveOnBehalfEnabled: boolean;
+  supervisorRetroactiveMaxDaysBack: number;
+  viewerRetroactiveSelfEnabled: boolean;
+  viewerRetroactiveMaxDaysBack: number;
+
 };
 
 export const leavePolicyKeys = {
@@ -13,7 +18,11 @@ export const leavePolicyKeys = {
   defaultVacationDays: 'LEAVE_DEFAULT_VACATION_DAYS',
   sickAttachmentRequiredAfterDays: 'LEAVE_SICK_ATTACHMENT_REQUIRED_AFTER_DAYS',
   managerRetroactiveOnBehalfEnabled: 'LEAVE_MANAGER_RETROACTIVE_ON_BEHALF_ENABLED',
-  managerRetroactiveMaxDaysBack: 'LEAVE_MANAGER_RETROACTIVE_MAX_DAYS_BACK'
+  managerRetroactiveMaxDaysBack: 'LEAVE_MANAGER_RETROACTIVE_MAX_DAYS_BACK',
+  supervisorRetroactiveOnBehalfEnabled: 'LEAVE_SUPERVISOR_RETROACTIVE_ON_BEHALF_ENABLED',
+  supervisorRetroactiveMaxDaysBack: 'LEAVE_SUPERVISOR_RETROACTIVE_MAX_DAYS_BACK',
+  viewerRetroactiveSelfEnabled: 'LEAVE_VIEWER_RETROACTIVE_SELF_ENABLED',
+  viewerRetroactiveMaxDaysBack: 'LEAVE_VIEWER_RETROACTIVE_MAX_DAYS_BACK'
 } as const;
 
 export const defaultLeavePolicy: LeavePolicyForm = {
@@ -22,5 +31,9 @@ export const defaultLeavePolicy: LeavePolicyForm = {
   defaultVacationDays: 6,
   sickAttachmentRequiredAfterDays: 3,
   managerRetroactiveOnBehalfEnabled: true,
-  managerRetroactiveMaxDaysBack: 0
+  managerRetroactiveMaxDaysBack: 0,
+  supervisorRetroactiveOnBehalfEnabled: true,
+  supervisorRetroactiveMaxDaysBack: 0,
+  viewerRetroactiveSelfEnabled: false,
+  viewerRetroactiveMaxDaysBack: 0
 };

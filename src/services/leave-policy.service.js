@@ -8,7 +8,11 @@ const LEAVE_POLICY_KEYS = Object.freeze({
   defaultVacationDays: 'LEAVE_DEFAULT_VACATION_DAYS',
   sickAttachmentRequiredAfterDays: 'LEAVE_SICK_ATTACHMENT_REQUIRED_AFTER_DAYS',
   managerRetroactiveOnBehalfEnabled: 'LEAVE_MANAGER_RETROACTIVE_ON_BEHALF_ENABLED',
-  managerRetroactiveMaxDaysBack: 'LEAVE_MANAGER_RETROACTIVE_MAX_DAYS_BACK'
+  managerRetroactiveMaxDaysBack: 'LEAVE_MANAGER_RETROACTIVE_MAX_DAYS_BACK',
+  supervisorRetroactiveOnBehalfEnabled: 'LEAVE_SUPERVISOR_RETROACTIVE_ON_BEHALF_ENABLED',
+  supervisorRetroactiveMaxDaysBack: 'LEAVE_SUPERVISOR_RETROACTIVE_MAX_DAYS_BACK',
+  viewerRetroactiveSelfEnabled: 'LEAVE_VIEWER_RETROACTIVE_SELF_ENABLED',
+  viewerRetroactiveMaxDaysBack: 'LEAVE_VIEWER_RETROACTIVE_MAX_DAYS_BACK'
 });
 
 const DEFAULT_LEAVE_POLICY = Object.freeze({
@@ -17,7 +21,11 @@ const DEFAULT_LEAVE_POLICY = Object.freeze({
   defaultVacationDays: 6,
   sickAttachmentRequiredAfterDays: 3,
   managerRetroactiveOnBehalfEnabled: true,
-  managerRetroactiveMaxDaysBack: 0
+  managerRetroactiveMaxDaysBack: 0,
+  supervisorRetroactiveOnBehalfEnabled: true,
+  supervisorRetroactiveMaxDaysBack: 0,
+  viewerRetroactiveSelfEnabled: false,
+  viewerRetroactiveMaxDaysBack: 0
 });
 
 const NUMBER_RANGES = Object.freeze({
@@ -25,7 +33,9 @@ const NUMBER_RANGES = Object.freeze({
   [LEAVE_POLICY_KEYS.defaultPersonalDays]: Object.freeze([0, 999]),
   [LEAVE_POLICY_KEYS.defaultVacationDays]: Object.freeze([0, 999]),
   [LEAVE_POLICY_KEYS.sickAttachmentRequiredAfterDays]: Object.freeze([0, 30]),
-  [LEAVE_POLICY_KEYS.managerRetroactiveMaxDaysBack]: Object.freeze([0, 3650])
+  [LEAVE_POLICY_KEYS.managerRetroactiveMaxDaysBack]: Object.freeze([0, 3650]),
+  [LEAVE_POLICY_KEYS.supervisorRetroactiveMaxDaysBack]: Object.freeze([0, 3650]),
+  [LEAVE_POLICY_KEYS.viewerRetroactiveMaxDaysBack]: Object.freeze([0, 3650])
 });
 
 function numberValue(value, fallback, min, max) {
@@ -76,14 +86,18 @@ function policyFromSettings(rows = []) {
       DEFAULT_LEAVE_POLICY.managerRetroactiveMaxDaysBack,
       0,
       3650
-    )
+    ),
+    supervisorRetroactiveOnBehalfEnabled: booleanValue(byKey.get(LEAVE_POLICY_KEYS.supervisorRetroactiveOnBehalfEnabled), booleanValue(byKey.get(LEAVE_POLICY_KEYS.managerRetroactiveOnBehalfEnabled), DEFAULT_LEAVE_POLICY.managerRetroactiveOnBehalfEnabled)),
+    supervisorRetroactiveMaxDaysBack: numberValue(byKey.get(LEAVE_POLICY_KEYS.supervisorRetroactiveMaxDaysBack), numberValue(byKey.get(LEAVE_POLICY_KEYS.managerRetroactiveMaxDaysBack), 0, 0, 3650), 0, 3650),
+    viewerRetroactiveSelfEnabled: booleanValue(byKey.get(LEAVE_POLICY_KEYS.viewerRetroactiveSelfEnabled), false),
+    viewerRetroactiveMaxDaysBack: numberValue(byKey.get(LEAVE_POLICY_KEYS.viewerRetroactiveMaxDaysBack), 0, 0, 3650)
   });
 }
 
 function validateLeavePolicySetting(key, value) {
   const text = String(value ?? '').trim();
 
-  if (key === LEAVE_POLICY_KEYS.managerRetroactiveOnBehalfEnabled) {
+  if ([LEAVE_POLICY_KEYS.managerRetroactiveOnBehalfEnabled, LEAVE_POLICY_KEYS.supervisorRetroactiveOnBehalfEnabled, LEAVE_POLICY_KEYS.viewerRetroactiveSelfEnabled].includes(key)) {
     const normalized = text.toLowerCase();
     if (!['true', 'false'].includes(normalized)) {
       throw new Error(`${key} must be true or false.`);

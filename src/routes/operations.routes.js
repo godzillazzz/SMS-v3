@@ -26,6 +26,7 @@ const { provisionAnnualLeaveQuotas } = require('../services/annual-leave-quota-c
 const { isReservedOperationalSettingKey } = require('../services/g03-1-multi-year-activation.service');
 const { getSystemSettingDefinition, isSensitiveSystemSettingKey, normalizeRegisteredSystemSettingValue, presentRegisteredSystemSetting, presentSystemSettings, registeredSystemSettingGroups } = require('../services/system-setting-registry.service');
 const { createLeavePolicyService, isRetroactiveLeaveStart, retroactiveDaysBack } = require('../services/leave-policy.service');
+const { assertRetroactiveLeaveAllowed } = require('../services/leave-retroactive-policy');
 const { createLeaveTypeService, resolveLeaveTypeForRequest, leaveTypeSnapshot } = require('../services/leave-type.service');
 const { createAutoSchedulePatternService } = require('../services/auto-schedule-pattern.service');
 const { createApprovalPolicyService, positionClass } = require('../services/approval-policy.service');
@@ -255,33 +256,7 @@ const assertRetroactiveLeaveEntryAllowed = ({ policy, actorRole, actorEmployeeId
   const isRetroactive = checkIsRetroactive(startDate);
   if (!isRetroactive) return false;
 
-  const codePrefix = correction ? 'LEAVE_CORRECTION_' : 'LEAVE_';
-  if (actorRole === 'VIEWER') {
-    throw new HttpError(400, correction ? 'พนักงานทั่วไปไม่สามารถแก้ไขเป็นการลาย้อนหลังได้' : 'พนักงานทั่วไปไม่สามารถบันทึกการลาย้อนหลังได้', {
-      code: `${codePrefix}RETROACTIVE_NOT_ALLOWED`
-    });
-  }
-  if (['MANAGER', 'SUPERVISOR'].includes(actorRole) && employeeId === actorEmployeeId) {
-    throw new HttpError(400, correction ? 'ผู้จัดการไม่สามารถแก้ไขการลาย้อนหลังให้ตนเองได้' : 'ผู้จัดการไม่สามารถบันทึกการลาย้อนหลังให้ตนเองได้', {
-      code: `${codePrefix}MANAGER_RETROACTIVE_SELF_NOT_ALLOWED`
-    });
-  }
-  if (['MANAGER', 'SUPERVISOR'].includes(actorRole)) {
-    if (!policy.managerRetroactiveOnBehalfEnabled) {
-      throw new HttpError(403, 'นโยบายปัจจุบันไม่อนุญาตให้ Manager บันทึกการลาย้อนหลังแทนพนักงาน', {
-        code: `${codePrefix}MANAGER_RETROACTIVE_DISABLED`
-      });
-    }
-    const daysBack = retroactiveDaysBack(startDate);
-    const maxDaysBack = Number(policy.managerRetroactiveMaxDaysBack || 0);
-    if (maxDaysBack > 0 && daysBack > maxDaysBack) {
-      throw new HttpError(400, `Manager บันทึกการลาย้อนหลังได้สูงสุด ${maxDaysBack} วัน`, {
-        code: `${codePrefix}MANAGER_RETROACTIVE_LIMIT_EXCEEDED`,
-        daysBack,
-        maxDaysBack
-      });
-    }
-  }
+  assertRetroactiveLeaveAllowed({ policy, actorRole, actorEmployeeId, employeeId, daysBack: retroactiveDaysBack(startDate), correction });
   return true;
 };
 const hasSupervisorApprovalLevel = (user, policy) => user.role === 'ADMIN' || ['SUPERVISOR', 'MANAGER'].includes(approvalPositionClass(user.employee, policy));
@@ -1198,7 +1173,7 @@ router.get('/leave-policy', async (_req, res, next) => {
       meta: {
         source: 'RESOLVED_GOVERNED_POLICY',
         invariants: {
-          viewerRetroactiveAllowed: false,
+          viewerRetroactiveAllowed: policy.viewerRetroactiveSelfEnabled,
           managerSelfRetroactiveAllowed: false,
           retroactiveReasonRequired: true,
           selfApprovalAllowed: false
@@ -1284,15 +1259,17 @@ router.get('/leave-requests', async (req, res, next) => {
     response.meta.statusCounts = Object.fromEntries(statusCounts.map((row) => [row.status, row._count._all]));
     const approverIds = [...new Set(response.data.map((row) => row.approvedByLegacyRef).filter((value) => uuid.safeParse(value).success))];
     const leaveIds = response.data.map((row) => row.id);
-    const [approvers, auditLogs] = await Promise.all([
+    const [approvers, auditLogs, creators] = await Promise.all([
       approverIds.length ? prisma.user.findMany({ where: { id: { in: approverIds } }, select: { id: true, displayName: true, role: true } }) : [],
       leaveIds.length ? prisma.auditLog.findMany({
         where: { entityType: 'LeaveRequest', entityId: { in: leaveIds }, action: { in: ['CREATE', 'UPDATE'] } },
         select: { entityId: true, action: true, actorUserId: true, metadata: true, createdAt: true, actor: { select: { displayName: true, role: true } } },
         orderBy: { createdAt: 'desc' }
-      }) : []
+      }) : [],
+      (() => { const ids = [...new Set(response.data.map((row) => row.createdByUserId).filter((value) => uuid.safeParse(value).success))]; return ids.length ? prisma.user.findMany({ where: { id: { in: ids } }, select: { id: true, employeeId: true } }) : Promise.resolve([]); })()
     ]);
     const approverById = new Map(approvers.map((user) => [user.id, user]));
+    const creatorEmployeeIdByUserId = new Map(creators.map((user) => [user.id, user.employeeId]));
     const createAuditMap = new Map();
     const returnAuditMap = new Map();
     for (const log of auditLogs) {
@@ -1318,6 +1295,7 @@ router.get('/leave-requests', async (req, res, next) => {
         approvedByRole: approver?.role || null,
         isRetroactive,
         createdByUserId,
+        selfSubmitted: Boolean(createdByUserId) && creatorEmployeeIdByUserId.get(createdByUserId) === row.employeeId,
         returnReason: returnAudit?.metadata?.reason || null,
         returnedAt: returnAudit?.createdAt || null,
         returnedByDisplayName: returnAudit?.actor?.displayName || null,

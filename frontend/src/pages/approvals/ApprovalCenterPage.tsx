@@ -7,7 +7,7 @@ import { roleDisplayName } from '../../role-display';
 import { formatThaiDate, formatThaiDateTime } from '../../thai-date-time';
 import { updateRouteQuery } from '../../routing';
 import type { LeaveDecisionAction } from '../../components/LeaveDecisionConfirmation';
-import { approveAttendanceAdjustment, rejectAttendanceAdjustment } from '../attendance-supervisor/attendance-adjustment-client';
+import { approveAttendanceAdjustment, rejectAttendanceAdjustment, reviewAttendanceAdjustment, returnAttendanceAdjustment } from '../attendance-supervisor/attendance-adjustment-client';
 import '../../styles/approval-center.css';
 import { MetricCard, PageHeader, SectionCard } from '../../components/layout';
 import { useActionDialog } from '../../components/useActionDialog';
@@ -263,7 +263,8 @@ export function ApprovalCenterPage({
   const [urgencyFilter, setUrgencyFilter] = useState<UrgencyFilter>('ALL');
   const [selectedId, setSelectedId] = useState('');
   const [loading, setLoading] = useState(true);
-  const [busyAction, setBusyAction] = useState<{ id: string; action: 'approve' | 'reject' }>();
+  const [busyAction, setBusyAction] = useState<{ id: string; action: 'approve' | 'reject' | 'return' }>();
+  const [rejectMode, setRejectMode] = useState<'reject' | 'return'>('reject');
   const actionDialog = useActionDialog();
   const [error, setError] = useState<RequestErrorInput>();
   const [notice, setNotice] = useState('');
@@ -338,7 +339,7 @@ export function ApprovalCenterPage({
 
   const executeDirectDecision = async (
     item: ApprovalCenterItem,
-    action: 'approve' | 'reject',
+    action: 'approve' | 'reject' | 'return',
     reason = ''
   ) => {
     if (item.type === 'EMPLOYEE_MASTER_CHANGE') {
@@ -375,8 +376,22 @@ export function ApprovalCenterPage({
         if (action === 'approve') await api.approveAttendanceDeviceRequest(token, item.requestId);
         else await api.rejectAttendanceDeviceRequest(token, item.requestId, reason);
       } else if (item.type === 'ATTENDANCE_ADJUSTMENT_REQUEST') {
-        if (action === 'approve') await approveAttendanceAdjustment(token, item.requestId);
-        else await rejectAttendanceAdjustment(token, item.requestId, reason);
+        const isForwardStage = item.status === 'PENDING_SUPERVISOR' || item.status === 'PENDING_MANAGER';
+        if (action === 'approve') {
+          if (isForwardStage) {
+            await reviewAttendanceAdjustment(token, item.requestId, item.status === 'PENDING_SUPERVISOR' ? 'หัวหน้างานส่งต่อให้ผู้จัดการ' : 'ผู้จัดการส่งต่อให้ Admin');
+            setNotice(item.status === 'PENDING_SUPERVISOR' ? 'ส่งต่อให้ผู้จัดการพิจารณาแล้ว และอัปเดตคิวแล้ว' : 'ส่งต่อให้ผู้ดูแลระบบอนุมัติแล้ว และอัปเดตคิวแล้ว');
+          } else {
+            await approveAttendanceAdjustment(token, item.requestId);
+            setNotice('อนุมัติคำขอสำเร็จ และอัปเดตคิวแล้ว');
+          }
+        } else if (action === 'return' || isForwardStage) {
+          await returnAttendanceAdjustment(token, item.requestId, reason || 'ส่งกลับให้แก้ไข');
+          setNotice('ส่งคำขอกลับไปแก้ไขแล้ว และอัปเดตคิวแล้ว');
+        } else {
+          await rejectAttendanceAdjustment(token, item.requestId, reason);
+          setNotice('ปฏิเสธคำขอสำเร็จ และอัปเดตคิวแล้ว');
+        }
       } else if (item.type === 'REGISTRATION_REQUEST') {
         if (action === 'approve') await api.approveRegistrationRequest(token, item.requestId);
         else await api.rejectRegistrationRequest(token, item.requestId, reason);
@@ -408,7 +423,7 @@ export function ApprovalCenterPage({
     }
   };
 
-  const requestReject = (item: ApprovalCenterItem) => {
+  const requestReject = (item: ApprovalCenterItem, mode: 'reject' | 'return' = 'reject') => {
     if (item.type === 'EMPLOYEE_MASTER_CHANGE') {
       onOpenEmployeeChange(item.requestId);
       return;
@@ -425,17 +440,19 @@ export function ApprovalCenterPage({
 
     setRejecting(item);
     setRejectReason('');
+    setRejectMode(mode);
   };
 
   const confirmReject = async () => {
     if (!rejecting) return;
+    const isReturn = rejectMode === 'return' || (rejecting.type === 'ATTENDANCE_ADJUSTMENT_REQUEST' && (rejecting.status === 'PENDING_SUPERVISOR' || rejecting.status === 'PENDING_MANAGER'));
     const minimumLength = rejecting.type === 'SCHEDULE_APPROVAL' ? 5 : 3;
     if (rejectReason.trim().length < minimumLength) {
-      setError(`กรุณาระบุเหตุผลการปฏิเสธอย่างน้อย ${minimumLength} ตัวอักษร`);
+      setError(`กรุณาระบุเหตุผลอย่างน้อย ${minimumLength} ตัวอักษร`);
       return;
     }
 
-    await executeDirectDecision(rejecting, 'reject', rejectReason.trim());
+    await executeDirectDecision(rejecting, isReturn ? 'return' : 'reject', rejectReason.trim());
   };
 
   const confirmApprove = async (item: ApprovalCenterItem) => {
@@ -443,12 +460,17 @@ export function ApprovalCenterPage({
       await executeDirectDecision(item, 'approve');
       return;
     }
+    const isForwardStage = item.type === 'ATTENDANCE_ADJUSTMENT_REQUEST' && (item.status === 'PENDING_SUPERVISOR' || item.status === 'PENDING_MANAGER');
     const confirmed = await actionDialog.confirm({
       eyebrow: typeLabel[item.type],
-      title: `อนุมัติ${typeLabel[item.type]}?`,
-      message: approveConsequence[item.type] || 'คำขอนี้จะถูกอนุมัติตามสิทธิ์ของคุณ',
+      title: isForwardStage
+        ? (item.status === 'PENDING_SUPERVISOR' ? 'ส่งต่อให้ผู้จัดการพิจารณา?' : 'ส่งต่อให้ผู้ดูแลระบบอนุมัติ?')
+        : `อนุมัติ${typeLabel[item.type]}?`,
+      message: isForwardStage
+        ? (item.status === 'PENDING_SUPERVISOR' ? 'คำขอแก้ไขเวลานี้จะถูกส่งต่อไปยังขั้นตอนของผู้จัดการ' : 'คำขอแก้ไขเวลานี้จะถูกส่งต่อไปยังขั้นตอนของผู้ดูแลระบบเพื่ออนุมัติขั้นสุดท้าย')
+        : (approveConsequence[item.type] || 'คำขอนี้จะถูกอนุมัติตามสิทธิ์ของคุณ'),
       context: employeeName(item),
-      confirmLabel: 'ยืนยันอนุมัติ',
+      confirmLabel: isForwardStage ? 'ยืนยันส่งต่อ' : 'ยืนยันอนุมัติ',
       cancelLabel: 'ยกเลิก',
       tone: 'primary'
     });
@@ -470,14 +492,21 @@ export function ApprovalCenterPage({
       </span>;
     }
 
+    const isAdjustment = item.type === 'ATTENDANCE_ADJUSTMENT_REQUEST';
+    const isForwardStage = isAdjustment && (item.status === 'PENDING_SUPERVISOR' || item.status === 'PENDING_MANAGER');
+    const approveLabel = isForwardStage
+      ? (item.status === 'PENDING_SUPERVISOR' ? 'ส่งต่อให้ผู้จัดการ' : 'ส่งต่อให้ Admin')
+      : 'อนุมัติ…';
+    const approveBusyLabel = isForwardStage ? 'กำลังส่งต่อ…' : 'กำลังอนุมัติ…';
+
     return <div className={`approval-action-buttons${mobile ? ' approval-action-buttons--mobile' : ''}`}>
       <button
         type="button"
         disabled={busy}
-        onClick={() => requestReject(item)}
+        onClick={() => requestReject(item, isForwardStage ? 'return' : 'reject')}
         className="approval-action-button approval-action-button--reject"
       >
-        {busy && busyAction?.action === 'reject' ? 'กำลังปฏิเสธ…' : 'ปฏิเสธ'}
+        {busy && busyAction?.action === (isForwardStage ? 'return' : 'reject') ? (isForwardStage ? 'กำลังส่งกลับ…' : 'กำลังปฏิเสธ…') : (isForwardStage ? 'ส่งกลับแก้ไข' : 'ปฏิเสธ')}
       </button>
       <button
         type="button"
@@ -485,7 +514,7 @@ export function ApprovalCenterPage({
         onClick={() => void confirmApprove(item)}
         className="approval-action-button approval-action-button--approve"
       >
-        {busy && busyAction?.action === 'approve' ? 'กำลังอนุมัติ…' : 'อนุมัติ…'}
+        {busy && busyAction?.action === 'approve' ? approveBusyLabel : approveLabel}
       </button>
       {item.type === 'LEAVE_REQUEST' && <button
         type="button"
@@ -493,7 +522,12 @@ export function ApprovalCenterPage({
         onClick={() => onLeaveDecision(item, 'return')}
         className="approval-action-button approval-action-button--return"
       >ส่งกลับไปแก้ไข</button>}
-
+      {isAdjustment && !isForwardStage && <button
+        type="button"
+        disabled={busy}
+        onClick={() => requestReject(item, 'return')}
+        className="approval-action-button approval-action-button--return"
+      >ส่งกลับไปแก้ไข</button>}
     </div>;
   };
 
@@ -831,10 +865,10 @@ export function ApprovalCenterPage({
       aria-label="ยืนยันการปฏิเสธคำขอ"
     >
       <section className="approval-reject-dialog">
-        <p className="approval-reject-kicker">REJECT REQUEST</p>
+        <p className="approval-reject-kicker">{rejectMode === 'return' || (rejecting.type === 'ATTENDANCE_ADJUSTMENT_REQUEST' && (rejecting.status === 'PENDING_SUPERVISOR' || rejecting.status === 'PENDING_MANAGER')) ? 'RETURN FOR CORRECTION' : 'REJECT REQUEST'}</p>
         <h2>{employeeName(rejecting)}</h2>
         <label className="approval-reject-reason">
-          เหตุผลการปฏิเสธ
+          {rejectMode === 'return' || (rejecting.type === 'ATTENDANCE_ADJUSTMENT_REQUEST' && (rejecting.status === 'PENDING_SUPERVISOR' || rejecting.status === 'PENDING_MANAGER')) ? 'เหตุผลการส่งกลับให้แก้ไข' : 'เหตุผลการปฏิเสธ'}
           <textarea
             autoFocus
             rows={4}
@@ -860,7 +894,7 @@ export function ApprovalCenterPage({
             onClick={() => void confirmReject()}
             className="approval-reject-button approval-reject-button--confirm"
           >
-            {busyAction ? 'กำลังดำเนินการ…' : 'ยืนยันปฏิเสธ'}
+            {busyAction ? 'กำลังดำเนินการ…' : (rejectMode === 'return' || (rejecting.type === 'ATTENDANCE_ADJUSTMENT_REQUEST' && (rejecting.status === 'PENDING_SUPERVISOR' || rejecting.status === 'PENDING_MANAGER')) ? 'ยืนยันส่งกลับแก้ไข' : 'ยืนยันปฏิเสธ')}
           </button>
         </div>
       </section>

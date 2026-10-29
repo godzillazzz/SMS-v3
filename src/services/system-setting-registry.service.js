@@ -179,6 +179,10 @@ const DEFINITIONS = Object.freeze([
     description: 'จำนวนวันย้อนหลังสูงสุดสำหรับ Manager; 0 หมายถึงไม่จำกัด',
     constraints: { min: 0, max: 3650, unit: 'days', zeroMeans: 'unlimited' }
   }),
+  frozenDefinition({ key: LEAVE_POLICY_KEYS.supervisorRetroactiveOnBehalfEnabled, group: GROUPS.LEAVE.id, groupLabel: GROUPS.LEAVE.label, groupOrder: GROUPS.LEAVE.order, label: 'หัวหน้างานบันทึกลาย้อนหลังแทนพนักงาน', valueType: 'BOOLEAN', description: 'หัวหน้างานบันทึกลาย้อนหลังแทนพนักงาน', constraints: {} }),
+  frozenDefinition({ key: LEAVE_POLICY_KEYS.supervisorRetroactiveMaxDaysBack, group: GROUPS.LEAVE.id, groupLabel: GROUPS.LEAVE.label, groupOrder: GROUPS.LEAVE.order, label: 'หัวหน้างานย้อนหลังสูงสุด', valueType: 'NUMBER', description: 'หัวหน้างานย้อนหลังสูงสุด', constraints: { min: 0, max: 3650, unit: 'days', zeroMeans: 'unlimited' } }),
+  frozenDefinition({ key: LEAVE_POLICY_KEYS.viewerRetroactiveSelfEnabled, group: GROUPS.LEAVE.id, groupLabel: GROUPS.LEAVE.label, groupOrder: GROUPS.LEAVE.order, label: 'ผู้ใช้งานบันทึกลาย้อนหลังของตนเอง', valueType: 'BOOLEAN', description: 'ผู้ใช้งานบันทึกลาย้อนหลังของตนเอง', constraints: {} }),
+  frozenDefinition({ key: LEAVE_POLICY_KEYS.viewerRetroactiveMaxDaysBack, group: GROUPS.LEAVE.id, groupLabel: GROUPS.LEAVE.label, groupOrder: GROUPS.LEAVE.order, label: 'ผู้ใช้งานย้อนหลังสูงสุด', valueType: 'NUMBER', description: 'ผู้ใช้งานย้อนหลังสูงสุด', constraints: { min: 0, max: 3650, unit: 'days', zeroMeans: 'unlimited' } }),
   ...policySettingDefinitions().map(frozenDefinition),
   frozenDefinition({
     key: RETENTION_POLICY_KEYS.operationalUsageMonths,
