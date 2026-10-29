@@ -391,7 +391,7 @@ function createEmployeeLifecycleService({ prismaClient = prisma, auditService = 
       if (!event || event.status !== 'PENDING' || new Date(event.effectiveDate) > bangkokToday(clock())) return null;
       const employee = await tx.employee.findUniqueOrThrow({ where: { id: event.employeeId } });
       const currentState = event.type === 'MASTER_EDIT' ? employeeMasterState(employee) : employeeState(employee);
-      const expectedFields = event.type === 'MASTER_EDIT' ? MASTER_FIELDS : CONTROLLED_FIELDS;
+      const expectedFields = event.type === 'MASTER_EDIT' ? MASTER_FIELDS.filter((field) => !['address', 'emergencyContact', 'emergencyPhone'].includes(field) || Object.hasOwn(event.oldValue.employee, field)) : CONTROLLED_FIELDS;
       if (!sameControlledState(currentState, event.oldValue.employee, expectedFields)) throw new HttpError(409, 'สถานะปัจจุบันไม่ตรงกับข้อมูลก่อนเหตุการณ์', { code: 'EMPLOYEE_STATE_CONFLICT' });
       const synchronized = await updateMasterFromSnapshot(tx, employee, event.type, event.newValue, event.effectiveDate);
       const applied = await tx.employeeLifecycleEvent.update({ where: { id: event.id }, data: { status: 'APPLIED', appliedAt: clock() } });

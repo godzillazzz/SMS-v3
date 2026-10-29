@@ -71,7 +71,7 @@ describe('G04.2 UX-06 Personnel + Access experience contract', () => {
 
   it('keeps Employee create API unchanged while routing existing edit callbacks through governed edit authority', () => {
     for (const field of ["name: 'employeeCode'", "name: 'firstName'", "name: 'lastName'", "name: 'email'", "name: 'phone'", "name: 'department'", "name: 'jobTitle'", "name: 'hiredAt'"]) expect(main).toContain(field);
-    expect(main).toContain("api.createEmployee(auth.token!, formPayload(form, ['email', 'phone', 'department', 'jobTitle', 'hiredAt']))");
+    expect(main).toContain("api.createEmployee(auth.token!, formPayload(form, ['email', 'phone', 'address', 'emergencyContact', 'emergencyPhone', 'department', 'jobTitle', 'hiredAt']))");
     expect(main).toContain('setEmployeeGovernedEditTarget(employee)');
     expect(main).toContain('onEdit={openEmployeeEditor}');
     expect(main).toContain('onAdd={() => openEmployeeEditor()}');
