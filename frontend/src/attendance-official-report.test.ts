@@ -112,13 +112,16 @@ describe('Official Attendance report presentation', () => {
     const source = readFileSync(new URL('./pages/reports/AttendanceOfficialReport.tsx', import.meta.url), 'utf8');
     const styles = readFileSync(new URL('./styles/attendance-report.css', import.meta.url), 'utf8');
     expect(source).toContain('/brand/sms-logo-horizontal.webp');
-    for (const label of ['วันที่', 'วัน', 'เวลาเข้า', 'เวลาออก', 'ชั่วโมง', 'สถานะ', 'หมายเหตุ']) expect(source).toContain(`<th>${label}</th>`);
+    for (const label of ['วันที่', 'วัน', 'เข้างาน', 'ออกงาน', 'ชั่วโมง', 'สถานะ', 'สถานที่', 'หมายเหตุ']) expect(source).toContain(`<th>${label}</th>`);
     expect(source).toContain('timesheet-employee');
     expect(source).toContain('{formatThaiMonth(report.period)}');
     expect(source).toContain("label: 'ไม่มีข้อมูล'");
     expect(source).toContain("['พนักงาน', 'หัวหน้างาน', 'ฝ่ายบุคคล']");
     expect(source).toContain('ฝ่ายบุคคล');
-    expect(source).toContain('พิมพ์ทั้งหมด 1 คนต่อแผ่น');
+    expect(source).toContain('ข้อมูลถึงวันที่');
+    expect(source).toContain('พิมพ์รายบุคคล');
+    expect(source).not.toContain('พิมพ์ทั้งหมด 1 คนต่อแผ่น');
+    expect(source).not.toContain("setPrintMode('department')");
     expect(source).toContain('การพิมพ์เป็นแบบอ่านอย่างเดียว และไม่บันทึกหรือเปลี่ยนสถานะการลงเวลา');
     expect(source).not.toMatch(/\bOT\b|ค่าล่วงเวลา|เบี้ยเลี้ยง|ค่าพาหนะ|ค่าเดินทาง|ค่าตำแหน่ง|employee\.phone/);
     expect(source).toContain("{ orientation: 'portrait', margin: '0' }");

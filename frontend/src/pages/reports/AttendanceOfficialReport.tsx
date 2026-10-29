@@ -74,14 +74,33 @@ function resultText(row: AttendanceReportRow) {
   return [...new Set(labels)].join(' / ');
 }
 
-function monthDayRows(rows: AttendanceReportRow[], period: string) {
+function monthEndDate(period: string) {
+  const match = /^(\d{4})-(\d{2})$/.exec(period);
+  if (!match) return '';
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const lastDay = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  return `${period}-${String(lastDay).padStart(2, '0')}`;
+}
+
+function normalizeThroughDate(period: string, throughDate?: string) {
+  const end = monthEndDate(period);
+  if (!end || !throughDate || !/^\d{4}-\d{2}-\d{2}$/.test(throughDate)) return end;
+  const start = `${period}-01`;
+  if (throughDate < start) return start;
+  if (throughDate > end) return end;
+  return throughDate;
+}
+
+function monthDayRows(rows: AttendanceReportRow[], period: string, throughDate?: string) {
   const match = /^(\d{4})-(\d{2})$/.exec(period);
   if (!match) return [];
   const year = Number(match[1]);
   const month = Number(match[2]);
-  const count = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  const cutoff = normalizeThroughDate(period, throughDate);
+  const count = Number(cutoff.slice(8, 10));
   const byDate = new Map<string, AttendanceReportRow[]>();
-  rows.forEach((row) => {
+  rows.filter((row) => row.workDate.startsWith(`${period}-`) && row.workDate <= cutoff).forEach((row) => {
     const list = byDate.get(row.workDate) || [];
     list.push(row);
     byDate.set(row.workDate, list);
@@ -188,9 +207,9 @@ export function AttendanceOfficialReportPanel({ token, month, role, enabled, ini
   const [loading, setLoading] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const [error, setError] = useState<RequestErrorInput>();
-  const [printMode, setPrintMode] = useState<'employee' | 'department'>('employee');
   const [selectedDepartment, setSelectedDepartment] = useState('');
   const [selectedEmployeeId, setSelectedEmployeeId] = useState('');
+  const [throughDate, setThroughDate] = useState(monthEndDate(month));
   const [printedAt, setPrintedAt] = useState('');
   const employeePages = useMemo(() => groupByEmployee(report?.rows || []), [report]);
   const departments = useMemo(() => [...new Set((report?.rows || []).map((row) => row.department).filter((value): value is string => Boolean(value?.trim())))].sort((a, b) => a.localeCompare(b, 'th')), [report]);
@@ -198,14 +217,14 @@ export function AttendanceOfficialReportPanel({ token, month, role, enabled, ini
     ? employeePages.filter((rows) => rows[0]?.department === selectedDepartment)
     : employeePages, [employeePages, selectedDepartment]);
   const selectedPage = visibleEmployeePages.find((rows) => rows[0]?.employeeId === selectedEmployeeId) || visibleEmployeePages[0];
-  const pagesToPrint = printMode === 'department' ? visibleEmployeePages : selectedPage ? [selectedPage] : [];
+  const pagesToPrint = selectedPage ? [selectedPage] : [];
 
   useEffect(() => {
     setReport(undefined);
     setError(undefined);
     setSelectedDepartment('');
     setSelectedEmployeeId('');
-    setPrintMode('employee');
+    setThroughDate(monthEndDate(month));
     setPrintedAt('');
   }, [token, month]);
 
@@ -249,29 +268,25 @@ export function AttendanceOfficialReportPanel({ token, month, role, enabled, ini
       <div className="report-center-export-icon">ATT</div>
       <div>
         <h3>รายงานลงเวลาประจำเดือนที่รับรองแล้ว</h3>
-        <p>ใช้ Certified Snapshot เท่านั้น รายงานพิมพ์ 1 คนต่อหน้า; วันหยุด ตำแหน่ง และประเภทลาที่ไม่มีใน Snapshot จะแสดงว่าไม่มีข้อมูล</p><small>การพิมพ์เป็นแบบอ่านอย่างเดียว และไม่บันทึกหรือเปลี่ยนสถานะการลงเวลา</small>
+        <p>ใช้ Certified Snapshot เท่านั้น พิมพ์พนักงาน 1 คน ตั้งแต่วันที่ 1 ถึงวันที่เลือกภายในเดือนเดียวกัน</p><small>การพิมพ์เป็นแบบอ่านอย่างเดียว และไม่บันทึกหรือเปลี่ยนสถานะการลงเวลา</small>
         <small>{report ? `Report ID: ${report.reportId} · Revision ${report.revision}` : `Period: ${month}`}</small>
       </div>
       <div className="attendance-report-export-actions">
-        <button type="button" className="btn-primary" disabled={!report || loading || !pagesToPrint.length} onClick={() => void exportPdf()}>{printMode === 'employee' ? 'พิมพ์รายบุคคล' : 'พิมพ์ทั้งหมด 1 คนต่อแผ่น'}</button>
+        <button type="button" className="btn-primary" disabled={!report || loading || !pagesToPrint.length} onClick={() => void exportPdf()}>พิมพ์รายบุคคล</button>
         {role === 'ADMIN' && <button type="button" className="btn-neutral" disabled={!report || loading || downloading} onClick={() => void exportExcel()}>{downloading ? 'กำลังสร้าง…' : 'ส่งออก Excel'}</button>}
       </div>
     </article>
     {report && <div className="attendance-report-controls" aria-label="ตัวเลือกการพิมพ์ใบลงเวลา">
-      <fieldset>
-        <legend>ขอบเขตการพิมพ์</legend>
-        <label><input type="radio" name="attendance-report-print-mode" value="employee" checked={printMode === 'employee'} onChange={() => setPrintMode('employee')} /> รายบุคคล</label>
-        <label><input type="radio" name="attendance-report-print-mode" value="department" checked={printMode === 'department'} onChange={() => setPrintMode('department')} /> ทั้งหน่วยงาน · 1 คนต่อหน้า</label>
-      </fieldset>
+      <label><span>ข้อมูลถึงวันที่</span><input type="date" aria-label="ข้อมูลถึงวันที่" min={`${month}-01`} max={monthEndDate(month)} value={throughDate} onChange={(event) => setThroughDate(normalizeThroughDate(month, event.target.value))} /></label>
       {role === 'ADMIN'
         ? <label><span>แผนก</span><select aria-label="เลือกแผนกสำหรับพิมพ์" value={selectedDepartment} onChange={(event) => { setSelectedDepartment(event.target.value); setSelectedEmployeeId(''); }}><option value="">ทุกแผนก</option>{departments.map((department) => <option value={department} key={department}>{department}</option>)}</select></label>
         : <p className="attendance-report-scope">แผนกที่ได้รับอนุญาต: <strong>{report.scope?.department || departments[0] || 'ไม่พบขอบเขตแผนก'}</strong></p>}
-      {printMode === 'employee' && <label><span>พนักงาน</span><select aria-label="เลือกพนักงานสำหรับพิมพ์" value={selectedPage?.[0]?.employeeId || ''} onChange={(event) => setSelectedEmployeeId(event.target.value)} disabled={!visibleEmployeePages.length}>{visibleEmployeePages.map((rows) => <option value={rows[0].employeeId} key={rows[0].employeeId}>{rows[0].employeeCode || '—'} · {rows[0].employeeName}</option>)}</select></label>}
+      <label><span>พนักงาน</span><select aria-label="เลือกพนักงานสำหรับพิมพ์" value={selectedPage?.[0]?.employeeId || ''} onChange={(event) => setSelectedEmployeeId(event.target.value)} disabled={!visibleEmployeePages.length}>{visibleEmployeePages.map((rows) => <option value={rows[0].employeeId} key={rows[0].employeeId}>{rows[0].employeeCode || '—'} · {rows[0].employeeName}</option>)}</select></label>
     </div>}
     {loading && <div className="report-center-state" role="status">กำลังโหลด Certified Attendance Snapshot…</div>}
     {error && <div className="report-center-state report-center-state--error" role="alert"><strong>รายงานลงเวลายังไม่พร้อม</strong><RequestErrorContent error={error} /></div>}
     {!loading && !error && !report && enabled && <div className="report-center-state"><strong>ยังไม่มีรายงานที่รับรองแล้ว</strong><span>ต้อง Certify เดือนนี้ก่อนจึงจะส่งออกรายงานทางการได้</span></div>}
-    {report && <AttendanceOfficialReportPrint report={report} employeePages={pagesToPrint} printedAt={printedAt} />}
+    {report && <AttendanceOfficialReportPrint report={report} employeePages={pagesToPrint} throughDate={throughDate} printedAt={printedAt} />}
   </>;
 }
 
@@ -303,8 +318,10 @@ function timesheetDayStatus(day: TimesheetDay): { label: string; tone: 'unknown'
   return { label: 'ปกติ', tone: 'normal' };
 }
 
-function timesheetSummary(rows: AttendanceReportRow[], period: string) {
-  const days = monthDayRows(rows, period).filter((day) => day.rows.length);
+function timesheetSummary(rows: AttendanceReportRow[], period: string, throughDate?: string) {
+  const cutoff = normalizeThroughDate(period, throughDate);
+  const eligibleRows = rows.filter((row) => row.workDate.startsWith(`${period}-`) && row.workDate <= cutoff);
+  const days = monthDayRows(eligibleRows, period, cutoff).filter((day) => day.rows.length);
   const count = (predicate: (day: TimesheetDay) => boolean) => days.filter(predicate).length;
   const working = (day: TimesheetDay) => day.rows.filter((row) => !hasFlag(row, 'LEAVE') && !hasFlag(row, 'ABSENT'));
   return {
@@ -315,7 +332,7 @@ function timesheetSummary(rows: AttendanceReportRow[], period: string) {
     leaveDays: count((day) => day.rows.some((row) => hasFlag(row, 'LEAVE'))),
     noRecordDays: count((day) => day.rows.some((row) => hasFlag(row, 'ABSENT'))),
     offsiteDays: count((day) => working(day).some(isOffsite)),
-    totalMinutes: totalWorkedMinutes(rows)
+    totalMinutes: totalWorkedMinutes(eligibleRows)
   };
 }
 
@@ -323,28 +340,31 @@ function timesheetNotes(day: TimesheetDay) {
   return day.rows.length ? [...new Set(day.rows.map(resultText).filter(Boolean))].join(' · ') : day.notes.join(' · ');
 }
 
-export function AttendanceOfficialReportPrint({ report, employeePages = groupByEmployee(report.rows), printedAt }: { report: AttendanceOfficialReport; employeePages?: AttendanceReportRow[][]; printedAt?: string }) {
+export function AttendanceOfficialReportPrint({ report, employeePages, throughDate, printedAt }: { report: AttendanceOfficialReport; employeePages?: AttendanceReportRow[][]; throughDate?: string; printedAt?: string }) {
+  const printPages = (employeePages || groupByEmployee(report.rows)).slice(0, 1);
   return <section className="print-only attendance-official-report-print" aria-label="Official Attendance Report">
-    {employeePages.map((rows, pageIndex) => {
+    {printPages.map((rows, pageIndex) => {
       const first = rows[0];
-      const days = monthDayRows(rows, report.period);
-      const summary = timesheetSummary(rows, report.period);
-      const sites = [...new Set(rows.map((row) => (row.assignedSite || row.expectedSite)?.name || (row.assignedSite || row.expectedSite)?.code).filter(Boolean))];
-      const schedules = [...new Set(rows.map((row) => {
+      const cutoff = normalizeThroughDate(report.period, throughDate);
+      const eligibleRows = rows.filter((row) => row.workDate.startsWith(`${report.period}-`) && row.workDate <= cutoff);
+      const days = monthDayRows(eligibleRows, report.period, cutoff);
+      const summary = timesheetSummary(eligibleRows, report.period, cutoff);
+      const sites = [...new Set(eligibleRows.map((row) => (row.assignedSite || row.expectedSite)?.name || (row.assignedSite || row.expectedSite)?.code).filter(Boolean))];
+      const schedules = [...new Set(eligibleRows.map((row) => {
         const start = row.scheduledStartAt || row.expectedStartAt;
         const end = row.scheduledEndAt || row.expectedEndAt;
         return start && end ? `${formatTime(start)}–${formatTime(end)}` : '';
       }).filter(Boolean))];
       const printDate = printedAt || report.generatedAt;
       const boxes: [string, string][] = [
-        ['วันทำงาน', `${summary.scheduledDays}`], ['มาทำงาน', `${summary.presentDays}`], ['มาสาย', `${summary.lateDays}`], ['ออกก่อน', `${summary.earlyDays}`],
-        ['ลา', `${summary.leaveDays}`], ['ขาดงาน', `${summary.noRecordDays}`], ['นอกสถานที่', `${summary.offsiteDays}`],
+        ['วันทำงาน', `${summary.scheduledDays}`], ['มาทำงาน', `${summary.presentDays}`], ['มาสาย', `${summary.lateDays}`], ['ออกก่อนเวลา', `${summary.earlyDays}`],
+        ['ลางาน', `${summary.leaveDays}`], ['ไม่มีบันทึก', `${summary.noRecordDays}`], ['นอกสถานที่', `${summary.offsiteDays}`],
         ['ชั่วโมงรวม', summary.totalMinutes === null ? DASH : durationText(summary.totalMinutes)]
       ];
       return <article className="attendance-report-page attendance-timesheet-page timesheet-sheet" key={first?.employeeId || pageIndex}>
         <header className="timesheet-header">
           <div className="timesheet-brand"><img src="/brand/sms-logo-horizontal.webp" alt="SMS Security Management System" /></div>
-          <div className="timesheet-title"><h1>ใบลงเวลาทำงาน</h1><p>Monthly Timesheet</p></div>
+          <div className="timesheet-title"><h1>ใบลงเวลาทำงาน</h1><p>Monthly Timesheet</p><small>ข้อมูลตั้งแต่วันที่ 1–{Number(cutoff.slice(8, 10))} {formatThaiMonth(report.period)}</small></div>
           <dl className="timesheet-docmeta">
             <div><dt>รายงาน</dt><dd>{report.reportId}</dd></div>
             <div><dt>ประจำเดือน</dt><dd>{formatThaiMonth(report.period)}</dd></div>
@@ -363,7 +383,7 @@ export function AttendanceOfficialReportPrint({ report, employeePages = groupByE
           {boxes.map(([label, value]) => <div key={label}><span>{label}</span><strong>{value}</strong></div>)}
         </section>
         <table className="timesheet-table">
-          <thead><tr><th>วันที่</th><th>วัน</th><th>เวลาเข้า</th><th>เวลาออก</th><th>ชั่วโมง</th><th>สถานะ</th><th>หมายเหตุ</th></tr></thead>
+          <thead><tr><th>วันที่</th><th>วัน</th><th>เข้างาน</th><th>ออกงาน</th><th>ชั่วโมง</th><th>สถานะ</th><th>สถานที่</th><th>หมายเหตุ</th></tr></thead>
           <tbody>{days.map((day) => {
             const status = timesheetDayStatus(day);
             const shaded = isWeekend(day);
@@ -375,14 +395,15 @@ export function AttendanceOfficialReportPrint({ report, employeePages = groupByE
               <td>{times('checkOut')}</td>
               <td>{day.hasWorkedDuration ? durationText(day.workedMinutes) : DASH}</td>
               <td className={`timesheet-status--${status.tone}`}>{status.label}</td>
+              <td>{[...new Set(day.rows.map((row) => (row.actualSite || row.assignedSite || row.expectedSite)?.name || (row.actualSite || row.assignedSite || row.expectedSite)?.code).filter(Boolean))].join(', ') || DASH}</td>
               <td>{timesheetNotes(day)}</td>
             </tr>;
           })}</tbody>
         </table>
         <footer className="timesheet-signatures" aria-label="ช่องลงนาม">
-          {['พนักงาน', 'หัวหน้างาน', 'ฝ่ายบุคคล'].map((label) => <div key={label}><i /><strong>{label}</strong><span>วันที่ ____/____/______</span></div>)}
+          {['พนักงาน', 'หัวหน้างาน', 'ฝ่ายบุคคล'].map((label) => <div key={label}><span className="timesheet-signature-line">ลงชื่อ <i /></span><span>{label === 'พนักงาน' ? `( ${first?.employeeName || '........................................'} )` : '( ........................................ )'}</span><strong>{label}</strong><span>วันที่ ____/____/______</span></div>)}
         </footer>
-        <div className="timesheet-auditline">{report.reportId} · Revision {report.revision} · Certified {formatDateTime(report.certifiedAt)} · SHA-256 {report.summaryDigest} · หน้า {pageIndex + 1}/{employeePages.length}</div>
+        <div className="timesheet-auditline">{report.reportId} · Revision {report.revision} · Certified {formatDateTime(report.certifiedAt)} · SHA-256 {report.summaryDigest} · หน้า {pageIndex + 1}/{printPages.length}</div>
       </article>;
     })}
   </section>;

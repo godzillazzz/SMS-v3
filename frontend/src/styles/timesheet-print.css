@@ -5,6 +5,7 @@
 .timesheet-title { text-align: center; }
 .timesheet-title h1 { margin: 0; color: #173566; font-size: 16pt; line-height: 1.15; }
 .timesheet-title p { margin: 0; color: #52677a; font-size: 9pt; letter-spacing: .04em; }
+.timesheet-title small { display: block; margin-top: .5mm; color: #52677a; font-size: 7pt; }
 .timesheet-docmeta { display: grid; gap: .6mm; margin: 0; font-size: 7.5pt; }
 .timesheet-docmeta > div { display: grid; grid-template-columns: 19mm 1fr; }
 .timesheet-docmeta dt { color: #52677a; }
@@ -21,11 +22,12 @@
 .timesheet-table { width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 7.5pt; line-height: 1.1; }
 .timesheet-table th, .timesheet-table td { padding: .55mm 1mm; border: 1px solid #cfd9e5; overflow-wrap: anywhere; }
 .timesheet-table th { background: #173566; color: #fff; font-weight: 700; }
-.timesheet-table th:nth-child(1) { width: 15%; }
-.timesheet-table th:nth-child(2) { width: 10%; }
-.timesheet-table th:nth-child(3), .timesheet-table th:nth-child(4) { width: 13%; }
-.timesheet-table th:nth-child(5) { width: 9%; }
-.timesheet-table th:nth-child(6) { width: 12%; }
+.timesheet-table th:nth-child(1) { width: 12%; }
+.timesheet-table th:nth-child(2) { width: 8%; }
+.timesheet-table th:nth-child(3), .timesheet-table th:nth-child(4) { width: 10%; }
+.timesheet-table th:nth-child(5) { width: 8%; }
+.timesheet-table th:nth-child(6) { width: 11%; }
+.timesheet-table th:nth-child(7) { width: 15%; }
 .timesheet-table td:nth-child(-n+6) { text-align: center; white-space: nowrap; }
 .timesheet-table td { font-variant-numeric: tabular-nums; }
 .timesheet-day--weekend td { background: #eef1f5; color: #5b6878; }
@@ -34,8 +36,9 @@
 .timesheet-status--leave { color: #1d4ed8; }
 .timesheet-status--review { color: #c62828; }
 .timesheet-signatures { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8mm; margin-top: 7mm; text-align: center; font-size: 7.8pt; }
-.timesheet-signatures > div { display: grid; gap: 1mm; }
-.timesheet-signatures i { display: block; height: 7mm; border-bottom: 1px solid #52677a; }
+.timesheet-signatures > div { display: grid; gap: .8mm; }
+.timesheet-signature-line { display: flex; align-items: flex-end; gap: 1mm; }
+.timesheet-signatures i { display: block; flex: 1; min-width: 12mm; height: 5mm; border-bottom: 1px dotted #52677a; }
 .timesheet-signatures span { color: #52677a; font-size: 7pt; }
 .timesheet-auditline { margin-top: 2.5mm; color: #64748b; font-size: 6.5pt; overflow-wrap: anywhere; }
 @media print {

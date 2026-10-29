@@ -24,7 +24,7 @@
 .attendance-report-controls legend,.attendance-report-controls label span { color: var(--color-text-secondary, #52677a); font-size: 12px; font-weight: 600; }
 .attendance-report-controls fieldset label { display: inline-flex; align-items: center; gap: 6px; color: var(--color-text, #102033); font-size: 13px; }
 .attendance-report-controls > label { display: grid; gap: 5px; color: var(--color-text-secondary, #52677a); font-size: 12px; font-weight: 600; }
-.attendance-report-controls select { width: 100%; min-height: 40px; padding: 8px 10px; border: 1px solid var(--color-border, #dce6ee); border-radius: 8px; background: var(--color-surface, #fff); color: var(--color-text, #102033); }
+.attendance-report-controls select,.attendance-report-controls input[type="date"] { width: 100%; min-height: 40px; box-sizing: border-box; padding: 8px 10px; border: 1px solid var(--color-border, #dce6ee); border-radius: 8px; background: var(--color-surface, #fff); color: var(--color-text, #102033); }
 .attendance-report-scope { margin: 0; color: var(--color-text-secondary, #52677a); font-size: 13px; }
 .attendance-report-scope strong { color: var(--color-text, #102033); }
 
