@@ -22,10 +22,11 @@ test('980px roster cells show only D/N/AL/OFF codes, with time and MANUAL retain
     return route.fulfill({ status: 200, json: { data: [], summary: {}, meta: { page: 1, pageSize: 20, total: 0, totalPages: 0 } } });
   });
   await page.goto('/app/roster?month=2026-10');
-  await expect(page.locator('#auth-login-form')).toBeVisible({ timeout: readinessTimeout() });
+  await expect(page.locator('.nexus-onescreen #auth-login-form')).toBeVisible({ timeout: readinessTimeout() });
   await page.locator('#email').fill('admin@example.test');
   await page.locator('#password').fill('fixture-password');
   await page.locator('#auth-login-form button[type="submit"]').click();
+  await expect(page.locator('.app-shell')).toBeVisible({ timeout: readinessTimeout() });
   await expect(page.getByRole('heading', { name: 'ตารางกะรายเดือน' })).toBeVisible({ timeout: readinessTimeout() });
 
   const grid = page.locator('.schedule-grid');
