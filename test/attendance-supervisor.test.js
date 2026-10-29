@@ -240,6 +240,29 @@ test('month print returns every active authorized employee with deterministic bl
   assert.deepEqual(calls[0][1].where, { isActive: true, deletedAt: null });
 });
 
+test('month print fails closed before building an unsafe oversized roster document', async () => {
+  const employees = Array.from({ length: 201 }, (_, index) => ({
+    id: `emp-${index}`,
+    employeeCode: `E${String(index).padStart(3, '0')}`,
+    firstName: 'Employee',
+    lastName: String(index),
+    displayName: `Employee ${index}`,
+    department: 'OPS'
+  }));
+  const prisma = {
+    employee: { findMany: async (args) => {
+      assert.equal(args.take, 201);
+      return employees;
+    } },
+    shiftAssignment: { findMany: async () => { throw new Error('assignments must not load after roster guard'); } }
+  };
+  const service = createAttendanceSupervisorService({ prisma, clock: () => new Date('2026-08-29T12:00:00.000Z') });
+  await assert.rejects(
+    () => service.monthPrint({ actor: { role: 'ADMIN' }, selectedDate: '2026-08-29' }),
+    (error) => error.statusCode === 413 && (error.details?.code || error.code) === 'ATTENDANCE_MONTH_PRINT_ROSTER_TOO_LARGE'
+  );
+});
+
 test('month print limits VIEWER to linked employee and rejects unlinked VIEWER', async () => {
   let employeeWhere;
   const prisma = {

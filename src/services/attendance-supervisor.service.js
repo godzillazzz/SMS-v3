@@ -12,6 +12,7 @@ const { currentCorrectionsForAssignments, applyCurrentCorrections } = require('.
 const BANGKOK_TIME_ZONE = 'Asia/Bangkok';
 const EMPTY_ID = '00000000-0000-0000-0000-000000000000';
 const MAX_HISTORY_DAYS = 62;
+const MAX_MONTH_PRINT_ROSTER = 200;
 
 function http(statusCode, code, message) {
   return new HttpError(statusCode, message, { code });
@@ -445,9 +446,13 @@ function createAttendanceSupervisorService({ prisma = prismaDefault, clock = () 
     const employeeWhere = employeeScopeWhere(scope, {});
     const employees = await client.employee.findMany({
       where: employeeWhere,
+      take: MAX_MONTH_PRINT_ROSTER + 1,
       select: { id: true, employeeCode: true, firstName: true, lastName: true, displayName: true, department: true },
       orderBy: [{ employeeCode: 'asc' }, { id: 'asc' }]
     });
+    if (employees.length > MAX_MONTH_PRINT_ROSTER) {
+      throw http(413, 'ATTENDANCE_MONTH_PRINT_ROSTER_TOO_LARGE', `Attendance month print exceeds maximum roster size of ${MAX_MONTH_PRINT_ROSTER} employees.`);
+    }
     employees.sort((left, right) => String(left.employeeCode).localeCompare(String(right.employeeCode)) || String(left.id).localeCompare(String(right.id)));
 
     const employeeIds = employees.map((employee) => employee.id);

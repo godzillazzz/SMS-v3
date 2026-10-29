@@ -405,7 +405,7 @@ function AttendanceMobileCard({
   mode: 'daily' | 'history';
   onPrint(employeeId: string): void;
   onOpenAdjustment(row: AttendanceRow): void;
-  onOpenDetail(assignmentId: string): void;
+  onOpenDetail(row: AttendanceRow): void;
 }) {
   return <article className="attendance-supervisor-v4__mobile-card data-mobile-card">
     <header>
@@ -451,7 +451,7 @@ function AttendanceMobileCard({
       <button
         type="button"
         className="attendance-supervisor-v4__detail-btn"
-        onClick={() => onOpenDetail(row.assignmentId)}
+        onClick={() => onOpenDetail(row)}
         aria-label={`ดูรายละเอียด Attendance ของ ${row.employeeName}`}
       >
         ดูรายละเอียด
@@ -525,7 +525,7 @@ export function AttendanceSupervisorPage({ token, role, department, employeeAuth
   const [workflowError, setWorkflowError] = useState<string>();
   const [reloadKey, setReloadKey] = useState(0);
   const reportKey = JSON.stringify([token, date, departmentFilter, siteId, shiftTypeId, employeeId, status, reloadKey]);
-  const detailDialogRef = useAccessibleOverlay<HTMLElement>(Boolean(detailLoading || detail), () => { if (!detailLoading) setDetail(undefined); }, { closeDisabled: detailLoading });
+  const detailDialogRef = useAccessibleOverlay<HTMLElement>(Boolean(detailLoading || detail), () => { if (!detailLoading) { setDetail(undefined); setDetailRow(undefined); } }, { closeDisabled: detailLoading });
   const manualDialogRef = useAccessibleOverlay<HTMLElement>(Boolean(manualDialog), () => setManualDialog(undefined), { closeDisabled: workflowBusy, initialFocusSelector: 'select, input, textarea' });
   const adjustmentDialogRef = useAccessibleOverlay<HTMLElement>(Boolean(adjustmentDialog), () => setAdjustmentDialog(undefined), { closeDisabled: workflowBusy, initialFocusSelector: 'input, textarea' });
   const reviewDialogRef = useAccessibleOverlay<HTMLElement>(Boolean(reviewDialog), () => setReviewDialog(undefined), { closeDisabled: workflowBusy, initialFocusSelector: 'textarea, button' });
@@ -668,8 +668,9 @@ export function AttendanceSupervisorPage({ token, role, department, employeeAuth
 
   const refresh = () => setReloadKey((value) => value + 1);
 
-  const openDetail = async (assignmentId: string) => {
+  const openDetail = async (assignmentId: string, row?: AttendanceRow) => {
     setDetail(undefined);
+    setDetailRow(row);
     setDetailRequests([]);
     setDetailLoading(true);
     setError(undefined);
@@ -1069,7 +1070,7 @@ export function AttendanceSupervisorPage({ token, role, department, employeeAuth
             <td>
               <div className="attendance-supervisor-v4__row-actions">
                 {mode === 'daily' && <button type="button" className="sms-edit-button attendance-supervisor-v4__print-btn" title="พิมพ์รายบุคคล" aria-label={`พิมพ์ ${row.employeeName}`} disabled={printLoading} onClick={() => void printAttendance(row.employeeId)}><SmsIcon name="report" size={18} /></button>}
-                <button type="button" className="sms-edit-button attendance-supervisor-v4__open-btn" title="แก้ไข" aria-label={`แก้ไข ${row.employeeName}`} onClick={() => { setDetailRow(row); void openDetail(row.assignmentId); }}><SmsIcon name="edit" size={18} /></button>
+                <button type="button" className="sms-edit-button attendance-supervisor-v4__open-btn" title="แก้ไข" aria-label={`แก้ไข ${row.employeeName}`} onClick={() => { setDetailRow(row); void openDetail(row.assignmentId, row); }}><SmsIcon name="edit" size={18} /></button>
               </div>
             </td>
           </tr>
@@ -1085,7 +1086,7 @@ export function AttendanceSupervisorPage({ token, role, department, employeeAuth
     {loading ? <DataTableSkeletonCards count={3} cardClassName="attendance-supervisor-v4__mobile-card data-mobile-card" /> : error ? (
       <DataTableState variant="error" title="ไม่สามารถแสดงข้อมูล Attendance ได้" description={error} action={{ label: 'ลองใหม่', onClick: refresh }} />
     ) : rows.length ? rows.map((row) => (
-      <AttendanceMobileCard key={row.assignmentId} row={row} mode={mode === 'history' ? 'history' : 'daily'} onPrint={(id) => void printAttendance(id)} onOpenAdjustment={openRowAdjustment} onOpenDetail={(assignmentId) => void openDetail(assignmentId)} />
+      <AttendanceMobileCard key={row.assignmentId} row={row} mode={mode === 'history' ? 'history' : 'daily'} onPrint={(id) => void printAttendance(id)} onOpenAdjustment={openRowAdjustment} onOpenDetail={(r) => void openDetail(r.assignmentId, r)} />
     )) : (
       <DataTableState variant="empty" title={attendanceStateTitle} description="ลองปรับตัวกรองเพื่อค้นหารายการเพิ่มเติม" />
     )}
@@ -1423,16 +1424,16 @@ export function AttendanceSupervisorPage({ token, role, department, employeeAuth
       <div
         className="attendance-supervisor-v4__detail-backdrop"
         onMouseDown={(event) => {
-          if (event.currentTarget === event.target) setDetail(undefined);
+          if (event.currentTarget === event.target) { setDetail(undefined); setDetailRow(undefined); }
         }}
       >
         <aside ref={detailDialogRef} className="attendance-supervisor-v4__detail-modal" role="dialog" aria-modal="true" aria-label="รายละเอียด Attendance" tabIndex={-1}>
           <header>
             <div>
-              <span>ATTENDANCE DETAIL</span>
+               <span>ATTENDANCE DETAIL</span>
               <h3>{detail?.employeeName || 'กำลังโหลด…'}</h3>
             </div>
-            <button type="button" aria-label="ปิด" onClick={() => setDetail(undefined)}><SmsIcon name="close" size={18} /></button>
+            <button type="button" aria-label="ปิด" onClick={() => { setDetail(undefined); setDetailRow(undefined); }}><SmsIcon name="close" size={18} /></button>
           </header>
 
           {detailLoading ? (
@@ -1521,9 +1522,9 @@ export function AttendanceSupervisorPage({ token, role, department, employeeAuth
               </small>
             </section>
           </>}
-          {detail && detailRow && <footer className="attendance-supervisor-v4__detail-modal-footer">
+          {detail && detailRow && detailRow.assignmentId === detail.assignmentId && <footer className="attendance-supervisor-v4__detail-modal-footer">
             {mode === 'daily' && <button type="button" className="btn-neutral" onClick={() => void printAttendance(detailRow.employeeId)}><SmsIcon name="report" size={16} />พิมพ์รายบุคคล</button>}
-            <button type="button" className="btn-primary" onClick={() => { const row = detailRow; setDetail(undefined); openRowAdjustment(row); }}><SmsIcon name="clock" size={16} />ลงเวลาแทน</button>
+            <button type="button" className="btn-primary" onClick={() => { const row = detailRow; setDetail(undefined); setDetailRow(undefined); openRowAdjustment(row); }}><SmsIcon name="clock" size={16} />ลงเวลาแทน</button>
           </footer>}
         </aside>
       </div>

@@ -10,6 +10,7 @@ const css = read('./pages/attendance-supervisor/attendance-supervisor-v4.css');
 const adjustmentClient = read('./pages/attendance-supervisor/attendance-adjustment-client.ts');
 const attendanceClient = read('./pages/attendance/attendance-client.ts');
 const attendanceAuth = read('./attendance-auth-request.ts');
+const schedulePrint = read('./schedule-print.ts');
 
 describe('Attendance Supervisor UX V4', () => {
   it('restores a dedicated governed on-behalf Attendance destination for Manager/Admin', () => {
@@ -85,12 +86,19 @@ describe('Attendance Supervisor UX V4', () => {
     expect(page).toContain("printDocument('.attendance-supervisor-print'");
     expect(page).toContain('<AttendanceMonthToDatePrint date={date} employees={printEmployees} rows={printRows} />');
     expect(page).not.toContain('AttendanceSupervisorPrint');
+    expect(schedulePrint).toContain('.attendance-supervisor-print-page:not(.timesheet-sheet) table');
+    expect(schedulePrint).toContain('.attendance-supervisor-print-page:not(.timesheet-sheet) th');
+    expect(schedulePrint).not.toContain('.attendance-supervisor-print-page table {');
   });
 
   it('keeps report controls together and supports per-person print in daily mode', () => {
     expect(css).toContain('.attendance-supervisor-v4__print-actions { display: flex; flex-wrap: nowrap;');
     expect(page).toContain("if (mode !== 'daily' || printLoading) return;");
     expect(page).toContain('void printAttendance(row.employeeId)');
+    expect(page).toContain('const openDetail = async (assignmentId: string, row?: AttendanceRow)');
+    expect(page).toContain('setDetailRow(row);');
+    expect(page).toContain('onOpenDetail={(r) => void openDetail(r.assignmentId, r)}');
+    expect(page).toContain('detailRow.assignmentId === detail.assignmentId');
   });
 
   it('implements the reduced owner supervisor table columns', () => {
@@ -142,7 +150,7 @@ describe('Attendance Supervisor UX V4', () => {
 
   it('keeps on-behalf keying one click away in the row details dialog (owner issue 8)', () => {
     expect(page).toContain('ลงเวลาแทน');
-    expect(page).toContain('onClick={() => { setDetailRow(row); void openDetail(row.assignmentId); }}');
+    expect(page).toContain('onClick={() => { setDetailRow(row); void openDetail(row.assignmentId, row); }}');
     expect(page).toContain('openRowAdjustment(row); }}><SmsIcon name="clock" size={16} />ลงเวลาแทน</button>');
     expect(page).toContain("type: 'CONFIRM_WORK_PERFORMED'");
     expect(page).toContain("checkInAt: bangkokInput(row.checkInAt || row.originalCheckInAt || '')");

@@ -1649,12 +1649,15 @@ html[data-theme] .app-shell:not(.pwa-shell) .content-area .attendance-supervisor
 .attendance-daily-report__sheet tr { break-inside: avoid; page-break-inside: avoid; }
 .attendance-daily-report__sheet th, .attendance-daily-report__sheet td { padding: 1.5mm 1.2mm; border: 1px solid #cbd5e1; color: #0f172a; text-align: left; vertical-align: top; overflow-wrap: anywhere; }
 .attendance-daily-report__sheet th { background: #e2e8f0; font-weight: 700; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-.attendance-daily-report__sheet th:nth-child(1), .attendance-daily-report__sheet td:nth-child(1) { width: 9%; text-align: center; }
-.attendance-daily-report__sheet th:nth-child(2) { width: 11%; }
-.attendance-daily-report__sheet th:nth-child(3) { width: 24%; }
-.attendance-daily-report__sheet th:nth-child(4) { width: 14%; }
-.attendance-daily-report__sheet th:nth-child(5), .attendance-daily-report__sheet th:nth-child(6), .attendance-daily-report__sheet th:nth-child(7) { width: 10%; }
+.attendance-daily-report__sheet th:nth-child(1), .attendance-daily-report__sheet td:nth-child(1) { width: 6%; text-align: center; }
+.attendance-daily-report__sheet th:nth-child(2) { width: 18%; }
+.attendance-daily-report__sheet th:nth-child(3) { width: 10%; }
+.attendance-daily-report__sheet th:nth-child(4) { width: 12%; }
+.attendance-daily-report__sheet th:nth-child(5), .attendance-daily-report__sheet th:nth-child(6), .attendance-daily-report__sheet th:nth-child(7) { width: 7%; }
 .attendance-daily-report__sheet td:nth-child(5), .attendance-daily-report__sheet td:nth-child(6), .attendance-daily-report__sheet td:nth-child(7) { text-align: center; }
+.attendance-daily-report__sheet th:nth-child(8) { width: 11%; }
+.attendance-daily-report__sheet th:nth-child(9) { width: 10%; }
+.attendance-daily-report__sheet th:nth-child(10) { width: 12%; }
 .attendance-daily-report__status { font-weight: 700; }
 .attendance-daily-report__status--good { color: #047857; }
 .attendance-daily-report__status--warning { color: #b45309; }
