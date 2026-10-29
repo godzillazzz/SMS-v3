@@ -8,7 +8,7 @@ import { formatThaiDate, formatThaiDateTime } from '../../thai-date-time';
 import { updateRouteQuery } from '../../routing';
 import type { LeaveDecisionAction } from '../../components/LeaveDecisionConfirmation';
 import { approveAttendanceAdjustment, rejectAttendanceAdjustment, reviewAttendanceAdjustment, returnAttendanceAdjustment } from '../attendance-supervisor/attendance-adjustment-client';
-import { attendanceDeviceSelfieBlob } from '../attendance/attendance-client';
+import { attendanceDeviceSelfieWithTimestamp } from '../attendance/attendance-client';
 import '../../styles/approval-center.css';
 import { MetricCard, PageHeader, SectionCard } from '../../components/layout';
 import { useActionDialog } from '../../components/useActionDialog';
@@ -321,7 +321,7 @@ export function ApprovalCenterPage({
 
   const selected = items.find((item) => item.id === selectedId);
   const [decisionId, setDecisionId] = useState('');
-  const [deviceSelfie, setDeviceSelfie] = useState<{ id?: string; url?: string; loading?: boolean; error?: string }>({});
+  const [deviceSelfie, setDeviceSelfie] = useState<{ id?: string; url?: string; capturedAt?: string | null; loading?: boolean; error?: string }>({});
   const selfieGeneration = useRef(0);
 
   useEffect(() => () => {
@@ -349,9 +349,9 @@ export function ApprovalCenterPage({
     const generation = ++selfieGeneration.current;
     setDeviceSelfie({ id: item.id, loading: true });
     try {
-      const blob = await attendanceDeviceSelfieBlob(token, employeeId, deviceId);
+      const { blob, capturedAt } = await attendanceDeviceSelfieWithTimestamp(token, employeeId, deviceId);
       if (generation !== selfieGeneration.current) return;
-      setDeviceSelfie({ id: item.id, url: URL.createObjectURL(blob) });
+      setDeviceSelfie({ id: item.id, url: URL.createObjectURL(blob), capturedAt });
     } catch {
       if (generation !== selfieGeneration.current) return;
       setDeviceSelfie({ id: item.id, error: 'ไม่มีรูปเซลฟี่จากการลงเวลา หรือดึงรูปไม่สำเร็จ' });
@@ -886,9 +886,8 @@ export function ApprovalCenterPage({
                     alt={`รูปเซลฟี่จากการลงเวลาของ ${employeeName(decision)}`}
                     style={{ maxWidth: '100%', maxHeight: '240px', borderRadius: '8px', border: '1px solid var(--color-border, #cbd5e1)', objectFit: 'contain' }}
                   />
-                  <small style={{ color: 'var(--color-text-muted, #64748b)', fontSize: '11px', textAlign: 'center' }}>
-                    รูปเซลฟี่จากการลงเวลา ไม่ใช่รูปแนบคำขอ
-                  </small>
+                  <small style={{ color: 'var(--color-text-muted, #64748b)', fontSize: '11px', textAlign: 'center' }}>รูปเซลฟี่จากการลงเวลา ไม่ใช่รูปแนบคำขอ</small>
+                  <small>{visibleSelfie.capturedAt ? `เวลาลงเวลาที่บันทึกพร้อมรูป: ${new Intl.DateTimeFormat('th-TH', { timeZone: 'Asia/Bangkok', dateStyle: 'medium', timeStyle: 'short' }).format(new Date(visibleSelfie.capturedAt))} (เวลาไทย)` : 'ไม่พบเวลาบันทึกรูปเซลฟี่'}</small>
                 </div>
               )}
               {visibleSelfie.error && (

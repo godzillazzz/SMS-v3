@@ -410,7 +410,7 @@ export async function rejectAttendanceDevice(token: string, employeeId: string, 
 }
 
 /** ADMIN review image: the latest clock-in selfie taken on this device, proxied by the API. */
-export async function attendanceDeviceSelfieBlob(token: string, employeeId: string, deviceId: string): Promise<Blob> {
+export async function attendanceDeviceSelfieWithTimestamp(token: string, employeeId: string, deviceId: string): Promise<{ blob: Blob; capturedAt: string | null }> {
   const path = `/attendance/devices/admin/employees/${encodeURIComponent(employeeId)}/devices/${encodeURIComponent(deviceId)}/selfie`;
   const response = await attendanceAuthenticatedRequest(path, token, { method: 'GET', credentials: 'include', headers: authHeaders(token) });
   if (!response.ok) {
@@ -420,7 +420,13 @@ export async function attendanceDeviceSelfieBlob(token: string, employeeId: stri
   }
   const type = response.headers.get('content-type') || '';
   if (!/^image\/(jpeg|png)\b/.test(type)) throw new AttendanceFlowError('รูปเซลฟี่มีรูปแบบไม่ถูกต้อง', 502, undefined, undefined);
-  return response.blob();
+  const value = response.headers.get('x-selfie-captured-at');
+  const capturedAt = value && /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z$/.test(value) && Number.isFinite(Date.parse(value)) && new Date(value).toISOString() === value ? value : null;
+  return { blob: await response.blob(), capturedAt };
+}
+
+export async function attendanceDeviceSelfieBlob(token: string, employeeId: string, deviceId: string): Promise<Blob> {
+  return (await attendanceDeviceSelfieWithTimestamp(token, employeeId, deviceId)).blob;
 }
 
 export async function verifyAttendanceDeviceProof(token: string, sessionId: string, input: {
