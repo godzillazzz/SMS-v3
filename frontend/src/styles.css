@@ -1676,11 +1676,9 @@ button, select, input, textarea {
   .leave-print-write-at { text-align: right; font-size: 11pt; line-height: 1.5; margin-bottom: 3mm; }
   .leave-print-subject { font-size: 11.5pt; line-height: 1.6; margin-bottom: 3.5mm; }
 
-  .leave-print-letter-body { font-size: 11pt; line-height: 1.6; margin-bottom: 3mm; text-align: justify; text-justify: inter-character; word-break: normal; overflow-wrap: anywhere; }
+  .leave-print-letter-body { font-size: 11pt; line-height: 1.6; margin-bottom: 3mm; text-align: justify; text-justify: inter-character; text-align-last: left; word-break: normal; overflow-wrap: break-word; line-break: strict; }
   .leave-print-letter-body p { text-indent: 12mm; }
   .leave-print-letter-body p { margin: 1.2mm 0; }
-  .print-fill { border-bottom: 1px dotted #475569; padding: 0 4px; color: #0f172a; }
-  .print-fill-bold { font-weight: 700; }
 
   .leave-print-applicant-sig { width: 55%; margin: 3mm 0 3mm auto; text-align: center; font-size: 11pt; line-height: 1.35; }
   .leave-print-sig-dots { position: relative; display: flex; justify-content: center; margin-bottom: 1.2mm; white-space: nowrap; }

@@ -1728,23 +1728,18 @@ function LeavePrintDocument({ row, ledger }: { row: DataRow; ledger: LeavePrintL
       <div><strong>เรียน</strong> ผู้บังคับบัญชา</div>
     </div>
 
-    <div className="leave-print-letter-body">
+    <div className="leave-print-letter-body" lang="th">
       <p>
-        ข้าพเจ้า <span className="print-fill print-fill-bold">{text(row.employeeNameSnapshot)}</span>{' '}
-        รหัสพนักงาน <span className="print-fill">{text(row.employeeCodeSnapshot || row.employeeCode || '–')}</span>{' '}
-        ตำแหน่ง <span className="print-fill">{text(row.jobTitle || nested(row.employee).jobTitle || 'พนักงานรักษาความปลอดภัย')}</span>{' '}
-        สังกัดแผนก <span className="print-fill">{text(row.departmentSnapshot || row.department || '–')}</span>
-      </p>
-      <p>
-        มีความประสงค์ขอ{leaveName} เนื่องจาก <span className="print-fill">{text(row.reasonDetail || row.reason || '–')}</span>
-      </p>
-      <p>
-        ตั้งแต่วันที่ <span className="print-fill">{startDateStr}</span> ถึงวันที่ <span className="print-fill">{endDateStr}</span>{' '}
-        มีกำหนด <span className="print-fill print-fill-bold">{text(row.dayCount)}</span> วันทำการ
-      </p>
-      <p>
-        ในระหว่างการลาติดต่อข้าพเจ้าได้ที่หมายเลข <span className="print-fill">{text(row.contactPhone || nested(row.employee).phone || '–')}</span>{' '}
-        ผู้ปฏิบัติงานแทน / รายละเอียด: <strong>ผู้ปฏิบัติงานแทน:</strong> <span className="print-fill">{text(row.substitute || row.substituteName || '–')}</span> <strong>รายละเอียด:</strong> <span className="print-fill">{text(row.reasonDetail || row.reason || '–')}</span>
+        ข้าพเจ้า {text(row.employeeNameSnapshot)}{' '}
+        รหัสพนักงาน {text(row.employeeCodeSnapshot || row.employeeCode || '–')}{' '}
+        ตำแหน่ง {text(row.jobTitle || nested(row.employee).jobTitle || 'พนักงานรักษาความปลอดภัย')}{' '}
+        สังกัดแผนก {text(row.departmentSnapshot || row.department || '–')}{' '}
+        มีความประสงค์ขอ{leaveName} เนื่องจาก {text(row.reasonDetail || row.reason || '–')}{' '}
+        ตั้งแต่วันที่ {startDateStr} ถึงวันที่ {endDateStr}{' '}
+        มีกำหนด {text(row.dayCount)} วันทำการ{' '}
+        ในระหว่างการลาติดต่อข้าพเจ้าได้ที่หมายเลข {text(row.contactPhone || nested(row.employee).phone || '–')}{' '}
+        ผู้ปฏิบัติงานแทน / รายละเอียด: ผู้ปฏิบัติงานแทน: {text(row.substitute || row.substituteName || '–')}{' '}
+        รายละเอียด: {text(row.reasonDetail || row.reason || '–')}
       </p>
     </div>
 
