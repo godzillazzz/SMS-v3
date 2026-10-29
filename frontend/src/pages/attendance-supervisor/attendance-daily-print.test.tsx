@@ -43,7 +43,7 @@ describe('AttendanceDailyReport (owner A4 reference)', () => {
     expect(headers).toEqual(['ลำดับ', 'รหัส', 'ชื่อ-สกุล', 'แผนก', 'เวลาเข้า', 'เวลาออก', 'ชั่วโมง', 'สถานะ']);
     const body = Array.from(report.querySelectorAll('tbody tr'), (tr) => Array.from(tr.querySelectorAll('td'), (td) => td.textContent));
     expect(body[0]).toEqual(['1', 'EMP-101', 'อนันต์ ตัวอย่าง', 'รปภ.', '07:55', '17:05', '9:10', 'มาทำงาน']);
-    expect(body[1]).toEqual(['2', 'EMP-202', 'บุญ ตัวอย่าง', '–', '08:20', '–', '–', 'มาสาย']);
+    expect(body[1]).toEqual(['2', 'EMP-202', 'บุญ ตัวอย่าง', '–', '08:20', '–', '–', 'มาสาย · อุปกรณ์ไม่ตรง · นอกพื้นที่']);
     expect(body[2]).toEqual(['3', '–', 'ชัย ตัวอย่าง', 'ธุรการ', '–', '–', '–', 'ไม่มีบันทึก']);
     expect(report.querySelector('tbody tr:nth-child(3) .attendance-daily-report__status--danger')).not.toBeNull();
     expect(report.textContent).not.toContain('DEVICE_MISMATCH');
@@ -81,4 +81,16 @@ describe('AttendanceDailyReport (owner A4 reference)', () => {
     expect(css).toContain('.attendance-daily-report__sheet');
     expect(css).toContain('.attendance-daily-report__status--danger');
   });
+  it('counts employees distinctly and includes support sites', () => {
+    const data = [{ ...rows[0], employeeId: 'one' }, { ...rows[0], assignmentId: 'second', employeeId: 'one', flags: ['ASSIST_OTHER_SITE'] }, { ...rows[1], employeeId: 'two' }];
+    expect(dailyReportSummary(data).total).toBe(2);
+    expect(dailyReportSummary(data).offSite).toBe(2);
+  });
+
+  it('prints filter context and all relevant anomalies', () => {
+    render(<AttendanceDailyReport date="2026-10-28" rows={[{ ...rows[1], flags: ['LATE', 'WRONG_SHIFT', 'DEVICE_MISMATCH', 'OUTSIDE_ALL_SITES', 'TIME_ABNORMAL', 'MISSING_CHECK_OUT'] }]} filters={{ department: 'SECURITY', site: 'Site A', shift: 'Night', employee: 'EMP-202', status: 'มาสาย' }} onShow={() => undefined} />);
+    const sheet = document.querySelector('.attendance-daily-report__sheet')!.textContent!;
+    for (const text of ['SECURITY', 'Site A', 'Night', 'EMP-202', 'มาสาย', 'ผิดกะ', 'อุปกรณ์', 'นอกพื้นที่', 'เวลาผิดปกติ', 'ไม่ได้ลงเวลาออก']) expect(sheet).toContain(text);
+  });
+
 });

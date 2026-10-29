@@ -138,4 +138,12 @@ describe('Official Attendance report presentation', () => {
     expect(text).toContain('มาสาย');
     expect(text).toContain('ใช้อุปกรณ์อื่น · ตรวจสอบ');
   });
+  it('distinguishes work, absence and missing snapshot dates in the printed sheet', () => {
+    const input = [row({ workDate: '2026-08-01' }), row({ workDate: '2026-08-02', flags: ['ABSENT'] }), row({ workDate: '2026-08-03', flags: ['LEAVE'] })];
+    const days = attendanceReportPresentation.monthDayRows(input, '2026-08');
+    expect(attendanceReportPresentation.timesheetSummary(input, '2026-08').scheduledDays).toBe(1);
+    expect(attendanceReportPresentation.timesheetDayStatus(days[1]).label).toBe('ขาดงาน');
+    expect(attendanceReportPresentation.timesheetNotes(days[3])).toContain('ไม่มีรายการที่รับรองใน Snapshot');
+  });
+
 });

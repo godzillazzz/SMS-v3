@@ -5,6 +5,9 @@ import { printDocument } from '../../schedule-print';
 // attendance supervisor daily API rows; unknown values render as '–'.
 export type DailyReportRow = {
   assignmentId: string;
+  employeeId?: string;
+  workSiteContext?: string;
+  abnormalTime?: boolean;
   employeeCode?: string | null;
   employeeName?: string | null;
   department?: string | null;
@@ -22,15 +25,15 @@ const isLeave = (row: DailyReportRow) => has(row, 'LEAVE');
 const isNoRecord = (row: DailyReportRow) => !row.checkInAt && !row.checkOutAt && !isLeave(row);
 
 export function dailyReportSummary(rows: DailyReportRow[]) {
-  const count = (predicate: (row: DailyReportRow) => boolean) => rows.filter(predicate).length;
+  const count = (predicate: (row: DailyReportRow) => boolean) => new Set(rows.filter(predicate).map((row) => row.employeeId || `assignment:${row.assignmentId}`)).size;
   return {
-    total: rows.length,
+    total: count(() => true),
     checkedIn: count((row) => Boolean(row.checkInAt)),
     late: count((row) => has(row, 'LATE')),
     earlyOut: count((row) => has(row, 'EARLY_OUT')),
     leave: count(isLeave),
     noRecord: count(isNoRecord),
-    offSite: count((row) => has(row, 'OUTSIDE_ALL_SITES'))
+    offSite: count((row) => has(row, 'OUTSIDE_ALL_SITES') || has(row, 'ASSIST_OTHER_SITE') || row.workSiteContext === 'SUPPORT_SITE')
   };
 }
 
@@ -63,11 +66,12 @@ type Props = {
   rows: DailyReportRow[];
   loading?: boolean;
   error?: string;
+  filters?: { department: string; site: string; shift: string; employee: string; status: string };
   onShow: (date: string) => void;
   onClose?: () => void;
 };
 
-export function AttendanceDailyReport({ date, rows, loading = false, error, onShow, onClose }: Props) {
+export function AttendanceDailyReport({ date, rows, loading = false, error, filters, onShow, onClose }: Props) {
   const [draftDate, setDraftDate] = useState(date);
   const [printError, setPrintError] = useState<string>();
   useEffect(() => setDraftDate(date), [date]);
@@ -100,6 +104,7 @@ export function AttendanceDailyReport({ date, rows, loading = false, error, onSh
           <h1>รายงานการลงเวลาประจำวัน</h1>
           <p className="attendance-daily-report__subtitle">Daily Attendance</p>
           <p className="attendance-daily-report__date">{thaiLongDate(date)}</p>
+          <p>ตัวกรอง: แผนก {filters?.department || 'ทั้งหมด'} · จุดปฏิบัติงาน {filters?.site || 'ทั้งหมด'} · กะ {filters?.shift || 'ทั้งหมด'} · พนักงาน {filters?.employee || 'ทั้งหมด'} · สถานะ {filters?.status || 'ทั้งหมด'}</p>
         </header>
         <section className="attendance-daily-report__cards" aria-label="สรุปการลงเวลา">
           {cards.map(([label, value]) => <div className="attendance-daily-report__card" key={label}><span>{label}</span><strong>{loading || error ? DASH : value}</strong></div>)}
@@ -115,10 +120,11 @@ export function AttendanceDailyReport({ date, rows, loading = false, error, onSh
               : !rows.length ? <tr><td colSpan={8}>ไม่มีข้อมูลในระบบ</td></tr>
               : rows.map((row, index) => {
                 const status = dailyReportStatus(row);
+                const anomalies = ([['WRONG_SHIFT', 'ผิดกะ'], ['DEVICE_MISMATCH', 'อุปกรณ์ไม่ตรง'], ['OUTSIDE_ALL_SITES', 'นอกพื้นที่'], ['ASSIST_OTHER_SITE', 'ช่วย Site อื่น'], ['TIME_ABNORMAL', 'เวลาผิดปกติ'], ['MISSING_CHECK_IN', 'ไม่ได้ลงเวลาเข้า'], ['MISSING_CHECK_OUT', 'ไม่ได้ลงเวลาออก'], ['EARLY_OUT', 'ออกก่อนเวลา']] as const).filter(([flag]) => has(row, flag) || (flag === 'TIME_ABNORMAL' && row.abnormalTime) || (flag === 'ASSIST_OTHER_SITE' && row.workSiteContext === 'SUPPORT_SITE')).map(([, label]) => label);
                 return <tr key={row.assignmentId}>
                   <td>{index + 1}</td><td>{row.employeeCode || DASH}</td><td>{row.employeeName || DASH}</td><td>{row.department || DASH}</td>
                   <td>{clock(row.checkInAt)}</td><td>{clock(row.checkOutAt)}</td><td>{hours(row.workedMinutes)}</td>
-                  <td><span className={`attendance-daily-report__status attendance-daily-report__status--${status.tone}`}>{status.label}</span></td>
+                  <td><span className={`attendance-daily-report__status attendance-daily-report__status--${status.tone}`}>{status.label}{anomalies.length > 0 && ` · ${anomalies.join(' · ')}`}</span></td>
                 </tr>;
               })}
           </tbody>

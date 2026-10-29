@@ -41,7 +41,7 @@ describe('Monthly timesheet (owner reference layout)', () => {
 
   it('derives the 8 summary boxes only from certified rows', () => {
     const s = p.timesheetSummary(rows, '2026-08');
-    expect(s).toEqual({ scheduledDays: 5, presentDays: 3, lateDays: 1, earlyDays: 1, leaveDays: 1, noRecordDays: 1, offsiteDays: 1, totalMinutes: 720 * 2 + 600 });
+    expect(s).toEqual({ scheduledDays: 3, presentDays: 3, lateDays: 1, earlyDays: 1, leaveDays: 1, noRecordDays: 1, offsiteDays: 1, totalMinutes: 720 * 2 + 600 });
   });
 
   it('classifies day status: holiday for unscheduled days, red for no record', () => {
@@ -50,7 +50,7 @@ describe('Monthly timesheet (owner reference layout)', () => {
     expect(p.timesheetDayStatus(days[2])).toMatchObject({ label: 'ปกติ', tone: 'normal' });
     expect(p.timesheetDayStatus(days[3])).toMatchObject({ label: 'มาสาย', tone: 'warn' });
     expect(p.timesheetDayStatus(days[5])).toMatchObject({ label: 'ลา', tone: 'leave' });
-    expect(p.timesheetDayStatus(days[6])).toMatchObject({ label: 'ไม่มีบันทึก', tone: 'absent' });
+    expect(p.timesheetDayStatus(days[6])).toMatchObject({ label: 'ขาดงาน', tone: 'absent' });
     expect(p.isWeekend(days[0])).toBe(true);
     expect(p.isWeekend(days[2])).toBe(false);
   });
@@ -58,7 +58,7 @@ describe('Monthly timesheet (owner reference layout)', () => {
   it('renders header, employee block, summary, every day and signatures; unknown data shows –', () => {
     const html = renderToStaticMarkup(<AttendanceOfficialReportPrint report={report} printedAt="2026-09-01T00:00:00.000Z" />);
     for (const text of ['ใบลงเวลาทำงาน', 'Monthly Timesheet', 'R', 'สิงหาคม พ.ศ. 2569', 'สมชาย ใจดี', 'EMP-001', 'ตำแหน่ง', 'แผนก', 'เวลาทำงาน',
-      'วันทำงาน', 'มาทำงาน', 'มาสาย', 'ออกก่อน', 'ลา', 'ไม่มีบันทึก', 'นอกสถานที่', 'ชั่วโมงรวม', '34:00', 'หัวหน้างาน', 'ฝ่ายบุคคล']) expect(html).toContain(text);
+      'วันทำงาน', 'มาทำงาน', 'มาสาย', 'ออกก่อน', 'ลา', 'ขาดงาน', 'นอกสถานที่', 'ชั่วโมงรวม', '34:00', 'หัวหน้างาน', 'ฝ่ายบุคคล']) expect(html).toContain(text);
     const heads = [...html.matchAll(/<th[^>]*>([^<]*)<\/th>/g)].map((m) => m[1]);
     expect(heads).toEqual(['วันที่', 'วัน', 'เวลาเข้า', 'เวลาออก', 'ชั่วโมง', 'สถานะ', 'หมายเหตุ']);
     expect(html.match(/<tr class="timesheet-day/g)).toHaveLength(31);

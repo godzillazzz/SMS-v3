@@ -290,7 +290,7 @@ const isEarly = (row: AttendanceReportRow) => row.checkoutCondition === 'EARLY_L
 function timesheetDayStatus(day: TimesheetDay): { label: string; tone: 'unknown' | 'normal' | 'warn' | 'leave' | 'absent' | 'review' } {
   if (!day.rows.length) return { label: 'ไม่มีข้อมูล', tone: 'unknown' };
   const working = day.rows.filter((row) => !hasFlag(row, 'LEAVE') && !hasFlag(row, 'ABSENT'));
-  if (!working.length) return day.rows.some((row) => hasFlag(row, 'LEAVE')) ? { label: 'ลา', tone: 'leave' } : { label: 'ไม่มีบันทึก', tone: 'absent' };
+  if (!working.length) return day.rows.some((row) => hasFlag(row, 'LEAVE')) ? { label: 'ลา', tone: 'leave' } : { label: 'ขาดงาน', tone: 'absent' };
   if (working.some((row) => !((row.effectiveCheckInAt || row.checkInAt) && (row.effectiveCheckOutAt || row.checkOutAt)) || hasFlag(row, 'MISSING_CHECK_IN') || hasFlag(row, 'MISSING_CHECK_OUT') || hasFlag(row, 'WRONG_SHIFT') || hasFlag(row, 'DEVICE_MISMATCH') || hasFlag(row, 'OUTSIDE_ALL_SITES') || row.abnormalTime || hasFlag(row, 'TIME_ABNORMAL'))) return { label: 'ตรวจสอบ', tone: 'review' };
   if (working.some((row) => row.punctuality === 'LATE' || hasFlag(row, 'LATE'))) return { label: 'มาสาย', tone: 'warn' };
   if (working.some(isEarly)) return { label: 'ออกก่อน', tone: 'warn' };
@@ -302,7 +302,7 @@ function timesheetSummary(rows: AttendanceReportRow[], period: string) {
   const count = (predicate: (day: TimesheetDay) => boolean) => days.filter(predicate).length;
   const working = (day: TimesheetDay) => day.rows.filter((row) => !hasFlag(row, 'LEAVE') && !hasFlag(row, 'ABSENT'));
   return {
-    scheduledDays: days.length,
+    scheduledDays: count((day) => working(day).length > 0),
     presentDays: count((day) => working(day).some((row) => Boolean(row.effectiveCheckInAt || row.checkInAt))),
     lateDays: count((day) => working(day).some((row) => row.punctuality === 'LATE' || hasFlag(row, 'LATE'))),
     earlyDays: count((day) => working(day).some(isEarly)),
@@ -314,7 +314,7 @@ function timesheetSummary(rows: AttendanceReportRow[], period: string) {
 }
 
 function timesheetNotes(day: TimesheetDay) {
-  return [...new Set(day.rows.map(resultText).filter(Boolean))].join(' · ');
+  return day.rows.length ? [...new Set(day.rows.map(resultText).filter(Boolean))].join(' · ') : day.notes.join(' · ');
 }
 
 export function AttendanceOfficialReportPrint({ report, employeePages = groupByEmployee(report.rows), printedAt }: { report: AttendanceOfficialReport; employeePages?: AttendanceReportRow[][]; printedAt?: string }) {
@@ -332,7 +332,7 @@ export function AttendanceOfficialReportPrint({ report, employeePages = groupByE
       const printDate = printedAt || report.generatedAt;
       const boxes: [string, string][] = [
         ['วันทำงาน', `${summary.scheduledDays}`], ['มาทำงาน', `${summary.presentDays}`], ['มาสาย', `${summary.lateDays}`], ['ออกก่อน', `${summary.earlyDays}`],
-        ['ลา', `${summary.leaveDays}`], ['ไม่มีบันทึก', `${summary.noRecordDays}`], ['นอกสถานที่', `${summary.offsiteDays}`],
+        ['ลา', `${summary.leaveDays}`], ['ขาดงาน', `${summary.noRecordDays}`], ['นอกสถานที่', `${summary.offsiteDays}`],
         ['ชั่วโมงรวม', summary.totalMinutes === null ? DASH : durationText(summary.totalMinutes)]
       ];
       return <article className="attendance-report-page attendance-timesheet-page timesheet-sheet" key={first?.employeeId || pageIndex}>
@@ -382,4 +382,4 @@ export function AttendanceOfficialReportPrint({ report, employeePages = groupByE
   </section>;
 }
 
-export const attendanceReportPresentation = { formatDate, formatDateTime, formatTime, durationText, resultText, employeeSummary, groupByEmployee, monthDayRows, monthSummary, dayTimes, totalWorkedMinutes, timesheetSummary, timesheetDayStatus, isWeekend };
+export const attendanceReportPresentation = { formatDate, formatDateTime, formatTime, durationText, resultText, employeeSummary, groupByEmployee, monthDayRows, monthSummary, dayTimes, totalWorkedMinutes, timesheetSummary, timesheetDayStatus, timesheetNotes, isWeekend };
