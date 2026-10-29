@@ -46,3 +46,15 @@
 .personnel-onboarding-item{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px;border:1px solid var(--color-border);border-radius:10px;background:var(--color-surface-subtle)}
 .personnel-onboarding-item>div{display:grid;gap:4px;min-width:0}.personnel-onboarding-item__heading{display:flex;align-items:center;flex-wrap:wrap;gap:8px}.personnel-onboarding-item__heading strong{color:var(--color-text);font-size:13px}.personnel-onboarding-item__heading span{color:var(--color-text-secondary);font-size:12px;font-weight:700}.personnel-onboarding-item p{margin:0;color:var(--color-text-secondary);font-size:12px;line-height:1.45}.personnel-onboarding-item>a{display:inline-flex;align-items:center;justify-content:center;min-height:40px;flex:0 0 auto;padding:8px 12px;border:1px solid var(--color-border);border-radius:9px;background:var(--color-surface);color:var(--color-primary);font-size:12px;font-weight:700;text-decoration:none}.personnel-onboarding-item>a:hover,.personnel-onboarding-item>a:focus-visible{border-color:var(--color-primary);outline:3px solid color-mix(in srgb,var(--color-primary) 24%,transparent);outline-offset:2px}.personnel-onboarding-item--success{border-color:color-mix(in srgb,var(--color-success) 26%,var(--color-border))}.personnel-onboarding-item--warning{border-color:color-mix(in srgb,var(--color-warning) 32%,var(--color-border))}.personnel-onboarding-note{margin:0;color:var(--color-text-secondary);font-size:12px;line-height:1.5}
 @media(max-width:520px){.personnel-onboarding-item{align-items:flex-start}.personnel-onboarding-item>a{min-height:44px;padding-inline:10px}}
+
+.personnel-print-source { display: none; }
+.personnel-print { color: rgb(17, 17, 17); font: 11pt sans-serif; }
+.personnel-print h1 { font-size: 18pt; text-align: center; }
+.personnel-print h2 { font-size: 13pt; }
+.personnel-print table { width: 100%; border-collapse: collapse; }
+.personnel-print th, .personnel-print td { border: 1px solid rgb(85, 85, 85); padding: 3px; text-align: left; overflow-wrap: anywhere; }
+.personnel-print thead { display: table-header-group; }
+.personnel-print tr { break-inside: avoid; }
+.personnel-record-print__field { display: flex; gap: 1em; border-bottom: 1px solid rgb(221, 221, 221); }
+.personnel-record-print__field dt { width: 35%; }
+.personnel-record-print__field dd { margin: 0; }

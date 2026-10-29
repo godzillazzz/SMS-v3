@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { flushSync } from 'react-dom';
 import { api } from '../../api';
+import { printDocument } from '../../schedule-print';
+import { EmployeeRegisterPrint } from '../../components/personnel/PersonnelPrintForms';
 import { formatRequestErrorMessage } from '../../request-error';
 import { PersonnelDetailDrawer } from '../../components/personnel/PersonnelDetailDrawer';
 import { PersonnelDirectoryHeader } from '../../components/personnel/PersonnelDirectoryHeader';
@@ -42,6 +45,8 @@ const pageSize = 10;
 const ATTENDANCE_OFFICIAL_REPORT_ENABLED = import.meta.env.VITE_ATTENDANCE_GOVERNANCE_REPORT_ENABLED === 'true';
 
 export function PersonnelDirectoryPage({ token, refreshKey, canManage, role, searchValue, onSearchValueChange, onAdd, onReviewChanges, onEdit, initialEmployeeId, onInitialTargetHandled, onPrintAttendance }: Props) {
+  const [printRows, setPrintRows] = useState<PersonnelRecord[]>([]);
+  const [printing, setPrinting] = useState(false);
   const [employees, setEmployees] = useState<PersonnelRecord[]>([]);
   const [meta, setMeta] = useState<DirectoryMeta>({ page: 1, pageSize, total: 0, totalPages: 1, departments: [], summary: { total: 0, active: 0, incomplete: 0 } });
   const [requestLoading, setRequestLoading] = useState(false);
@@ -166,7 +171,23 @@ export function PersonnelDirectoryPage({ token, refreshKey, canManage, role, sea
   };
 
   return <section className="personnel-directory-page data-surface-page layout-personnel-page layout-page-surface" aria-label="Personnel Directory">
-    <PersonnelDirectoryHeader canManage={canManage} canReviewChanges={role === 'ADMIN'} totalCount={loading ? undefined : totalCount} onAdd={onAdd} onReviewChanges={onReviewChanges} onRefresh={() => setLocalRefreshKey((value) => value + 1)} />
+    <div className="personnel-print-source"><EmployeeRegisterPrint rows={printRows} /></div>
+    <PersonnelDirectoryHeader onPrint={() => { void (async () => {
+      if (!token) return;
+      setPrinting(true);
+      try {
+        const rows: PersonnelRecord[] = [];
+        let totalPages = 1;
+        for (let n = 1; n <= totalPages; n++) {
+          const result = await api.employees(token, { page: n, pageSize: 100, search: debouncedSearch || undefined, department: department || undefined, isActive: status ? status === 'active' : undefined });
+          if (!Array.isArray(result?.data) || !result?.meta || !Number.isInteger(Number(result.meta.totalPages))) throw new Error('invalid pagination');
+          rows.push(...result.data as PersonnelRecord[]);
+          totalPages = Math.max(1, Number(result.meta.totalPages));
+        }
+        flushSync(() => setPrintRows(rows));
+        await printDocument('#personnel-register-print', 'ทะเบียนรายชื่อพนักงาน', { orientation: 'landscape', margin: '10mm' });
+      } catch { window.alert('ไม่สามารถโหลดหรือพิมพ์ทะเบียนได้'); } finally { setPrinting(false); }
+    })(); }} printDisabled={loading || printing || Boolean(visibleError) || !token} canManage={canManage} canReviewChanges={role === 'ADMIN'} totalCount={loading ? undefined : totalCount} onAdd={onAdd} onReviewChanges={onReviewChanges} onRefresh={() => setLocalRefreshKey((value) => value + 1)} />
     <div className="personnel-summary-grid"><PersonnelMetricCard icon="users" label="บุคลากรทั้งหมด" value={loading ? undefined : totalCount} context="รายการที่เข้าถึงได้" loading={loading} tone="indigo" /><PersonnelMetricCard icon="check" label="บุคลากรที่ใช้งาน" value={loading ? undefined : activeCount} context="จากข้อมูลทั้งหมด" loading={loading} tone="green" /><PersonnelMetricCard icon="quality" label="โปรไฟล์ไม่สมบูรณ์" value={loading ? undefined : incompleteCount} context={incompleteCount ? 'ต้องตรวจสอบข้อมูล' : 'ข้อมูลครบถ้วน'} loading={loading} tone="amber" /></div>
     <PersonnelSearchToolbar search={search} department={department} status={status} departments={visibleMeta.departments || []} onSearch={changeFilter(setSearch)} onDepartment={changeFilter(setDepartment)} onStatus={changeFilter(setStatus)} onClear={clear} />
     {permissionDenied ? <div className="personnel-empty-state data-state data-state--permission"><span aria-hidden="true"><SmsIcon name="shield" size={24} /></span><h2>ไม่มีสิทธิ์เข้าถึงข้อมูล</h2><p>บัญชีนี้ไม่ได้รับอนุญาตให้ดู Personnel Directory</p></div>
