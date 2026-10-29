@@ -1,0 +1,47 @@
+/* Attendance history fit-to-viewport layout (owner: เห็นข้อมูลทั้งหมด โดยไม่ต้องเลื่อน). Lazy page CSS. */
+.nexus-mobile-history { min-width: 0; max-width: 100%; overflow-x: hidden; }
+.attendance-history-fit__actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; margin: 0 0 12px; }
+.attendance-history-fit__actions button { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; }
+.attendance-history-fit__today {
+  display: grid; grid-template-columns: 1.6fr repeat(4, minmax(0, 1fr)); gap: 12px; margin: 0 0 14px; padding: 14px 16px;
+  border: 1px solid var(--employee-v4-line, #d9e3f1); border-radius: 14px; background: var(--employee-v4-surface, #fff); color: var(--employee-v4-ink, #10233d);
+}
+.attendance-history-fit__today > div { display: grid; gap: 4px; min-width: 0; align-content: start; }
+.attendance-history-fit__today span:first-child { color: var(--employee-v4-muted, #5b6b80); font-size: 12px; }
+.attendance-history-fit__today strong { font-size: 15px; overflow-wrap: anywhere; }
+.attendance-history-fit__today [data-testid="attendance-today-clock"] { font-variant-numeric: tabular-nums; font-size: 20px; }
+.attendance-history-fit__today .employee-v4-status { justify-self: start; }
+.attendance-history-fit__table-wrap { width: 100%; max-width: 100%; overflow-x: hidden; margin-top: 12px; border: 1px solid var(--employee-v4-line, #d9e3f1); border-radius: 14px; background: var(--employee-v4-surface, #fff); }
+.attendance-history-fit__table { width: 100%; table-layout: fixed; border-collapse: collapse; color: var(--employee-v4-ink, #10233d); font-size: 13px; }
+.attendance-history-fit__table col.c-emp { width: 20%; }
+.attendance-history-fit__table col.c-date { width: 12%; }
+.attendance-history-fit__table col.c-time { width: 9%; }
+.attendance-history-fit__table col.c-hours { width: 8%; }
+.attendance-history-fit__table col.c-site { width: 18%; }
+.attendance-history-fit__table col.c-status { width: 24%; }
+.attendance-history-fit__table th { text-align: left; padding: 10px; font-size: 12px; color: var(--employee-v4-muted, #5b6b80); border-bottom: 1px solid var(--employee-v4-line, #d9e3f1); }
+.attendance-history-fit__table td { padding: 10px; vertical-align: top; border-bottom: 1px solid var(--employee-v4-line, #e5ecf5); overflow-wrap: anywhere; word-break: break-word; min-width: 0; }
+.attendance-history-fit__table td strong { display: block; }
+.attendance-history-fit__table td small { display: block; color: var(--employee-v4-muted, #5b6b80); font-size: 11px; }
+.attendance-history-fit__status { display: flex; flex-wrap: wrap; gap: 4px; }
+.attendance-history-fit__more { margin-top: 6px; font-size: 12px; }
+.attendance-history-fit__more summary { cursor: pointer; color: var(--employee-v4-blue, #1f6fd1); }
+.attendance-history-fit__more .employee-v4-history-sites { grid-template-columns: 1fr; margin-top: 6px; }
+.attendance-history-fit__confirm { margin-top: 6px; max-width: 100%; white-space: normal; }
+@media (max-width: 760px) {
+  .attendance-history-fit__today { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .attendance-history-fit__today > div:first-child { grid-column: 1 / -1; }
+  .attendance-history-fit__actions { justify-content: stretch; }
+  .attendance-history-fit__actions button { flex: 1 1 auto; justify-content: center; }
+  .attendance-history-fit__table-wrap { border: 0; background: transparent; }
+  .attendance-history-fit__table, .attendance-history-fit__table tbody, .attendance-history-fit__table tr, .attendance-history-fit__table td { display: block; width: 100%; }
+  .attendance-history-fit__table colgroup, .attendance-history-fit__table thead { display: none; }
+  .attendance-history-fit__table tr { box-sizing: border-box; margin-bottom: 10px; padding: 8px 12px; border: 1px solid var(--employee-v4-line, #d9e3f1); border-radius: 12px; background: var(--employee-v4-surface, #fff); }
+  .attendance-history-fit__table td { display: grid; grid-template-columns: 76px minmax(0, 1fr); gap: 8px; padding: 6px 0; border-bottom: 1px dashed var(--employee-v4-line, #e5ecf5); }
+  .attendance-history-fit__table td:last-child { border-bottom: 0; }
+  .attendance-history-fit__table td::before { content: attr(data-label); color: var(--employee-v4-muted, #5b6b80); font-size: 12px; }
+  .attendance-history-fit__table td > * { grid-column: 2; }
+}
+@media print {
+  .attendance-history-fit__actions, .attendance-history-fit__more, .attendance-history-fit__confirm, .employee-v4-segmented { display: none !important; }
+}

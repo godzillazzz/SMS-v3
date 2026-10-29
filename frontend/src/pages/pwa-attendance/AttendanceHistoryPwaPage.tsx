@@ -10,8 +10,11 @@ import {
   submitAttendanceAdjustment
 } from '../attendance-supervisor/attendance-adjustment-client';
 import './employee-attendance-v4.css';
+import './attendance-history-fit.css';
 
-type Props = { token: string; online: boolean };
+type Props = { token: string; online: boolean; onOpenLeave?: () => void; onCheckIn?: () => void };
+
+const MISSING = '–';
 
 type RangeKey = 'today' | 'week' | 'month';
 
@@ -103,6 +106,19 @@ function actualSiteLabel(row: AttendanceSelfRow) {
   return sites.map((site) => `${site.eventType === 'CHECK_OUT' ? 'ออก' : 'เข้า'}: ${site.actualSite?.name || site.actualSite?.code || fallback}`).join(' / ');
 }
 
+function clockText(value: Date) {
+  return new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Bangkok', hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' }).format(value);
+}
+
+function shortTime(value?: string | null) {
+  return bangkokTimeInput(value) || MISSING;
+}
+
+function shortDuration(minutes?: number | null) {
+  if (minutes == null) return MISSING;
+  return `${Math.floor(minutes / 60)}:${String(minutes % 60).padStart(2, '0')}`;
+}
+
 function dateLabel(value: string) {
   return formatThaiDate(`${value}T00:00:00.000Z`, { timeZone: 'UTC', weekday: 'short', day: 'numeric', month: 'short' });
 }
@@ -120,7 +136,7 @@ function status(row: AttendanceSelfRow) {
   if (row.flags.includes('EARLY_OUT')) return { label: 'ออกก่อนเวลา', tone: 'warning' };
   if (row.flags.includes('LEAVE')) return { label: 'ลา', tone: 'neutral' };
   if (row.flags.includes('ABSENT')) return { label: 'ขาดงาน', tone: 'danger' };
-  if (row.status === 'COMPLETE') return { label: 'ครบถ้วน', tone: 'success' };
+  if (row.status === 'COMPLETE') return { label: 'มาทำงาน', tone: 'success' };
   if (row.status === 'IN_PROGRESS') return { label: 'กำลังปฏิบัติงาน', tone: 'info' };
   return { label: 'ตามตาราง', tone: 'neutral' };
 }
@@ -138,7 +154,12 @@ const operationalFlagLabels: Record<string, string> = {
   PHOTO_RISK: 'ความเสี่ยงรูปภาพ'
 };
 
-export function AttendanceHistoryPwaPage({ token, online }: Props) {
+export function AttendanceHistoryPwaPage({ token, online, onOpenLeave, onCheckIn }: Props) {
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(new Date()), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
   const [range, setRange] = useState<RangeKey>(() => new URLSearchParams(window.location.search).get('today') === '1' ? 'today' : 'week');
   const [data, setData] = useState<AttendanceSelfHistoryData>();
   const [loading, setLoading] = useState(false);
@@ -185,6 +206,7 @@ export function AttendanceHistoryPwaPage({ token, online }: Props) {
   useEffect(loadRequests, [online, token]);
 
   const today = bangkokToday();
+  const todayRow = data?.rows.find((row) => row.date === today);
   const canConfirm = (row: AttendanceSelfRow) => {
     const age = dayDiff(row.date, today);
     return age >= 0 && age <= SELF_CONFIRM_WINDOW_DAYS && !requestsByAssignment[row.assignmentId] && needsConfirmation(row);
@@ -282,6 +304,20 @@ export function AttendanceHistoryPwaPage({ token, online }: Props) {
       <span className="employee-v4-header-icon"><SmsIcon name="history" size={22} /></span>
     </header>
 
+    <div className="attendance-history-fit__actions">
+      <button type="button" className="btn-neutral" onClick={() => window.print()}><SmsIcon name="report" size={16} />พิมพ์รายงานประจำวัน</button>
+      {onOpenLeave && <button type="button" className="btn-neutral" onClick={onOpenLeave}><SmsIcon name="leave" size={16} />ดูการลา</button>}
+      {onCheckIn && <button type="button" className="btn-primary" onClick={onCheckIn}><SmsIcon name="clock" size={16} />ไปลงเวลา</button>}
+    </div>
+
+    <section className="attendance-history-fit__today" role="region" aria-label="ลงเวลาวันนี้">
+      <div><span>ลงเวลาวันนี้</span><strong>{formatThaiDate(`${today}T00:00:00.000Z`, { timeZone: 'UTC', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</strong></div>
+      <div><span>เวลาปัจจุบัน</span><strong data-testid="attendance-today-clock">{clockText(now)}</strong></div>
+      <div><span>สถานะ</span>{todayRow ? <span className={`employee-v4-status is-${status(todayRow).tone}`}>{status(todayRow).label}</span> : <strong>{MISSING}</strong>}</div>
+      <div><span>เวลาเข้างาน</span><strong>{shortTime(todayRow?.checkInAt)}</strong></div>
+      <div><span>สถานที่</span><strong>{todayRow ? actualSiteLabel(todayRow).replace(/^—$/, MISSING) : MISSING}</strong></div>
+    </section>
+
     <div className="employee-v4-segmented" role="tablist" aria-label="ช่วงเวลาประวัติ" onKeyDown={activateTabFromKeyboard}>
       {([['today', 'วันนี้'], ['week', '7 วัน'], ['month', '31 วัน']] as const).map(([key, label]) =>
         <button id={`attendance-range-${key}`} key={key} type="button" role="tab" aria-selected={range === key} aria-controls="attendance-history-panel" tabIndex={range === key ? 0 : -1} className={range === key ? 'active' : ''} onClick={() => setRange(key)}>{label}</button>
@@ -294,70 +330,61 @@ export function AttendanceHistoryPwaPage({ token, online }: Props) {
     {confirmNotice && <div className="employee-v4-message is-success">{confirmNotice}</div>}
     {loading && <div className="employee-v4-loading"><span /><p>กำลังอ่านประวัติ…</p></div>}
 
-    {!loading && online && data && <div className="employee-v4-history-list">
-      {data.rows.length === 0 && <article className="employee-v4-empty"><SmsIcon name="history" size={28} /><strong>ยังไม่มีรายการในช่วงนี้</strong><span>เมื่อมีรายการลงเวลา ระบบจะแสดงที่นี่</span></article>}
+    {!loading && online && data && data.rows.length === 0 && <article className="employee-v4-empty"><SmsIcon name="history" size={28} /><strong>ยังไม่มีรายการในช่วงนี้</strong><span>เมื่อมีรายการลงเวลา ระบบจะแสดงที่นี่</span></article>}
+    {!loading && online && data && data.rows.length > 0 && <div className="attendance-history-fit__table-wrap" data-testid="attendance-history-table-wrap">
+      <table className="attendance-history-fit__table" aria-label="รายการลงเวลาทั้งหมด">
+        <colgroup><col className="c-emp" /><col className="c-date" /><col className="c-time" /><col className="c-time" /><col className="c-hours" /><col className="c-site" /><col className="c-status" /></colgroup>
+        <thead><tr><th scope="col">พนักงาน</th><th scope="col">วันที่</th><th scope="col">เข้างาน</th><th scope="col">ออกงาน</th><th scope="col">ชั่วโมง</th><th scope="col">สถานที่</th><th scope="col">สถานะ</th></tr></thead>
+        <tbody>
       {data.rows.map((row) => {
         const currentStatus = status(row);
-        return <article className="employee-v4-history-card" key={row.assignmentId}>
-          <div className="employee-v4-history-card__top">
-            <div><strong>{dateLabel(row.date)}</strong><span>{row.shift.code || row.shift.name || 'ไม่ระบุกะ'} · {row.shift.startTime || '—'}–{row.shift.endTime || '—'}</span></div>
-            <div className="employee-v4-history-card__badges">
-              {row.corrected && <span className="employee-v4-correction-badge"><SmsIcon name="history" size={12} />ปรับแล้ว</span>}
+        const flags = row.flags.map((flag) => operationalFlagLabels[flag]).filter(Boolean);
+        const timeLabels = [
+          row.punctuality === 'LATE' ? 'มาสาย' : row.punctuality === 'ON_TIME' ? 'ตรงเวลา' : null,
+          row.checkoutCondition === 'EARLY_LEAVE' ? 'ออกก่อนเวลา' : row.checkoutCondition === 'MISSING_CHECK_OUT' ? 'ไม่ได้ลงเวลาออก' : null,
+          row.abnormalTime ? 'เวลาผิดปกติ' : null
+        ].filter((value): value is string => Boolean(value));
+        return <tr key={row.assignmentId}>
+          <td data-label="พนักงาน"><strong>{row.employee?.displayName || MISSING}</strong><small>{row.shift.code || row.shift.name || 'ไม่ระบุกะ'} · {row.shift.startTime || MISSING}–{row.shift.endTime || MISSING}</small></td>
+          <td data-label="วันที่">{dateLabel(row.date)}</td>
+          <td data-label="เข้างาน">{shortTime(row.checkInAt)}</td>
+          <td data-label="ออกงาน">{shortTime(row.checkOutAt)}</td>
+          <td data-label="ชั่วโมง">{shortDuration(row.workedMinutes)}</td>
+          <td data-label="สถานที่">{actualSiteLabel(row).replace(/^—$/, MISSING)}</td>
+          <td data-label="สถานะ">
+            <div className="attendance-history-fit__status">
               <span className={`employee-v4-status is-${currentStatus.tone}`}>{currentStatus.label}</span>
+              {row.corrected && <span className="employee-v4-correction-badge"><SmsIcon name="history" size={12} />ปรับแล้ว</span>}
             </div>
-          </div>
-          <div className="employee-v4-history-times">
-            <div><span>เวลาเข้า</span><strong>{time(row.checkInAt)}</strong></div>
-            <i />
-            <div><span>เวลาออก</span><strong>{time(row.checkOutAt)}</strong></div>
-            <i />
-            <div><span>ชั่วโมง</span><strong>{duration(row.workedMinutes)}</strong></div>
-          </div>
-          {row.corrected && <details className="employee-v4-history-correction">
-            <summary><SmsIcon name="history" size={15} />ดูเวลาเดิมและเวลาที่มีผล</summary>
-            <div>
-              <span>รายการ</span><strong>เดิม</strong><strong>มีผล</strong>
-            </div>
-            <div>
-              <span>เวลาเข้า</span><strong>{time(row.originalCheckInAt)}</strong><strong>{time(row.checkInAt)}</strong>
-            </div>
-            <div>
-              <span>เวลาออก</span><strong>{time(row.originalCheckOutAt)}</strong><strong>{time(row.checkOutAt)}</strong>
-            </div>
-            <small>แสดงเฉพาะการแก้ไขที่มีผลต่อการลงเวลาแล้ว · ข้อมูลเหตุการณ์ลงเวลาเดิมไม่ถูกแก้ไข</small>
-          </details>}
-          <div className="employee-v4-history-sites">
-            <div><SmsIcon name="quality" size={15} /><span>สถานที่ตามตาราง</span><strong>{(row.assignedSite || row.expectedSite)?.name || 'ไม่ระบุ'}</strong></div>
-            <div><SmsIcon name="location" size={15} /><span>สถานที่ลงเวลาจริง</span><strong>{actualSiteLabel(row)}</strong></div>
-            <div><SmsIcon name="quality" size={15} /><span>ประเภท</span><strong>{row.workSiteContext === 'SUPPORT_SITE' ? 'ช่วยปฏิบัติงาน' : 'ปกติ'}</strong></div>
-          </div>
-          {(() => {
-            const flags = row.flags.map((flag) => operationalFlagLabels[flag]).filter(Boolean);
-            const timeLabels = [
-              row.punctuality === 'LATE' ? 'มาสาย' : row.punctuality === 'ON_TIME' ? 'ตรงเวลา' : null,
-              row.checkoutCondition === 'EARLY_LEAVE' ? 'ออกก่อนเวลา' : row.checkoutCondition === 'MISSING_CHECK_OUT' ? 'ไม่ได้ลงเวลาออก' : null,
-              row.abnormalTime ? 'เวลาผิดปกติ' : null
-            ].filter((value): value is string => Boolean(value));
-            return (row.lateMinutes || row.earlyOutMinutes || flags.length > 0 || timeLabels.length > 0) ? <div className="employee-v4-history-flags">
-              {timeLabels.map((label) => <span key={`time-${label}`}>{label}</span>)}
-              {Boolean(row.lateMinutes) && <span>สาย {row.lateMinutes} นาที</span>}
-              {Boolean(row.earlyOutMinutes) && <span>ออกก่อน {row.earlyOutMinutes} นาที</span>}
-              {flags.map((flag) => <span key={flag}>{flag}</span>)}
-            </div> : null;
-          })()}
-          {canConfirm(row) && <div className="employee-v4-history-flags">
-            <button
-              type="button"
-              className="employee-v4-primary"
-              onClick={() => openConfirm(row)}
-              aria-label={`ยืนยันการปฏิบัติงานวันที่ ${row.date}`}
-            >ยืนยันการปฏิบัติงาน</button>
-          </div>}
-          {requestsByAssignment[row.assignmentId] && <p className="employee-v4-history-note">
-            มีคำขอสำหรับกะนี้แล้ว · สถานะ {requestsByAssignment[row.assignmentId].status}
-          </p>}
-        </article>;
+            <details className="attendance-history-fit__more">
+              <summary>รายละเอียด</summary>
+              <div className="employee-v4-history-sites">
+                <div><SmsIcon name="quality" size={15} /><span>สถานที่ตามตาราง</span><strong>{(row.assignedSite || row.expectedSite)?.name || 'ไม่ระบุ'}</strong></div>
+                <div><SmsIcon name="location" size={15} /><span>สถานที่ลงเวลาจริง</span><strong>{actualSiteLabel(row)}</strong></div>
+                <div><SmsIcon name="quality" size={15} /><span>ประเภท</span><strong>{row.workSiteContext === 'SUPPORT_SITE' ? 'ช่วยปฏิบัติงาน' : 'ปกติ'}</strong></div>
+                <div><SmsIcon name="clock" size={15} /><span>ชั่วโมงทำงาน</span><strong>{duration(row.workedMinutes)}</strong></div>
+              </div>
+              {row.corrected && <details className="employee-v4-history-correction">
+                <summary><SmsIcon name="history" size={15} />ดูเวลาเดิมและเวลาที่มีผล</summary>
+                <div><span>รายการ</span><strong>เดิม</strong><strong>มีผล</strong></div>
+                <div><span>เวลาเข้า</span><strong>{time(row.originalCheckInAt)}</strong><strong>{time(row.checkInAt)}</strong></div>
+                <div><span>เวลาออก</span><strong>{time(row.originalCheckOutAt)}</strong><strong>{time(row.checkOutAt)}</strong></div>
+                <small>แสดงเฉพาะการแก้ไขที่มีผลต่อการลงเวลาแล้ว · ข้อมูลเหตุการณ์ลงเวลาเดิมไม่ถูกแก้ไข</small>
+              </details>}
+              {(row.lateMinutes || row.earlyOutMinutes || flags.length > 0 || timeLabels.length > 0) ? <div className="employee-v4-history-flags">
+                {timeLabels.map((label) => <span key={`time-${label}`}>{label}</span>)}
+                {Boolean(row.lateMinutes) && <span>สาย {row.lateMinutes} นาที</span>}
+                {Boolean(row.earlyOutMinutes) && <span>ออกก่อน {row.earlyOutMinutes} นาที</span>}
+                {flags.map((flag) => <span key={flag}>{flag}</span>)}
+              </div> : null}
+            </details>
+            {canConfirm(row) && <button type="button" className="employee-v4-primary attendance-history-fit__confirm" onClick={() => openConfirm(row)} aria-label={`ยืนยันการปฏิบัติงานวันที่ ${row.date}`}>ยืนยันการปฏิบัติงาน</button>}
+            {requestsByAssignment[row.assignmentId] && <p className="employee-v4-history-note">มีคำขอสำหรับกะนี้แล้ว · สถานะ {requestsByAssignment[row.assignmentId].status}</p>}
+          </td>
+        </tr>;
       })}
+        </tbody>
+      </table>
     </div>}
     </div>
     {confirmRow && <div className="employee-v4-overlay" role="dialog" aria-modal="true" aria-label="ยืนยันการปฏิบัติงาน">
