@@ -2,8 +2,7 @@
 
 process.env.NODE_ENV = 'test';
 process.env.ATTENDANCE_API_PREVIEW_ENABLED = 'true';
-process.env.VERCEL_ENV = 'preview';
-process.env.DATABASE_URL = process.env.DATABASE_URL || 'postgresql://test:***@fixture.example.com:5432/smsv3';
+process.env.DATABASE_URL = process.env.DATABASE_URL || 'postgresql://test:test@localhost:5432/smsv3_test';
 process.env.JWT_SECRET = process.env.JWT_SECRET || 'test-secret-with-at-least-thirty-two-chars';
 
 const test = require('node:test');
