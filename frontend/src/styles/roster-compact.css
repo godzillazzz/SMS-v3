@@ -51,7 +51,7 @@
 #sms-app .schedule-legend > div + div,
 #sms-app .schedule-calendar-page .schedule-legend > div + div {
   padding-top: 12px !important;
-  border-top: 1px solid var(--color-border, #e2e8f0) !important;
+  box-shadow: 0 -1px 0 var(--color-border, #e2e8f0) !important;
 }
 #sms-app .schedule-legend > div > span,
 #sms-app .schedule-calendar-page .schedule-legend > div > span { white-space: nowrap !important; overflow: hidden !important; text-overflow: ellipsis !important; }
