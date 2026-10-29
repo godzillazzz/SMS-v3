@@ -99,9 +99,10 @@ function time(value?: string | null) {
   return formatThaiDateTime(value, { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
 }
 
-function actualSiteLabel(row: AttendanceSelfRow) {
+function actualSiteLabel(row: AttendanceSelfRow, allowAssignedFallback = true) {
   const sites = row.attendanceSites || [];
-  const fallback = row.actualSite?.name || row.actualSite?.code || (row.assignedSite || row.expectedSite)?.name || '—';
+  const fallback = row.actualSite?.name || row.actualSite?.code || (allowAssignedFallback ? (row.assignedSite || row.expectedSite)?.name : undefined) || '—';
+  if (sites.length === 1 && !allowAssignedFallback) return sites[0].actualSite?.name || sites[0].actualSite?.code || fallback;
   if (sites.length <= 1) return fallback;
   return sites.map((site) => `${site.eventType === 'CHECK_OUT' ? 'ออก' : 'เข้า'}: ${site.actualSite?.name || site.actualSite?.code || fallback}`).join(' / ');
 }
@@ -346,13 +347,14 @@ export function AttendanceHistoryPwaPage({ token, online, onOpenLeave, onCheckIn
           row.checkoutCondition === 'EARLY_LEAVE' ? 'ออกก่อนเวลา' : row.checkoutCondition === 'MISSING_CHECK_OUT' ? 'ไม่ได้ลงเวลาออก' : null,
           row.abnormalTime ? 'เวลาผิดปกติ' : null
         ].filter((value): value is string => Boolean(value));
+        const printFlags = [...new Set([...timeLabels, ...flags])].filter((label) => label !== currentStatus.label);
         return <tr key={row.assignmentId}>
           <td data-label="พนักงาน"><strong>{row.employee?.displayName || MISSING}</strong><small>{row.shift.code || row.shift.name || 'ไม่ระบุกะ'} · {row.shift.startTime || MISSING}–{row.shift.endTime || MISSING}</small></td>
           <td data-label="วันที่">{dateLabel(row.date)}</td>
           <td data-label="เข้างาน">{shortTime(row.checkInAt)}</td>
           <td data-label="ออกงาน">{shortTime(row.checkOutAt)}</td>
           <td data-label="ชั่วโมง">{shortDuration(row.workedMinutes)}</td>
-          <td data-label="สถานที่">{actualSiteLabel(row).replace(/^—$/, MISSING)}</td>
+          <td data-label="สถานที่"><span className="attendance-history-fit__screen-site">{actualSiteLabel(row).replace(/^—$/, MISSING)}</span><span className="attendance-history-fit__print-site">{actualSiteLabel(row, false).replace(/^—$/, MISSING)}</span></td>
           <td data-label="สถานะ">
             <div className="attendance-history-fit__status">
               <span className={`employee-v4-status is-${currentStatus.tone}`}>{currentStatus.label}</span>
@@ -380,6 +382,18 @@ export function AttendanceHistoryPwaPage({ token, online, onOpenLeave, onCheckIn
                 {flags.map((flag) => <span key={flag}>{flag}</span>)}
               </div> : null}
             </details>
+            <div className="attendance-history-fit__print-details">
+              <div>สถานที่ตามตาราง: {(row.assignedSite || row.expectedSite)?.name || 'ไม่ระบุ'}</div>
+              <div>ประเภท: {row.workSiteContext === 'SUPPORT_SITE' ? 'ช่วยปฏิบัติงาน' : 'ปกติ'}</div>
+              {row.corrected && <div>
+                <div>เวลาเข้า — เดิม: {time(row.originalCheckInAt)} · มีผล: {time(row.checkInAt)}</div>
+                <div>เวลาออก — เดิม: {time(row.originalCheckOutAt)} · มีผล: {time(row.checkOutAt)}</div>
+                <small>แสดงเฉพาะการแก้ไขที่มีผลต่อการลงเวลาแล้ว · ข้อมูลเหตุการณ์ลงเวลาเดิมไม่ถูกแก้ไข</small>
+              </div>}
+              {printFlags.map((flag) => <div key={flag}>{flag}</div>)}
+              {Boolean(row.lateMinutes) && <div>สาย {row.lateMinutes} นาที</div>}
+              {Boolean(row.earlyOutMinutes) && <div>ออกก่อน {row.earlyOutMinutes} นาที</div>}
+            </div>
             {canConfirm(row) && <button type="button" className="employee-v4-primary attendance-history-fit__confirm" onClick={() => openConfirm(row)} aria-label={`ยืนยันการปฏิบัติงานวันที่ ${row.date}`}>ยืนยันการปฏิบัติงาน</button>}
             {requestsByAssignment[row.assignmentId] && <p className="employee-v4-history-note">มีคำขอสำหรับกะนี้แล้ว · สถานะ {requestsByAssignment[row.assignmentId].status}</p>}
           </td>

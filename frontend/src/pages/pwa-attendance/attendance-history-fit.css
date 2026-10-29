@@ -28,6 +28,7 @@
 .attendance-history-fit__more summary { cursor: pointer; color: var(--employee-v4-blue, #1f6fd1); }
 .attendance-history-fit__more .employee-v4-history-sites { grid-template-columns: 1fr; margin-top: 6px; }
 .attendance-history-fit__confirm { margin-top: 6px; max-width: 100%; white-space: normal; }
+.attendance-history-fit__print-details, .attendance-history-fit__print-site { display: none; }
 @media (max-width: 760px) {
   .attendance-history-fit__today { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .attendance-history-fit__today > div:first-child { grid-column: 1 / -1; }
@@ -44,4 +45,7 @@
 }
 @media print {
   .attendance-history-fit__actions, .attendance-history-fit__more, .attendance-history-fit__confirm, .employee-v4-segmented { display: none !important; }
+  .attendance-history-fit__screen-site { display: none; }
+  .attendance-history-fit__print-site { display: inline; }
+  .attendance-history-fit__print-details { display: block; margin-top: 6px; font-size: 11px; }
 }
