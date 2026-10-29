@@ -32,3 +32,14 @@ export async function getLeavePolicy(token: string) {
   }
   return payload;
 }
+
+
+export async function updateLeavePolicy(token: string, policy: unknown) {
+  const csrf = document.cookie.split('; ').find((item) => item.startsWith('smsv3_csrf='))?.split('=')[1];
+  const headers: Record<string, string> = { 'Content-Type': 'application/json', Accept: 'application/json', Authorization: `Bearer ${token}` };
+  if (csrf) headers['X-CSRF-Token'] = decodeURIComponent(csrf);
+  const response = await fetch(`${baseUrl}/leave-policy`, { method: 'PUT', credentials: 'include', headers, body: JSON.stringify(policy) });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) throw new ApiRequestError(payload?.error || 'ไม่สามารถบันทึก Leave Policy ได้', response.status, responseRequestId(response, payload), payload?.details);
+  return payload;
+}

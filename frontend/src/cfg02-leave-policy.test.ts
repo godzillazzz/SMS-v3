@@ -14,12 +14,9 @@ describe('CFG-02 Leave Policy configuration contract', () => {
 
   it('adds Leave Policy to Configuration Center with six governed settings and immutable invariants', () => {
     expect(settingsPage).toContain('<LeavePolicySettingsCard settings={settings} onSave={onSaveLeavePolicy} onRefresh={onRefresh} />');
-    expect(main).toContain('leavePolicyKeys.defaultSickDays');
-    expect(main).toContain('leavePolicyKeys.defaultPersonalDays');
-    expect(main).toContain('leavePolicyKeys.defaultVacationDays');
-    expect(main).toContain('leavePolicyKeys.sickAttachmentRequiredAfterDays');
-    expect(main).toContain('leavePolicyKeys.managerRetroactiveOnBehalfEnabled');
-    expect(main).toContain('leavePolicyKeys.managerRetroactiveMaxDaysBack');
+    expect(main).toContain('await updateLeavePolicy(auth.token, policy)');
+    expect(client).toContain("method: 'PUT'");
+    expect(main).not.toContain('u(leavePolicyKeys.');
     expect(card).toContain("roleDisplayName('VIEWER')");
     expect(card).toContain("roleDisplayName('MANAGER')}");
     expect(card).toContain('ห้ามอนุมัติคำขอของตนเอง');
@@ -30,7 +27,7 @@ describe('CFG-02 Leave Policy configuration contract', () => {
     expect(client).toContain("method: 'GET'");
     expect(client).toContain("cache: 'no-store'");
     expect(client).toContain("credentials: 'include'");
-    expect(client).not.toMatch(/method:\s*['"](POST|PUT|PATCH|DELETE)['"]/);
+
     expect(main).toContain('getLeavePolicy(auth.token)');
     expect(api).not.toContain("leavePolicy: (token");
   });

@@ -26,6 +26,7 @@ const { provisionAnnualLeaveQuotas } = require('../services/annual-leave-quota-c
 const { isReservedOperationalSettingKey } = require('../services/g03-1-multi-year-activation.service');
 const { getSystemSettingDefinition, isSensitiveSystemSettingKey, normalizeRegisteredSystemSettingValue, presentRegisteredSystemSetting, presentSystemSettings, registeredSystemSettingGroups } = require('../services/system-setting-registry.service');
 const { createLeavePolicyService, isRetroactiveLeaveStart, retroactiveDaysBack } = require('../services/leave-policy.service');
+const { saveLeavePolicyBatch } = require('../services/leave-policy-batch.service');
 const { assertRetroactiveLeaveAllowed } = require('../services/leave-retroactive-policy');
 const { createLeaveTypeService, resolveLeaveTypeForRequest, leaveTypeSnapshot } = require('../services/leave-type.service');
 const { createAutoSchedulePatternService } = require('../services/auto-schedule-pattern.service');
@@ -1161,6 +1162,14 @@ router.put('/leave-types/:id', authorize('ADMIN'), async (req, res, next) => {
     const id = uuid.parse(req.params.id);
     const input = leaveTypeUpdateInput.parse(req.body || {});
     res.json({ data: await leaveTypeService.update(id, input, req.user.sub) });
+  } catch (error) { next(error); }
+});
+
+router.put('/leave-policy', authorize('ADMIN'), async (req, res, next) => {
+  try {
+    const data = await saveLeavePolicyBatch({ prisma, audit, actor: req.user, policy: req.body });
+    res.set('Cache-Control', 'no-store');
+    res.json({ data });
   } catch (error) { next(error); }
 });
 
