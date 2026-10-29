@@ -3481,7 +3481,7 @@ function Dashboard() {
       return <AttendanceSupervisorPage token={auth.token} role={auth.user?.role || 'VIEWER'} department={auth.user?.department} employeeAuthorityId={auth.user?.employeeId} userId={auth.user?.id} desktopWeb={!pwaShell && auth.user?.role === 'ADMIN' && desktopVoidAvailable} initialRequestId={nativeApprovalRequestId} onInitialRequestHandled={clearNativeApprovalTarget} onOpenAttendanceReport={!pwaShell && auth.user?.role === 'ADMIN' ? () => setActivePage('attendanceReport') : undefined} onApprovalQueueChanged={() => { setOperationRefresh((value) => value + 1); setApprovalCenterRefresh((value) => value + 1); }} />;
     }
     if (activePage === 'attendanceHistory' && auth.token && pwaShell) {
-      return <AttendanceHistoryPwaPage token={auth.token} online={pwaOnline} />;
+      return <AttendanceHistoryPwaPage token={auth.token} online={pwaOnline} onOpenLeave={() => selectPwaPage('leave')} onCheckIn={() => selectPwaPage('attendance')} />;
     }
     if (activePage === 'employeeSchedule' && auth.token && pwaShell) {
       return <AttendanceSchedulePwaPage token={auth.token} online={pwaOnline} />;

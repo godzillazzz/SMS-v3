@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../../api';
 import { printDocument } from '../../schedule-print';
 import { EmployeeRecordPrint } from './PersonnelPrintForms';
+import { loadEmployeePrintLeaves, type PrintLeave } from './personnel-print-leaves';
 import { acquireDocumentScrollLock } from '../../document-scroll-lock';
 import { SmsIcon } from '../SmsIcon';
 import type { PersonnelRecord } from './types';
@@ -53,7 +54,7 @@ function eventChange(event: LifecycleEvent) {
 export function PersonnelDetailDrawer({ employee, token, canManage, role, onClose, onEdit }: Props) {
   const closeRef = useRef<HTMLButtonElement | null>(null);
   const drawerRef = useRef<HTMLElement | null>(null);
-  const [printLeaves, setPrintLeaves] = useState<Array<{ id: string; leaveTypeNameSnapshot?: string; leaveType?: string; startDate?: string; endDate?: string; dayCount?: number; status?: string }>>();
+  const [printLeaves, setPrintLeaves] = useState<{ employeeId: string; rows: PrintLeave[] }>();
   const [requests, setRequests] = useState<ChangeRequest[]>([]);
   const [history, setHistory] = useState<LifecycleEvent[]>([]);
   const [reference, setReference] = useState<ReferenceState>();
@@ -89,7 +90,7 @@ export function PersonnelDetailDrawer({ employee, token, canManage, role, onClos
     let active = true;
     setStatusLoading(true); setStatusUnavailable(false); setQuotaRows(undefined); setPrintLeaves(undefined);
     const quotaYear = currentBangkokQuotaYear();
-    Promise.allSettled([api.employeeChangeRequests(token, employee.id), api.employeeLifecycleHistory(token, employee.id, 1), api.employeeReferencePhotos(token, employee.id), api.users(token), getEmployeeLicenses(token, employee.id), getEmployeeLeaveQuota(token, quotaYear, employee.id), api.employeeOnboardingReadiness(token, employee.id), api.leaveRequests(token, 1, { employeeId: employee.id, year: quotaYear })]).then((results) => {
+    Promise.allSettled([api.employeeChangeRequests(token, employee.id), api.employeeLifecycleHistory(token, employee.id, 1), api.employeeReferencePhotos(token, employee.id), api.users(token), getEmployeeLicenses(token, employee.id), getEmployeeLeaveQuota(token, quotaYear, employee.id), api.employeeOnboardingReadiness(token, employee.id), loadEmployeePrintLeaves(api.leaveRequests, token, employee.id, quotaYear)]).then((results) => {
       if (!active) return;
       const [requestResult, historyResult, photoResult, userResult, licenseResult, quotaResult, readinessResult, leavesResult] = results;
       if (requestResult.status === 'fulfilled') setRequests(Array.isArray(requestResult.value?.data) ? requestResult.value.data as ChangeRequest[] : []);
@@ -100,7 +101,7 @@ export function PersonnelDetailDrawer({ employee, token, canManage, role, onClos
       if (licenseResult.status === 'fulfilled') setLicenses(Array.isArray(licenseResult.value?.data) ? licenseResult.value.data : undefined);
       if (quotaResult.status === 'fulfilled') setQuotaRows(Array.isArray(quotaResult.value?.data) ? quotaResult.value.data : undefined);
       if (readinessResult.status === 'fulfilled') setOnboardingReadiness((readinessResult.value?.data || undefined) as OnboardingReadiness | undefined);
-      if (leavesResult.status === 'fulfilled' && Array.isArray(leavesResult.value?.data)) setPrintLeaves(leavesResult.value.data);
+      if (leavesResult.status === 'fulfilled') setPrintLeaves({ employeeId: employee.id, rows: leavesResult.value });
       setStatusUnavailable(results.every((result) => result.status === 'rejected'));
     }).finally(() => { if (active) setStatusLoading(false); });
     return () => { active = false; };
@@ -130,7 +131,7 @@ export function PersonnelDetailDrawer({ employee, token, canManage, role, onClos
 
   return <div className="personnel-drawer-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
     <aside ref={drawerRef} className="personnel-detail-drawer personnel-detail-drawer--360 operational-drawer" role="dialog" aria-modal="true" aria-labelledby="personnel-drawer-title">
-      <div className="personnel-print-source"><EmployeeRecordPrint employee={employee} quota={quotaRecord} leaves={printLeaves} /></div>
+      <div className="personnel-print-source"><EmployeeRecordPrint employee={employee} quota={quotaRecord} leaves={printLeaves?.employeeId === employee.id ? printLeaves.rows : undefined} /></div>
       <header className="personnel-drawer-header personnel-360-header">
         <div className="personnel-drawer-identity"><span className="personnel-drawer-avatar" aria-hidden="true" data-avatar-tone={employee ? avatarTone(employee.employeeCode || employee.id) : undefined}>{initials}</span><div><p>ข้อมูลพนักงาน</p><h2 id="personnel-drawer-title">{fullName || 'พนักงาน'}</h2><div className="personnel-drawer-context"><span>รหัส {employee.employeeCode}</span><span>{employee.department || 'ไม่ระบุหน่วยงาน'}</span><span>{employee.jobTitle || 'ไม่ระบุตำแหน่ง'}</span><span className={`status-badge ${employee.isActive ? 'status-badge--success active' : 'status-badge--neutral inactive'}`}>{employee.isActive ? 'ปฏิบัติงาน' : 'ลาออก/ไม่ใช้งาน'}</span></div></div></div>
         <button ref={closeRef} type="button" className="personnel-drawer-close overlay-close" aria-label="ปิดรายละเอียดพนักงาน" onClick={onClose}><SmsIcon name="close" size={20} /></button>

@@ -32,11 +32,11 @@ describe('employee register print (A4 landscape)', () => {
     expect(root.querySelector('h1')?.textContent).toBe('ทะเบียนรายชื่อพนักงาน');
     expect(text).toContain('2569');
     expect(text).toContain('จำนวน 2 คน');
-    for (const label of ['ทั้งหมด', 'ปฏิบัติงานปกติ', 'ทดลองงาน', 'ลา', 'พักงาน', 'ไม่ใช้งาน']) expect(root.querySelector('.personnel-register-print__summary')?.textContent).toContain(label);
+    for (const label of ['ทั้งหมด', 'ใช้งาน', 'ทดลองงาน', 'ลา', 'พักงาน', 'ไม่ใช้งาน']) expect(root.querySelector('.personnel-register-print__summary')?.textContent).toContain(label);
     const headers = Array.from(root.querySelectorAll('thead th')).map((th) => th.textContent);
     expect(headers).toEqual(['รหัส', 'ชื่อ-สกุล', 'แผนก', 'ตำแหน่ง', 'ประเภท', 'วันเริ่มงาน', 'อายุงาน', 'โทรศัพท์', 'สถานะ']);
     const first = Array.from(root.querySelectorAll('tbody tr')[0].querySelectorAll('td')).map((td) => td.textContent);
-    expect(first[0]).toBe('EMP-001'); expect(first[4]).toBe('–'); expect(first[6]).toBe('6 ปี 9 เดือน'); expect(first[7]).toBe('0811111111'); expect(first[8]).toBe('ปฏิบัติงาน');
+    expect(first[0]).toBe('EMP-001'); expect(first[4]).toBe('–'); expect(first[6]).toBe('6 ปี 9 เดือน'); expect(first[7]).toBe('0811111111'); expect(first[8]).toBe('ใช้งาน');
     const second = Array.from(root.querySelectorAll('tbody tr')[1].querySelectorAll('td')).map((td) => td.textContent);
     expect(second[3]).toBe('–'); expect(second[5]).toBe('–'); expect(second[7]).toBe('–'); expect(second[8]).toBe('ไม่ใช้งาน');
     expect(text).toContain('ผู้จัดทำ'); expect(text).toContain('ผู้ตรวจสอบ'); expect(text).toContain('วันที่');

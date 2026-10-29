@@ -47,7 +47,7 @@ describe('AttendanceHistoryPwaPage — fit-to-viewport redesign', () => {
     const print = vi.spyOn(window, 'print').mockImplementation(() => undefined);
     render(<AttendanceHistoryPwaPage token="t" online onOpenLeave={onOpenLeave} onCheckIn={onCheckIn} />);
     await screen.findByRole('table');
-    fireEvent.click(screen.getByRole('button', { name: /พิมพ์รายงานประจำวัน/ }));
+    fireEvent.click(screen.getByRole('button', { name: /พิมพ์ประวัติช่วงที่เลือก/ }));
     fireEvent.click(screen.getByRole('button', { name: /ดูการลา/ }));
     fireEvent.click(screen.getByRole('button', { name: /ไปลงเวลา/ }));
     expect(print).toHaveBeenCalled(); expect(onOpenLeave).toHaveBeenCalled(); expect(onCheckIn).toHaveBeenCalled();

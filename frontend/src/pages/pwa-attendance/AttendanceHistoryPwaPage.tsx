@@ -195,6 +195,7 @@ export function AttendanceHistoryPwaPage({ token, online, onOpenLeave, onCheckIn
     if (!online) return;
     let active = true;
     setLoading(true);
+    setData(undefined);
     setError(undefined);
     attendanceSelfHistory(token, selected)
       .then((result) => { if (active) setData(result); })
@@ -305,11 +306,12 @@ export function AttendanceHistoryPwaPage({ token, online, onOpenLeave, onCheckIn
     </header>
 
     <div className="attendance-history-fit__actions">
-      <button type="button" className="btn-neutral" onClick={() => window.print()}><SmsIcon name="report" size={16} />พิมพ์รายงานประจำวัน</button>
+      <button type="button" className="btn-neutral" disabled={!online || loading || Boolean(error) || !data} onClick={() => window.print()}><SmsIcon name="report" size={16} />พิมพ์ประวัติช่วงที่เลือก</button>
       {onOpenLeave && <button type="button" className="btn-neutral" onClick={onOpenLeave}><SmsIcon name="leave" size={16} />ดูการลา</button>}
       {onCheckIn && <button type="button" className="btn-primary" onClick={onCheckIn}><SmsIcon name="clock" size={16} />ไปลงเวลา</button>}
     </div>
 
+    <p>ช่วงที่เลือก: {selected.from} – {selected.to}</p>
     <section className="attendance-history-fit__today" role="region" aria-label="ลงเวลาวันนี้">
       <div><span>ลงเวลาวันนี้</span><strong>{formatThaiDate(`${today}T00:00:00.000Z`, { timeZone: 'UTC', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</strong></div>
       <div><span>เวลาปัจจุบัน</span><strong data-testid="attendance-today-clock">{clockText(now)}</strong></div>
