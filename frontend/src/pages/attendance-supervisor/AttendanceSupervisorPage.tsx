@@ -29,6 +29,7 @@ import {
 } from './attendance-adjustment-client';
 import { DataTablePagination, DataTableSkeletonCards, DataTableSkeletonRows, DataTableState, ResponsiveDataTable } from '../../components/ResponsiveDataTable';
 import { printDocument } from '../../schedule-print';
+import { AttendanceDailyReport } from './AttendanceDailyReport';
 import './attendance-supervisor-v4.css';
 import { avatarTone } from '../../avatar';
 
@@ -488,6 +489,8 @@ export function AttendanceSupervisorPage({ token, role, department, employeeAuth
   const [employeeId, setEmployeeId] = useState('');
   const [status, setStatus] = useState('');
   const [printEmployeeId, setPrintEmployeeId] = useState<string | null>();
+  const [dailyReportOpen, setDailyReportOpen] = useState(false);
+  const [dailyReportKey, setDailyReportKey] = useState('');
   const [sites, setSites] = useState<SecuritySite[]>([]);
   const [shifts, setShifts] = useState<Array<{ id: string; code?: string; name?: string }>>([]);
   const [employees, setEmployees] = useState<Array<{
@@ -527,6 +530,7 @@ export function AttendanceSupervisorPage({ token, role, department, employeeAuth
   const [workflowBusy, setWorkflowBusy] = useState(false);
   const [workflowError, setWorkflowError] = useState<string>();
   const [reloadKey, setReloadKey] = useState(0);
+  const reportKey = JSON.stringify([token, date, departmentFilter, siteId, shiftTypeId, employeeId, status, reloadKey]);
   const detailDialogRef = useAccessibleOverlay<HTMLElement>(Boolean(detailLoading || detail), () => { if (!detailLoading) setDetail(undefined); }, { closeDisabled: detailLoading });
   const manualDialogRef = useAccessibleOverlay<HTMLElement>(Boolean(manualDialog), () => setManualDialog(undefined), { closeDisabled: workflowBusy, initialFocusSelector: 'select, input, textarea' });
   const adjustmentDialogRef = useAccessibleOverlay<HTMLElement>(Boolean(adjustmentDialog), () => setAdjustmentDialog(undefined), { closeDisabled: workflowBusy, initialFocusSelector: 'input, textarea' });
@@ -589,8 +593,10 @@ export function AttendanceSupervisorPage({ token, role, department, employeeAuth
     request
       .then((response) => {
         if (!active) return;
-        if (mode === 'daily') setDaily(response.data as DailyData);
-        else setHistory(response.data as HistoryData);
+        if (mode === 'daily') {
+          setDaily(response.data as DailyData);
+          setDailyReportKey(reportKey);
+        } else setHistory(response.data as HistoryData);
       })
       .catch((reason) => {
         if (active) setError(formatRequestErrorMessage(reason, 'ไม่สามารถอ่านแดชบอร์ดการลงเวลาได้'));
@@ -1166,7 +1172,9 @@ export function AttendanceSupervisorPage({ token, role, department, employeeAuth
       </section>
       </SectionCard>}
 
-      <SectionCard className="attendance-supervisor-v4__table-card" kicker={mode === 'daily' ? 'ข้อมูลวันนี้' : 'ข้อมูลย้อนหลัง'} title={mode === 'daily' ? 'สถานะประจำวัน' : 'ประวัติการลงเวลา'} description={loading ? 'กำลังโหลดรายการตามตัวกรอง' : `${rows.length} รายการในขอบเขตที่เลือก`} actions={mode === 'daily' ? <div className="attendance-supervisor-v4__print-actions"><button type="button" className="btn-neutral" disabled={loading || !rows.length} onClick={() => void printAttendance(null)}>รายงานวันนี้</button><button type="button" className="btn-primary" disabled={loading || !rows.length} onClick={() => void printAttendance(null)}>พิมพ์ทั้งหมด</button></div> : history?.meta ? <span>หน้า {history.meta.page}/{history.meta.totalPages} · {history.meta.total} รายการ</span> : undefined}>
+      {mode === 'daily' && dailyReportOpen && <AttendanceDailyReport date={date} rows={dailyReportKey === reportKey && !error ? rows : []} loading={loading || (!error && dailyReportKey !== reportKey)} error={error} onShow={setDate} onClose={() => setDailyReportOpen(false)} />}
+
+      <SectionCard className="attendance-supervisor-v4__table-card" kicker={mode === 'daily' ? 'ข้อมูลวันนี้' : 'ข้อมูลย้อนหลัง'} title={mode === 'daily' ? 'สถานะประจำวัน' : 'ประวัติการลงเวลา'} description={loading ? 'กำลังโหลดรายการตามตัวกรอง' : `${rows.length} รายการในขอบเขตที่เลือก`} actions={mode === 'daily' ? <div className="attendance-supervisor-v4__print-actions"><button type="button" className="btn-neutral" aria-pressed={dailyReportOpen} onClick={() => setDailyReportOpen((open) => !open)}>รายงานวันนี้</button><button type="button" className="btn-primary" disabled={loading || !rows.length} onClick={() => void printAttendance(null)}>พิมพ์ทั้งหมด</button></div> : history?.meta ? <span>หน้า {history.meta.page}/{history.meta.totalPages} · {history.meta.total} รายการ</span> : undefined}>
         <ResponsiveDataTable
           ariaLabel={attendanceTableLabel}
           loading={loading && !error}

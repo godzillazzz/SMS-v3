@@ -1605,3 +1605,47 @@ html[data-theme] .app-shell:not(.pwa-shell) .content-area .attendance-supervisor
 .attendance-supervisor-v4__status { display: inline-flex; align-items: center; padding: 3px 10px; border-radius: 999px; font-size: 12px !important; font-weight: 600; white-space: nowrap; }
 .attendance-supervisor-v4__drawer-footer { position: sticky; bottom: 0; display: flex; justify-content: flex-end; gap: 8px; margin-top: auto; padding: 14px 18px; border-top: 1px solid var(--color-border); background: var(--color-surface); }
 .attendance-supervisor-v4__drawer-footer button { display: inline-flex; align-items: center; gap: 6px; }
+
+/* Daily attendance report (owner A4 reference) */
+.attendance-daily-report { display: grid; gap: 12px; min-width: 0; margin: 0 0 16px; }
+.attendance-daily-report__toolbar { display: flex; flex-wrap: wrap; align-items: end; gap: 8px; min-width: 0; }
+.attendance-daily-report__toolbar label { display: grid; gap: 4px; font-size: 12px; font-weight: 700; }
+.attendance-daily-report__toolbar input { min-height: 40px; padding: 6px 10px; border: 1px solid var(--color-border, #cbd5e1); border-radius: 8px; font: inherit; color: inherit; background: var(--color-surface, #fff); }
+.attendance-daily-report__toolbar button { min-height: 40px; }
+.attendance-daily-report__toolbar small { flex-basis: 100%; color: var(--color-text-muted, #64748b); font-size: 12px; }
+.attendance-daily-report__error { margin: 0; color: #b91c1c; }
+.attendance-daily-report__scroll { max-width: 100%; overflow-x: auto; }
+.attendance-daily-report__sheet { box-sizing: border-box; width: 100%; max-width: 210mm; margin: 0 auto; padding: 12mm 10mm; color: #0f172a; background: #fff; border: 1px solid #cbd5e1; border-radius: 8px; font-family: 'Noto Sans Thai', 'IBM Plex Sans Thai', sans-serif; font-size: 10pt; }
+.attendance-daily-report__sheet header { text-align: center; padding-bottom: 4mm; border-bottom: 2px solid #0f172a; }
+.attendance-daily-report__sheet h1 { margin: 0; font-size: 18pt; color: #0f172a; }
+.attendance-daily-report__subtitle { margin: 1mm 0 0; color: #475569; font-size: 10pt; letter-spacing: .04em; }
+.attendance-daily-report__date { margin: 2mm 0 0; font-size: 11pt; font-weight: 700; }
+.attendance-daily-report__cards { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 2mm; margin: 4mm 0; }
+.attendance-daily-report__card { display: grid; gap: 1mm; padding: 2mm 1mm; border: 1px solid #cbd5e1; border-radius: 2mm; text-align: center; background: #f8fafc; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+.attendance-daily-report__card span { font-size: 8pt; color: #475569; }
+.attendance-daily-report__card strong { font-size: 14pt; color: #0f172a; }
+.attendance-daily-report__sheet table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 9pt; }
+.attendance-daily-report__sheet thead { display: table-header-group; }
+.attendance-daily-report__sheet tr { break-inside: avoid; page-break-inside: avoid; }
+.attendance-daily-report__sheet th, .attendance-daily-report__sheet td { padding: 1.5mm 1.2mm; border: 1px solid #cbd5e1; color: #0f172a; text-align: left; vertical-align: top; overflow-wrap: anywhere; }
+.attendance-daily-report__sheet th { background: #e2e8f0; font-weight: 700; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+.attendance-daily-report__sheet th:nth-child(1), .attendance-daily-report__sheet td:nth-child(1) { width: 9%; text-align: center; }
+.attendance-daily-report__sheet th:nth-child(2) { width: 11%; }
+.attendance-daily-report__sheet th:nth-child(3) { width: 24%; }
+.attendance-daily-report__sheet th:nth-child(4) { width: 14%; }
+.attendance-daily-report__sheet th:nth-child(5), .attendance-daily-report__sheet th:nth-child(6), .attendance-daily-report__sheet th:nth-child(7) { width: 10%; }
+.attendance-daily-report__sheet td:nth-child(5), .attendance-daily-report__sheet td:nth-child(6), .attendance-daily-report__sheet td:nth-child(7) { text-align: center; }
+.attendance-daily-report__status { font-weight: 700; }
+.attendance-daily-report__status--good { color: #047857; }
+.attendance-daily-report__status--warning { color: #b45309; }
+.attendance-daily-report__status--danger { color: #dc2626; }
+.attendance-daily-report__status--neutral { color: #334155; }
+@media (max-width: 640px) {
+  .attendance-daily-report__sheet { padding: 12px; }
+  .attendance-daily-report__cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .attendance-daily-report__sheet table { font-size: 11px; }
+}
+@media print {
+  .attendance-daily-report__sheet { max-width: none; padding: 0; border: 0; border-radius: 0; }
+  .attendance-daily-report__cards { grid-template-columns: repeat(7, minmax(0, 1fr)); }
+}
