@@ -89,14 +89,14 @@ export function DashboardPage({ summary, loading, error, user, canManage, filter
     </section>
     </div>
 
-    <SectionCard kicker="ตัวชี้วัด" title="ภาพรวมการปฏิบัติงาน" description="สรุปกำลังพลและรายการตามวันที่กับสิทธิ์ที่เลือก" className="nexus-kpis-card" aria-label="ตัวชี้วัด">
+    <section className="nexus-kpis-card" aria-label="ตัวชี้วัด">
     <div className="nexus-kpis">
       <button type="button" onClick={() => navigateMetric('activeEmployees')}><i className="dashboard-kpi-icon" aria-hidden="true"><SmsIcon name="employees" size={18} /></i><span>พนักงานปฏิบัติงาน</span><strong>{numberText(active)}<small> / {numberText(total)}</small></strong><em>{total ? Math.round(active/total*100) : 0}% พร้อมทำงาน</em></button>
       <button type="button" onClick={() => navigateMetric('schedule', { workforce: 'ON_DUTY' })}><i className="dashboard-kpi-icon" aria-hidden="true"><SmsIcon name="calendar" size={18} /></i><span>ทำงานวันนี้</span><strong>{numberText(onDuty)}</strong><em>ตามตารางกะ</em></button>
       <button type="button" onClick={() => navigateMetric('leaveToday')}><i className="dashboard-kpi-icon" aria-hidden="true"><SmsIcon name="leave" size={18} /></i><span>ลาวันนี้</span><strong>{numberText(leave)}</strong><em>บุคลากรที่ลาในวันที่เลือก</em></button>
       <button type="button" onClick={() => navigateMetric('licenseExpiry', { expiryBucket: 'EXPIRING_0_30' })}><i className="dashboard-kpi-icon" aria-hidden="true"><SmsIcon name="license" size={18} /></i><span>ใบอนุญาตใกล้หมดอายุ</span><strong>{numberText(expiring)}</strong><em>{expiring ? 'ควรตรวจสอบ' : 'ไม่มีรายการใกล้หมดอายุ'}</em></button>
     </div>
-    </SectionCard>
+    </section>
 
     <QuickActionsCard canManage={canManage} onNavigate={onNavigate} />
 

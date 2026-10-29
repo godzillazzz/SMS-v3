@@ -8,6 +8,7 @@ import { formatThaiDate, formatThaiDateTime } from '../../thai-date-time';
 import { updateRouteQuery } from '../../routing';
 import type { LeaveDecisionAction } from '../../components/LeaveDecisionConfirmation';
 import { approveAttendanceAdjustment, rejectAttendanceAdjustment, reviewAttendanceAdjustment, returnAttendanceAdjustment } from '../attendance-supervisor/attendance-adjustment-client';
+import { attendanceDeviceSelfieBlob } from '../attendance/attendance-client';
 import '../../styles/approval-center.css';
 import { MetricCard, PageHeader, SectionCard } from '../../components/layout';
 import { useActionDialog } from '../../components/useActionDialog';
@@ -320,6 +321,41 @@ export function ApprovalCenterPage({
 
   const selected = items.find((item) => item.id === selectedId);
   const [decisionId, setDecisionId] = useState('');
+  const [deviceSelfie, setDeviceSelfie] = useState<{ id?: string; url?: string; loading?: boolean; error?: string }>({});
+
+  useEffect(() => {
+    return () => {
+      if (deviceSelfie.url) URL.revokeObjectURL(deviceSelfie.url);
+    };
+  }, [deviceSelfie.url]);
+
+  useEffect(() => {
+    setDeviceSelfie((prev) => {
+      if (prev.url) URL.revokeObjectURL(prev.url);
+      return {};
+    });
+  }, [decisionId]);
+
+  const toggleDeviceSelfie = async (item: ApprovalCenterItem) => {
+    if (deviceSelfie.url) {
+      URL.revokeObjectURL(deviceSelfie.url);
+      setDeviceSelfie({});
+      return;
+    }
+    const employeeId = String(meta(item, 'employeeId') || item.employee?.id || '');
+    const deviceId = String(meta(item, 'candidateDeviceId') || '');
+    if (!employeeId || !deviceId) {
+      setDeviceSelfie({ id: item.id, error: 'ไม่พบรหัสอุปกรณ์หรือพนักงานสำหรับดึงรูปเซลฟี่' });
+      return;
+    }
+    setDeviceSelfie({ id: item.id, loading: true });
+    try {
+      const blob = await attendanceDeviceSelfieBlob(token, employeeId, deviceId);
+      setDeviceSelfie({ id: item.id, url: URL.createObjectURL(blob) });
+    } catch {
+      setDeviceSelfie({ id: item.id, error: 'ไม่มีรูปเซลฟี่จากการลงเวลา หรือดึงรูปไม่สำเร็จ' });
+    }
+  };
   const decision = items.find((item) => item.id === decisionId);
   const decisionPanelRef = useRef<HTMLElement>(null);
   useEffect(() => { if (decisionId) decisionPanelRef.current?.focus(); }, [decisionId]);
@@ -824,6 +860,37 @@ export function ApprovalCenterPage({
             <strong>ถ้าอนุมัติ</strong>
             <p>{panelConsequence[decision.type]}</p>
           </section>}
+          {decision.type === 'ATTENDANCE_DEVICE_REQUEST' && (
+            <div className="approval-device-selfie-review" style={{ margin: '14px 0', padding: '12px 14px', background: 'var(--color-surface-muted, #f8fafc)', borderRadius: '10px', border: '1px solid var(--color-border, #e2e8f0)' }}>
+              <button
+                type="button"
+                className="btn-neutral approval-device-selfie-toggle"
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '8px 14px', borderRadius: '8px', cursor: 'pointer', fontWeight: 600, width: '100%', justifyContent: 'center' }}
+                disabled={deviceSelfie.loading}
+                onClick={() => void toggleDeviceSelfie(decision)}
+              >
+                <SmsIcon name="eye" size={16} />
+                {deviceSelfie.loading ? 'กำลังโหลดรูปเซลฟี่…' : deviceSelfie.url ? 'ซ่อนรูปเซลฟี่' : 'ดูรูปเซลฟี่จากการลงเวลา'}
+              </button>
+              {deviceSelfie.url && (
+                <div className="approval-device-selfie-preview" style={{ marginTop: '12px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
+                  <img
+                    src={deviceSelfie.url}
+                    alt={`รูปเซลฟี่จากการลงเวลาของ ${employeeName(decision)}`}
+                    style={{ maxWidth: '100%', maxHeight: '240px', borderRadius: '8px', border: '1px solid var(--color-border, #cbd5e1)', objectFit: 'contain' }}
+                  />
+                  <small style={{ color: 'var(--color-text-muted, #64748b)', fontSize: '11px', textAlign: 'center' }}>
+                    รูปเซลฟี่จากการลงเวลา ไม่ใช่รูปแนบคำขอ
+                  </small>
+                </div>
+              )}
+              {deviceSelfie.error && (
+                <div style={{ marginTop: '8px', color: 'var(--color-danger, #ef4444)', fontSize: '12px', textAlign: 'center' }}>
+                  {deviceSelfie.error}
+                </div>
+              )}
+            </div>
+          )}
           <footer className="approval-decision-panel__actions">
             {renderActionButtons(decision)}
             {renderDetailButton(decision, 'approval-decision-panel__detail')}

@@ -395,6 +395,7 @@ function createApprovalCenterService({
       where: { status: 'PENDING_APPROVAL' },
       select: {
         id: true, status: true, requestType: true, reason: true, createdAt: true,
+        employeeId: true, candidateDeviceEnrollmentId: true,
         employee: { select: commonEmployeeSelect },
         requestedBy: { select: { id: true, displayName: true, role: true } },
         candidateDevice: { select: { displayName: true, platformHint: true } }
@@ -563,7 +564,9 @@ function createApprovalCenterService({
           requestType: row.requestType,
           reason: row.reason || null,
           deviceName: row.candidateDevice?.displayName || null,
-          platformHint: row.candidateDevice?.platformHint || null
+          platformHint: row.candidateDevice?.platformHint || null,
+          candidateDeviceId: row.candidateDeviceEnrollmentId || null,
+          employeeId: row.employeeId || row.employee?.id || null
         }
       }, now, policies.get('ATTENDANCE_DEVICE_REQUEST')));
     }

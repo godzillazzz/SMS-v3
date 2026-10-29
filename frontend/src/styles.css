@@ -1676,14 +1676,17 @@ button, select, input, textarea {
   .leave-print-write-at { text-align: right; font-size: 11pt; line-height: 1.5; margin-bottom: 3mm; }
   .leave-print-subject { font-size: 11.5pt; line-height: 1.6; margin-bottom: 3.5mm; }
 
-  .leave-print-letter-body { font-size: 11pt; line-height: 1.6; margin-bottom: 3mm; text-align: justify; }
+  .leave-print-letter-body { font-size: 11pt; line-height: 1.6; margin-bottom: 3mm; text-align: justify; text-justify: inter-character; word-break: normal; overflow-wrap: anywhere; }
+  .leave-print-letter-body p { text-indent: 12mm; }
   .leave-print-letter-body p { margin: 1.2mm 0; }
   .print-fill { border-bottom: 1px dotted #475569; padding: 0 4px; color: #0f172a; }
   .print-fill-bold { font-weight: 700; }
 
   .leave-print-applicant-sig { width: 55%; margin: 3mm 0 3mm auto; text-align: center; font-size: 11pt; line-height: 1.35; }
-  .leave-print-sig-dots { margin-bottom: 1.2mm; white-space: nowrap; }
-  .leave-print-system-signature { display: inline-block; padding: 0 4px; text-align: center; font-weight: 700; font-size: 10pt; color: #0f766e; }
+  .leave-print-sig-dots { position: relative; display: flex; justify-content: center; margin-bottom: 1.2mm; white-space: nowrap; }
+  .leave-print-sig-label { position: absolute; right: calc(50% + 32mm); bottom: 0; }
+  .leave-print-sig-line { display: flex; align-items: flex-end; justify-content: center; width: 62mm; min-height: 6mm; border-bottom: 1px dotted #475569; }
+  .leave-print-system-signature { display: block; width: 100%; padding: 0; text-align: center; font-weight: 700; font-size: 10pt; line-height: 1.2; color: #0f766e; }
   .leave-print-sig-name { margin-bottom: 1mm; }
   .leave-print-sig-role { display: block; font-weight: 700; }
   .leave-print-sig-date { font-size: 9.5pt; color: #475569; }
@@ -2234,3 +2237,7 @@ button.btn-primary:disabled, button.btn-secondary:disabled, button.btn-info:disa
 
 /* CFG-UX-01B Shift governance */
 .shift-governance-toolbar{display:grid;grid-template-columns:minmax(0,1fr) 180px;gap:10px;margin:0 0 14px}.shift-impact-preview{margin:0 0 14px;padding:14px;border:1px solid var(--color-border);border-radius:12px;background:color-mix(in srgb,var(--color-warning) 8%,transparent)}.shift-impact-preview h3{margin:0 0 6px}.shift-impact-preview p{margin:0 0 10px}.shift-impact-preview dl{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:0 0 10px}.shift-impact-preview dl>div{padding:8px;border:1px solid var(--color-border);border-radius:8px}.shift-impact-preview dt{font-size:.75rem}.shift-impact-preview dd{margin:2px 0 0;font-weight:700}.shift-impact-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:10px}@media(max-width:700px){.shift-governance-toolbar,.shift-impact-preview dl{grid-template-columns:1fr}.shift-impact-actions{justify-content:stretch}.shift-impact-actions button{flex:1}}
+
+/* Quota year filter: label sits on the same row as the Buddhist-year select. */
+.month-filter.month-filter--inline { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; white-space: nowrap; }
+.month-filter.month-filter--inline > span { color: var(--color-text-secondary, #64748b); font-weight: 600; }

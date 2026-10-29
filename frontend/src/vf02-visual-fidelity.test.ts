@@ -96,9 +96,10 @@ describe('G04.2 VF-02 owner visual fidelity correction contract', () => {
     expect(css).toContain('.access-summary-card {\n  min-height: 112px;');
   });
 
-  it('puts Access Management first while preserving Registration Review workflow contracts', () => {
+  it('puts the Registration Review queue above Access Management (owner 2026-10-29) while preserving its workflow contracts', () => {
     const usersBlock = main.slice(main.indexOf("if (activePage === 'users')"), main.indexOf("if (activePage === 'settings')"));
-    expect(usersBlock.indexOf('<AccessManagementPage')).toBeLessThan(usersBlock.indexOf('<RegistrationReviewPanel'));
+    expect(usersBlock.indexOf('<RegistrationReviewPanel')).toBeLessThan(usersBlock.indexOf('<AccessManagementPage'));
+    expect(usersBlock).toContain('hideWhenEmpty');
     expect(review).toContain('api.matchRegistrationRequest(token, selected.id, employeeId)');
     expect(review).toContain('api.approveRegistrationRequest(token, selected.id)');
     expect(review).toContain('อนุมัติเป็นผู้ใช้งาน');

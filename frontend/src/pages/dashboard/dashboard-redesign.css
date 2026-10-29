@@ -23,8 +23,32 @@
 #sms-app .dashboard-redesign .nexus-clear span { color: var(--color-text-muted) !important; }
 
 /* KPI cards (03 #3) */
-#sms-app .dashboard-redesign .nexus-kpis-card { padding: 0 !important; border: 0 !important; background: transparent !important; box-shadow: none !important; }
-#sms-app .dashboard-redesign .nexus-kpis-card > header, #sms-app .dashboard-redesign .nexus-kpis-card .layout-section-card__header { display: none !important; }
+:is(#sms-app, .app-shell) .dashboard-redesign :is(.nexus-kpis-card, .nexus-kpis-section),
+.dashboard-redesign :is(.nexus-kpis-card, .nexus-kpis-section),
+.nexus-kpis-card,
+.nexus-kpis-section,
+.nexus-kpis { padding: 0 !important; border: 0 !important; background: transparent !important; background-color: transparent !important; box-shadow: none !important; }
+:is(#sms-app, .app-shell) .dashboard-redesign .nexus-kpis-card > header,
+:is(#sms-app, .app-shell) .dashboard-redesign .nexus-kpis-card .layout-section-card__heading,
+:is(#sms-app, .app-shell) .dashboard-redesign .nexus-kpis-card .layout-section-card__header { display: none !important; }
+
+/* Quick Actions card */
+:is(#sms-app, .app-shell) .dashboard-redesign .dashboard-quick-actions,
+.dashboard-redesign .dashboard-quick-actions,
+.dashboard-quick-actions {
+  padding: 20px 24px !important;
+  border: 1px solid var(--color-border) !important;
+  border-radius: 14px !important;
+  background: var(--color-surface) !important;
+  box-shadow: var(--shadow-sm) !important;
+}
+@media (max-width: 640px) {
+  :is(#sms-app, .app-shell) .dashboard-redesign .dashboard-quick-actions,
+  .dashboard-redesign .dashboard-quick-actions,
+  .dashboard-quick-actions {
+    padding: 16px !important;
+  }
+}
 #sms-app .dashboard-redesign .nexus-kpis { display: grid !important; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; padding: 0 !important; background: transparent !important; border: 0 !important; }
 #sms-app .dashboard-redesign .nexus-kpis > button { display: grid !important; grid-template-columns: auto 1fr; grid-template-areas: "icon label" "value value" "note note"; align-items: center; gap: 10px 12px; min-height: 0; padding: 18px !important; border: 1px solid var(--color-border) !important; border-radius: 14px !important; background: var(--color-surface) !important; box-shadow: var(--shadow-sm) !important; color: var(--color-text) !important; text-align: left; cursor: pointer; }
 #sms-app .dashboard-redesign .nexus-kpis > button:hover { border-color: color-mix(in srgb, var(--color-primary) 40%, var(--color-border)) !important; }

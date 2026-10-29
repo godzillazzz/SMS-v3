@@ -31,6 +31,7 @@ type Candidate = {
 };
 
 type Props = {
+  hideWhenEmpty?: boolean;
   token: string;
   role: string;
   refreshSignal: number;
@@ -66,7 +67,7 @@ function ReviewProgress({ status, candidateSelected }: { status: RequestRow['sta
   </div>;
 }
 
-export function RegistrationReviewPanel({ token, role, refreshSignal, initialRequestId, onInitialRequestHandled, onChanged, onOpenEmployeeMaster }: Props) {
+export function RegistrationReviewPanel({ hideWhenEmpty = false, token, role, refreshSignal, initialRequestId, onInitialRequestHandled, onChanged, onOpenEmployeeMaster }: Props) {
   const [rows, setRows] = useState<RequestRow[]>([]);
   const [page, setPage] = useState(1);
   const [pageMeta, setPageMeta] = useState({ total: 0, totalPages: 1 });
@@ -202,6 +203,9 @@ export function RegistrationReviewPanel({ token, role, refreshSignal, initialReq
   const terminal = selected && ['APPROVED', 'REJECTED'].includes(selected.status);
   const approvalDisabled = busy || selected?.status !== 'MATCHED' || !selected?.matchedEmployeeId;
 
+  // Owner request: on the Users page the queue sits on top and disappears while nothing is pending.
+  // A deep link (initialRequestId) or an active filter keeps it visible so a reviewer is never stranded.
+  if (hideWhenEmpty && !loading && !error && !statusFilter && !initialRequestId && pageMeta.total === 0 && rows.length === 0) return null;
   return <SectionCard className="registration-review" kicker="บุคลากรและสิทธิ์" title="คำขอลงทะเบียน" description="ตรวจสอบข้อมูลผู้สมัครและจับคู่กับทะเบียนพนักงานก่อนตัดสินใจอนุมัติบัญชี" actions={<button type="button" className="btn-neutral registration-review__refresh" disabled={loading} onClick={() => void load()}><SmsIcon name="history" size={17} />รีเฟรช</button>}>
     {error && <div className="registration-review__feedback registration-review__feedback--error" role="alert" aria-live="assertive"><SmsIcon name="shield" size={18} /><span>{error}</span></div>}
     {message && <div className="registration-review__feedback registration-review__feedback--success" role="status" aria-live="polite"><SmsIcon name="approval" size={18} /><span>{message}</span></div>}

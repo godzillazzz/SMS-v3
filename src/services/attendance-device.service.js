@@ -186,7 +186,19 @@ function createAttendanceDeviceService({ prisma = prismaDefault, audit = auditDe
   async function listRequests({ actor, status = 'PENDING_APPROVAL' }) {
     assertAdmin(actor);
     const rows = await prisma.attendanceDeviceChangeRequest.findMany({ where: status ? { status } : {}, include: { candidateDevice: { include: { approvedBy: { select: { id: true, displayName: true, role: true } } } }, employee: { select: { id: true, displayName: true, firstName: true, lastName: true, department: true } }, requestedBy: { select: { id: true, displayName: true, role: true } }, reviewedBy: { select: { id: true, displayName: true, role: true } } }, orderBy: { createdAt: 'asc' } });
-    return rows.map(safeRequest);
+    // Attach the latest stored clock-in selfie timestamp per candidate device so the
+    // ADMIN queue can offer an identity check before approving.
+    const candidateIds = rows.map((row) => row.candidateDeviceEnrollmentId).filter(Boolean);
+    const latestSelfieAt = new Map();
+    if (candidateIds.length && prisma.attendanceDeviceSelfie?.findMany) {
+      const selfies = await prisma.attendanceDeviceSelfie.findMany({ where: { enrollmentId: { in: candidateIds }, purgedAt: null }, select: { enrollmentId: true, capturedAt: true }, orderBy: { capturedAt: 'desc' } });
+      for (const selfie of selfies) if (!latestSelfieAt.has(selfie.enrollmentId)) latestSelfieAt.set(selfie.enrollmentId, selfie.capturedAt);
+    }
+    return rows.map((row) => {
+      const safe = safeRequest(row);
+      if (safe?.candidateDevice) safe.candidateDevice = { ...safe.candidateDevice, latestSelfieAt: latestSelfieAt.get(row.candidateDeviceEnrollmentId) || null };
+      return safe;
+    });
   }
 
   async function listAdminOverview({ actor }) {
