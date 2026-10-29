@@ -53,6 +53,14 @@ function parseHistoryRange(filters = {}, fallback = new Date()) {
   return { from, to, days };
 }
 
+function parseMonthPrintRange(selectedDate) {
+  const to = parseDateText(selectedDate);
+  const from = parseDateText(`${to.text.slice(0, 8)}01`);
+  const days = Math.round((to.date.getTime() - from.date.getTime()) / 86400000) + 1;
+  const dateTexts = Array.from({ length: days }, (_, index) => addUtcDays(from.date, index).toISOString().slice(0, 10));
+  return { from, to, days, dateTexts };
+}
+
 function scopeForActor(actor, filters = {}) {
   const role = String(actor?.role || '').toUpperCase();
   if (!['ADMIN', 'MANAGER', 'SUPERVISOR', 'VIEWER'].includes(role)) throw http(403, 'ATTENDANCE_SUPERVISOR_FORBIDDEN', 'Attendance supervisor access requires an authorized role.');
@@ -430,6 +438,71 @@ function createAttendanceSupervisorService({ prisma = prismaDefault, clock = () 
     };
   }
 
+  async function monthPrint({ actor, selectedDate } = {}, client = prisma) {
+    const now = clock();
+    const range = parseMonthPrintRange(selectedDate);
+    const scope = scopeForActor(actor, {});
+    const employeeWhere = employeeScopeWhere(scope, {});
+    const employees = await client.employee.findMany({
+      where: employeeWhere,
+      select: { id: true, employeeCode: true, firstName: true, lastName: true, displayName: true, department: true },
+      orderBy: [{ employeeCode: 'asc' }, { id: 'asc' }]
+    });
+    employees.sort((left, right) => String(left.employeeCode).localeCompare(String(right.employeeCode)) || String(left.id).localeCompare(String(right.id)));
+
+    const employeeIds = employees.map((employee) => employee.id);
+    const assignments = employeeIds.length === 0 ? [] : await client.shiftAssignment.findMany({
+      where: {
+        workDate: { gte: range.from.date, lte: range.to.date },
+        employeeId: { in: employeeIds },
+        employee: { is: employeeWhere }
+      },
+      include: assignmentInclude(),
+      orderBy: [{ workDate: 'asc' }, { employeeId: 'asc' }]
+    });
+    const [leaves, correctionsByAssignment] = assignments.length === 0
+      ? [[], new Map()]
+      : await Promise.all([
+        leavesMap(client, assignments, range.from.date, range.to.date),
+        correctionsMap(client, assignments.map((row) => row.id))
+      ]);
+    const rows = assignments.length === 0 ? [] : await buildRows({ assignments, leaves, correctionsByAssignment, asOf: now, filters: {}, client });
+    const rowByEmployeeAndDate = new Map(rows.map((row) => [`${row.employeeId}:${row.date}`, row]));
+    const assignmentByEmployeeAndDate = new Map(assignments.map((assignment) => [
+      `${assignment.employeeId}:${assignment.workDate.toISOString().slice(0, 10)}`,
+      assignment
+    ]));
+
+    return {
+      generatedAt: now,
+      monthStart: range.from.text,
+      selectedDate: range.to.text,
+      scope: { role: scope.role, department: scope.department },
+      employees: employees.map((employee) => ({
+        id: employee.id,
+        employeeCode: employee.employeeCode,
+        employeeName: employee.displayName || `${employee.firstName || ''} ${employee.lastName || ''}`.trim(),
+        department: employee.department || null,
+        days: range.dateTexts.map((date) => {
+          const key = `${employee.id}:${date}`;
+          const assignment = assignmentByEmployeeAndDate.get(key);
+          return {
+            date,
+            assignment: assignment ? {
+              id: assignment.id,
+              shiftTypeId: assignment.shiftTypeId,
+              shiftCode: assignment.shiftType?.code || null,
+              shiftName: assignment.shiftType?.name || null,
+              startTime: assignment.startTime || assignment.shiftType?.startTime || null,
+              endTime: assignment.endTime || assignment.shiftType?.endTime || null
+            } : null,
+            attendance: rowByEmployeeAndDate.get(key) || null
+          };
+        })
+      }))
+    };
+  }
+
   async function detail({ actor, assignmentId } = {}, client = prisma) {
     const scope = scopeForActor(actor, {});
     const assignment = await client.shiftAssignment.findUnique({
@@ -488,7 +561,7 @@ function createAttendanceSupervisorService({ prisma = prismaDefault, clock = () 
     };
   }
 
-  return { daily, history, detail };
+  return { daily, history, monthPrint, detail };
 }
 
 module.exports = {
@@ -497,6 +570,7 @@ module.exports = {
   bangkokDateText,
   parseDateText,
   parseHistoryRange,
+  parseMonthPrintRange,
   scopeForActor,
   operationalStatus,
   summaryFor,

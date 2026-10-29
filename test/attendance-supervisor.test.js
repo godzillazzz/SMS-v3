@@ -8,6 +8,7 @@ const {
   operationalStatus,
   summaryFor,
   parseHistoryRange,
+  parseMonthPrintRange,
   createAttendanceSupervisorService
 } = require('../src/services/attendance-supervisor.service');
 
@@ -187,6 +188,71 @@ test('history range is bounded to protect serverless read cost', () => {
   assert.throws(
     () => parseHistoryRange({ from: '2026-06-01', to: '2026-08-27' }, new Date('2026-08-27T01:00:00.000Z')),
     /must not exceed/
+  );
+});
+
+test('month print range uses calendar dates from month start through selected date', () => {
+  const range = parseMonthPrintRange('2024-02-29');
+  assert.equal(range.from.text, '2024-02-01');
+  assert.equal(range.to.text, '2024-02-29');
+  assert.equal(range.days, 29);
+  assert.deepEqual(range.dateTexts.slice(0, 2), ['2024-02-01', '2024-02-02']);
+  assert.equal(range.dateTexts.at(-1), '2024-02-29');
+});
+
+test('month print returns every active authorized employee with deterministic blank and classified days', async () => {
+  const assigned = shiftAssignment({
+    id: 'print-a', employeeId: 'emp-a', name: 'Alpha', department: 'OPS',
+    events: [event('CHECK_IN', '2026-08-02T00:00:00.000Z', 'print-a-site')]
+  });
+  assigned.workDate = new Date('2026-08-02T00:00:00.000Z');
+  assigned.employee.employeeCode = 'E002';
+  const calls = [];
+  const prisma = {
+    employee: { findMany: async (args) => {
+      calls.push(['employees', args]);
+      return [
+        { id: 'emp-b', employeeCode: 'E001', firstName: 'Blank', lastName: 'Employee', displayName: 'Blank Employee', department: 'OPS' },
+        { id: 'emp-a', employeeCode: 'E002', firstName: 'Alpha', lastName: '', displayName: 'Alpha', department: 'OPS' }
+      ];
+    } },
+    shiftAssignment: { findMany: async (args) => { calls.push(['assignments', args]); return [assigned]; } },
+    leaveRequest: { findMany: async () => [] },
+    securitySite: { findUnique: async () => null }
+  };
+  const service = createAttendanceSupervisorService({
+    prisma,
+    clock: () => new Date('2026-08-29T12:00:00.000Z'),
+    siteAuthorityService: { resolve: async ({ assignment }) => ({ site: assignment.securitySite }) }
+  });
+
+  const result = await service.monthPrint({ actor: { role: 'MANAGER', department: 'OTHER' }, selectedDate: '2026-08-29' });
+
+  assert.equal(result.monthStart, '2026-08-01');
+  assert.equal(result.selectedDate, '2026-08-29');
+  assert.deepEqual(result.employees.map((employee) => employee.employeeCode), ['E001', 'E002']);
+  assert.equal(result.employees[0].days.length, 29);
+  assert.deepEqual(result.employees[0].days[0], { date: '2026-08-01', assignment: null, attendance: null });
+  assert.equal(result.employees[0].days.some((day) => day.attendance?.attendanceStatus === 'ABSENT'), false);
+  assert.equal(result.employees[1].days[1].attendance.assignmentId, 'print-a');
+  assert.equal(calls.filter(([name]) => name === 'employees').length, 1);
+  assert.equal(calls.filter(([name]) => name === 'assignments').length, 1);
+  assert.deepEqual(calls[0][1].where, { isActive: true, deletedAt: null });
+});
+
+test('month print limits VIEWER to linked employee and rejects unlinked VIEWER', async () => {
+  let employeeWhere;
+  const prisma = {
+    employee: { findMany: async (args) => { employeeWhere = args.where; return []; } },
+    shiftAssignment: { findMany: async () => [] }
+  };
+  const service = createAttendanceSupervisorService({ prisma, clock: () => new Date('2026-08-29T12:00:00.000Z') });
+  const linked = await service.monthPrint({ actor: { role: 'VIEWER', employeeAuthority: { id: 'emp-viewer' } }, selectedDate: '2026-08-29' });
+  assert.deepEqual(employeeWhere, { isActive: true, deletedAt: null, id: 'emp-viewer' });
+  assert.deepEqual(linked.employees, []);
+  await assert.rejects(
+    () => service.monthPrint({ actor: { role: 'VIEWER' }, selectedDate: '2026-08-29' }),
+    (error) => (error.details?.code || error.code) === 'ATTENDANCE_SUPERVISOR_SCOPE_REQUIRED'
   );
 });
 
