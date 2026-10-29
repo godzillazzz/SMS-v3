@@ -78,6 +78,7 @@ export function RegistrationReviewPanel({ hideWhenEmpty = false, token, role, re
   const [selectedCandidateId, setSelectedCandidateId] = useState('');
   const [matchState, setMatchState] = useState('');
   const [loading, setLoading] = useState(false);
+  const [openedEmptyQueue, setOpenedEmptyQueue] = useState(false);
   const [candidateLoading, setCandidateLoading] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
@@ -203,9 +204,10 @@ export function RegistrationReviewPanel({ hideWhenEmpty = false, token, role, re
   const terminal = selected && ['APPROVED', 'REJECTED'].includes(selected.status);
   const approvalDisabled = busy || selected?.status !== 'MATCHED' || !selected?.matchedEmployeeId;
 
-  // Owner request: on the Users page the queue sits on top and disappears while nothing is pending.
-  // A deep link (initialRequestId) or an active filter keeps it visible so a reviewer is never stranded.
-  if (hideWhenEmpty && !loading && !error && !statusFilter && !initialRequestId && pageMeta.total === 0 && rows.length === 0) return null;
+  // Keep the empty card hidden, but offer a way to refresh and browse the queue.
+  if (hideWhenEmpty && !openedEmptyQueue && !loading && !error && !statusFilter && !initialRequestId && pageMeta.total === 0 && rows.length === 0) {
+    return <button type="button" className="btn-neutral" onClick={() => { setOpenedEmptyQueue(true); void load(); }}>เปิดคำขอลงทะเบียน</button>;
+  }
   return <SectionCard className="registration-review" kicker="บุคลากรและสิทธิ์" title="คำขอลงทะเบียน" description="ตรวจสอบข้อมูลผู้สมัครและจับคู่กับทะเบียนพนักงานก่อนตัดสินใจอนุมัติบัญชี" actions={<button type="button" className="btn-neutral registration-review__refresh" disabled={loading} onClick={() => void load()}><SmsIcon name="history" size={17} />รีเฟรช</button>}>
     {error && <div className="registration-review__feedback registration-review__feedback--error" role="alert" aria-live="assertive"><SmsIcon name="shield" size={18} /><span>{error}</span></div>}
     {message && <div className="registration-review__feedback registration-review__feedback--success" role="status" aria-live="polite"><SmsIcon name="approval" size={18} /><span>{message}</span></div>}
