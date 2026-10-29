@@ -26,14 +26,5 @@ html[data-theme] .app-shell:not(.pwa-shell) :is(.main-area,.content-area,.view-p
 /* Keep existing shell labels readable when the canvas is light. */
 [data-theme="light"] .app-shell:not(.pwa-shell) .nexus-command__hero > div > p:not(.nexus-kicker) { color:var(--color-text-secondary) !important; }
 
-/* Global card padding safety: ensure cards across multiple pages never have text hitting the card border */
-:is(.data-mobile-card, .account-mobile-card, .audit-mobile-card, .data-quality-mobile-card, .settings-card, .dashboard-panel):not(.nexus-kpis-card):not(.nexus-kpis-section) {
-  padding: var(--layout-card-padding, 20px) !important;
-  box-sizing: border-box !important;
-}
-
-@media(max-width:768px) {
-  :is(.data-mobile-card, .account-mobile-card, .audit-mobile-card, .data-quality-mobile-card, .settings-card, .dashboard-panel):not(.nexus-kpis-card):not(.nexus-kpis-section) {
-    padding: 16px !important;
-  }
-}
+/* Card text never touches the border. */
+:is(.data-mobile-card,.settings-card,.dashboard-panel){padding:var(--layout-card-padding,20px)!important}

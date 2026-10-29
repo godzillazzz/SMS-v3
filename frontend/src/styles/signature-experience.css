@@ -433,7 +433,6 @@ input::placeholder, textarea::placeholder { color: var(--signature-text-muted); 
 }
 .dashboard-attention-card { border-color: color-mix(in srgb, var(--signature-warning) 28%, var(--signature-border)) !important; }
 .dashboard-attention-row, .dashboard-expiring-row, .dashboard-shift-group { background: transparent !important; border-bottom: 1px solid var(--signature-border) !important; border-radius: 0 !important; }
-.dashboard-quick-actions { padding: 20px 24px !important; border-radius: 14px !important; }
 .dashboard-quick-actions__grid { gap: 8px; }
 .dashboard-quick-actions__grid button { min-height: 48px; border: 1px solid var(--signature-border); background: var(--signature-surface); }
 .dashboard-secondary-grid, .dashboard-tertiary-grid { gap: 12px; }

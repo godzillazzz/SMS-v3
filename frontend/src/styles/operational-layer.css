@@ -209,7 +209,6 @@ body{-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
 [data-theme="light"] .nexus-command__hero{border-bottom-color:#d8e5ec!important}
 [data-theme="light"] .nexus-command__hero>div>p:last-child{color:#617588!important}
 [data-theme="light"] .nexus-panel{background:#fff!important;background-color:#fff!important;border-color:#d8e5ec!important;box-shadow:0 8px 26px rgba(29,63,89,.055)!important}
-.nexus-kpis,.nexus-kpis-card,.nexus-kpis-section{background:transparent!important;background-color:transparent!important;border:0!important;box-shadow:none!important}
 [data-theme="light"] .nexus-panel>header{border-bottom-color:#d8e5ec!important}
 [data-theme="light"] .nexus-kpis button{background:#fff!important;border-color:#d8e5ec!important}
 [data-theme="light"] .nexus-kpis button:hover{background:#f3f8fa!important}

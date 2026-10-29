@@ -348,23 +348,8 @@
 @media(max-width:980px){.nexus-gis-workspace .nexus-gis-status-strip>span:nth-child(3){border-right:0!important}}
 @media(max-width:700px){.nexus-gis-workspace .nexus-gis-status-strip{grid-template-columns:1fr!important}}
 
-/* Owner report: site detail tiles kept the old dark "nexus" palette in the light theme.
-   Every tile in the intelligence sheet follows the active theme tokens instead. */
-html[data-theme] .app-shell .content-area .nexus-gis-workspace :is(.gis-intelligence-sheet__content, .gis-intel-section, .gis-spatial-grid, .gis-qr-facts, .gis-department-list, .gis-alert-channel, .gis-intel-empty, .gis-intel-empty-state, .gis-config-warning) {
-  background: var(--color-surface) !important;
-  color: var(--color-text) !important;
-  border-color: var(--color-border) !important;
-  box-shadow: none !important;
-}
-html[data-theme] .app-shell .content-area .nexus-gis-workspace :is(.gis-spatial-grid, .gis-qr-facts) > * {
-  background: var(--color-surface-muted) !important;
-  color: var(--color-text) !important;
-  border: 1px solid var(--color-border) !important;
-  border-radius: 8px !important;
-}
-html[data-theme] .app-shell .content-area .nexus-gis-workspace :is(.gis-intel-section, .gis-spatial-grid, .gis-qr-facts, .gis-department-list) :is(span, small, dt, header > span) { color: var(--color-text-secondary) !important; }
-html[data-theme] .app-shell .content-area .nexus-gis-workspace :is(.gis-intel-section, .gis-spatial-grid, .gis-qr-facts, .gis-department-list) :is(strong, b:not(.is-nominal):not(.is-warning), dd) { color: var(--color-text) !important; }
-html[data-theme] .app-shell .content-area .nexus-gis-workspace .gis-intel-section header b.is-nominal { color: var(--color-success, #15803d) !important; }
-html[data-theme] .app-shell .content-area .nexus-gis-workspace .gis-intel-section header b.is-warning { color: var(--color-warning, #b45309) !important; }
-html[data-theme] .app-shell .content-area .nexus-gis-workspace .gis-intel-actions .btn-primary { background: var(--color-primary) !important; border-color: var(--color-primary) !important; color: #fff !important; }
-html[data-theme] .app-shell .content-area .nexus-gis-workspace .gis-intel-actions .btn-neutral { background: var(--color-surface) !important; border-color: var(--color-border) !important; color: var(--color-text) !important; }
+/* Site detail tiles follow the active theme. */
+.nexus-gis-workspace :is(.gis-intel-section,.gis-spatial-grid,.gis-qr-facts,.gis-department-list,.gis-alert-channel,.gis-intel-empty,.gis-config-warning){background:var(--color-surface)!important;color:var(--color-text)!important;border-color:var(--color-border)!important;box-shadow:none!important}
+.nexus-gis-workspace :is(.gis-spatial-grid,.gis-qr-facts)>*{background:var(--color-surface-muted)!important;color:var(--color-text)!important;border:1px solid var(--color-border)!important;border-radius:8px!important}
+.nexus-gis-workspace :is(.gis-intel-section,.gis-spatial-grid,.gis-qr-facts) :is(span,small,dt){color:var(--color-text-secondary)!important}
+.nexus-gis-workspace :is(.gis-intel-section,.gis-spatial-grid,.gis-qr-facts) :is(strong,dd){color:var(--color-text)!important}
