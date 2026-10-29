@@ -22,23 +22,26 @@ const DASH = '–';
 
 const has = (row: DailyReportRow, flag: string) => (row.flags || []).includes(flag) || row.attendanceStatus === flag;
 const isLeave = (row: DailyReportRow) => has(row, 'LEAVE');
-const isNoRecord = (row: DailyReportRow) => !row.checkInAt && !row.checkOutAt && !isLeave(row);
+const isNoRecord = (row: DailyReportRow) => !row.checkInAt && !row.checkOutAt && !isLeave(row) && row.attendanceStatus !== 'SCHEDULED';
 
 export function dailyReportSummary(rows: DailyReportRow[]) {
-  const count = (predicate: (row: DailyReportRow) => boolean) => new Set(rows.filter(predicate).map((row) => row.employeeId || `assignment:${row.assignmentId}`)).size;
+  const key = (row: DailyReportRow) => row.employeeId ? `employee:${row.employeeId}` : `assignment:${row.assignmentId}`;
+  const count = (predicate: (row: DailyReportRow) => boolean) => new Set(rows.filter(predicate).map(key)).size;
+  const withRecord = new Set(rows.filter((row) => row.checkInAt || row.checkOutAt).map(key));
   return {
     total: count(() => true),
     checkedIn: count((row) => Boolean(row.checkInAt)),
     late: count((row) => has(row, 'LATE')),
     earlyOut: count((row) => has(row, 'EARLY_OUT')),
     leave: count(isLeave),
-    noRecord: count(isNoRecord),
+    noRecord: count((row) => isNoRecord(row) && !withRecord.has(key(row))),
     offSite: count((row) => has(row, 'OUTSIDE_ALL_SITES') || has(row, 'ASSIST_OTHER_SITE') || row.workSiteContext === 'SUPPORT_SITE')
   };
 }
 
 export function dailyReportStatus(row: DailyReportRow): { label: string; tone: 'good' | 'warning' | 'danger' | 'neutral' } {
   if (isLeave(row)) return { label: 'ลา', tone: 'neutral' };
+  if (row.attendanceStatus === 'SCHEDULED' && !row.checkInAt && !row.checkOutAt) return { label: 'ยังไม่ถึงเวลาลงงาน', tone: 'neutral' };
   if (isNoRecord(row)) return { label: 'ไม่มีบันทึก', tone: 'danger' };
   if (has(row, 'LATE')) return { label: 'มาสาย', tone: 'warning' };
   if (row.checkInAt) return { label: 'มาทำงาน', tone: 'good' };

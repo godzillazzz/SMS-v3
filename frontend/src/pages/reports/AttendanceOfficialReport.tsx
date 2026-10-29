@@ -290,7 +290,13 @@ const isEarly = (row: AttendanceReportRow) => row.checkoutCondition === 'EARLY_L
 function timesheetDayStatus(day: TimesheetDay): { label: string; tone: 'unknown' | 'normal' | 'warn' | 'leave' | 'absent' | 'review' } {
   if (!day.rows.length) return { label: 'ไม่มีข้อมูล', tone: 'unknown' };
   const working = day.rows.filter((row) => !hasFlag(row, 'LEAVE') && !hasFlag(row, 'ABSENT'));
-  if (!working.length) return day.rows.some((row) => hasFlag(row, 'LEAVE')) ? { label: 'ลา', tone: 'leave' } : { label: 'ขาดงาน', tone: 'absent' };
+  const leave = day.rows.some((row) => hasFlag(row, 'LEAVE'));
+  const absent = day.rows.some((row) => hasFlag(row, 'ABSENT'));
+  if ((leave || absent) && (working.length > 0 || (leave && absent))) {
+    const workStatus = working.length ? timesheetDayStatus({ ...day, rows: working }).label : '';
+    return { label: [workStatus, leave && 'ลา', absent && 'ขาดงาน'].filter(Boolean).join(' · '), tone: 'review' };
+  }
+  if (!working.length) return leave ? { label: 'ลา', tone: 'leave' } : { label: 'ขาดงาน', tone: 'absent' };
   if (working.some((row) => !((row.effectiveCheckInAt || row.checkInAt) && (row.effectiveCheckOutAt || row.checkOutAt)) || hasFlag(row, 'MISSING_CHECK_IN') || hasFlag(row, 'MISSING_CHECK_OUT') || hasFlag(row, 'WRONG_SHIFT') || hasFlag(row, 'DEVICE_MISMATCH') || hasFlag(row, 'OUTSIDE_ALL_SITES') || row.abnormalTime || hasFlag(row, 'TIME_ABNORMAL'))) return { label: 'ตรวจสอบ', tone: 'review' };
   if (working.some((row) => row.punctuality === 'LATE' || hasFlag(row, 'LATE'))) return { label: 'มาสาย', tone: 'warn' };
   if (working.some(isEarly)) return { label: 'ออกก่อน', tone: 'warn' };
@@ -306,8 +312,8 @@ function timesheetSummary(rows: AttendanceReportRow[], period: string) {
     presentDays: count((day) => working(day).some((row) => Boolean(row.effectiveCheckInAt || row.checkInAt))),
     lateDays: count((day) => working(day).some((row) => row.punctuality === 'LATE' || hasFlag(row, 'LATE'))),
     earlyDays: count((day) => working(day).some(isEarly)),
-    leaveDays: count((day) => timesheetDayStatus(day).tone === 'leave'),
-    noRecordDays: count((day) => timesheetDayStatus(day).tone === 'absent'),
+    leaveDays: count((day) => day.rows.some((row) => hasFlag(row, 'LEAVE'))),
+    noRecordDays: count((day) => day.rows.some((row) => hasFlag(row, 'ABSENT'))),
     offsiteDays: count((day) => working(day).some(isOffsite)),
     totalMinutes: totalWorkedMinutes(rows)
   };

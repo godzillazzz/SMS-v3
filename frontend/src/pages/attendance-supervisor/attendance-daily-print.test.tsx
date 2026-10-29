@@ -81,6 +81,19 @@ describe('AttendanceDailyReport (owner A4 reference)', () => {
     expect(css).toContain('.attendance-daily-report__sheet');
     expect(css).toContain('.attendance-daily-report__status--danger');
   });
+  it('aggregates no-record at employee level and excludes scheduled shifts not yet due', () => {
+    const noRecord = { ...base, assignmentId: 'missing', employeeId: 'one', attendanceStatus: 'ABSENT', flags: ['ABSENT'] };
+    const worked = { ...rows[0], assignmentId: 'worked', employeeId: 'one' };
+    const scheduled = { ...base, assignmentId: 'scheduled', employeeId: 'two', attendanceStatus: 'SCHEDULED' };
+    expect(dailyReportSummary([noRecord, worked, scheduled]).noRecord).toBe(0);
+    expect(dailyReportSummary([noRecord, scheduled]).noRecord).toBe(1);
+    expect(dailyReportStatus(scheduled).label).toBe('ยังไม่ถึงเวลาลงงาน');
+    expect(dailyReportSummary([noRecord, { ...worked, checkInAt: null }]).noRecord).toBe(0);
+    expect(dailyReportSummary([noRecord, { ...noRecord, assignmentId: 'missing2' }]).noRecord).toBe(1);
+    expect(dailyReportSummary([{ ...noRecord, employeeId: undefined }, { ...noRecord, employeeId: undefined, assignmentId: 'missing2' }]).noRecord).toBe(2);
+    expect(dailyReportSummary([{ ...noRecord, flags: ['LEAVE'] }]).noRecord).toBe(0);
+  });
+
   it('counts employees distinctly and includes support sites', () => {
     const data = [{ ...rows[0], employeeId: 'one' }, { ...rows[0], assignmentId: 'second', employeeId: 'one', flags: ['ASSIST_OTHER_SITE'] }, { ...rows[1], employeeId: 'two' }];
     expect(dailyReportSummary(data).total).toBe(2);

@@ -138,6 +138,22 @@ describe('Official Attendance report presentation', () => {
     expect(text).toContain('มาสาย');
     expect(text).toContain('ใช้อุปกรณ์อื่น · ตรวจสอบ');
   });
+  it('preserves independent leave and absence on mixed assignment days', () => {
+    const input = [row({ flags: ['ON_TIME'] }), row({ assignmentId: 'leave', flags: ['LEAVE'] }), row({ assignmentId: 'absent', flags: ['ABSENT'] })];
+    const day = attendanceReportPresentation.monthDayRows(input, '2026-08')[24];
+    const summary = attendanceReportPresentation.timesheetSummary(input, '2026-08');
+    expect(summary.presentDays).toBe(1);
+    expect(summary.leaveDays).toBe(1);
+    expect(summary.noRecordDays).toBe(1);
+    expect(attendanceReportPresentation.timesheetDayStatus(day).label).toContain('ลา');
+    expect(attendanceReportPresentation.timesheetDayStatus(day).label).toContain('ขาดงาน');
+    expect(attendanceReportPresentation.timesheetDayStatus(day).label).toContain('ปกติ');
+    const leaveAndAbsent = attendanceReportPresentation.monthDayRows(input.slice(1), '2026-08')[24];
+    expect(attendanceReportPresentation.timesheetDayStatus(leaveAndAbsent).label).toBe('ลา · ขาดงาน');
+    const repeated = attendanceReportPresentation.timesheetSummary([...input, row({ assignmentId: 'leave-2', flags: ['LEAVE'] })], '2026-08');
+    expect(repeated.leaveDays).toBe(1);
+  });
+
   it('distinguishes work, absence and missing snapshot dates in the printed sheet', () => {
     const input = [row({ workDate: '2026-08-01' }), row({ workDate: '2026-08-02', flags: ['ABSENT'] }), row({ workDate: '2026-08-03', flags: ['LEAVE'] })];
     const days = attendanceReportPresentation.monthDayRows(input, '2026-08');
