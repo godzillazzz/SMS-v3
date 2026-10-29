@@ -18,16 +18,27 @@ async function signIn(page: Page, width: number) {
     const url = new URL(route.request().url());
     if (url.pathname === '/api/v1/auth/refresh') return route.fulfill(authenticated ? { status: 200, json: session } : { status: 401, json: { message: 'No session' } });
     if (url.pathname === '/api/v1/auth/passkeys/config') return route.fulfill({ status: 200, json: { enabled: false } });
-    if (url.pathname === '/api/v1/auth/login') { authenticated = true; return route.fulfill({ status: 200, json: session }); }
+    if (url.pathname === '/api/v1/auth/login') {
+      // Exercise slow authentication: navigation must not cancel the login request.
+      return new Promise<void>((resolve) => setTimeout(resolve, 500)).then(() => {
+        authenticated = true;
+        return route.fulfill({ status: 200, json: session });
+      });
+    }
     if (url.pathname === '/api/v1/approval-center/summary') return route.fulfill({ status: 200, json: { summary: { total: 1, byType: { ATTENDANCE_ADJUSTMENT_REQUEST: 1 } } } });
     if (url.pathname === '/api/v1/approval-center') return route.fulfill({ status: 200, json: { data: [item], summary: { total: 1 } } });
     return route.fulfill({ status: 200, json: { data: [], summary: {}, meta: { page: 1, total: 0, totalPages: 0 } } });
   });
   await page.goto('/app');
-  await expect(page.locator('#auth-login-form')).toBeVisible();
+  // The lazy public experience replaces the initial login form on mount.
+  // Wait for its final container before entering credentials.
+  await expect(page.locator('.nexus-onescreen #auth-login-form')).toBeVisible();
   await page.locator('#email').fill('admin@example.test');
   await page.locator('#password').fill('fixture-password');
   await page.locator('#auth-login-form button[type="submit"]').click();
+  // A click can return before React has processed authentication. Wait for the
+  // authenticated shell before replacing the document with the deep link.
+  await expect(page.locator('.app-shell')).toBeVisible({ timeout: readinessTimeout() });
   await page.goto('/app/approvals');
   await expect(page.locator('.approval-center-page')).toBeVisible({ timeout: readinessTimeout() });
   if (width < 760) {
