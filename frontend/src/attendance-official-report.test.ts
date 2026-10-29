@@ -112,11 +112,11 @@ describe('Official Attendance report presentation', () => {
     const source = readFileSync(new URL('./pages/reports/AttendanceOfficialReport.tsx', import.meta.url), 'utf8');
     const styles = readFileSync(new URL('./styles/attendance-report.css', import.meta.url), 'utf8');
     expect(source).toContain('/brand/sms-logo-horizontal.webp');
-    for (const label of ['ลำดับ', 'วันที่', 'วัน', 'เวลาเข้า', 'เวลาออก', 'ชั่วโมงทำงาน', 'หมายเหตุ']) expect(source).toContain(`<th>${label}</th>`);
-    expect(source).toContain('attendance-report-employee-column');
-    expect(source).toContain('ประจำเดือน {formatThaiMonth(report.period)}');
-    expect(source).toContain('ไม่มีข้อมูลใน Snapshot');
-    expect(source).toContain("['พนักงาน', 'หัวหน้าหน่วยงาน', 'ฝ่ายบุคคล']");
+    for (const label of ['วันที่', 'วัน', 'เวลาเข้า', 'เวลาออก', 'ชั่วโมง', 'สถานะ', 'หมายเหตุ']) expect(source).toContain(`<th>${label}</th>`);
+    expect(source).toContain('timesheet-employee');
+    expect(source).toContain('{formatThaiMonth(report.period)}');
+    expect(source).toContain("label: 'ไม่มีข้อมูล'");
+    expect(source).toContain("['พนักงาน', 'หัวหน้างาน', 'ฝ่ายบุคคล']");
     expect(source).toContain('ฝ่ายบุคคล');
     expect(source).toContain('พิมพ์ทั้งหมด 1 คนต่อแผ่น');
     expect(source).toContain('การพิมพ์เป็นแบบอ่านอย่างเดียว และไม่บันทึกหรือเปลี่ยนสถานะการลงเวลา');
