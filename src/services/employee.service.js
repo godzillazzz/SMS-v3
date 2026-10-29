@@ -5,7 +5,7 @@ const personnelMaster = require('./personnel-master.service');
 const lifecycleControlledFields = ['firstName', 'lastName', 'department', 'jobTitle', 'isActive'];
 
 function publicEmployee(employee) {
-  const { email, phone, hiredAt, ...basic } = employee;
+  const { email, phone, hiredAt, address, emergencyContact, emergencyPhone, ...basic } = employee;
   return basic;
 }
 // MANAGER global scope: safe projection — operational fields only, no PII beyond what is required

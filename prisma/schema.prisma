@@ -475,6 +475,9 @@ model Employee {
   lastName                    String                          @map("last_name") @db.VarChar(100)
   email                       String?                         @unique @db.VarChar(255)
   phone                       String?                         @db.VarChar(50)
+  address                     String?                         @db.VarChar(500)
+  emergencyContact            String?                         @map("emergency_contact") @db.VarChar(255)
+  emergencyPhone              String?                         @map("emergency_phone") @db.VarChar(50)
   department                  String?                         @db.VarChar(100)
   jobTitle                    String?                         @map("job_title") @db.VarChar(100)
   hiredAt                     DateTime?                       @map("hired_at") @db.Date

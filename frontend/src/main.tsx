@@ -2580,14 +2580,15 @@ function Dashboard() {
         { name: 'firstName', label: 'ชื่อ', required: true },
         { name: 'lastName', label: 'นามสกุล', required: true },
         { name: 'email', label: 'อีเมล', type: 'email', section: 'ติดต่อ' },
-        { name: 'phone', label: 'โทรศัพท์', nextSection: 'งาน' },
+        { name: 'phone', label: 'โทรศัพท์' },
+        ...(auth.user?.role === 'ADMIN' ? [{ name: 'address', label: 'ที่อยู่' }, { name: 'emergencyContact', label: 'ผู้ติดต่อฉุกเฉิน' }, { name: 'emergencyPhone', label: 'โทรศัพท์ฉุกเฉิน' }] : []),
         { name: 'department', label: 'หน่วยงาน', type: 'select', options: [{ value: '', label: 'ไม่ระบุหน่วยงาน' }, ...departments.map((item) => ({ value: item.name, label: item.name }))] },
         { name: 'jobTitle', label: 'ตำแหน่ง', type: 'select', options: [{ value: '', label: 'ไม่ระบุตำแหน่ง' }, ...positions.map((item) => ({ value: item.name, label: item.name }))] },
         { name: 'hiredAt', label: 'วันที่เริ่มงาน', type: 'date' }
       ];
       runEditor(
         { title: 'เพิ่มพนักงาน', submitLabel: 'เพิ่มพนักงาน', fields, values: {}, experience: 'personnel' },
-        (form) => api.createEmployee(auth.token!, formPayload(form, ['email', 'phone', 'department', 'jobTitle', 'hiredAt'])),
+        (form) => api.createEmployee(auth.token!, formPayload(form, ['email', 'phone', 'address', 'emergencyContact', 'emergencyPhone', 'department', 'jobTitle', 'hiredAt'])),
         'employees'
       );
     } catch (reason) {

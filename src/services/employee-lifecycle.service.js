@@ -17,7 +17,7 @@ const EVENT_TYPES = [
   'MASTER_EDIT'
 ];
 const CONTROLLED_FIELDS = ['firstName', 'lastName', 'displayName', 'department', 'jobTitle', 'isActive'];
-const MASTER_FIELDS = ['employeeCode', 'firstName', 'lastName', 'displayName', 'email', 'phone', 'department', 'jobTitle', 'hiredAt', 'skill', 'isActive'];
+const MASTER_FIELDS = ['employeeCode', 'firstName', 'lastName', 'displayName', 'email', 'phone', 'address', 'emergencyContact', 'emergencyPhone', 'department', 'jobTitle', 'hiredAt', 'skill', 'isActive'];
 const MANAGER_MASTER_FIELDS = ['employeeCode', 'firstName', 'lastName', 'displayName', 'department', 'jobTitle', 'isActive'];
 const MAX_DUE_EVENTS_PER_REQUEST = 10;
 let requestSyncPromise = null;
@@ -63,6 +63,9 @@ function employeeMasterState(employee) {
     displayName: employee.displayName || `${employee.firstName} ${employee.lastName}`.trim(),
     email: employee.email || null,
     phone: employee.phone || null,
+    address: employee.address || null,
+    emergencyContact: employee.emergencyContact || null,
+    emergencyPhone: employee.emergencyPhone || null,
     department: employee.department || null,
     jobTitle: employee.jobTitle || null,
     hiredAt: dateValue(employee.hiredAt),
@@ -216,6 +219,7 @@ async function applyEmployeeSnapshot(tx, employee, type, snapshot, effectiveDate
   const data = masterEdit ? {
     employeeCode: state.employeeCode, firstName: state.firstName, lastName: state.lastName, displayName: state.displayName,
     email: state.email || null, phone: state.phone || null, department: state.department || null, jobTitle: state.jobTitle || null,
+    ...Object.fromEntries(['address', 'emergencyContact', 'emergencyPhone'].filter((field) => Object.prototype.hasOwnProperty.call(state, field)).map((field) => [field, state[field] || null])),
     hiredAt: state.hiredAt ? dateOnly(state.hiredAt) : null, skill: state.skill || null, isActive: Boolean(state.isActive)
   } : { firstName: state.firstName, lastName: state.lastName, displayName: state.displayName, department: state.department, jobTitle: state.jobTitle, isActive: state.isActive };
   const departmentWillChange = (employee.department || null) !== (state.department || null);
