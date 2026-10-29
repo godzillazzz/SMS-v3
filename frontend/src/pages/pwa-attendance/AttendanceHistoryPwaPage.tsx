@@ -318,7 +318,7 @@ export function AttendanceHistoryPwaPage({ token, online, onOpenLeave, onCheckIn
       <div><span>เวลาปัจจุบัน</span><strong data-testid="attendance-today-clock">{clockText(now)}</strong></div>
       <div><span>สถานะ</span>{todayRow ? <span className={`employee-v4-status is-${status(todayRow).tone}`}>{status(todayRow).label}</span> : <strong>{MISSING}</strong>}</div>
       <div><span>เวลาเข้างาน</span><strong>{shortTime(todayRow?.checkInAt)}</strong></div>
-      <div><span>สถานที่</span><strong>{todayRow ? actualSiteLabel(todayRow).replace(/^—$/, MISSING) : MISSING}</strong></div>
+      <div><span>สถานที่ลงเวลาจริง</span><strong>{todayRow ? actualSiteLabel(todayRow, false).replace(/^—$/, MISSING) : MISSING}</strong></div>
     </section>
 
     <div className="employee-v4-segmented" role="tablist" aria-label="ช่วงเวลาประวัติ" onKeyDown={activateTabFromKeyboard}>

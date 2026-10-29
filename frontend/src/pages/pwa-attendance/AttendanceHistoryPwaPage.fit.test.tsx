@@ -30,6 +30,15 @@ describe('AttendanceHistoryPwaPage — fit-to-viewport redesign', () => {
     expect(within(card).getByText('อาคาร A')).toBeTruthy();
   });
 
+  it('does not present an assigned site as the actual check-in site', async () => {
+    historyMock.mockResolvedValue({ rows: [{ ...rows[0], actualSite: null, assignedSite: { name: 'หน่วยตามตาราง' } }] });
+    render(<AttendanceHistoryPwaPage token="t" online />);
+    const card = await screen.findByRole('region', { name: 'ลงเวลาวันนี้' });
+    await screen.findByRole('table');
+    expect(within(card).queryByText('หน่วยตามตาราง')).toBeNull();
+    expect(within(card).getByText('–')).toBeTruthy();
+  });
+
   it('renders a single table with the owner columns and "–" for missing data', async () => {
     render(<AttendanceHistoryPwaPage token="t" online />);
     const table = await screen.findByRole('table', { name: 'รายการลงเวลาทั้งหมด' });
