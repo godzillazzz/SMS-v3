@@ -48,16 +48,17 @@ test('T31 31-day employee timesheet prints on one isolated A4 portrait page at 7
   expect(frameText).toContain('01/08/2569');
   expect(frameText).toContain('31/08/2569');
   expect(frameText).toContain('เสาร์');
-  expect(frameText).toContain('สรุปการทำงานประจำเดือน');
-  expect(frameText).toContain('หัวหน้าหน่วยงาน');
+  // Owner reference layout (2026-10-29): Monthly Timesheet with 8 summary boxes and three signature parties.
+  expect(frameText).toContain('ใบลงเวลาทำงาน');
+  for (const label of ['วันทำงาน', 'มาทำงาน', 'มาสาย', 'ออกก่อน', 'ลา', 'ขาดงาน', 'นอกสถานที่', 'ชั่วโมงรวม']) expect(frameText).toContain(label);
+  for (const party of ['พนักงาน', 'หัวหน้างาน', 'ฝ่ายบุคคล']) expect(frameText).toContain(party);
   expect(frameText).not.toContain('Dashboard');
   expect(frameText).not.toContain('Topbar');
   const metrics = await pdfPage.locator('.attendance-timesheet-page').evaluate((node) => {
     const pageNode = node as HTMLElement;
     const table = pageNode.querySelector('table')!;
-    const signature = pageNode.querySelector('.attendance-report-signatures')!;
-    const employeeMeta = pageNode.querySelector('.attendance-report-employee-meta')!;
-    const summaryGrid = pageNode.querySelector('.attendance-report-summary-grid')!;
+    const signature = pageNode.querySelector('.timesheet-signatures')!;
+    const summaryGrid = pageNode.querySelector('.timesheet-summary')!;
     const daySeven = table.tBodies[0].rows[6];
     const img = pageNode.querySelector('img') as HTMLImageElement;
     return {
@@ -69,25 +70,21 @@ test('T31 31-day employee timesheet prints on one isolated A4 portrait page at 7
       pageWidth: pageNode.getBoundingClientRect().width,
       pageBottom: pageNode.getBoundingClientRect().top + pageNode.getBoundingClientRect().height,
       signatureBottom: signature.getBoundingClientRect().bottom,
-      profileColumns: getComputedStyle(employeeMeta).gridTemplateColumns.split(' ').length,
       summaryColumns: getComputedStyle(summaryGrid).gridTemplateColumns.split(' ').length,
       signatureGroups: signature.children.length,
-      noteLines: pageNode.querySelectorAll('.attendance-report-notes i').length,
-      secondShiftCheckIns: daySeven.cells[3].querySelectorAll('span').length,
-      secondShiftCheckOuts: daySeven.cells[4].querySelectorAll('span').length,
+      secondShiftCheckIns: (daySeven.cells[2].textContent || '').match(/\d{2}:\d{2}/g)?.length || 0,
+      secondShiftCheckOuts: (daySeven.cells[3].textContent || '').match(/\d{2}:\d{2}/g)?.length || 0,
       logoLoaded: img.complete && img.naturalWidth > 0
     };
   });
   expect(metrics.rows).toBe(31);
   expect(metrics.columns).toBe(7);
-  expect(metrics.headers).toEqual(['ลำดับ', 'วันที่', 'วัน', 'เวลาเข้า', 'เวลาออก', 'ชั่วโมงทำงาน', 'หมายเหตุ']);
+  expect(metrics.headers).toEqual(['วันที่', 'วัน', 'เวลาเข้า', 'เวลาออก', 'ชั่วโมง', 'สถานะ', 'หมายเหตุ']);
   expect(metrics.minCellFontSizePx).toBeGreaterThanOrEqual(7.5 * 96 / 72);
   expect(metrics.tableWidth).toBeLessThanOrEqual(metrics.pageWidth + 1);
   expect(metrics.signatureBottom).toBeLessThanOrEqual(metrics.pageBottom + 1);
-  expect(metrics.profileColumns).toBe(2);
-  expect(metrics.summaryColumns).toBe(6);
+  expect(metrics.summaryColumns).toBe(8);
   expect(metrics.signatureGroups).toBe(3);
-  expect(metrics.noteLines).toBe(3);
   expect(metrics.secondShiftCheckIns).toBe(2);
   expect(metrics.secondShiftCheckOuts).toBe(2);
   expect(metrics.logoLoaded).toBe(true);
