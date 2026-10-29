@@ -26,6 +26,7 @@ test('GET month-print validates selectedDate and delegates a read-only request',
 
   const ok = await request(app).get('/api/v1/attendance/supervisor/month-print?selectedDate=2026-08-29');
   assert.equal(ok.status, 200);
+  assert.equal(ok.headers['cache-control'], 'no-store');
   assert.equal(ok.body.data.selectedDate, '2026-08-29');
   assert.equal(calls.length, 1);
   assert.deepEqual(calls[0], { actor: { role: 'ADMIN', sub: 'admin-1' }, selectedDate: '2026-08-29' });

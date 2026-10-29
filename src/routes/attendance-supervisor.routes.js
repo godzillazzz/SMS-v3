@@ -67,6 +67,7 @@ function createAttendanceSupervisorRoutes({
   router.get('/month-print', async (req, res, next) => {
     try {
       const { selectedDate } = monthPrintQuerySchema.parse(req.query);
+      res.set('Cache-Control', 'no-store');
       res.json({ data: await service.monthPrint({ actor: req.user, selectedDate }) });
     } catch (error) { next(error); }
   });
