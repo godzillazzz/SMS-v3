@@ -72,8 +72,8 @@ const revisionCriticalLabels = (fields: string[]) => {
 };
 const activeStatuses = new Set(['DRAFT', 'PENDING_APPROVAL', 'RETURNED_FOR_CORRECTION']);
 const operationalFields = ['employeeCode', 'firstName', 'lastName', 'department', 'jobTitle', 'isActive'] as const;
-const adminFields = [...operationalFields, 'email', 'phone', 'address', 'emergencyContact', 'emergencyPhone', 'hiredAt', 'skill'] as const;
-const labels: Record<string, string> = { employeeCode: 'รหัสพนักงาน', firstName: 'ชื่อ', lastName: 'นามสกุล', email: 'อีเมลติดต่อ', phone: 'โทรศัพท์', address: 'ที่อยู่', emergencyContact: 'ผู้ติดต่อฉุกเฉิน', emergencyPhone: 'โทรศัพท์ฉุกเฉิน', department: 'หน่วยงาน', jobTitle: 'ตำแหน่ง', hiredAt: 'วันที่เริ่มงาน', skill: 'ทักษะ/คุณสมบัติ', isActive: 'สถานะการทำงาน' };
+const adminFields = [...operationalFields, 'email', 'phone', 'hiredAt', 'skill'] as const;
+const labels: Record<string, string> = { employeeCode: 'รหัสพนักงาน', firstName: 'ชื่อ', lastName: 'นามสกุล', email: 'อีเมลติดต่อ', phone: 'โทรศัพท์', department: 'หน่วยงาน', jobTitle: 'ตำแหน่ง', hiredAt: 'วันที่เริ่มงาน', skill: 'ทักษะ/คุณสมบัติ', isActive: 'สถานะการทำงาน' };
 const statusLabel: Record<string, string> = { DRAFT: 'ฉบับร่าง', PENDING_APPROVAL: `รอ ${roleDisplayName('ADMIN')} อนุมัติ`, RETURNED_FOR_CORRECTION: 'ส่งกลับให้แก้ไข', APPROVED: 'อนุมัติแล้ว', REJECTED: 'ไม่อนุมัติ', CANCELLED: 'ยกเลิกแล้ว' };
 const impactLabels: Record<keyof Preflight['impacts'], string> = { futureShiftAssignments: 'เวรในอนาคต', pendingLeaveRequests: 'ลารอพิจารณา', approvedFutureLeaveRequests: 'ลาอนุมัติในอนาคต', activeLicenses: 'ใบอนุญาต', licenseDocuments: 'เอกสารใบอนุญาต' };
 const approvedFutureRequest = (requests: ChangeRequest[]) => requests.find((request) => request.status === 'APPROVED' && !request.appliedAt && request.revisions?.some((revision) => revision.effectiveMode === 'FUTURE_EFFECTIVE'));
@@ -89,7 +89,7 @@ export function EmployeeGovernedEditModal({ token, employee, role, onClose, onCh
   const closeRef = useRef<HTMLButtonElement | null>(null);
   const isAdmin = role === 'ADMIN';
   const fields = isAdmin ? adminFields : operationalFields;
-  const [form, setForm] = useState<Record<string, unknown>>(() => ({ employeeCode: employee.employeeCode, firstName: employee.firstName, lastName: employee.lastName, department: employee.department || '', jobTitle: employee.jobTitle || '', isActive: employee.isActive, email: employee.email || '', phone: employee.phone || '', address: employee.address || '', emergencyContact: employee.emergencyContact || '', emergencyPhone: employee.emergencyPhone || '', hiredAt: cleanDate(employee.hiredAt), skill: employee.skill || '' }));
+  const [form, setForm] = useState<Record<string, unknown>>(() => ({ employeeCode: employee.employeeCode, firstName: employee.firstName, lastName: employee.lastName, department: employee.department || '', jobTitle: employee.jobTitle || '', isActive: employee.isActive, email: employee.email || '', phone: employee.phone || '', hiredAt: cleanDate(employee.hiredAt), skill: employee.skill || '' }));
   const [effectiveMode, setEffectiveMode] = useState<'IMMEDIATE' | 'FUTURE_EFFECTIVE'>('IMMEDIATE');
   const [effectiveDate, setEffectiveDate] = useState('');
   const [reason, setReason] = useState('');
@@ -159,7 +159,7 @@ export function EmployeeGovernedEditModal({ token, employee, role, onClose, onCh
   const changes = useMemo(() => {
     const next: Record<string, unknown> = {};
     for (const field of fields) {
-      const original = field === 'department' || field === 'jobTitle' || field === 'email' || field === 'phone' || field === 'address' || field === 'emergencyContact' || field === 'emergencyPhone' || field === 'skill' ? (employee[field] || '') : field === 'hiredAt' ? cleanDate(employee.hiredAt) : employee[field];
+      const original = field === 'department' || field === 'jobTitle' || field === 'email' || field === 'phone' || field === 'skill' ? (employee[field] || '') : field === 'hiredAt' ? cleanDate(employee.hiredAt) : employee[field];
       const current = form[field];
       if (String(current ?? '') !== String(original ?? '')) next[field] = field === 'isActive' ? Boolean(current) : current === '' ? null : current;
     }
@@ -276,7 +276,7 @@ export function EmployeeGovernedEditModal({ token, employee, role, onClose, onCh
           <label><span>รหัสพนักงาน</span><input value={String(employee.employeeCode || '')} readOnly aria-readonly="true" /><small>รหัสพนักงานเป็นข้อมูลอ้างอิงหลัก ไม่แก้ไขตรงจากหน้าข้อมูลทั่วไป</small></label>
           <label><span>ชื่อปัจจุบัน</span><input value={String(employee.firstName || '')} readOnly aria-readonly="true" /><small>หากต้องการแก้ไข ให้ใช้ “เปลี่ยนชื่อ” ในหัวข้อ 3. การเปลี่ยนแปลง</small></label>
           <label><span>นามสกุลปัจจุบัน</span><input value={String(employee.lastName || '')} readOnly aria-readonly="true" /><small>เก็บชื่อเดิมเป็นประวัติและใช้รหัสพนักงานเดิม</small></label>
-          {isAdmin && <><label><span>อีเมลติดต่อ</span><input type="email" value={String(form.email || '')} onChange={(event) => update('email', event.target.value)} /></label><label><span>โทรศัพท์</span><input value={String(form.phone || '')} onChange={(event) => update('phone', event.target.value)} /></label>{(['address', 'emergencyContact', 'emergencyPhone'] as const).map((field) => <label key={field}><span>{labels[field]}</span><input maxLength={field === 'address' ? 500 : field === 'emergencyContact' ? 255 : 50} value={String(form[field] || '')} onChange={(event) => update(field, event.target.value)} /></label>)}</>}
+          {isAdmin && <><label><span>อีเมลติดต่อ</span><input type="email" value={String(form.email || '')} onChange={(event) => update('email', event.target.value)} /></label><label><span>โทรศัพท์</span><input value={String(form.phone || '')} onChange={(event) => update('phone', event.target.value)} /></label></>}
         </div></section>
         <section className="employee-governed-section"><h3>2. ข้อมูลการปฏิบัติงาน</h3><div className="employee-governed-grid">
           <label><span>หน่วยงานปัจจุบัน</span><input value={String(employee.department || '')} readOnly aria-readonly="true" /><small>ใช้ “ย้ายหน่วยงาน” ในหัวข้อ 3 เพื่อเปลี่ยนอย่างมีประวัติ</small></label>

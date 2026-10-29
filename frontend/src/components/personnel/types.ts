@@ -9,9 +9,6 @@ export type PersonnelRecord = {
   isActive: boolean;
   email?: string | null;
   phone?: string | null;
-  address?: string | null;
-  emergencyContact?: string | null;
-  emergencyPhone?: string | null;
   hiredAt?: string | null;
   skill?: string | null;
   updatedAt?: string;

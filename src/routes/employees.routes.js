@@ -17,9 +17,6 @@ const employeeSchema = z.object({
   lastName: z.string().trim().min(1).max(100),
   email: z.string().email().max(255).nullable().optional(),
   phone: z.string().trim().max(50).nullable().optional(),
-  address: z.string().trim().max(500).nullable().optional(),
-  emergencyContact: z.string().trim().max(255).nullable().optional(),
-  emergencyPhone: z.string().trim().max(50).nullable().optional(),
   department: z.string().trim().max(100).nullable().optional(),
   jobTitle: z.string().trim().max(100).nullable().optional(),
   hiredAt: z.coerce.date().nullable().optional(),
@@ -84,7 +81,7 @@ router.post('/:id/master-edit/preflight', authorize('ADMIN'), async (req, res, n
   try { const input = masterEditPreflightSchema.parse(req.body); res.json({ data: await masterMutation.preflightEmployeeMasterMutation({ employeeId: uuid.parse(req.params.id), actorRole: 'ADMIN', fieldScope: 'ADMIN', ...input }) }); } catch (error) { next(error); }
 });
 router.get('/:id', async (req, res, next) => { try { res.json({ data: await employee.getById(uuid.parse(req.params.id), req.user.role) }); } catch (error) { next(error); } });
-router.post('/', authorize('ADMIN', 'MANAGER', 'SUPERVISOR'), async (req, res, next) => { try { const data = employeeSchema.parse(req.body); if (req.user.role !== 'ADMIN' && ['address', 'emergencyContact', 'emergencyPhone'].some((field) => Object.hasOwn(data, field))) throw new HttpError(403, 'Private contact fields require ADMIN.'); res.status(201).json({ data: await employee.create(data, req.user.sub) }); } catch (error) { next(error); } });
+router.post('/', authorize('ADMIN', 'MANAGER', 'SUPERVISOR'), async (req, res, next) => { try { res.status(201).json({ data: await employee.create(employeeSchema.parse(req.body), req.user.sub) }); } catch (error) { next(error); } });
 router.put('/:id', authorize('ADMIN', 'MANAGER', 'SUPERVISOR'), async (req, res, next) => {
   try {
     if (['MANAGER', 'SUPERVISOR'].includes(req.user.role)) throw new HttpError(403, 'Manager Employee edits require a governed change request.', { code: 'EMPLOYEE_CHANGE_REQUEST_REQUIRED' });
