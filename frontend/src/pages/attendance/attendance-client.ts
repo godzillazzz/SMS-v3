@@ -224,6 +224,7 @@ export type AttendanceFaceChallengeUatCaptureData = {
 
 
 function csrfToken() {
+  if (typeof document === "undefined") return "";
   const encoded = document.cookie
     .split('; ')
     .find((item) => item.startsWith('smsv3_csrf='))
