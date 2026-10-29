@@ -16,7 +16,27 @@ export function registerSummary(rows: PersonnelRecord[]) {
 }
 export function EmployeeRegisterPrint({ rows, now = new Date() }: { rows: PersonnelRecord[]; now?: Date }) {
   const s = registerSummary(rows);
-  return <article id="personnel-register-print" className="personnel-print"><h1>ทะเบียนรายชื่อพนักงาน</h1><p>รายการตามตัวกรอง · วันที่พิมพ์ {date(now.toISOString())} · จำนวน {rows.length} คน</p><p className="personnel-register-print__summary">ทั้งหมด {s.total} · ใช้งาน {s.active} · ทดลองงาน {s.probation} · ลา {s.leave} · พักงาน {s.suspended} · ไม่ใช้งาน {s.separated}</p><table><thead><tr>{['รหัส', 'ชื่อ-สกุล', 'แผนก', 'ตำแหน่ง', 'ประเภท', 'วันเริ่มงาน', 'อายุงาน', 'โทรศัพท์', 'สถานะ'].map(x => <th key={x}>{x}</th>)}</tr></thead><tbody>{rows.map(r => <tr key={r.id}><td>{r.employeeCode || blank}</td><td>{`${r.firstName || ''} ${r.lastName || ''}`.trim() || blank}</td><td>{r.department || blank}</td><td>{r.jobTitle || blank}</td><td>{blank}</td><td>{date(r.hiredAt)}</td><td>{serviceLength(r.hiredAt, now)}</td><td>{r.phone || blank}</td><td>{r.isActive === true ? 'ใช้งาน' : r.isActive === false ? 'ไม่ใช้งาน' : blank}</td></tr>)}</tbody></table><p>ผู้จัดทำ .................................... วันที่ ....................　 ผู้ตรวจสอบ .................................... วันที่ ....................</p></article>;
+  return <article id="personnel-register-print" className="personnel-print personnel-register-print">
+    <header className="personnel-register-print__header">
+      <div className="personnel-register-print__brand">
+        <span className="personnel-register-print__brand-mark" aria-hidden="true">SMS</span>
+        <strong className="personnel-register-print__brand-name">Security Management System</strong>
+      </div>
+      <div className="personnel-register-print__title-block">
+        <h1>ทะเบียนรายชื่อพนักงาน</h1>
+        <strong className="personnel-register-print__english-title">EMPLOYEE REGISTER</strong>
+        <span>ข้อมูล ณ วันที่ {date(now.toISOString())}</span>
+        <span>จำนวน {rows.length} คน</span>
+      </div>
+    </header>
+    <div className="personnel-register-print__accent-rule" aria-hidden="true" />
+    <p className="personnel-register-print__summary">ทั้งหมด {s.total} · ใช้งาน {s.active} · ทดลองงาน {s.probation} · ลา {s.leave} · พักงาน {s.suspended} · ไม่ใช้งาน {s.separated}</p>
+    <table className="personnel-register-print__table"><thead><tr>{['รหัส', 'ชื่อ-สกุล', 'แผนก', 'ตำแหน่ง', 'ประเภท', 'วันเริ่มงาน', 'อายุงาน', 'โทรศัพท์', 'สถานะ'].map(x => <th key={x}>{x}</th>)}</tr></thead><tbody>{rows.map(r => <tr key={r.id}><td>{r.employeeCode || blank}</td><td>{`${r.firstName || ''} ${r.lastName || ''}`.trim() || blank}</td><td>{r.department || blank}</td><td>{r.jobTitle || blank}</td><td>{blank}</td><td>{date(r.hiredAt)}</td><td>{serviceLength(r.hiredAt, now)}</td><td>{r.phone || blank}</td><td>{r.isActive === true ? 'ใช้งาน' : r.isActive === false ? 'ไม่ใช้งาน' : blank}</td></tr>)}</tbody></table>
+    <div className="personnel-register-print__signatures">
+      <span>ผู้จัดทำ .................................... วันที่ ....................</span>
+      <span>ผู้ตรวจสอบ .................................... วันที่ ....................</span>
+    </div>
+  </article>;
 }
 type Leave = { id: string; leaveTypeNameSnapshot?: string; leaveType?: string; startDate?: string; endDate?: string; dayCount?: number; status?: string };
 export function EmployeeRecordPrint({ employee, quota, leaves, now = new Date() }: { employee: PersonnelRecord; quota?: Record<string, unknown>; leaves?: Leave[]; now?: Date }) {

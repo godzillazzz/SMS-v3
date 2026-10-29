@@ -25,13 +25,27 @@ describe('employee register print (A4 landscape)', () => {
     expect(serviceLength(null, NOW)).toBe('–');
   });
 
-  it('renders title, BE print date, count, summary, columns and signatures without internal ids', () => {
+  it('renders a clear owner-reference document header before the employee table', () => {
+    const { container } = render(<EmployeeRegisterPrint rows={rows} now={NOW} />);
+    const root = container.querySelector('#personnel-register-print')!;
+    const header = root.querySelector('.personnel-register-print__header')!;
+    const titleBlock = header.querySelector('.personnel-register-print__title-block')!;
+
+    expect(header.querySelector('.personnel-register-print__brand-mark')?.textContent).toBe('SMS');
+    expect(header.querySelector('.personnel-register-print__brand-name')?.textContent).toBe('Security Management System');
+    expect(titleBlock.querySelector('h1')?.textContent).toBe('ทะเบียนรายชื่อพนักงาน');
+    expect(titleBlock.querySelector('.personnel-register-print__english-title')?.textContent).toBe('EMPLOYEE REGISTER');
+    expect(titleBlock.textContent).toContain('ข้อมูล ณ วันที่');
+    expect(titleBlock.textContent).toContain('2569');
+    expect(titleBlock.textContent).toContain('จำนวน 2 คน');
+    expect(root.querySelector('.personnel-register-print__accent-rule')).not.toBeNull();
+    expect(header.compareDocumentPosition(root.querySelector('table')!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('renders count, summary, columns and a separately spaced signature area without internal ids', () => {
     const { container } = render(<EmployeeRegisterPrint rows={rows} now={NOW} />);
     const root = container.querySelector('#personnel-register-print')!;
     const text = root.textContent || '';
-    expect(root.querySelector('h1')?.textContent).toBe('ทะเบียนรายชื่อพนักงาน');
-    expect(text).toContain('2569');
-    expect(text).toContain('จำนวน 2 คน');
     for (const label of ['ทั้งหมด', 'ใช้งาน', 'ทดลองงาน', 'ลา', 'พักงาน', 'ไม่ใช้งาน']) expect(root.querySelector('.personnel-register-print__summary')?.textContent).toContain(label);
     const headers = Array.from(root.querySelectorAll('thead th')).map((th) => th.textContent);
     expect(headers).toEqual(['รหัส', 'ชื่อ-สกุล', 'แผนก', 'ตำแหน่ง', 'ประเภท', 'วันเริ่มงาน', 'อายุงาน', 'โทรศัพท์', 'สถานะ']);
@@ -39,9 +53,18 @@ describe('employee register print (A4 landscape)', () => {
     expect(first[0]).toBe('EMP-001'); expect(first[4]).toBe('–'); expect(first[6]).toBe('6 ปี 9 เดือน'); expect(first[7]).toBe('0811111111'); expect(first[8]).toBe('ใช้งาน');
     const second = Array.from(root.querySelectorAll('tbody tr')[1].querySelectorAll('td')).map((td) => td.textContent);
     expect(second[3]).toBe('–'); expect(second[5]).toBe('–'); expect(second[7]).toBe('–'); expect(second[8]).toBe('ไม่ใช้งาน');
-    expect(text).toContain('ผู้จัดทำ'); expect(text).toContain('ผู้ตรวจสอบ'); expect(text).toContain('วันที่');
+    const signatures = root.querySelector('.personnel-register-print__signatures')!;
+    expect(signatures.textContent).toContain('ผู้จัดทำ'); expect(signatures.textContent).toContain('ผู้ตรวจสอบ'); expect(signatures.textContent).toContain('วันที่');
+    expect(root.querySelector('table')?.compareDocumentPosition(signatures) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(text).not.toContain('internal-1');
     expect(root.querySelectorAll('button, input')).toHaveLength(0);
+  });
+
+  it('keeps the signature block visibly separated while retaining compact print typography', () => {
+    const css = read('./styles/personnel-directory.css');
+    expect(css).toMatch(/\.personnel-register-print__signatures\s*\{[^}]*margin-top:\s*12mm;/s);
+    expect(css).toMatch(/\.personnel-register-print__signatures\s*\{[^}]*break-inside:\s*avoid;/s);
+    expect(css).toMatch(/\.personnel-register-print__table\s*\{[^}]*font-size:\s*8pt;/s);
   });
 });
 

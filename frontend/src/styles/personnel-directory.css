@@ -55,6 +55,20 @@
 .personnel-print th, .personnel-print td { border: 1px solid rgb(85, 85, 85); padding: 3px; text-align: left; overflow-wrap: anywhere; }
 .personnel-print thead { display: table-header-group; }
 .personnel-print tr { break-inside: avoid; }
+.personnel-register-print { font-family: "Noto Sans Thai", sans-serif; }
+.personnel-register-print__header { display: flex; align-items: center; justify-content: space-between; gap: 16mm; }
+.personnel-register-print__brand { display: flex; align-items: center; gap: 4mm; }
+.personnel-register-print__brand-mark { display: grid; place-items: center; width: 15mm; height: 15mm; border-radius: 3mm; background: rgb(16, 32, 51); color: white; font-size: 10pt; font-weight: 800; }
+.personnel-register-print__brand-name { max-width: 42mm; color: rgb(16, 32, 51); font-size: 12pt; line-height: 1.25; }
+.personnel-register-print__title-block { display: grid; justify-items: end; gap: 1mm; color: rgb(88, 98, 112); font-size: 8pt; line-height: 1.25; }
+.personnel-register-print__title-block h1 { margin: 0; color: rgb(16, 32, 51); font-size: 18pt; line-height: 1.15; text-align: right; }
+.personnel-register-print__english-title { color: rgb(13, 129, 143); font-size: 8pt; letter-spacing: .14em; }
+.personnel-register-print__accent-rule { height: 1px; margin: 4mm 0 3mm; border-left: 34mm solid rgb(13, 129, 143); background: rgb(16, 32, 51); }
+.personnel-register-print__summary { margin: 0 0 3mm; padding: 3mm 4mm; border: 1px solid rgb(211, 220, 226); border-radius: 2mm; background: rgb(247, 249, 251); font-size: 8pt; font-weight: 700; }
+.personnel-register-print__table { font-size: 8pt; line-height: 1.2; }
+.personnel-register-print__table th, .personnel-register-print__table td { padding: 1.5mm 1.2mm; }
+.personnel-register-print__table th { background: rgb(238, 244, 247); font-weight: 700; }
+.personnel-register-print__signatures { display: flex; justify-content: space-between; gap: 12mm; margin-top: 12mm; font-size: 9pt; break-inside: avoid; }
 .personnel-record-print__field { display: flex; gap: 1em; border-bottom: 1px solid rgb(221, 221, 221); }
 .personnel-record-print__field dt { width: 35%; }
 .personnel-record-print__field dd { margin: 0; }
