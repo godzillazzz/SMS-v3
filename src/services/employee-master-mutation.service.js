@@ -126,8 +126,9 @@ function createEmployeeMasterMutationService({ prismaClient = prisma, auditServi
   const lifecycleService = lifecycle.createEmployeeLifecycleService({ prismaClient, auditService, clock });
 
   async function preflight({ employeeId, actorRole, fieldScope, changes, effectiveMode = 'IMMEDIATE', effectiveDate, reason }) {
-    const scope = fieldScope || actorRole || 'ADMIN';
-    let normalized = normalizeChanges(changes, scope === 'MANAGER' ? 'MANAGER' : 'ADMIN');
+    const requestedScope = fieldScope || actorRole || 'ADMIN';
+    const scope = ['MANAGER', 'SUPERVISOR'].includes(requestedScope) ? 'MANAGER' : 'ADMIN';
+    let normalized = normalizeChanges(changes, scope);
     if (Object.prototype.hasOwnProperty.call(normalized, 'department')) normalized = { ...normalized, department: await personnelMaster.assertActiveValue(prismaClient, 'department', normalized.department) };
     if (Object.prototype.hasOwnProperty.call(normalized, 'jobTitle')) normalized = { ...normalized, jobTitle: await personnelMaster.assertActiveValue(prismaClient, 'position', normalized.jobTitle) };
     const timing = validateEffectiveTiming(normalized, effectiveMode, effectiveDate, clock());
@@ -138,7 +139,21 @@ function createEmployeeMasterMutationService({ prismaClient = prisma, auditServi
       analysis = await lifecycleService.preflight({ employeeId, type: 'MASTER_EDIT', effectiveDate: timing.effectiveDate, changes: actual });
     }
     const hardBlocks = (analysis.blockingIssues || []).filter((issue) => issue.code !== 'NO_STATE_CHANGE');
-    if (hardBlocks.length) throw businessError(409, 'EMPLOYEE_CHANGE_PREFLIGHT_BLOCKED', 'The Employee change cannot be applied.', { preflight: { ...analysis, blockingIssues: hardBlocks } });
+    if (hardBlocks.length) {
+      const preflight = scope === 'MANAGER' ? {
+        employee: { id: analysis.employee.id, employeeCode: analysis.employee.employeeCode, ...projectState(analysis.employee, scope), updatedAt: analysis.employee.updatedAt },
+        type: analysis.type,
+        effectiveDate: analysis.effectiveDate,
+        currentState: projectState(analysis.currentState, scope),
+        proposedState: projectState(analysis.proposedState, scope),
+        blockingIssues: hardBlocks,
+        warnings: analysis.warnings,
+        impacts: analysis.impacts,
+        expectedEmployeeUpdatedAt: analysis.expectedEmployeeUpdatedAt,
+        latestLifecycleSequence: analysis.latestLifecycleSequence
+      } : { ...analysis, blockingIssues: hardBlocks };
+      throw businessError(409, 'EMPLOYEE_CHANGE_PREFLIGHT_BLOCKED', 'The Employee change cannot be applied.', { preflight });
+    }
     return {
       employee: analysis.employee,
       currentState: projectState(analysis.currentState, scope === 'MANAGER' ? 'MANAGER' : 'ADMIN'),

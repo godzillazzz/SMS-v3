@@ -1,5 +1,11 @@
 # MASTER HANDOFF
 
+## OPEN — Employee preflight privacy and snapshot retention — 29 October 2026
+
+Isolated fix based on `1553e1737d8c169c98b161cc51c90f64eccb6dc1`: blocked master-edit preflight now projects management-scope employee states before HTTP error serialization; route regression covers MANAGER, SUPERVISOR and ADMIN. Focused tests: 21/21 pass; full `npm test`: 1880 pass, 24 fail in this environment, including missing `DATABASE_URL` and `JWT_SECRET` (not all failures classified). No production action or migration.
+
+**Residual privacy risk OPEN:** `EmployeeLifecycleEvent.oldValue/newValue` persist full master snapshots including private contacts; current manager lifecycle history projects these on read, but storage and historical copies remain. Change-request revisions persist projected snapshots for current manager submissions, yet `getById`, `list` and `listForEmployee` return revision JSON without a further role projection: legacy or otherwise contaminated revision snapshots may expose private fields to owners. Schema has no retention deadline on either snapshot model; source search found no targeted deletion for those models. This is not proof of production contents, actual retention duration, backup cleanup, or absence of external controls. A separately authorized inventory, access review, retention/remediation policy and safe migration plan are required; do not delete snapshots blindly because pending events and history depend on them.
+
 > **BRANCH LINEAGES (บังคับ ตั้งแต่ 17 ต.ค. 2569):** แอป + Production release = `fix/serverless-database-reliability` (integration) · UAT/verification harness = `main` · **ห้าม merge `main`→integration ทั้งก้อน** · **ห้ามปล่อย Production จาก `main`** · รายละเอียด + วิธี audit รายไตรมาส: [`docs/BRANCH_LINEAGES.md`](docs/BRANCH_LINEAGES.md)
 
 ## CLOSED — SELF-HOSTED PAIRED RELEASE CUTOVER `bb9e5017` LIVE — 25 October 2026 (Asia/Bangkok)
