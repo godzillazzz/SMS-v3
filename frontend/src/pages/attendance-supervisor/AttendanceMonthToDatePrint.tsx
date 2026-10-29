@@ -154,11 +154,24 @@ export function AttendanceMonthToDatePrint({ date, employees, rows }: { date: st
       const sites = [...new Set(employeeRows.map((row) => (row.assignedSite || row.expectedSite)?.name || (row.assignedSite || row.expectedSite)?.code).filter(Boolean))];
       const boxes = summary(employeeRows);
       return <article className="attendance-supervisor-print-page timesheet-sheet" key={employee.id}>
-        <header className="timesheet-header">
-          <div className="timesheet-brand"><img src="/brand/sms-logo-horizontal.webp" alt="SMS Security Management System" /></div>
-          <div className="timesheet-title"><h1>ใบลงเวลาทำงาน</h1><p>Monthly Timesheet</p></div>
-          <dl className="timesheet-docmeta"><div><dt>ประจำเดือน</dt><dd>{thaiMonth(date)}</dd></div><div><dt>ถึงวันที่</dt><dd>{thaiDate(date)}</dd></div></dl>
+        <header className="leave-print-header-redesign timesheet-header-redesign">
+          <div className="leave-print-brand-left">
+            <div className="leave-print-brand-square">SMS</div>
+            <div className="leave-print-company-details">
+              <strong>Security Management System</strong>
+              <small>ระบบบริหารงานรักษาความปลอดภัย</small>
+            </div>
+          </div>
+          <div className="leave-print-doc-meta">
+            <h1 className="leave-print-main-title">ใบลงเวลาทำงาน</h1>
+            <div className="leave-print-en-title">MONTHLY TIMESHEET</div>
+            <div className="leave-print-doc-no">ประจำเดือน {thaiMonth(date)}</div>
+            <div className="leave-print-doc-no" style={{ fontSize: '8.5pt', color: '#475569', marginTop: '0.8mm' }}>ถึงวันที่ {thaiDate(date)}</div>
+          </div>
         </header>
+        <div className="leave-print-divider">
+          <div className="leave-print-divider-accent" />
+        </div>
         <section className="timesheet-employee" aria-label="ข้อมูลพนักงาน">
           <div><span>ชื่อ-สกุล</span><strong>{employeeName(employee)}</strong></div>
           <div><span>รหัสพนักงาน</span><strong>{employee.employeeCode || representative?.employeeCode || DASH}</strong></div>

@@ -61,8 +61,8 @@ export function attendanceSupervisorHistory(token: string, filters: {
   return call(`/attendance/supervisor/history${query(filters)}`, token);
 }
 
-export function attendanceSupervisorMonthPrint(token: string, selectedDate: string) {
-  return call(`/attendance/supervisor/month-print${query({ selectedDate })}`, token);
+export function attendanceSupervisorMonthPrint(token: string, selectedDate: string, employeeId?: string) {
+  return call(`/attendance/supervisor/month-print${query({ selectedDate, employeeId })}`, token);
 }
 
 export function attendanceSupervisorDetail(token: string, assignmentId: string) {

@@ -1,5 +1,10 @@
 /* Monthly Timesheet (owner reference layout) — loaded only with the lazy report chunk. */
 .timesheet-sheet { width: 210mm; min-height: 297mm; padding: 7mm 9mm 5mm; color: #172033; font-size: 8pt; }
+.timesheet-header-redesign { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 2mm; }
+.timesheet-header-redesign .leave-print-brand-square { width: 11mm; height: 11mm; font-size: 13pt; }
+.timesheet-header-redesign .leave-print-main-title { font-size: 16pt; color: #173566; }
+.timesheet-header-redesign .leave-print-en-title { font-size: 8pt; letter-spacing: 0.12em; color: #0891b2; margin: 0.3mm 0 1mm; }
+.timesheet-header-redesign .leave-print-doc-no { font-size: 9pt; color: #334155; white-space: nowrap; }
 .timesheet-header { display: grid; grid-template-columns: 52mm 1fr 56mm; align-items: center; gap: 3mm; padding-bottom: 2mm; border-bottom: 2px solid #173566; }
 .timesheet-brand img { display: block; width: 50mm; max-height: 14mm; object-fit: contain; object-position: left center; }
 .timesheet-title { text-align: center; }

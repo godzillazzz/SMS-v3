@@ -180,7 +180,14 @@ export async function printDocument(
     testPrint?.(undefined as unknown as Window);
     return;
   }
-  const printRoot = document.querySelector<HTMLElement>(selector);
+  let printRoot = document.querySelector<HTMLElement>(selector);
+  if (!printRoot) {
+    for (let i = 0; i < 20; i++) {
+      await new Promise<void>((resolve) => setTimeout(resolve, 50));
+      printRoot = document.querySelector<HTMLElement>(selector);
+      if (printRoot) break;
+    }
+  }
   if (!printRoot) throw new Error('Print content is unavailable.');
   await printNodeDocument(printRoot, title, options, testPrint);
 }

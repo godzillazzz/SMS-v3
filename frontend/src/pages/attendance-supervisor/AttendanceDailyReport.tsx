@@ -16,6 +16,11 @@ export type DailyReportRow = {
   workedMinutes?: number | null;
   attendanceStatus: string;
   flags?: string[];
+  actualSite?: { id?: string; code?: string | null; name?: string | null } | null;
+  assignedSite?: { id?: string; code?: string | null; name?: string | null } | null;
+  expectedSite?: { id?: string; code?: string | null; name?: string | null } | null;
+  actualSiteName?: string | null;
+  attendanceSites?: Array<{ eventType?: string | null; actualSite?: { id?: string; code?: string | null; name?: string | null } | null; workSiteContext?: string | null }>;
 };
 
 const DASH = '–';
@@ -103,12 +108,25 @@ export function AttendanceDailyReport({ date, rows, loading = false, error, filt
     {printError && <p role="alert" className="attendance-daily-report__error">{printError}</p>}
     <div className="attendance-daily-report__scroll">
       <article className="attendance-daily-report__sheet">
-        <header>
-          <h1>รายงานการลงเวลาประจำวัน</h1>
-          <p className="attendance-daily-report__subtitle">Daily Attendance</p>
-          <p className="attendance-daily-report__date">{thaiLongDate(date)}</p>
-          <p>ตัวกรอง: แผนก {filters?.department || 'ทั้งหมด'} · จุดปฏิบัติงาน {filters?.site || 'ทั้งหมด'} · กะ {filters?.shift || 'ทั้งหมด'} · พนักงาน {filters?.employee || 'ทั้งหมด'} · สถานะ {filters?.status || 'ทั้งหมด'}</p>
+        <header className="leave-print-header-redesign daily-report-header-redesign">
+          <div className="leave-print-brand-left">
+            <div className="leave-print-brand-square">SMS</div>
+            <div className="leave-print-company-details">
+              <strong>Security Management System</strong>
+              <small>ระบบบริหารงานรักษาความปลอดภัย</small>
+            </div>
+          </div>
+          <div className="leave-print-doc-meta">
+            <h1 className="leave-print-main-title">รายงานการลงเวลาประจำวัน</h1>
+            <div className="leave-print-en-title">DAILY ATTENDANCE REPORT</div>
+            <p className="attendance-daily-report__subtitle" style={{ margin: 0, fontSize: '8.5pt', color: '#64748b' }}>Daily Attendance</p>
+            <div className="leave-print-doc-no">{thaiLongDate(date)}</div>
+          </div>
         </header>
+        <div className="leave-print-divider">
+          <div className="leave-print-divider-accent" />
+        </div>
+        <p className="attendance-daily-report__filter-text" style={{ fontSize: '8pt', color: '#475569', margin: '0 0 2mm' }}>ตัวกรอง: แผนก {filters?.department || 'ทั้งหมด'} · จุดปฏิบัติงาน {filters?.site || 'ทั้งหมด'} · กะ {filters?.shift || 'ทั้งหมด'} · พนักงาน {filters?.employee || 'ทั้งหมด'} · สถานะ {filters?.status || 'ทั้งหมด'}</p>
         <section className="attendance-daily-report__cards" aria-label="สรุปการลงเวลา">
           {cards.map(([label, value]) => <div className="attendance-daily-report__card" key={label}><span>{label}</span><strong>{loading || error ? DASH : value}</strong></div>)}
         </section>
@@ -126,11 +144,13 @@ export function AttendanceDailyReport({ date, rows, loading = false, error, filt
                 const status = dailyReportStatus(row);
                 const anomalies = ([['WRONG_SHIFT', 'ผิดกะ'], ['DEVICE_MISMATCH', 'อุปกรณ์ไม่ตรง'], ['OUTSIDE_ALL_SITES', 'นอกพื้นที่'], ['ASSIST_OTHER_SITE', 'ช่วย Site อื่น'], ['TIME_ABNORMAL', 'เวลาผิดปกติ'], ['MISSING_CHECK_IN', 'ไม่ได้ลงเวลาเข้า'], ['MISSING_CHECK_OUT', 'ไม่ได้ลงเวลาออก'], ['EARLY_OUT', 'ออกก่อนเวลา']] as const).filter(([flag]) => has(row, flag) || (flag === 'TIME_ABNORMAL' && row.abnormalTime) || (flag === 'ASSIST_OTHER_SITE' && row.workSiteContext === 'SUPPORT_SITE')).map(([, label]) => label);
                 const offSite = has(row, 'OUTSIDE_ALL_SITES') || has(row, 'ASSIST_OTHER_SITE') || row.workSiteContext === 'SUPPORT_SITE';
+                const actualSiteName = row.actualSite?.name || row.actualSite?.code || row.actualSiteName || (row.attendanceSites && row.attendanceSites.find((site) => site.actualSite?.name)?.actualSite?.name);
+                const siteDisplay = offSite ? (actualSiteName || 'นอกสถานที่') : DASH;
                 return <tr key={row.assignmentId}>
                   <td>{index + 1}</td><td>{row.employeeName || DASH}</td><td>{row.employeeCode || DASH}</td><td>{row.department || DASH}</td>
                   <td>{clock(row.checkInAt)}</td><td>{clock(row.checkOutAt)}</td><td>{hours(row.workedMinutes)}</td>
                   <td><span className={`attendance-daily-report__status attendance-daily-report__status--${status.tone}`}>{status.label}</span></td>
-                  <td>{offSite ? 'นอกสถานที่' : DASH}</td><td>{anomalies.length ? anomalies.join(' · ') : DASH}</td>
+                  <td>{siteDisplay}</td><td>{anomalies.length ? anomalies.join(' · ') : DASH}</td>
                 </tr>;
               })}
           </tbody>

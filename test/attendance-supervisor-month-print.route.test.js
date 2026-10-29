@@ -30,7 +30,12 @@ test('GET month-print validates selectedDate and delegates a read-only request',
   assert.equal(calls.length, 1);
   assert.deepEqual(calls[0], { actor: { role: 'ADMIN', sub: 'admin-1' }, selectedDate: '2026-08-29' });
 
+  const okWithEmployee = await request(app).get('/api/v1/attendance/supervisor/month-print?selectedDate=2026-08-29&employeeId=emp-123');
+  assert.equal(okWithEmployee.status, 200);
+  assert.equal(calls.length, 2);
+  assert.deepEqual(calls[1], { actor: { role: 'ADMIN', sub: 'admin-1' }, selectedDate: '2026-08-29', employeeId: 'emp-123' });
+
   const invalid = await request(app).get('/api/v1/attendance/supervisor/month-print?selectedDate=2026-02-30');
   assert.equal(invalid.status, 400);
-  assert.equal(calls.length, 1);
+  assert.equal(calls.length, 2);
 });

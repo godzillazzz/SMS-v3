@@ -279,6 +279,19 @@ test('month print limits VIEWER to linked employee and rejects unlinked VIEWER',
   );
 });
 
+test('month print scopes to specific employeeId when requested', async () => {
+  let employeeWhere;
+  const prisma = {
+    employee: { findMany: async (args) => { employeeWhere = args.where; return [{ id: 'emp-1', employeeCode: 'E001', displayName: 'Guard 1', department: 'OPS' }]; } },
+    shiftAssignment: { findMany: async () => [] }
+  };
+  const service = createAttendanceSupervisorService({ prisma, clock: () => new Date('2026-08-29T12:00:00.000Z') });
+  const result = await service.monthPrint({ actor: { role: 'ADMIN' }, selectedDate: '2026-08-29', employeeId: 'emp-1' });
+  assert.deepEqual(employeeWhere, { isActive: true, deletedAt: null, id: 'emp-1' });
+  assert.equal(result.employees.length, 1);
+  assert.equal(result.employees[0].id, 'emp-1');
+});
+
 test('history returns paginated supervisor rows without writing Attendance state', async () => {
   const assignments = [
     shiftAssignment({

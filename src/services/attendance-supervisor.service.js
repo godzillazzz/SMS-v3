@@ -263,17 +263,17 @@ function createAttendanceSupervisorService({ prisma = prismaDefault, clock = () 
       if (!expectedSite) {
         try {
           const department = String(assignment.departmentSnapshot || assignment.employee?.department || '').trim();
-          const cacheKey = !session?.expectedSiteId && !assignment.securitySiteId && department
-            ? `DEPARTMENT_DEFAULT:${department}`
-            : null;
-          if (cacheKey) {
-            if (!defaultAuthorityCache.has(cacheKey)) {
-              defaultAuthorityCache.set(cacheKey, siteAuthority.resolve({ assignment, existingSession: session }, client));
-            }
-            expectedSite = (await defaultAuthorityCache.get(cacheKey)).site;
-          } else {
-            expectedSite = (await siteAuthority.resolve({ assignment, existingSession: session }, client)).site;
+          const cacheKey = session?.expectedSiteId
+            ? `SESSION_SITE:${session.expectedSiteId}`
+            : assignment.securitySiteId
+              ? `ASSIGNMENT_SITE:${assignment.securitySiteId}`
+              : department
+                ? `DEPARTMENT_DEFAULT:${department}`
+                : `ASSIGNMENT:${assignment.id}`;
+          if (!defaultAuthorityCache.has(cacheKey)) {
+            defaultAuthorityCache.set(cacheKey, siteAuthority.resolve({ assignment, existingSession: session }, client));
           }
+          expectedSite = (await defaultAuthorityCache.get(cacheKey)).site;
         }
         catch { expectedSite = null; }
       }
@@ -439,11 +439,17 @@ function createAttendanceSupervisorService({ prisma = prismaDefault, clock = () 
     };
   }
 
-  async function monthPrint({ actor, selectedDate } = {}, client = prisma) {
+  async function monthPrint({ actor, selectedDate, employeeId } = {}, client = prisma) {
     const now = clock();
     const range = parseMonthPrintRange(selectedDate);
     const scope = scopeForActor(actor, {});
     const employeeWhere = employeeScopeWhere(scope, {});
+    if (employeeId) {
+      if (scope.role === 'VIEWER' && String(actor?.employeeAuthority?.id) !== String(employeeId)) {
+        throw http(403, 'ATTENDANCE_SUPERVISOR_SCOPE_FORBIDDEN', 'Viewer may access only their own Attendance.');
+      }
+      employeeWhere.id = String(employeeId);
+    }
     const employees = await client.employee.findMany({
       where: employeeWhere,
       take: MAX_MONTH_PRINT_ROSTER + 1,

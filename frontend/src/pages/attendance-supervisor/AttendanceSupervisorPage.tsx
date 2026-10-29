@@ -983,9 +983,10 @@ export function AttendanceSupervisorPage({ token, role, department, employeeAuth
   const printAttendance = async (nextEmployeeId: string | null) => {
     if (mode !== 'daily' || printLoading) return;
     setPrintLoading(true);
-    setError(undefined);
     try {
-      const response = await attendanceSupervisorMonthPrint(token, date) as { data?: AttendanceMonthPrintPayload };
+      const response = await (nextEmployeeId
+        ? attendanceSupervisorMonthPrint(token, date, nextEmployeeId)
+        : attendanceSupervisorMonthPrint(token, date)) as { data?: AttendanceMonthPrintPayload };
       if (!response.data || response.data.selectedDate !== date || !Array.isArray(response.data.employees)) {
         throw new Error('ข้อมูลรายงานเดือนถึงวันที่เลือกไม่สมบูรณ์');
       }
@@ -1002,14 +1003,43 @@ export function AttendanceSupervisorPage({ token, role, department, employeeAuth
       }));
       setPrintRows(attendanceMonthPrintRows({ ...response.data, employees: sourceEmployees }));
       setPrintEmployees(targetEmployees);
-      await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+      let ready = false;
+      for (let i = 0; i < 20; i++) {
+        await new Promise<void>((resolve) => setTimeout(resolve, 50));
+        if (document.querySelector('.attendance-supervisor-print .attendance-supervisor-print-page')) {
+          ready = true;
+          break;
+        }
+      }
+      if (!ready) throw new Error('ไม่สามารถเตรียมข้อมูลสำหรับพิมพ์ได้');
       const employeeCode = sourceEmployees[0]?.employeeCode || nextEmployeeId;
       await printDocument('.attendance-supervisor-print', nextEmployeeId ? `ใบลงเวลาทำงาน-${employeeCode}-${date.slice(0, 7)}.pdf` : `ใบลงเวลาทำงาน-พนักงาน-active-${date.slice(0, 7)}.pdf`, { orientation: 'portrait', margin: '0' });
     } catch (reason) {
-      setError(formatRequestErrorMessage(reason, 'ไม่สามารถเตรียมข้อมูลรายงานเดือนถึงวันที่เลือกได้'));
+      setRequestNotice(formatRequestErrorMessage(reason, 'ไม่สามารถเตรียมข้อมูลรายงานเดือนถึงวันที่เลือกได้'));
     } finally {
       setPrintRows([]);
       setPrintEmployees([]);
+      setPrintLoading(false);
+    }
+  };
+
+  const handleDirectDailyReportPrint = async () => {
+    if (loading || !rows.length || printLoading) return;
+    setPrintLoading(true);
+    try {
+      let sheet = document.querySelector<HTMLElement>('.attendance-daily-report__sheet');
+      if (!sheet) {
+        for (let i = 0; i < 20; i++) {
+          await new Promise<void>((resolve) => setTimeout(resolve, 50));
+          sheet = document.querySelector<HTMLElement>('.attendance-daily-report__sheet');
+          if (sheet) break;
+        }
+      }
+      if (!sheet) throw new Error('ไม่พบเอกสารรายงานประจำวันสำหรับพิมพ์');
+      await printDocument('.attendance-daily-report__sheet', `รายงานการลงเวลาประจำวัน-${date}.pdf`, { orientation: 'landscape', margin: '8mm' });
+    } catch (reason) {
+      setRequestNotice(formatRequestErrorMessage(reason, 'ไม่สามารถจัดเตรียมรายงานประจำวันสำหรับพิมพ์ได้'));
+    } finally {
       setPrintLoading(false);
     }
   };
@@ -1018,6 +1048,20 @@ export function AttendanceSupervisorPage({ token, role, department, employeeAuth
   const attendanceStateTitle = error ? 'ไม่สามารถแสดงข้อมูล Attendance ได้' : rows.length ? '' : 'ไม่พบข้อมูล Attendance ตามตัวกรอง';
   const attendanceDesktop = <div className="attendance-supervisor-v4__table-wrap data-table-scroll">
     <table className="attendance-supervisor-v4__table data-surface-table" aria-label={attendanceTableLabel}>
+      <colgroup>
+        {mode === 'history' && <col style={{ width: '9%' }} />}
+        <col style={{ width: mode === 'history' ? '15%' : '17%' }} />
+        <col style={{ width: '6%' }} />
+        <col style={{ width: '12%' }} />
+        <col style={{ width: '12%' }} />
+        <col style={{ width: '7%' }} />
+        <col style={{ width: '7%' }} />
+        <col style={{ width: '10%' }} />
+        <col style={{ width: '8%' }} />
+        <col style={{ width: '9%' }} />
+        <col style={{ width: '6%' }} />
+        <col style={{ width: '6%' }} />
+      </colgroup>
       <thead>
         <tr>
           {mode === 'history' && <th scope="col">วันที่</th>}
@@ -1043,9 +1087,12 @@ export function AttendanceSupervisorPage({ token, role, department, employeeAuth
           <tr key={row.assignmentId}>
             {mode === 'history' && <td>{row.date}</td>}
             <td>
-              <span className="attendance-supervisor-v4__identity">
+              <span className="attendance-supervisor-v4__identity" title={`${row.employeeName} (${row.employeeCode || '—'})`}>
                 <span className="personnel-avatar" aria-hidden="true" data-avatar-tone={avatarTone(row.employeeCode || row.employeeId)}>{initials(row.employeeName)}</span>
-                <span><strong>{row.employeeName}</strong><small>{[row.employeeCode, row.department].filter(Boolean).join(' · ') || '—'}</small></span>
+                <span className="attendance-supervisor-v4__identity-name">
+                  <strong>{row.employeeName}</strong>
+                  {row.employeeCode && <small className="attendance-supervisor-v4__identity-code">({row.employeeCode})</small>}
+                </span>
               </span>
             </td>
             <td>{row.shift.code || row.shift.name || '—'}</td>
@@ -1190,9 +1237,22 @@ export function AttendanceSupervisorPage({ token, role, department, employeeAuth
       </section>
       </SectionCard>}
 
-      {mode === 'daily' && dailyReportOpen && <AttendanceDailyReport date={date} filters={{ department: departmentFilter || 'ทั้งหมด', site: siteId ? (sites.find((site) => site.id === siteId)?.name || siteId) : 'ทั้งหมด', shift: shiftTypeId ? (shifts.find((shift) => shift.id === shiftTypeId)?.name || shiftTypeId) : 'ทั้งหมด', employee: employeeId ? (filteredEmployees.find((employee) => employee.id === employeeId)?.displayName || employeeId) : 'ทั้งหมด', status: STATUS_OPTIONS.find(([value]) => value === status)?.[1] || status }} rows={dailyReportKey === reportKey && !error ? rows : []} loading={loading || (!error && dailyReportKey !== reportKey)} error={error} onShow={setDate} onClose={() => setDailyReportOpen(false)} />}
+      {mode === 'daily' && dailyReportOpen && <AttendanceDailyReport
+          date={date}
+          filters={{
+            department: departmentFilter || 'ทั้งหมด',
+            site: siteId ? (sites.find((site) => site.id === siteId)?.name || siteId) : 'ทั้งหมด',
+            shift: shiftTypeId ? (shifts.find((shift) => shift.id === shiftTypeId)?.name || shiftTypeId) : 'ทั้งหมด',
+            employee: employeeId ? (filteredEmployees.find((employee) => employee.id === employeeId)?.displayName || employeeId) : 'ทั้งหมด',
+            status: STATUS_OPTIONS.find(([value]) => value === status)?.[1] || status
+          }}
+          rows={rows}
+          loading={loading}
+          error={error}
+          onShow={setDate}
+        />}
 
-      <SectionCard className="attendance-supervisor-v4__table-card" kicker={mode === 'daily' ? 'ข้อมูลวันนี้' : 'ข้อมูลย้อนหลัง'} title={mode === 'daily' ? 'สถานะประจำวัน' : 'ประวัติการลงเวลา'} description={loading ? 'กำลังโหลดรายการตามตัวกรอง' : `${rows.length} รายการในขอบเขตที่เลือก`} actions={mode === 'daily' ? <div className="attendance-supervisor-v4__print-actions"><button type="button" className="btn-neutral" aria-pressed={dailyReportOpen} onClick={() => setDailyReportOpen((open) => !open)}>รายงานวันนี้</button><button type="button" className="btn-primary" disabled={loading || printLoading} onClick={() => void printAttendance(null)}>{printLoading ? 'กำลังเตรียม…' : 'พิมพ์ทั้งหมด'}</button></div> : history?.meta ? <span>หน้า {history.meta.page}/{history.meta.totalPages} · {history.meta.total} รายการ</span> : undefined}>
+      <SectionCard className="attendance-supervisor-v4__table-card" kicker={mode === 'daily' ? 'ข้อมูลวันนี้' : 'ข้อมูลย้อนหลัง'} title={mode === 'daily' ? 'สถานะประจำวัน' : 'ประวัติการลงเวลา'} description={loading ? 'กำลังโหลดรายการตามตัวกรอง' : `${rows.length} รายการในขอบเขตที่เลือก`} actions={mode === 'daily' ? <div className="attendance-supervisor-v4__print-actions"><button type="button" className="btn-neutral" disabled={loading || printLoading || !rows.length} onClick={() => { setDailyReportOpen(true); void handleDirectDailyReportPrint(); }}>รายงานวันนี้</button><button type="button" className="btn-primary" disabled={loading || printLoading} onClick={() => void printAttendance(null)}>{printLoading ? 'กำลังเตรียม…' : 'พิมพ์ทั้งหมด'}</button></div> : history?.meta ? <span>หน้า {history.meta.page}/{history.meta.totalPages} · {history.meta.total} รายการ</span> : undefined}>
         <ResponsiveDataTable
           ariaLabel={attendanceTableLabel}
           loading={loading && !error}
