@@ -83,15 +83,14 @@ async function getFile({ withToken = true } = {}) {
   return withToken ? call.set('Authorization', 'Bearer test-token') : call;
 }
 
-test('MANAGER in the same department can read a private file using the actor department from the database', async () => {
+// OWNER policy 2026-10-30 (and 18 Oct 2026, attendance-supervisor.service.js "MANAGER/SUPERVISOR are
+// cross-department executives"): a department is only a place of work; every MANAGER and SUPERVISOR
+// supervises all VIEWERs, so they may open private files of employees in any department.
+test('MANAGER in the same department can read a private file', async () => {
   reset();
   const response = await getFile();
   assert.equal(response.status, 200);
   assert.deepEqual(response.body, bytes);
-  assert.deepEqual(actorLookups, [{
-    where: { id: 'actor-employee' },
-    select: { id: true, department: true, isActive: true, deletedAt: true }
-  }]);
   assert.equal(resolverReads, 1);
 });
 
@@ -109,45 +108,44 @@ test('same employee access remains allowed when the employee has no department',
   });
   const response = await getFile();
   assert.equal(response.status, 200);
-  assert.equal(actorLookups.length, 1);
 });
 
 test('SUPERVISOR in the same department can read a private file', async () => {
   reset({ role: 'SUPERVISOR' });
   const response = await getFile();
   assert.equal(response.status, 200);
-  assert.equal(actorLookups.length, 1);
 });
 
-test('MANAGER in another department is denied', async () => {
-  reset({ employee: { id: 'actor-employee', department: 'Finance', isActive: true, deletedAt: null } });
-  const response = await getFile();
-  assert.equal(response.status, 403);
-  assert.equal(resolverReads, 0);
+test('OWNER policy 2026-10-30: MANAGER and SUPERVISOR of another department can read the file (cross-department)', async (t) => {
+  for (const role of ['MANAGER', 'SUPERVISOR']) {
+    await t.test(role, async () => {
+      reset({ role, employee: { id: 'actor-employee', department: 'Finance', isActive: true, deletedAt: null } });
+      const response = await getFile();
+      assert.equal(response.status, 200);
+      assert.equal(resolverReads, 1);
+    });
+  }
 });
 
-test('actor without a linked employee is denied', async () => {
-  reset({ employeeAuthorityId: null, employee: null });
-  const response = await getFile();
-  assert.equal(response.status, 403);
-  assert.equal(actorLookups.length, 0);
-  assert.equal(resolverReads, 0);
+test('OWNER policy 2026-10-30: MANAGER without a linked employee or department can read the file', async (t) => {
+  for (const role of ['MANAGER', 'SUPERVISOR']) {
+    await t.test(role, async () => {
+      reset({ role, employeeAuthorityId: null, employee: null });
+      const response = await getFile();
+      assert.equal(response.status, 200);
+      assert.equal(actorLookups.length, 0);
+    });
+  }
 });
 
-test('actor whose employee record is missing is denied', async () => {
-  reset({ employee: null });
-  const response = await getFile();
-  assert.equal(response.status, 403);
-  assert.equal(resolverReads, 0);
-});
-
-test('inactive or deleted actor employee is denied', async (t) => {
-  for (const employee of [
-    { id: 'actor-employee', department: 'Operations', isActive: false, deletedAt: null },
-    { id: 'actor-employee', department: 'Operations', isActive: true, deletedAt: new Date() }
+test('actor whose linked employee is inactive or deleted is denied', async (t) => {
+  for (const authority of [
+    { id: 'actor-employee', isActive: false, deletedAt: null },
+    { id: 'actor-employee', isActive: true, deletedAt: new Date() }
   ]) {
-    await t.test(employee.isActive ? 'deleted' : 'inactive', async () => {
-      reset({ employee });
+    await t.test(authority.isActive ? 'deleted' : 'inactive', async () => {
+      reset();
+      actor = { ...actor, employeeAuthority: authority };
       const response = await getFile();
       assert.equal(response.status, 403);
       assert.equal(resolverReads, 0);
@@ -155,11 +153,22 @@ test('inactive or deleted actor employee is denied', async (t) => {
   }
 });
 
-test('VIEWER is denied by route authorization', async () => {
-  reset({ role: 'VIEWER' });
+test('VIEWER is denied by route authorization (own or other employee files alike, unchanged since before AUD-M1)', async (t) => {
+  for (const employeeAuthorityId of ['actor-employee', ownerEmployee.id]) {
+    await t.test(employeeAuthorityId, async () => {
+      reset({ role: 'VIEWER', employeeAuthorityId });
+      const response = await getFile();
+      assert.equal(response.status, 403);
+      assert.equal(actorLookups.length, 0);
+      assert.equal(resolverReads, 0);
+    });
+  }
+});
+
+test('a file without an owning employee is still denied for non-ADMIN (unchanged since before AUD-M1)', async () => {
+  reset({ role: 'SUPERVISOR', currentFile: { ...liveFile, employee: null, employeeId: 'missing-employee' } });
   const response = await getFile();
   assert.equal(response.status, 403);
-  assert.equal(actorLookups.length, 0);
   assert.equal(resolverReads, 0);
 });
 

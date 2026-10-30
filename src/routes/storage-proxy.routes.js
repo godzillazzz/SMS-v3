@@ -21,20 +21,16 @@ function createStorageProxyRouter({ environment = process.env, db = prisma, audi
         include: { employee: { select: { id: true, department: true } } }
       });
       if (!row || row.storageDeletedAt || row.storageDeletionRequestedAt || row.purgedAt || row.purgeRequestedAt) throw new HttpError(410, 'Stored object is no longer viewable.');
+      // OWNER policy 2026-10-30: a department is only a place of work; MANAGER/SUPERVISOR supervise every
+      // VIEWER, so they read files of any department like ADMIN. The route still excludes VIEWER, and
+      // authenticate() already rejects inactive/locked accounts; a linked employee that is inactive or
+      // deleted keeps failing closed.
       if (req.user.role !== 'ADMIN') {
-        const actorEmployeeId = req.user.employeeAuthority?.id;
-        const actorEmployee = actorEmployeeId && db.employee?.findUnique
-          ? await db.employee.findUnique({
-            where: { id: actorEmployeeId },
-            select: { id: true, department: true, isActive: true, deletedAt: true }
-          })
-          : null;
+        const authority = req.user.employeeAuthority;
         const employee = row.employee || (row.employeeId && db.employee?.findUnique
           ? await db.employee.findUnique({ where: { id: row.employeeId }, select: { id: true, department: true } })
           : null);
-        const sameEmployee = actorEmployeeId && String(actorEmployeeId) === String(row.employeeId);
-        const inDepartment = actorEmployee?.department && employee?.department && actorEmployee.department === employee.department;
-        if (!actorEmployee || actorEmployee.isActive !== true || actorEmployee.deletedAt || !employee || (!sameEmployee && !inDepartment)) {
+        if (!employee || (authority && (authority.isActive !== true || authority.deletedAt))) {
           throw new HttpError(403, 'Stored object is outside the actor scope.');
         }
       }

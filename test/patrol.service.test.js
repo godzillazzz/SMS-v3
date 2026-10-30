@@ -218,7 +218,8 @@ test('report returns exactly 5,000 scans without a size error', async () => {
   assert.equal(report.coverage.summary.scans, 5000);
 });
 
-test('report access: VIEWER is limited to own scans; MANAGER sees own department; ADMIN sees all departments', async () => {
+// OWNER policy 2026-10-30: MANAGER/SUPERVISOR are cross-department supervisors (department = place of work only).
+test('report access: VIEWER is limited to own scans; MANAGER/SUPERVISOR/ADMIN see all departments', async () => {
   const { svc } = service({ randomBytes: (n) => crypto.randomBytes(n) });
   const cp = await svc.createCheckpoint({ actor: admin, input: { code: 'CP1', name: 'Gate', department: 'ANO' } });
   await svc.recordScan({ actor: guardA, input: { qrPayload: cp.qrPayload, clientScanId: crypto.randomUUID() }, photo: { buffer: JPEG, mimetype: 'image/jpeg' } });
@@ -232,14 +233,19 @@ test('report access: VIEWER is limited to own scans; MANAGER sees own department
   assert.equal(mine.length, 1);
 });
 
-test('report scope fails closed with 403 before any user lookup when the actor sub is not a UUID or the user is unknown', async () => {
+// OWNER policy 2026-10-30: MANAGER/SUPERVISOR are cross-department supervisors (department = place of work only).
+// The report no longer resolves the actor department, so non-UUID or unknown subjects can never reach the
+// database (no 500); role authorization (requireReporter) is the only gate, and VIEWER stays 403.
+test('report scope never looks up the user: non-UUID or unknown MANAGER/SUPERVISOR subjects get the all-department report, never a 500', async () => {
   const { svc, db } = service();
-  for (const sub of ['m', '', undefined, 'not-a-uuid', `${MANAGER_ID}x`]) {
-    await assert.rejects(svc.report({ actor: { sub, role: 'MANAGER' }, from: '2026-10-30', to: '2026-10-30' }), (error) => error.statusCode === 403);
+  for (const sub of ['m', '', undefined, 'not-a-uuid', `${MANAGER_ID}x`, crypto.randomUUID()]) {
+    for (const role of ['MANAGER', 'SUPERVISOR']) {
+      const report = await svc.report({ actor: { sub, role }, from: '2026-10-30', to: '2026-10-30' });
+      assert.equal(report.department, null);
+    }
   }
-  assert.deepEqual(db.userLookups, [], 'non-UUID subjects never reach the database');
-  await assert.rejects(svc.report({ actor: { sub: crypto.randomUUID(), role: 'SUPERVISOR' }, from: '2026-10-30', to: '2026-10-30' }), (error) => error.statusCode === 403);
-  assert.equal(db.userLookups.length, 1);
+  assert.deepEqual(db.userLookups, [], 'no subject ever reaches the user table');
+  await assert.rejects(svc.report({ actor: { sub: 'not-a-uuid', role: 'VIEWER' }, from: '2026-10-30', to: '2026-10-30' }), (error) => error.statusCode === 403);
 });
 
 test('report carries round coverage: 8 rounds x 3h from 07:00 Bangkok, after-midnight scans belong to the previous patrol day', async () => {

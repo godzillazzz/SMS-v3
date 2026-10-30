@@ -28,27 +28,28 @@ function client() {
   };
 }
 
-test('RED S1: SUPERVISOR cannot use patrol report filter to read another department', async () => {
-  let reads = 0;
+// OWNER policy 2026-10-30: MANAGER/SUPERVISOR are cross-department supervisors (department = place of work only).
+// S1 previously rejected a SUPERVISOR patrol filter for another department; it is now allowed like ADMIN.
+test('S1 (OWNER policy 2026-10-30): SUPERVISOR may use the patrol report filter for another department', async () => {
+  const reads = [];
   const service = createPatrolService({ prisma: {
-    patrolCheckpoint: { findMany: async () => { reads += 1; return []; } },
-    patrolScan: { findMany: async () => { reads += 1; return []; } }
+    patrolCheckpoint: { findMany: async ({ where }) => { reads.push(where); return []; } },
+    patrolScan: { findMany: async ({ where }) => { reads.push(where); return []; } }
   } });
-  await assert.rejects(
-    service.report({ actor: { role: 'SUPERVISOR', department: 'AN1' }, from: '2026-08-01', to: '2026-08-01', department: 'AN2' }),
-    (error) => error.statusCode === 403
-  );
-  assert.equal(reads, 0);
+  const report = await service.report({ actor: { role: 'SUPERVISOR', department: 'AN1' }, from: '2026-08-01', to: '2026-08-01', department: 'AN2' });
+  assert.equal(report.department, 'AN2');
+  assert.equal(reads[0].department, 'AN2');
+  assert.equal(reads[1].checkpointDepartment, 'AN2');
 });
 
-test('RED S2: non-ADMIN report scope without department fails closed', () => {
-  assert.throws(
-    () => resolveReportScope({ role: 'SUPERVISOR', department: null, employeeId: 'synthetic-employee' }),
-    (error) => error.statusCode === 403
-  );
+// S2 previously failed closed for a SUPERVISOR without a department; the scope is now all departments.
+test('S2 (OWNER policy 2026-10-30): SUPERVISOR without department gets the all-department scope; VIEWER still fails closed', () => {
+  assert.deepEqual(resolveReportScope({ role: 'SUPERVISOR', department: null, employeeId: 'synthetic-employee' }), { department: null, employeeId: null, label: 'ทุกหน่วยงาน', allowsDepartmentFilter: true });
+  assert.throws(() => resolveReportScope({ role: 'VIEWER', department: 'AN1', employeeId: 'synthetic-employee' }), (error) => error.statusCode === 403);
 });
 
-test('RED S3: non-ADMIN executive report never serializes an unfilterable global critical count', async () => {
+// S3 previously withheld system-wide rules for SUPERVISOR; the all-department view now counts them like ADMIN.
+test('S3 (OWNER policy 2026-10-30): SUPERVISOR all-department executive report counts system-wide critical rules like ADMIN', async () => {
   const report = await getExecutiveReport({
     prismaClient: client(),
     requestUser: { role: 'SUPERVISOR', department: 'AN1' },
@@ -56,9 +57,20 @@ test('RED S3: non-ADMIN executive report never serializes an unfilterable global
     now: new Date('2026-08-10T00:00:00Z')
   });
   const kpi = report.executiveSummary.find((item) => item.key === 'criticalDataQuality');
-  assert.equal(kpi?.value, 0, 'global custom-rule rows (1 unclassified + 1 duplicate group) are not counted');
-  assert.equal(kpi?.unavailableLabel, 'ไม่พร้อมใน scope');
-  assert.equal(report.dataQualityAvailability, 'PARTIAL_SCOPE');
+  assert.equal(kpi?.value, 2, 'global custom-rule rows (1 unclassified + 1 duplicate group) are counted');
+  assert.equal(kpi?.unavailableLabel, undefined);
+  assert.equal(kpi?.targetPath, null, 'the ADMIN-only data-quality page is never linked');
+  assert.equal(report.dataQualityAvailability, 'AVAILABLE');
+});
+
+test('S3: a department-filtered view still withholds the system-wide rules that cannot be filtered (any role)', async () => {
+  for (const requestUser of [admin, { role: 'SUPERVISOR', department: 'AN1' }]) {
+    const report = await getExecutiveReport({ prismaClient: client(), requestUser, filters: { year: 2026, month: 8, department: 'AN2' }, now: new Date('2026-08-10T00:00:00Z') });
+    const kpi = report.executiveSummary.find((item) => item.key === 'criticalDataQuality');
+    assert.equal(kpi?.value, 0);
+    assert.equal(kpi?.unavailableLabel, 'ไม่พร้อมใน scope');
+    assert.equal(report.dataQualityAvailability, 'PARTIAL_SCOPE');
+  }
 });
 
 test('RED KPI 1/2 regression: no-base rate is null and prior check-in/absence aggregates exist', async () => {

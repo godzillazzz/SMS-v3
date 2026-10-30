@@ -5,7 +5,6 @@ const { Prisma } = require('@prisma/client');
 const { logger } = require('../utils/logger');
 const { leaveMonthWhere } = require('../utils/leave-month-filter');
 const { getDataQualitySummary, CUSTOM_RULES } = require('./data-quality.service');
-const HttpError = require('../utils/http-error');
 const { leaveTypeDisplayName } = require('./leave-type.service');
 const { resolveDepartmentScope, departmentWhere, scopedDepartmentValues } = require('./report-scope');
 const { buildAttendanceMetrics, buildDepartmentRoundCoverage } = require('./report-analytics.service');
@@ -43,9 +42,9 @@ function currentBangkokPeriod(now = new Date()) {
   return { year: today.getUTCFullYear(), month: today.getUTCMonth() + 1 };
 }
 
-// S2: a non-ADMIN without a department fails closed (403); it never falls back to a wider or per-employee scope.
+// OWNER policy 2026-10-30: ADMIN/MANAGER/SUPERVISOR share one scope (all departments + optional filter);
+// other roles fail closed (403) and never fall back to a per-employee scope.
 function resolveReportScope(requestUser, requestedDepartment) {
-  if (String(requestUser?.role || '').toUpperCase() !== 'ADMIN' && requestedDepartment) throw new HttpError(403, 'Department report scope is not permitted.');
   const scope = resolveDepartmentScope(requestUser, requestedDepartment || null);
   return { department: scope.department || null, employeeId: null, label: scope.label, allowsDepartmentFilter: scope.allowsDepartmentFilter };
 }
@@ -228,10 +227,11 @@ async function getExecutiveReport({ prismaClient, requestUser, filters, now = ne
     pending = { available: true, total: Number(result?.summary?.total || 0), byType: result?.summary?.byType || null };
   }
 
-  // S3: ADMIN sees every rule. Department-scoped callers only receive rules that filter by department;
-  // CUSTOM_RULES read system-wide rows and are withheld (never counted, never leaked across departments).
+  // CUSTOM_RULES read system-wide rows, so they are counted only for the all-department view (any report
+  // role, OWNER policy 2026-10-30) and withheld when a department filter is applied. The data-quality page
+  // itself stays ADMIN-only, so only ADMIN gets a KPI link.
   const isAdmin = String(requestUser?.role || '').toUpperCase() === 'ADMIN';
-  const includeUnscopedRules = isAdmin && !scope.department;
+  const includeUnscopedRules = !scope.department;
   const quality = await timedExecutiveStage(requestId, 'EXEC_DATA_QUALITY', 4, () => getDataQualitySummary({ prismaClient, filters: { department: departmentFilter(scope), employeeId: scope.employeeId || undefined }, now: asOfDate, includeUnscopedRules }));
   const validBeyond30Days = await timedExecutiveStage(requestId, 'EXEC_LICENSE', 1, () => prismaClient.employeeLicenseDocument.count({ where: { ...LICENSE_APPROVED, ...operationalDocumentScope, proposedExpiryDate: { gt: expiry30 } } }));
   const pendingReview = await timedExecutiveStage(requestId, 'EXEC_LICENSE', 1, () => prismaClient.employeeLicenseDocument.count({ where: { status: 'PENDING', isCurrent: true, ...operationalDocumentScope } }));

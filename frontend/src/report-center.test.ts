@@ -37,11 +37,14 @@ describe('Unified Report Center V1 source contract', () => {
     for (const removed of ['report-tab-details', 'report-panel-details', 'รายงานรายละเอียด', 'ภาพรวมผู้บริหาร', 'api.reportSummary', 'summaryCards']) expect(page).not.toContain(removed);
   });
 
-  it('shares month/year/department filters across both tabs and keeps department selection ADMIN-only', () => {
+  // OWNER policy 2026-10-30: MANAGER/SUPERVISOR are cross-department supervisors, so the department
+  // filter is shown to ADMIN, MANAGER and SUPERVISOR (previously ADMIN-only).
+  it('shares month/year/department filters across both tabs and offers department selection to ADMIN/MANAGER/SUPERVISOR', () => {
     expect(page).toContain('useState<ExecutiveReportFilters>');
     expect(page).toContain('filters={filters} onFiltersChange={setFilters}');
-    expect(page).toContain("{role === 'ADMIN' && <label><span>หน่วยงาน</span>");
-    expect(page).toContain('ขอบเขตข้อมูลกำหนดโดยเซิร์ฟเวอร์ตามแผนกที่ผูกกับบัญชีของคุณ');
+    expect(page).toContain("export const REPORT_DEPARTMENT_FILTER_ROLES = ['ADMIN', 'MANAGER', 'SUPERVISOR'];");
+    expect(page).toContain('{canFilterDepartment && <label><span>หน่วยงาน</span>');
+    expect(page).toContain('ขอบเขตข้อมูลกำหนดโดยเซิร์ฟเวอร์ตามสิทธิ์ของบัญชีของคุณ');
     expect(page).toContain('refreshSignal={refreshSignal}');
     expect(page).toContain('รีเฟรชข้อมูล');
   });

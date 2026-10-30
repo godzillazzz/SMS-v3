@@ -5,7 +5,6 @@ const prismaDefault = require('../config/prisma');
 const auditDefault = require('./audit.service');
 const HttpError = require('../utils/http-error');
 const { detectedType } = require('./attachment-optimizer.service');
-const { resolveDepartmentScope, departmentWhere } = require('./report-scope');
 
 const PATROL_QR_PREFIX = 'SMSPATROL1:';
 const MAX_PHOTO_BYTES = 1024 * 1024;
@@ -13,7 +12,6 @@ const MAX_REPORT_DAYS = 62;
 const REPORT_SCAN_LIMIT = 5000;
 const MIME_BY_TYPE = Object.freeze({ jpeg: 'image/jpeg', png: 'image/png' });
 const REPORT_ROLES = new Set(['ADMIN', 'MANAGER', 'SUPERVISOR']);
-const USER_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 // Owner design (30 Oct 2026): one patrol day = 07:00–07:00 Asia/Bangkok, 8 rounds x 3 hours.
 const ROUNDS_PER_DAY = 8;
 const ROUND_HOURS = 3;
@@ -337,32 +335,18 @@ function createPatrolService({ prisma = prismaDefault, storage, audit = auditDef
     return { ...safeScan({ ...row, checkpoint, employee }), replayed: false };
   }
 
-  // S1: ADMIN keeps the free department filter. MANAGER/SUPERVISOR are pinned server-side to their own
-  // department tokens (exact match per comma value); asking for any other department is 403 before any read.
-  async function reportScope(actor, department) {
-    const role = String(actor?.role || '').toUpperCase();
+  // OWNER policy 2026-10-30: MANAGER/SUPERVISOR are cross-department supervisors, so every report role
+  // (ADMIN/MANAGER/SUPERVISOR, enforced by requireReporter) uses the same free department filter. No user
+  // lookup is needed, so a non-UUID subject can never reach the database.
+  function reportScope(department) {
     const requested = department ? text(department, 100, 'department') : null;
-    if (role === 'ADMIN') return { department: requested, departments: requested ? [requested] : null, filter: requested };
-    let ownDepartment = null;
-    if (actor && Object.hasOwn(actor, 'department')) {
-      ownDepartment = actor.department;
-    } else {
-      // Fail closed before touching the database: a non-UUID subject would make Prisma throw (500) on a uuid column.
-      if (typeof actor?.sub !== 'string' || !USER_ID_PATTERN.test(actor.sub) || typeof prisma.user?.findUnique !== 'function') {
-        throw http(403, 'PATROL_REPORT_SCOPE_REQUIRED', 'Department report scope is required.');
-      }
-      const user = await prisma.user.findUnique({ where: { id: actor.sub }, select: { department: true } });
-      if (!user) throw http(403, 'PATROL_REPORT_SCOPE_REQUIRED', 'Department report scope is required.');
-      ownDepartment = user.department;
-    }
-    const scope = resolveDepartmentScope({ role, department: ownDepartment }, requested);
-    return { department: scope.department, departments: scope.departments, filter: departmentWhere(scope) };
+    return { department: requested, departments: requested ? [requested] : null, filter: requested };
   }
 
   async function report({ actor, from, to, department }) {
     requireReporter(actor);
     const range = dateRange(from, to);
-    const scope = await reportScope(actor, department);
+    const scope = reportScope(department);
     const deptFilter = scope.filter;
     // Rounds after midnight (00:00–07:00) belong to the previous patrol day, so read one extra calendar day.
     const scanEnd = new Date(range.end.getTime() + 86400000);

@@ -43,9 +43,15 @@ test('report summary executes scoped counts and returns period/scope metadata', 
   assert.ok(calls.some(({ model, where }) => model === 'shiftAssignment' && where.departmentSnapshot === 'Operations'));
 });
 
-test('report summary rejects a manager widening department scope', async () => {
+// OWNER policy 2026-10-30: MANAGER/SUPERVISOR are cross-department supervisors, so a MANAGER may filter
+// the summary to another department (previously 403); VIEWER still has no report scope.
+test('report summary lets a manager filter another department and still rejects VIEWER', async () => {
+  const counter = { count: async () => 0 };
+  const client = { $transaction: async (queries) => Promise.all(queries), employee: counter, employeeLicense: counter, shiftAssignment: counter, leaveRequest: counter, leaveQuota: counter, user: counter };
+  const result = await getReportSummary({ prismaClient: client, requestUser: { role: 'MANAGER', department: 'Operations', employeeId: null }, filters: { department: 'Other' } });
+  assert.deepEqual(result.scope, { department: 'Other', employeeId: null, label: 'Other' });
   await assert.rejects(
-    getReportSummary({ prismaClient: {}, requestUser: { role: 'MANAGER', department: 'Operations', employeeId: null }, filters: { department: 'Other' } }),
+    getReportSummary({ prismaClient: {}, requestUser: { role: 'VIEWER', department: 'Operations', employeeId: null }, filters: { department: 'Other' } }),
     (error) => error?.statusCode === 403
   );
 });

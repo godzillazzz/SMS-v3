@@ -22,7 +22,8 @@ async function signIn(page: Page, monthPrintRequests: string[], role = 'ADMIN') 
   const executiveReport = {
     period: { year: 2026, month: 10, startDate: '2026-10-01', endDate: '2026-10-31', label: 'ตุลาคม 2569' },
     scope: { departmentName: 'ทุกหน่วยงาน', allowsDepartmentFilter: true, availableDepartments: ['ANO', 'WCS'] },
-    executiveSummary: kpis.map((item) => role === 'ADMIN' || item.key !== 'criticalDataQuality' ? item : { ...item, targetPath: null, unavailableLabel: 'ไม่พร้อมใน scope' }),
+    // OWNER policy 2026-10-30: MANAGER/SUPERVISOR receive the all-department KPI like ADMIN; only the ADMIN-only link is removed.
+    executiveSummary: kpis.map((item) => role === 'ADMIN' || item.key !== 'criticalDataQuality' ? item : { ...item, targetPath: null }),
     workforce: { totalEmployees: 54, activeEmployees: 52, byDepartment: [{ label: 'ศูนย์ฝึก', count: 20 }, { label: 'พื้นที่เหนือ', count: 18 }, { label: 'พื้นที่คลัง', count: 14 }] }, schedule: { assignmentCount: 500, periodNote: '' },
     patrol: { available: true, expectedRounds: 2400, scannedRounds: 2184, missedRounds: 216, coveragePercent: 91, byDepartment: [{ department: 'ศูนย์ฝึก', checkpoints: 4, expectedRounds: 800, scannedRounds: 753, missedRounds: 47, coveragePercent: 94.1 }, { department: 'พื้นที่เหนือ', checkpoints: 4, expectedRounds: 800, scannedRounds: 710, missedRounds: 90, coveragePercent: 88.7 }, { department: 'พื้นที่คลัง', checkpoints: 4, expectedRounds: 800, scannedRounds: 721, missedRounds: 79, coveragePercent: 90.2 }] },
     leave: { totalRequests: 31, statusCounts: { PENDING: 6, APPROVED: 25 }, byType: [{ label: 'พักร้อน', count: 14 }, { label: 'กิจส่วนตัว', count: 10 }, { label: 'เจ็บป่วย', count: 7 }], overlapRule: 'นับคำขอลาที่มีช่วงวันลาทับซ้อนกับเดือนที่เลือก' },
@@ -138,7 +139,9 @@ for (const viewport of [{ width: 1366, height: 768 }, { width: 375, height: 812 
   });
 }
 
-test('SUPERVISOR overview never links the ADMIN-only data-quality page and shows the out-of-scope label', async ({ page }) => {
+// OWNER policy 2026-10-30: SUPERVISOR is a cross-department supervisor, so it gets the department filter
+// (month, year, department = 3 selects; previously 2) and the full KPI value, but never the ADMIN-only link.
+test('SUPERVISOR overview never links the ADMIN-only data-quality page and offers the department filter', async ({ page }) => {
   await page.setViewportSize({ width: 1366, height: 768 });
   await signIn(page, [], 'SUPERVISOR');
   await page.goto('/app');
@@ -146,7 +149,8 @@ test('SUPERVISOR overview never links the ADMIN-only data-quality page and shows
   await page.goto('/app/reports');
   const card = page.locator('#report-panel-executive [data-kpi="criticalDataQuality"]');
   await expect(card).toBeVisible({ timeout: 10_000 });
-  await expect(card).toContainText('ไม่พร้อมใน scope');
+  await expect(card).not.toContainText('ไม่พร้อมใน scope');
   expect(await card.evaluate((node) => node.tagName)).toBe('ARTICLE');
-  await expect(page.locator('.report-center-filters select')).toHaveCount(2, { timeout: 5_000 });
+  await expect(page.locator('.report-center-filters select')).toHaveCount(3, { timeout: 5_000 });
+  await expect(page.locator('.report-center-filters label', { hasText: 'หน่วยงาน' })).toBeVisible();
 });

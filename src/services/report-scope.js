@@ -25,28 +25,16 @@ function departmentWhere(scope) {
   return values.length === 1 ? values[0] : { in: values };
 }
 
+// OWNER policy 2026-10-30 (and 18 Oct 2026 "MANAGER/SUPERVISOR are cross-department executives"): a
+// department is only a place of work. ADMIN, MANAGER and SUPERVISOR all read every department and may
+// optionally filter by one; an own department is not required. Any other role has no report scope.
+const REPORT_SCOPE_ROLES = new Set(['ADMIN', 'MANAGER', 'SUPERVISOR']);
+
 function resolveDepartmentScope(requestUser, requestedDepartment) {
   const role = String(requestUser?.role || '').toUpperCase();
-  if (role === 'ADMIN') {
-    const department = requestedDepartment ? String(requestedDepartment).trim() : null;
-    return { department, departments: departmentValues(department), employeeId: null, label: department || 'ทุกหน่วยงาน', allowsDepartmentFilter: true };
-  }
-  if (!['MANAGER', 'SUPERVISOR'].includes(role) || !departmentValues(requestUser?.department).length) {
-    throw new HttpError(403, 'Department report scope is required.');
-  }
-  if (requestedDepartment) {
-    const requestedValues = departmentValues(requestedDepartment);
-    const ownValues = departmentValues(requestUser.department);
-    if (requestedValues.some((value) => !ownValues.includes(value))) throw new HttpError(403, 'Department report scope is not permitted.');
-  }
-  const department = String(requestUser.department).trim();
-  return {
-    department,
-    departments: departmentValues(department),
-    employeeId: null,
-    label: department,
-    allowsDepartmentFilter: false
-  };
+  if (!REPORT_SCOPE_ROLES.has(role)) throw new HttpError(403, 'Department report scope is required.');
+  const department = requestedDepartment ? String(requestedDepartment).trim() || null : null;
+  return { department, departments: departmentValues(department), employeeId: null, label: department || 'ทุกหน่วยงาน', allowsDepartmentFilter: true };
 }
 
 module.exports = { departmentValues, departmentMatches, scopedDepartmentValues, departmentWhere, resolveDepartmentScope };

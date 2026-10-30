@@ -71,16 +71,22 @@ if (!configured) {
     assert.equal(ours.find((group) => group.department === `ANO-${marker}`).scanned, 0);
     assert.ok(report.scans.some((row) => row.id === scan.id && row.employeeCode === `IT${marker}` && row.checkpointCode === `IT-${marker}-B`));
 
-    // MANAGER is resolved from the persisted user row and sees only its own department.
+    // OWNER policy 2026-10-30: MANAGER/SUPERVISOR are cross-department supervisors, so a real MANAGER in
+    // ANO sees every department and may filter to WCS (previously pinned to ANO / 403).
     const managed = await service.report({ actor: manager, from: '2026-10-30', to: '2026-10-30' });
-    assert.equal(managed.department, `ANO-${marker}`);
-    assert.deepEqual(managed.coverage.departments.map((group) => group.department), [`ANO-${marker}`]);
-    assert.equal(managed.coverage.departments[0].scanned, 0);
-    assert.equal(managed.coverage.summary.checkpoints, 1);
-    assert.equal(managed.scans.some((row) => row.id === scan.id), false, 'a WCS checkpoint scan is outside the ANO manager scope');
-    await assert.rejects(service.report({ actor: manager, from: '2026-10-30', to: '2026-10-30', department: `WCS-${marker}` }), (error) => error.statusCode === 403);
-    await assert.rejects(service.report({ actor: { sub: 'm', role: 'MANAGER' }, from: '2026-10-30', to: '2026-10-30' }), (error) => error.statusCode === 403);
-    await assert.rejects(service.report({ actor: { sub: crypto.randomUUID(), role: 'MANAGER' }, from: '2026-10-30', to: '2026-10-30' }), (error) => error.statusCode === 403);
+    assert.equal(managed.department, null);
+    const managedOurs = managed.coverage.departments.filter((group) => group.department.endsWith(marker));
+    assert.equal(managedOurs.length, 2);
+    assert.ok(managed.scans.some((row) => row.id === scan.id), 'the WCS checkpoint scan is visible to the ANO manager');
+    const crossDepartment = await service.report({ actor: manager, from: '2026-10-30', to: '2026-10-30', department: `WCS-${marker}` });
+    assert.deepEqual(crossDepartment.coverage.departments.map((group) => group.department), [`WCS-${marker}`]);
+    assert.ok(crossDepartment.scans.some((row) => row.id === scan.id));
+    // Non-UUID or unknown subjects never reach the uuid column (no 500).
+    for (const sub of ['m', crypto.randomUUID()]) {
+      const report = await service.report({ actor: { sub, role: 'MANAGER' }, from: '2026-10-30', to: '2026-10-30', department: `ANO-${marker}` });
+      assert.equal(report.department, `ANO-${marker}`);
+    }
+    await assert.rejects(service.report({ actor: guard, from: '2026-10-30', to: '2026-10-30' }), (error) => error.statusCode === 403);
 
     const filtered = await service.report({ actor: admin, from: '2026-10-30', to: '2026-10-30', department: `ANO-${marker}` });
     assert.equal(filtered.scans.length, 0);

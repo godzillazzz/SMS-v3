@@ -28,49 +28,42 @@ function reportPrisma() {
   };
 }
 
-test('S1 patrol report rejects cross-department filters before any query and defaults to exact owned department tokens', async () => {
+// OWNER policy 2026-10-30: MANAGER/SUPERVISOR are cross-department supervisors (department = place of work only).
+// S1 previously pinned MANAGER/SUPERVISOR to their own department (403 otherwise); they now use the
+// free ADMIN filter and the patrol service performs no user lookup.
+test('S1 patrol report: MANAGER/SUPERVISOR use the free department filter like ADMIN, without any user lookup', async () => {
   const calls = [];
+  const lookups = [];
   const service = createPatrolService({ prisma: {
+    user: { findUnique: async ({ where }) => { lookups.push(where); return null; } },
     patrolCheckpoint: { findMany: async ({ where }) => { calls.push(where); return []; } },
     patrolScan: { findMany: async ({ where }) => { calls.push(where); return []; } }
   } });
-  const actor = { role: 'SUPERVISOR', department: 'AN1, AN2,AN3' };
-  await assert.rejects(service.report({ actor, from: '2026-08-01', to: '2026-08-01', department: 'AN10' }), (error) => error.statusCode === 403);
-  assert.deepEqual(calls, []);
-  const report = await service.report({ actor, from: '2026-08-01', to: '2026-08-01' });
-  assert.deepEqual(calls[0].department, { in: ['AN1', 'AN2', 'AN3'] });
-  assert.deepEqual(calls[1].checkpointDepartment, { in: ['AN1', 'AN2', 'AN3'] });
-  assert.deepEqual(report.departments, ['AN1', 'AN2', 'AN3']);
-  const adminReport = await service.report({ actor: admin, from: '2026-08-01', to: '2026-08-01', department: 'AN10' });
-  assert.equal(adminReport.department, 'AN10');
+  for (const actor of [admin, { role: 'SUPERVISOR', department: 'AN1, AN2,AN3' }, { sub: '0b6f5a2e-7d1c-4e3a-9b8f-1a2b3c4d5e01', role: 'MANAGER' }, { sub: 'm', role: 'MANAGER' }]) {
+    calls.length = 0;
+    const filtered = await service.report({ actor, from: '2026-08-01', to: '2026-08-01', department: 'AN10' });
+    assert.equal(filtered.department, 'AN10');
+    assert.equal(calls[0].department, 'AN10');
+    assert.equal(calls[1].checkpointDepartment, 'AN10');
+    calls.length = 0;
+    const all = await service.report({ actor, from: '2026-08-01', to: '2026-08-01' });
+    assert.equal(all.department, null);
+    assert.equal('department' in calls[0], false);
+    assert.equal('checkpointDepartment' in calls[1], false);
+  }
+  assert.deepEqual(lookups, []);
 });
 
-test('S1 patrol report loads the actor department from the user record (req.user has none) and fails closed when it is missing', async () => {
-  const where = [];
-  const SUP_1 = '0b6f5a2e-7d1c-4e3a-9b8f-1a2b3c4d5e01';
-  const SUP_2 = '0b6f5a2e-7d1c-4e3a-9b8f-1a2b3c4d5e02';
-  const users = { [SUP_1]: { department: 'AN2' }, [SUP_2]: { department: null } };
-  const service = createPatrolService({ prisma: {
-    user: { findUnique: async ({ where: lookup }) => users[lookup.id] || null },
-    patrolCheckpoint: { findMany: async (query) => { where.push(query.where); return []; } },
-    patrolScan: { findMany: async (query) => { where.push(query.where); return []; } }
-  } });
-  const report = await service.report({ actor: { sub: SUP_1, role: 'SUPERVISOR' }, from: '2026-08-01', to: '2026-08-01' });
-  assert.equal(report.department, 'AN2');
-  assert.equal(where[0].department, 'AN2');
-  assert.equal(where[1].checkpointDepartment, 'AN2');
-  await assert.rejects(service.report({ actor: { sub: SUP_1, role: 'MANAGER' }, from: '2026-08-01', to: '2026-08-01', department: 'AN1' }), (error) => error.statusCode === 403);
-  await assert.rejects(service.report({ actor: { sub: SUP_2, role: 'SUPERVISOR' }, from: '2026-08-01', to: '2026-08-01' }), (error) => error.statusCode === 403);
-  assert.equal(where.length, 2, 'no reads happen for rejected scopes');
-});
-
-test('S2 executive scope fails closed without department instead of falling back to employee ID', async () => {
+// S2 previously failed closed for a MANAGER/SUPERVISOR without department; they now get all departments.
+test('S2 executive scope: MANAGER/SUPERVISOR without department get all departments, never an employee-ID scope; VIEWER fails closed', async () => {
   for (const role of ['MANAGER', 'SUPERVISOR']) {
     for (const department of [null, '', ' , ']) {
-      assert.throws(() => resolveReportScope({ role, department, employeeId: 'synthetic-employee' }), (error) => error.statusCode === 403);
+      assert.deepEqual(resolveReportScope({ role, department, employeeId: 'synthetic-employee' }), { department: null, employeeId: null, label: 'ทุกหน่วยงาน', allowsDepartmentFilter: true });
     }
-    await assert.rejects(getExecutiveReport({ prismaClient: reportPrisma(), requestUser: { role, department: null, employeeId: 'synthetic-employee' }, filters: { year: 2026, month: 8 } }), (error) => error.statusCode === 403);
+    const report = await getExecutiveReport({ prismaClient: reportPrisma(), requestUser: { role, department: null, employeeId: 'synthetic-employee' }, filters: { year: 2026, month: 8 } });
+    assert.equal(report.scope.departmentName, 'ทุกหน่วยงาน');
   }
+  assert.throws(() => resolveReportScope({ role: 'VIEWER', department: 'AN1', employeeId: 'synthetic-employee' }), (error) => error.statusCode === 403);
   assert.equal(resolveReportScope({ role: 'ADMIN' }).department, null);
 });
 
@@ -84,7 +77,7 @@ test('multi-department executive scope filters every source with exact tokens, n
   client.patrolCheckpoint.findMany = async ({ where }) => { seen.checkpoints = where.department; return []; };
   client.patrolScan.findMany = async ({ where }) => { seen.scans = where.checkpointDepartment; return []; };
   client.employeeLicenseDocument.count = async ({ where }) => { seen.license = where.employee.is.department; return 0; };
-  await getExecutiveReport({ prismaClient: client, requestUser: { role: 'SUPERVISOR', department: 'AN1, AN2,AN3' }, filters: { year: 2026, month: 8 }, now: new Date('2026-08-10T00:00:00Z') });
+  await getExecutiveReport({ prismaClient: client, requestUser: { role: 'SUPERVISOR', department: null }, filters: { year: 2026, month: 8, department: 'AN1, AN2,AN3' }, now: new Date('2026-08-10T00:00:00Z') });
   const exact = { in: ['AN1', 'AN2', 'AN3'] };
   for (const key of ['count', 'assignments', 'leave', 'checkpoints', 'scans', 'license']) assert.deepEqual(seen[key], exact, key);
   assert.ok(seen.workforce.some((value) => Array.isArray(value) && value.join('|') === 'AN1|AN2|AN3'));
@@ -167,7 +160,10 @@ test('zero-denominator KPI is null, and future-only month has no completed patro
   assert.equal(result.missedRounds, 0);
 });
 
-test('S3 non-ADMIN critical KPI counts only department-filterable rules and flags the withheld unscoped rules; ADMIN keeps all', async () => {
+// OWNER policy 2026-10-30: MANAGER/SUPERVISOR are cross-department supervisors (department = place of work only).
+// S3 previously withheld system-wide rules for MANAGER; MANAGER now gets the ADMIN result for the
+// all-department view. A department-filtered view (any role) still withholds the unfilterable rules.
+test('S3 MANAGER and ADMIN all-department KPI count every critical rule; a department filter withholds unscoped rules', async () => {
   const quotaWhere = [];
   const client = reportPrisma();
   client.leaveQuota.count = async ({ where }) => { quotaWhere.push(where); return 2; };
@@ -175,13 +171,19 @@ test('S3 non-ADMIN critical KPI counts only department-filterable rules and flag
   client.leaveQuota.groupBy = async () => [{ employeeId: 'synthetic-employee', quotaYear: 2026, _count: { _all: 3 } }];
   const manager = await getExecutiveReport({ prismaClient: client, requestUser: { role: 'MANAGER', department: 'AN1' }, filters: { year: 2026, month: 8 }, now: new Date('2026-08-10T00:00:00Z') });
   const managerKpi = manager.executiveSummary.find((item) => item.key === 'criticalDataQuality');
-  assert.equal(manager.dataQualityAvailability, 'PARTIAL_SCOPE');
-  assert.equal(managerKpi.value, 2, 'only the department-filtered quota rule is counted');
-  assert.equal(managerKpi.unavailableLabel, 'ไม่พร้อมใน scope');
-  assert.deepEqual(managerKpi.unavailableRules, ['LEAVE_QUOTA_YEAR_UNCLASSIFIED', 'LEAVE_QUOTA_ANNUAL_DUPLICATE', 'AMBIGUOUS_LEGACY_CROSS_YEAR_DAY_COUNT']);
+  assert.equal(manager.dataQualityAvailability, 'AVAILABLE');
+  assert.equal(managerKpi.value, 4, 'MANAGER: 2 quota + 1 unclassified + 1 duplicate group, same as ADMIN');
+  assert.equal(managerKpi.unavailableLabel, undefined);
   assert.equal(managerKpi.targetPath, null, 'ADMIN-only data-quality route is never linked for MANAGER');
-  assert.equal(manager.dataQuality.categories.some((item) => item.rule === 'LEAVE_QUOTA_YEAR_UNCLASSIFIED'), false, 'unscoped rule totals are not serialized');
-  assert.deepEqual(quotaWhere[0].AND.at(-1).employee.is.department, 'AN1');
+  assert.equal(JSON.stringify(quotaWhere[0]).includes('AN1'), false, 'MANAGER is not pinned to its own department');
+  const filtered = await getExecutiveReport({ prismaClient: client, requestUser: { role: 'MANAGER', department: 'AN1' }, filters: { year: 2026, month: 8, department: 'AN2' }, now: new Date('2026-08-10T00:00:00Z') });
+  const filteredKpi = filtered.executiveSummary.find((item) => item.key === 'criticalDataQuality');
+  assert.equal(filtered.dataQualityAvailability, 'PARTIAL_SCOPE');
+  assert.equal(filteredKpi.value, 2, 'only the department-filtered quota rule is counted');
+  assert.equal(filteredKpi.unavailableLabel, 'ไม่พร้อมใน scope');
+  assert.deepEqual(filteredKpi.unavailableRules, ['LEAVE_QUOTA_YEAR_UNCLASSIFIED', 'LEAVE_QUOTA_ANNUAL_DUPLICATE', 'AMBIGUOUS_LEGACY_CROSS_YEAR_DAY_COUNT']);
+  assert.equal(filtered.dataQuality.categories.some((item) => item.rule === 'LEAVE_QUOTA_YEAR_UNCLASSIFIED'), false, 'unscoped rule totals are not serialized');
+  assert.deepEqual(quotaWhere.at(-1).AND.at(-1).employee.is.department, 'AN2');
   const admin = await getExecutiveReport({ prismaClient: client, requestUser: { role: 'ADMIN' }, filters: { year: 2026, month: 8 }, now: new Date('2026-08-10T00:00:00Z') });
   assert.equal(admin.dataQualityAvailability, 'AVAILABLE');
   assert.equal(admin.executiveSummary.find((item) => item.key === 'criticalDataQuality').value, 4, 'ADMIN: 2 quota + 1 unclassified + 1 duplicate group');

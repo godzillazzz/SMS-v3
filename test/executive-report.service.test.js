@@ -33,10 +33,13 @@ test('Executive Report uses Bangkok current period and exact leave overlap month
   assert.deepEqual(operationalLeaveScopeWhere({ department: 'Operations' }, { startDate: new Date('2026-08-01T00:00:00Z'), nextMonthStart: new Date('2026-09-01T00:00:00Z') }).employee, { is: { isActive: true, deletedAt: null, department: 'Operations' } });
 });
 
-test('Executive Report scopes ADMIN globally or by requested department and keeps MANAGER restricted', () => {
+// OWNER policy 2026-10-30: MANAGER/SUPERVISOR are cross-department supervisors (department = place of work only).
+// MANAGER previously was pinned to its own department; it now gets the ADMIN scope (all + free filter).
+test('Executive Report scopes ADMIN and MANAGER globally or by requested department', () => {
   assert.deepEqual(resolveReportScope({ role: 'ADMIN' }, 'Operations'), { department: 'Operations', employeeId: null, label: 'Operations', allowsDepartmentFilter: true });
-  assert.deepEqual(resolveReportScope({ role: 'MANAGER', department: 'Operations', employeeId: 'employee-1' }), { department: 'Operations', employeeId: null, label: 'Operations', allowsDepartmentFilter: false });
-  assert.throws(() => resolveReportScope({ role: 'MANAGER', department: 'Operations' }, 'Other'), { statusCode: 403 });
+  assert.deepEqual(resolveReportScope({ role: 'MANAGER', department: 'Operations', employeeId: 'employee-1' }), { department: null, employeeId: null, label: 'ทุกหน่วยงาน', allowsDepartmentFilter: true });
+  assert.deepEqual(resolveReportScope({ role: 'MANAGER', department: 'Operations' }, 'Other'), { department: 'Other', employeeId: null, label: 'Other', allowsDepartmentFilter: true });
+  assert.throws(() => resolveReportScope({ role: 'VIEWER', department: 'Operations' }), { statusCode: 403 });
 });
 
 test('Executive Report returns factual aggregates with deterministic attention and sequential bounded calls', async () => {

@@ -45,6 +45,8 @@ function printableFilename(report?: ExecutiveReport, department = '') {
   return `SMS-Executive-Report-${report.period.year}-${String(report.period.month).padStart(2, '0')}${suffix}.pdf`;
 }
 
+export const REPORT_DEPARTMENT_FILTER_ROLES = ['ADMIN', 'MANAGER', 'SUPERVISOR'];
+
 export function ReportCenterPage({ token, role, onNavigate, initialTab = 'executive', initialEmployeeId }: { token: string; role: string; onNavigate(page: string): void; initialTab?: ReportTab; initialEmployeeId?: string }) {
   const current = currentBangkokPeriod();
   const [activeTab, setActiveTab] = useState<ReportTab>(initialTab);
@@ -76,6 +78,8 @@ export function ReportCenterPage({ token, role, onNavigate, initialTab = 'execut
   const [timesheetEmployeeId, setTimesheetEmployeeId] = useState('');
   const [timesheetEmployeesLoaded, setTimesheetEmployeesLoaded] = useState(false);
   const canPatrol = ['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(role);
+  // OWNER policy 2026-10-30: MANAGER/SUPERVISOR supervise every department, so they get the same free department filter as ADMIN.
+  const canFilterDepartment = REPORT_DEPARTMENT_FILTER_ROLES.includes(role);
   const [patrolDate, setPatrolDate] = useState(() => patrolToday());
   const [patrolDepartment, setPatrolDepartment] = useState('');
   const [patrolDepartments, setPatrolDepartments] = useState<string[]>([]);
@@ -228,9 +232,9 @@ export function ReportCenterPage({ token, role, onNavigate, initialTab = 'execut
       <div className="report-center-filters">
         <label><span>เดือน</span><select value={filters.month} onChange={(event) => setFilters((value) => ({ ...value, month: Number(event.target.value) }))}>{monthNames.map((name, index) => <option value={index + 1} key={name}>{name}</option>)}</select></label>
         <label><span>ปี</span><select value={filters.year} onChange={(event) => setFilters((value) => ({ ...value, year: Number(event.target.value) }))}>{years.map((item) => <option key={item} value={item}>พ.ศ. {item + 543}</option>)}</select></label>
-        {role === 'ADMIN' && <label><span>หน่วยงาน</span><select value={filters.department} onChange={(event) => setFilters((value) => ({ ...value, department: event.target.value }))}><option value="">ทุกหน่วยงาน</option>{departmentOptions.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>}
+        {canFilterDepartment && <label><span>หน่วยงาน</span><select value={filters.department} onChange={(event) => setFilters((value) => ({ ...value, department: event.target.value }))}><option value="">ทุกหน่วยงาน</option>{departmentOptions.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>}
       </div>
-      {role !== 'ADMIN' && <p className="report-center-filter-note">ขอบเขตข้อมูลกำหนดโดยเซิร์ฟเวอร์ตามแผนกที่ผูกกับบัญชีของคุณ</p>}
+      {!canFilterDepartment && <p className="report-center-filter-note">ขอบเขตข้อมูลกำหนดโดยเซิร์ฟเวอร์ตามสิทธิ์ของบัญชีของคุณ</p>}
       {activeTab === 'export' && ['ADMIN', 'SUPERVISOR'].includes(role) && ATTENDANCE_OFFICIAL_REPORT_ENABLED && <p className="report-center-filter-note">ใบลงเวลาใช้ Certified Snapshot ตามสิทธิ์ผู้ใช้; SUPERVISOR เห็นข้อมูลเฉพาะแผนกที่ผูกกับบัญชี</p>}
     </SectionCard>
 
