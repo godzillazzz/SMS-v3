@@ -61,7 +61,7 @@ export function PersonnelDirectoryPage({ token, refreshKey, canManage, role, sea
   const [selected, setSelected] = useState<PersonnelRecord>();
   const lastSelectedId = useRef<string>();
 
-  const canPrintAttendance = ATTENDANCE_OFFICIAL_REPORT_ENABLED && (role === 'ADMIN' || role === 'SUPERVISOR');
+  const canPrintAttendance = ATTENDANCE_OFFICIAL_REPORT_ENABLED && ['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(role);
 
   const currentQueryKey = JSON.stringify({ token: token || '', role, page, search: search.trim(), debouncedSearch: debouncedSearch.trim(), department, status, refreshKey, localRefreshKey });
   const responseMatches = responseKey === currentQueryKey;

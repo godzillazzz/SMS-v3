@@ -10,8 +10,10 @@ const center = read('pages/reports/ReportCenterPage.tsx');
 const main = read('main.tsx');
 
 describe('attendance print shortcut contracts', () => {
-  it('limits the shortcut to ADMIN/SUPERVISOR while the feature flag is enabled', () => {
-    expect(directory).toContain("const canPrintAttendance = ATTENDANCE_OFFICIAL_REPORT_ENABLED && (role === 'ADMIN' || role === 'SUPERVISOR');");
+  it('limits the shortcut to ADMIN/MANAGER/SUPERVISOR while the feature flag is enabled', () => {
+    // OWNER policy 2026-10-30 (SNT-DR-L1): MANAGER gets the print shortcut too; backend enforces scope.
+    expect(directory).toContain("const canPrintAttendance = ATTENDANCE_OFFICIAL_REPORT_ENABLED && ['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(role);");
+    expect(directory).not.toContain("(role === 'ADMIN' || role === 'SUPERVISOR')");
     // OWNER policy 2026-10-30: the Report Center official panel is now ADMIN/MANAGER/SUPERVISOR (cross-department).
     expect(center).toContain("ATTENDANCE_OFFICIAL_REPORT_ROLES.includes(role) && ATTENDANCE_OFFICIAL_REPORT_ENABLED");
     expect(center).toContain("export const ATTENDANCE_OFFICIAL_REPORT_ROLES = ['ADMIN', 'MANAGER', 'SUPERVISOR'];");
