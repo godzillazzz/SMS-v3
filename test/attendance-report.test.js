@@ -251,52 +251,72 @@ function scopedReportClient() {
   };
 }
 
-test('official Attendance API gate allows only ADMIN and SUPERVISOR roles', () => {
-  for (const role of ['ADMIN', 'SUPERVISOR']) {
+// OWNER policy 2026-10-30 ("แบบ ค", SENTINEL SNT-XD-L2): a department is only a place of work and every
+// MANAGER/SUPERVISOR supervises all VIEWERs. The official report gate previously allowed only ADMIN and
+// SUPERVISOR and pinned SUPERVISOR to its own department; ADMIN, MANAGER and SUPERVISOR now all read the
+// organization-wide certified snapshot. VIEWER stays denied and the workbook/certify/unlock stay ADMIN-only.
+test('official Attendance API gate allows ADMIN, MANAGER and SUPERVISOR and denies VIEWER', () => {
+  for (const role of ['ADMIN', 'MANAGER', 'SUPERVISOR']) {
     let continued = false;
     requireOfficialReport({ user: { role } }, {}, (error) => { assert.equal(error, undefined); continued = true; });
     assert.equal(continued, true, `${role} should pass the report gate`);
   }
-  for (const role of ['MANAGER', 'VIEWER']) {
+  for (const role of ['VIEWER', '', undefined]) {
     let denial;
     requireOfficialReport({ user: { role } }, {}, (error) => { denial = error; });
     assert.equal(denial?.statusCode, 403, `${role} should receive 403`);
   }
 });
 
-test('official report scopes SUPERVISOR rows and summary to the persisted department', async () => {
-  const { client } = scopedReportClient();
-  const reports = createAttendanceReportService({ prisma: client, clock: () => new Date('2026-09-01T03:00:00.000Z') });
-  const report = await reports.official({ actor: { sub: 'supervisor-id', role: 'SUPERVISOR' }, month: '2026-08' });
-  assert.deepEqual(report.rows.map((row) => row.employeeId), ['employee-a', 'employee-b']);
-  assert.deepEqual(report.scope, { department: 'SECURITY-A' });
-  assert.equal(report.summary.assignments, 2);
-  assert.equal(report.summary.absent, 0);
-  assert.equal(report.summary.late, 1);
-});
-
-test('official report keeps the organization-wide snapshot for ADMIN and denies MANAGER/VIEWER', async () => {
-  const { client } = scopedReportClient();
-  const reports = createAttendanceReportService({ prisma: client });
-  const admin = await reports.official({ actor: { sub: 'admin-id', role: 'ADMIN' }, month: '2026-08' });
-  assert.equal(admin.rows.length, 3);
-  assert.equal(admin.summary.assignments, 3);
-  for (const role of ['MANAGER', 'VIEWER']) {
-    await assert.rejects(
-      reports.official({ actor: { sub: 'supervisor-id', role }, month: '2026-08' }),
-      (error) => error.statusCode === 403
-    );
+test('official report gives ADMIN, MANAGER and SUPERVISOR the organization-wide snapshot regardless of own department', async () => {
+  const departments = [
+    { department: 'SECURITY-A', employee: { department: 'SECURITY-A' } },
+    { department: null, employee: null },
+    { department: 'SECURITY-A', employee: { department: 'SECURITY-B' } }
+  ];
+  for (const role of ['ADMIN', 'MANAGER', 'SUPERVISOR']) {
+    for (const scope of departments) {
+      const { client, snapshot, user } = scopedReportClient();
+      client.user.findUnique = async ({ where: { id } }) => ({ ...user, ...scope, id, role });
+      const reports = createAttendanceReportService({ prisma: client, clock: () => new Date('2026-09-01T03:00:00.000Z') });
+      const report = await reports.official({ actor: { sub: `${role.toLowerCase()}-id`, role }, month: '2026-08' });
+      assert.deepEqual(report.rows.map((row) => row.employeeId), ['employee-a', 'employee-b', 'employee-c'], `${role} sees every department`);
+      assert.deepEqual(report.scope, { department: null });
+      assert.deepEqual(report.summary, snapshot.summary, `${role} gets the certified organization summary`);
+    }
   }
 });
 
-test('official report fails closed when SUPERVISOR account and employee departments disagree', async () => {
-  const { client } = scopedReportClient();
-  client.user.findUnique = async () => ({ ...scopedReportClient().user, department: 'SECURITY-A', employee: { department: 'SECURITY-B' } });
+test('official report denies VIEWER, a missing actor and an actor whose token role no longer matches the account', async () => {
+  const { client, user } = scopedReportClient();
   const reports = createAttendanceReportService({ prisma: client });
+  await assert.rejects(reports.official({ actor: { sub: 'viewer-id', role: 'VIEWER' }, month: '2026-08' }), (error) => error.statusCode === 403);
+  await assert.rejects(reports.official({ actor: { role: 'MANAGER' }, month: '2026-08' }), (error) => error.statusCode === 403);
+  await assert.rejects(reports.official({ month: '2026-08' }), (error) => error.statusCode === 403);
+  for (const [tokenRole, accountRole] of [['MANAGER', 'VIEWER'], ['SUPERVISOR', 'VIEWER'], ['MANAGER', 'SUPERVISOR'], ['ADMIN', 'MANAGER']]) {
+    client.user.findUnique = async ({ where: { id } }) => ({ ...user, id, role: accountRole });
+    await assert.rejects(
+      reports.official({ actor: { sub: 'actor-id', role: tokenRole }, month: '2026-08' }),
+      (error) => error.statusCode === 403 && error.details?.code === 'ATTENDANCE_OFFICIAL_REPORT_FORBIDDEN',
+      `${tokenRole} token over ${accountRole} account must be denied`
+    );
+  }
+  client.user.findUnique = async () => null;
   await assert.rejects(
-    reports.official({ actor: { sub: 'supervisor-id', role: 'SUPERVISOR' }, month: '2026-08' }),
-    (error) => error.statusCode === 403 && error.details?.code === 'ATTENDANCE_REPORT_SCOPE_UNAVAILABLE'
+    reports.official({ actor: { sub: 'missing-id', role: 'MANAGER' }, month: '2026-08' }),
+    (error) => error.statusCode === 403 && error.details?.code === 'ATTENDANCE_OFFICIAL_REPORT_FORBIDDEN'
   );
+});
+
+test('official workbook stays ADMIN-only for MANAGER and SUPERVISOR', async () => {
+  const { client } = scopedReportClient();
+  const reports = createAttendanceReportService({ prisma: client });
+  for (const role of ['MANAGER', 'SUPERVISOR', 'VIEWER']) {
+    await assert.rejects(
+      reports.workbook({ actor: { sub: 'supervisor-id', role }, month: '2026-08' }),
+      (error) => error.statusCode === 403 && error.details?.code === 'ATTENDANCE_OFFICIAL_WORKBOOK_ADMIN_REQUIRED'
+    );
+  }
 });
 
 test('official report load fails closed when month is not certified', async () => {

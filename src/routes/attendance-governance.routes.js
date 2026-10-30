@@ -38,10 +38,12 @@ function requireAdmin(req, _res, next) {
     : next(new HttpError(403, 'Attendance certification requires Admin authority.'));
 }
 
+// OWNER policy 2026-10-30: MANAGER/SUPERVISOR supervise every department, so the read-only official
+// report is open to ADMIN, MANAGER and SUPERVISOR. Every other month route below stays requireAdmin.
 function requireOfficialReport(req, _res, next) {
-  return ['ADMIN', 'SUPERVISOR'].includes(String(req.user?.role || '').toUpperCase())
+  return ['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(String(req.user?.role || '').toUpperCase())
     ? next()
-    : next(new HttpError(403, 'Official Attendance reports require Admin or Supervisor authority.'));
+    : next(new HttpError(403, 'Official Attendance reports require Admin, Manager or Supervisor authority.'));
 }
 
 router.use(requirePreviewAttendance, authenticate);

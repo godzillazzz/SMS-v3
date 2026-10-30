@@ -178,30 +178,24 @@ function reportSummary(rows) {
   };
 }
 
+// OWNER policy 2026-10-30 ("แบบ ค", SENTINEL SNT-XD-L2): a department is only a place of work and every
+// MANAGER/SUPERVISOR supervises all VIEWERs, so ADMIN, MANAGER and SUPERVISOR all read the organization-wide
+// certified snapshot (department: null). SUPERVISOR was previously pinned to its own department.
+const OFFICIAL_REPORT_ROLES = ['ADMIN', 'MANAGER', 'SUPERVISOR'];
+
 async function reportActorContext(actor, client) {
   const role = String(actor?.role || '').toUpperCase();
-  if (!['ADMIN', 'SUPERVISOR'].includes(role) || !actor?.sub) {
-    throw http(403, 'ATTENDANCE_OFFICIAL_REPORT_FORBIDDEN', 'Official Attendance reports require Admin or Supervisor authority.');
+  if (!OFFICIAL_REPORT_ROLES.includes(role) || !actor?.sub) {
+    throw http(403, 'ATTENDANCE_OFFICIAL_REPORT_FORBIDDEN', 'Official Attendance reports require Admin, Manager or Supervisor authority.');
   }
   const user = await client.user.findUnique({
     where: { id: actor.sub },
-    select: { displayName: true, email: true, role: true, department: true, employee: { select: { department: true } } }
+    select: { displayName: true, email: true, role: true }
   });
   if (!user || String(user.role || '').toUpperCase() !== role) {
     throw http(403, 'ATTENDANCE_OFFICIAL_REPORT_FORBIDDEN', 'Official Attendance report authority could not be verified.');
   }
-  if (role === 'ADMIN') return { role, user, department: null };
-
-  const userDepartment = String(user.department || '').trim();
-  const employeeDepartment = String(user.employee?.department || '').trim();
-  if (userDepartment && employeeDepartment && normalizeDepartment(userDepartment) !== normalizeDepartment(employeeDepartment)) {
-    throw http(403, 'ATTENDANCE_REPORT_SCOPE_UNAVAILABLE', 'Supervisor department scope is inconsistent.');
-  }
-  const department = employeeDepartment || userDepartment;
-  if (!normalizeDepartment(department)) {
-    throw http(403, 'ATTENDANCE_REPORT_SCOPE_UNAVAILABLE', 'Supervisor department scope is unavailable.');
-  }
-  return { role, user, department };
+  return { role, user, department: null };
 }
 
 function normalizedCertification(row) {

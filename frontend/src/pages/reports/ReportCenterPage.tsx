@@ -46,6 +46,8 @@ function printableFilename(report?: ExecutiveReport, department = '') {
 }
 
 export const REPORT_DEPARTMENT_FILTER_ROLES = ['ADMIN', 'MANAGER', 'SUPERVISOR'];
+// OWNER policy 2026-10-30 ("แบบ ค"): the Certified Snapshot official report is read by ADMIN, MANAGER and SUPERVISOR across every department.
+export const ATTENDANCE_OFFICIAL_REPORT_ROLES = ['ADMIN', 'MANAGER', 'SUPERVISOR'];
 
 export function ReportCenterPage({ token, role, onNavigate, initialTab = 'executive', initialEmployeeId }: { token: string; role: string; onNavigate(page: string): void; initialTab?: ReportTab; initialEmployeeId?: string }) {
   const current = currentBangkokPeriod();
@@ -235,7 +237,7 @@ export function ReportCenterPage({ token, role, onNavigate, initialTab = 'execut
         {canFilterDepartment && <label><span>จุดปฏิบัติงาน</span><select value={filters.department} onChange={(event) => setFilters((value) => ({ ...value, department: event.target.value }))}><option value="">ทุกจุดปฏิบัติงาน</option>{departmentOptions.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>}
       </div>
       {!canFilterDepartment && <p className="report-center-filter-note">ขอบเขตข้อมูลกำหนดโดยเซิร์ฟเวอร์ตามสิทธิ์ของบัญชีของคุณ</p>}
-      {activeTab === 'export' && ['ADMIN', 'SUPERVISOR'].includes(role) && ATTENDANCE_OFFICIAL_REPORT_ENABLED && <p className="report-center-filter-note">ใบลงเวลาใช้ Certified Snapshot ตามสิทธิ์ผู้ใช้; SUPERVISOR เห็นข้อมูลเฉพาะจุดปฏิบัติงานที่ผูกกับบัญชี</p>}
+      {activeTab === 'export' && ATTENDANCE_OFFICIAL_REPORT_ROLES.includes(role) && ATTENDANCE_OFFICIAL_REPORT_ENABLED && <p className="report-center-filter-note">ใบลงเวลาใช้ Certified Snapshot; ADMIN/MANAGER/SUPERVISOR เห็นทุกจุดปฏิบัติงาน</p>}
     </SectionCard>
 
     <div className="report-center-tabs" role="tablist" aria-label="ประเภทรายงาน" onKeyDown={activateTabFromKeyboard}>
@@ -370,7 +372,7 @@ export function ReportCenterPage({ token, role, onNavigate, initialTab = 'execut
           <header className="report-center-export-group__head"><h3 id="export-group-executive">ผู้บริหาร</h3><span>สรุปภาพรวมตามตัวกรองด้านบน</span></header>
           <div className="report-center-export-grid">
             <article className="report-center-export-card report-center-export-card--executive"><div className="report-center-export-icon" aria-hidden="true"><SmsIcon name="report" size={22} /></div><div className="report-center-export-body"><h3>รายงานผู้บริหาร PDF</h3><p>ใช้ข้อมูลและตัวกรองเดียวกับแท็บภาพรวม พร้อมรูปแบบเอกสาร A4 ที่มีอยู่เดิม</p><small className="report-center-export-format">PDF · A4</small></div><button type="button" className="btn-primary" disabled={!executiveReport} onClick={exportPdf}>ส่งออก PDF</button></article>
-            {['ADMIN', 'SUPERVISOR'].includes(role) && ATTENDANCE_OFFICIAL_REPORT_ENABLED && <AttendanceOfficialReportPanel token={token} month={attendanceMonth} role={role} enabled={activeTab === 'export'} initialEmployeeId={initialEmployeeId} />}
+            {ATTENDANCE_OFFICIAL_REPORT_ROLES.includes(role) && ATTENDANCE_OFFICIAL_REPORT_ENABLED && <AttendanceOfficialReportPanel token={token} month={attendanceMonth} role={role} enabled={activeTab === 'export'} initialEmployeeId={initialEmployeeId} />}
           </div>
         </section>
       </div>

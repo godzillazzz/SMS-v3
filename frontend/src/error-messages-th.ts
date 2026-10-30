@@ -47,6 +47,7 @@ const EXACT: Record<string, string> = {
   'Inactive employees cannot enroll an Attendance device.': 'พนักงานที่พ้นสภาพแล้วลงทะเบียนอุปกรณ์ไม่ได้',
   'Attendance device state changed. Please refresh and try again.': 'สถานะอุปกรณ์เปลี่ยนไป กรุณารีเฟรชแล้วลองใหม่',
   'Official Attendance reports require Admin or Supervisor authority.': 'รายงานลงเวลาประจำเดือนดูได้เฉพาะผู้ดูแลระบบและหัวหน้างาน',
+  'Official Attendance reports require Admin, Manager or Supervisor authority.': 'รายงานลงเวลาประจำเดือนดูได้เฉพาะผู้ดูแลระบบ ผู้จัดการ และหัวหน้างาน',
   'Approval Center requires Supervisor, Manager, or Admin authority.': 'ศูนย์อนุมัติใช้ได้เฉพาะหัวหน้างาน ผู้จัดการ และผู้ดูแลระบบ',
   'Administrator access is required.': 'ต้องเป็นผู้ดูแลระบบจึงทำรายการนี้ได้',
   'Admin role is required.': 'ต้องเป็นผู้ดูแลระบบจึงทำรายการนี้ได้',

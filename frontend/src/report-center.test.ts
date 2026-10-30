@@ -81,9 +81,14 @@ describe('Unified Report Center V1 source contract', () => {
     expect(attendanceRoute).not.toContain("return environment.VERCEL_ENV == null && environment.NODE_ENV === 'production'");
 
     expect(page).toContain("const ATTENDANCE_OFFICIAL_REPORT_ENABLED = import.meta.env.VITE_ATTENDANCE_GOVERNANCE_REPORT_ENABLED === 'true';");
-    expect(page).toContain("['ADMIN', 'SUPERVISOR'].includes(role) && ATTENDANCE_OFFICIAL_REPORT_ENABLED && <AttendanceOfficialReportPanel");
+    // OWNER policy 2026-10-30 ("แบบ ค", SNT-XD-L2): MANAGER now sees the official report panel like ADMIN/SUPERVISOR
+    // (previously ADMIN/SUPERVISOR only), and the note no longer claims a SUPERVISOR department pin.
+    expect(page).toContain("export const ATTENDANCE_OFFICIAL_REPORT_ROLES = ['ADMIN', 'MANAGER', 'SUPERVISOR'];");
+    expect(page).toContain("ATTENDANCE_OFFICIAL_REPORT_ROLES.includes(role) && ATTENDANCE_OFFICIAL_REPORT_ENABLED && <AttendanceOfficialReportPanel");
     expect(page).toContain("month={attendanceMonth} role={role} enabled={activeTab === 'export'}");
-    expect(page).not.toContain("role === 'MANAGER' && ATTENDANCE_OFFICIAL_REPORT_ENABLED");
+    expect(page).toContain('ADMIN/MANAGER/SUPERVISOR เห็นทุกจุดปฏิบัติงาน');
+    expect(page).not.toContain('SUPERVISOR เห็นข้อมูลเฉพาะจุดปฏิบัติงานที่ผูกกับบัญชี');
+    expect(page).not.toContain("['ADMIN', 'SUPERVISOR'].includes(role) && ATTENDANCE_OFFICIAL_REPORT_ENABLED");
   });
 
   it('preserves report RBAC and legacy internal compatibility', () => {
