@@ -335,7 +335,7 @@ function statusLabel(status: string) {
 
 function statusTone(status: string) {
   if (['ABSENT', 'TIME_ABNORMAL', 'OUTSIDE_ALL_SITES'].includes(status)) return 'danger';
-  if (['LATE', 'EARLY_OUT', 'WRONG_SHIFT'].includes(status)) return 'warning';
+  if (['LATE', 'EARLY_OUT', 'WRONG_SHIFT', 'NOT_CHECKED_IN_YET'].includes(status)) return 'warning';
   if (['CURRENTLY_WORKING', 'COMPLETE'].includes(status)) return 'good';
   return 'neutral';
 }

@@ -362,12 +362,12 @@
 }
 
 .attendance-supervisor-v4__status.is-warning {
-  color: #946000;
+  color: #92400e;
   background: #fff4d9;
 }
 
 .attendance-supervisor-v4__status.is-danger {
-  color: #a82c3e;
+  color: #991b1b;
   background: #fff0f2;
 }
 
