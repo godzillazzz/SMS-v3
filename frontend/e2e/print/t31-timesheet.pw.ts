@@ -83,7 +83,8 @@ test('T31 31-day employee timesheet prints on one isolated A4 portrait page at 7
   expect(metrics.minCellFontSizePx).toBeGreaterThanOrEqual(7.5 * 96 / 72);
   expect(metrics.tableWidth).toBeLessThanOrEqual(metrics.pageWidth + 1);
   expect(metrics.signatureBottom).toBeLessThanOrEqual(metrics.pageBottom + 1);
-  expect(metrics.summaryColumns).toBe(8);
+  // 9 summary boxes since owner item 7 (30 Oct 2026) added the วันหยุด box.
+  expect(metrics.summaryColumns).toBe(9);
   expect(metrics.signatureGroups).toBe(3);
   expect(metrics.secondShiftCheckIns).toBe(2);
   expect(metrics.secondShiftCheckOuts).toBe(2);

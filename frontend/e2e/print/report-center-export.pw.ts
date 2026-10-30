@@ -43,7 +43,10 @@ for (const viewport of [{ width: 1366, height: 768 }, { width: 375, height: 812 
     await expect(exportTab).toBeVisible({ timeout: 10_000 });
     await exportTab.click();
     const panel = page.locator('#report-panel-export');
-    await expect(panel.locator('.report-center-export-group')).toHaveCount(4);
+    // ADMIN sees 5 groups: schedule, personnel, attendance, patrol (owner item 10, 30 Oct 2026), executive.
+    await expect(panel.locator('.report-center-export-group')).toHaveCount(5);
+    await expect(panel.locator('#export-group-patrol')).toHaveText('การตรวจจุด');
+    for (const title of ['รายงานการตรวจจุดประจำวัน', 'รายงานการตรวจจุดรายแผนก', 'รายงานการตรวจจุดทุกแผนก']) await expect(panel.getByRole('heading', { name: title })).toBeVisible();
     for (const title of ['ส่งออกตารางกะ', 'พิมพ์ทะเบียนพนักงาน', 'พิมพ์ทะเบียนใบอนุญาต รปภ.', 'รายงานการลงเวลารายบุคคลของ รปภ.', 'รายงานการลงเวลารายบุคคลทั้งหมด']) {
       await expect(panel.getByRole('heading', { name: title, exact: true })).toBeVisible();
     }
