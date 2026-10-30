@@ -367,3 +367,10 @@
 
 .patrol-round-card__name { white-space:normal; overflow:visible; line-height:1.4; }
 .patrol-steps li { font-size:12.5px; }
+
+/* Completed rounds show the photo action and its scan time. */
+.patrol-round-hit { height:auto; min-height:42px; padding:3px 6px; background:transparent; color:var(--patrol-brand) !important; }
+.patrol-round-hit small, .patrol-round-hit sup { color:var(--patrol-brand) !important; }
+.patrol-legend i.patrol-cell--done { background:transparent; color:var(--patrol-brand); }
+.patrol-round-mobile ol li.is-done > * { background:#e3f4ef; color:var(--patrol-brand) !important; }
+.patrol-round-mobile ol li.is-done > * b, .patrol-round-mobile ol li.is-done > * small { color:var(--patrol-brand) !important; }

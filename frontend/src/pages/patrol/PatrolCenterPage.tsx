@@ -227,6 +227,8 @@ export function PatrolCenterPage({ token, role }: { token: string; role: string 
     ? `${code} รอบ ${cell.round} (${label}) · ตรวจแล้ว ${cell.count} ครั้ง · ล่าสุด ${thaiTime(cell.lastScanAt)} น. โดย ${cell.lastEmployeeName || '—'}`
     : `${code} รอบ ${cell.round} (${label}) · ${cell.tone === 'missed' ? 'ไม่ได้ตรวจ' : cell.tone === 'current' ? 'อยู่ในรอบ ยังไม่ตรวจ' : 'ยังไม่ถึงรอบ'}`;
 
+  const photoLabel = (code: string, cell: PatrolRoundCell) => `ดูรูปจุดตรวจ ${code} รอบ ${cell.round} เวลา ${thaiTime(cell.lastScanAt)}`;
+
   const dayPicker = <div className="patrol-day-picker">
     <button type="button" className="btn-neutral small-action" aria-label="วันก่อนหน้า" onClick={() => setDay((value) => addDays(value, -1))}>‹</button>
     <label className="patrol-field"><span className="sr-only">วันที่ตรวจ</span><input type="date" value={day} max={patrolDayOf(now)} onChange={(event) => event.target.value && setDay(event.target.value)} /></label>
@@ -285,7 +287,7 @@ export function PatrolCenterPage({ token, role }: { token: string; role: string 
         </div>
         <div className="patrol-master-head__actions">{dayPicker}<button type="button" className="btn-primary" disabled={busy} onClick={() => void printReport('department', { from: day, to: day, department: openDepartment })}><SmsIcon name="report" size={16} />พิมพ์รายงานจุดปฏิบัติงานนี้</button></div>
       </header>
-      <div className="patrol-legend" aria-label="คำอธิบายสัญลักษณ์"><span><i className="patrol-cell--done">✓</i>ตรวจแล้ว (เวลาที่สแกน)</span><span><i className="patrol-cell--pending">●</i>อยู่ในรอบ ยังไม่ตรวจ</span><span><i className="patrol-cell--missed">✕</i>ไม่ได้ตรวจ</span><span><i className="patrol-cell--future" />ยังไม่ถึงรอบ</span></div>
+      <div className="patrol-legend" aria-label="คำอธิบายสัญลักษณ์"><span><i className="patrol-cell--done"><SmsIcon name="eye" size={16} /></i>ตรวจแล้ว (เวลาที่สแกน)</span><span><i className="patrol-cell--pending">●</i>อยู่ในรอบ ยังไม่ตรวจ</span><span><i className="patrol-cell--missed">✕</i>ไม่ได้ตรวจ</span><span><i className="patrol-cell--future" />ยังไม่ถึงรอบ</span></div>
       {departmentBoard.rows.length === 0 ? <div className="patrol-empty"><p>จุดปฏิบัติงานนี้ยังไม่มีจุดตรวจที่เปิดใช้งาน</p></div> : <>
         <div className="patrol-board-scroll patrol-round-desktop">
           <table className="patrol-board patrol-round-board">
@@ -296,7 +298,7 @@ export function PatrolCenterPage({ token, role }: { token: string; role: string 
                 const label = departmentBoard.windows[cell.round - 1].label;
                 const title = cellTitle(row.code, cell, label);
                 return <td key={cell.round} className={`patrol-cell patrol-cell--${cell.tone === 'current' ? 'pending' : cell.tone === 'upcoming' ? 'future' : cell.tone}`}>
-                  {cell.tone === 'done' ? <button type="button" className="patrol-round-hit" title={title} aria-label={title} onClick={() => setPhotoCell({ cell, title: `${row.code} ${row.name} · รอบ ${cell.round} (${label} น.)` })}>{thaiTime(cell.lastScanAt)}{cell.count > 1 && <sup>×{cell.count}</sup>}</button>
+                  {cell.tone === 'done' ? <button type="button" className="patrol-round-hit" title={title} aria-label={photoLabel(row.code, cell)} onClick={() => setPhotoCell({ cell, title: `${row.code} ${row.name} · รอบ ${cell.round} (${label} น.)` })}><SmsIcon name="eye" size={18} /><small>{thaiTime(cell.lastScanAt)}{cell.count > 1 && <sup>×{cell.count}</sup>}</small></button>
                     : <span title={title} aria-label={title}>{cell.tone === 'missed' ? '✕' : cell.tone === 'current' ? '●' : ''}</span>}
                 </td>;
               })}
@@ -311,7 +313,7 @@ export function PatrolCenterPage({ token, role }: { token: string; role: string 
             const label = departmentBoard.windows[cell.round - 1].label;
             const title = cellTitle(row.code, cell, label);
             return <li key={cell.round} className={`is-${cell.tone}`}>{cell.tone === 'done'
-              ? <button type="button" aria-label={title} onClick={() => setPhotoCell({ cell, title: `${row.code} · รอบ ${cell.round} (${label} น.)` })}><b>{cell.round}</b><small>{thaiTime(cell.lastScanAt)}</small></button>
+              ? <button type="button" aria-label={photoLabel(row.code, cell)} onClick={() => setPhotoCell({ cell, title: `${row.code} · รอบ ${cell.round} (${label} น.)` })}><b>{cell.round}</b><SmsIcon name="eye" size={18} /><small>{thaiTime(cell.lastScanAt)}{cell.count > 1 && <sup>×{cell.count}</sup>}</small></button>
               : <span aria-label={title}><b>{cell.round}</b><small>{cell.tone === 'missed' ? 'ขาด' : cell.tone === 'current' ? 'รอบนี้' : label.slice(0, 5)}</small></span>}</li>;
           })}</ol>
         </li>)}</ul>
