@@ -34,6 +34,16 @@ for(const theme of ['light','dark'])for(const viewport of [{width:1366,height:76
 
  await list.getByRole('button',{name:'แก้ไข HQ'}).click();
  await expect(page.locator('.gis-tactical-workspace')).toBeVisible();
+ const toggle=page.locator('.gis-intelligence-sheet__toggle');
+ if(await toggle.isVisible() && await toggle.getAttribute('aria-expanded')==='false') await toggle.click();
+ const tile=page.locator('.gis-spatial-grid > div').first();
+ await expect(tile).toBeVisible();
+ const colors=await tile.evaluate(el=>({background:getComputedStyle(el).backgroundColor, text:getComputedStyle(el.querySelector('strong')!).color, label:getComputedStyle(el.querySelector('span')!).color, font:parseFloat(getComputedStyle(el.querySelector('span')!).fontSize)}));
+ const luminance=(rgb:string)=>{const values=rgb.match(/[\d.]+/g)!.slice(0,3).map(Number).map(v=>v/255).map(v=>v<=0.04045?v/12.92:((v+0.055)/1.055)**2.4);return 0.2126*values[0]+0.7152*values[1]+0.0722*values[2];};
+ const contrast=(a:string,b:string)=>{const x=luminance(a),y=luminance(b);return (Math.max(x,y)+0.05)/(Math.min(x,y)+0.05);};
+ expect(contrast(colors.text,colors.background),JSON.stringify(colors)).toBeGreaterThanOrEqual(4.5);
+ expect(contrast(colors.label,colors.background),JSON.stringify(colors)).toBeGreaterThanOrEqual(4.5);
+ expect(colors.font,JSON.stringify(colors)).toBeGreaterThanOrEqual(12);
  await expect(page.locator('.security-site-list')).toHaveCount(0);
  await page.getByRole('button',{name:'‹ กลับไปรายการ'}).click();
  await expect(page.locator('.security-site-list')).toBeVisible();
