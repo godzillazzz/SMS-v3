@@ -114,10 +114,10 @@
 [data-theme="dark"] #sms-app .schedule-grid :is(td, th).weekend:not(.today) { box-shadow: inset 0 0 0 999px rgba(255, 255, 255, 0.035) !important; }
 #sms-app .schedule-grid thead th.today { box-shadow: inset 0 -3px 0 rgba(255, 255, 255, 0.35) !important; }
 /* 07 #10 legend */
-#sms-app .schedule-legend { display: grid; gap: 10px; margin-top: 14px; padding-top: 14px; border: 0; box-shadow: 0 -1px 0 var(--color-border); color: var(--color-text-secondary); font-size: 13px; }
-#sms-app .schedule-legend > div { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 18px; }
-#sms-app .schedule-legend b { min-width: 72px; color: var(--color-text); font-size: 13px; }
-#sms-app .schedule-legend span { display: inline-flex; align-items: center; gap: 8px; }
+#sms-app .schedule-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 20px; margin-top: 8px; padding-top: 8px; border: 0; box-shadow: 0 -1px 0 var(--color-border); color: var(--color-text-secondary); font-size: 12px; }
+#sms-app .schedule-legend > div { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; }
+#sms-app .schedule-legend b { min-width: auto; margin-right: 4px; color: var(--color-text); font-size: 12px; font-weight: 700; }
+#sms-app .schedule-legend span { display: inline-flex; align-items: center; gap: 5px; }
 #sms-app .schedule-legend__chip { position: relative; display: inline-grid; place-items: center; min-width: 30px; height: 26px; padding: 0 6px; border: 1px solid var(--color-border); border-radius: 7px; background: var(--shift-d-bg); color: var(--shift-d-fg); font-size: 12px; font-style: normal; font-weight: 700; }
 #sms-app .schedule-legend__chip.shift-n { background: var(--shift-n-bg); color: var(--shift-n-fg); }
 #sms-app .schedule-legend__chip.shift-s { background: var(--shift-s-bg); color: var(--shift-s-fg); }

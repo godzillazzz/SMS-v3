@@ -1682,7 +1682,8 @@ button, select, input, textarea {
 
   .leave-print-applicant-sig { width: 55%; margin: 3mm 0 3mm auto; text-align: center; font-size: 11pt; line-height: 1.35; }
   .leave-print-sig-dots { position: relative; display: flex; justify-content: center; margin-bottom: 1.2mm; white-space: nowrap; }
-  .leave-print-sig-label { position: absolute; right: calc(50% + 32mm); bottom: 0; }
+  .leave-print-applicant-sig .leave-print-sig-label { position: absolute; right: calc(50% + 32mm); bottom: 0; }
+  .leave-print-decision-box .leave-print-sig-label { position: static; right: auto; bottom: auto; font-weight: 400; }
   .leave-print-sig-line { display: flex; align-items: flex-end; justify-content: center; width: 62mm; min-height: 6mm; border-bottom: 1px dotted #475569; }
   .leave-print-system-signature { display: block; width: 100%; padding: 0; text-align: center; font-weight: 700; font-size: 10pt; line-height: 1.2; color: #0f766e; }
   .leave-print-sig-name { margin-bottom: 1mm; }

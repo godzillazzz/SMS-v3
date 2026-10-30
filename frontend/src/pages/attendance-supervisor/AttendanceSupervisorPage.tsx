@@ -1049,17 +1049,17 @@ export function AttendanceSupervisorPage({ token, role, department, employeeAuth
   const attendanceDesktop = <div className="attendance-supervisor-v4__table-wrap data-table-scroll">
     <table className="attendance-supervisor-v4__table data-surface-table" aria-label={attendanceTableLabel}>
       <colgroup>
-        {mode === 'history' && <col style={{ width: '9%' }} />}
-        <col style={{ width: mode === 'history' ? '15%' : '17%' }} />
+        {mode === 'history' && <col style={{ width: '8%' }} />}
+        <col style={{ width: mode === 'history' ? '18%' : '20%' }} />
+        <col style={{ width: '5%' }} />
+        <col style={{ width: '13%' }} />
+        <col style={{ width: '13%' }} />
         <col style={{ width: '6%' }} />
-        <col style={{ width: '12%' }} />
-        <col style={{ width: '12%' }} />
-        <col style={{ width: '7%' }} />
-        <col style={{ width: '7%' }} />
-        <col style={{ width: '10%' }} />
-        <col style={{ width: '8%' }} />
+        <col style={{ width: '6%' }} />
         <col style={{ width: '9%' }} />
-        <col style={{ width: '6%' }} />
+        <col style={{ width: '7%' }} />
+        <col style={{ width: '8%' }} />
+        <col style={{ width: '7%' }} />
         <col style={{ width: '6%' }} />
       </colgroup>
       <thead>

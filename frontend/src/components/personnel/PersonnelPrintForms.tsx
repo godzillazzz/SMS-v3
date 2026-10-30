@@ -38,6 +38,73 @@ export function EmployeeRegisterPrint({ rows, now = new Date() }: { rows: Person
     </div>
   </article>;
 }
+export type LicenseRecord = {
+  id: string;
+  licenseNumber?: string | null;
+  licenseType?: string | null;
+  issueDate?: string | null;
+  expiryDate?: string | null;
+  status?: string | null;
+  employee?: {
+    id?: string;
+    employeeCode?: string | null;
+    firstName?: string | null;
+    lastName?: string | null;
+    department?: string | null;
+    jobTitle?: string | null;
+  } | null;
+};
+
+export function LicenseRegisterPrint({ rows, now = new Date() }: { rows: LicenseRecord[]; now?: Date }) {
+  const activeCount = rows.filter((r) => String(r.status).toUpperCase() === 'ACTIVE' || String(r.status).toUpperCase() === 'APPROVED').length;
+  const expiredCount = rows.filter((r) => String(r.status).toUpperCase() === 'EXPIRED').length;
+  return <article id="license-register-print" className="personnel-print personnel-register-print">
+    <header className="personnel-register-print__header">
+      <div className="personnel-register-print__brand">
+        <span className="personnel-register-print__brand-mark" aria-hidden="true">SMS</span>
+        <strong className="personnel-register-print__brand-name">Security Management System</strong>
+      </div>
+      <div className="personnel-register-print__title-block">
+        <h1>ทะเบียนใบอนุญาต รปภ.</h1>
+        <strong className="personnel-register-print__english-title">SECURITY GUARD LICENSE REGISTER</strong>
+        <span>ข้อมูล ณ วันที่ {date(now.toISOString())}</span>
+        <span>จำนวน {rows.length} รายการ</span>
+      </div>
+    </header>
+    <div className="personnel-register-print__accent-rule" aria-hidden="true" />
+    <p className="personnel-register-print__summary">ทั้งหมด {rows.length} รายการ · สมบูรณ์/ใช้งาน {activeCount} · หมดอายุ {expiredCount}</p>
+    <table className="personnel-register-print__table">
+      <thead>
+        <tr>
+          {['ลำดับ', 'รหัส', 'ชื่อ-สกุล', 'แผนก', 'ประเภทใบอนุญาต', 'เลขที่ใบอนุญาต', 'วันออกบัตร', 'วันหมดอายุ', 'สถานะ'].map((x) => <th key={x}>{x}</th>)}
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map((r, index) => {
+          const emp = r.employee || {};
+          const empName = `${emp.firstName || ''} ${emp.lastName || ''}`.trim() || blank;
+          const statusText = String(r.status).toUpperCase() === 'ACTIVE' || String(r.status).toUpperCase() === 'APPROVED' ? 'ใช้งาน' : String(r.status).toUpperCase() === 'EXPIRED' ? 'หมดอายุ' : String(r.status || blank);
+          return <tr key={r.id || index}>
+            <td style={{ textAlign: 'center' }}>{index + 1}</td>
+            <td>{emp.employeeCode || blank}</td>
+            <td>{empName}</td>
+            <td>{emp.department || blank}</td>
+            <td>{r.licenseType || 'รปภ. (ธภ.7)'}</td>
+            <td>{r.licenseNumber || blank}</td>
+            <td>{date(r.issueDate)}</td>
+            <td>{date(r.expiryDate)}</td>
+            <td>{statusText}</td>
+          </tr>;
+        })}
+      </tbody>
+    </table>
+    <div className="personnel-register-print__signatures">
+      <span>ผู้จัดทำ .................................... วันที่ ....................</span>
+      <span>ผู้ตรวจสอบ .................................... วันที่ ....................</span>
+    </div>
+  </article>;
+}
+
 type Leave = { id: string; leaveTypeNameSnapshot?: string; leaveType?: string; startDate?: string; endDate?: string; dayCount?: number; status?: string };
 export function EmployeeRecordPrint({ employee, quota, leaves, now = new Date() }: { employee: PersonnelRecord; quota?: Record<string, unknown>; leaves?: Leave[]; now?: Date }) {
   const fields: Array<[string, unknown]> = [['รหัสพนักงาน', employee.employeeCode], ['ชื่อ-สกุล', `${employee.firstName || ''} ${employee.lastName || ''}`.trim()], ['แผนก', employee.department], ['ตำแหน่ง', employee.jobTitle], ['วันเริ่มงาน', date(employee.hiredAt)], ['อายุงาน', serviceLength(employee.hiredAt, now)], ['โทรศัพท์', employee.phone], ['อีเมล', employee.email], ['เลขประจำตัวประชาชน', null], ['วันเกิด', null], ['ที่อยู่', null], ['ผู้ติดต่อฉุกเฉิน', null], ['เงินเดือน', null]];
