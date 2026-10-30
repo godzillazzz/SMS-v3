@@ -221,7 +221,7 @@ export function AttendanceMonthToDatePrint({ date, employees, rows }: { date: st
           <div><span>ชื่อ-สกุล</span><strong>{employeeName(employee)}</strong></div>
           <div><span>รหัสพนักงาน</span><strong>{employee.employeeCode || representative?.employeeCode || DASH}</strong></div>
           <div><span>ตำแหน่ง</span><strong>{employee.jobTitle || DASH}</strong></div>
-          <div><span>แผนก</span><strong>{employee.department || representative?.department || DASH}</strong></div>
+          <div><span>จุดปฏิบัติงาน</span><strong>{employee.department || representative?.department || DASH}</strong></div>
           <div className="timesheet-employee--wide"><span>สถานที่ปฏิบัติงาน (Site)</span><strong>{sites.length ? sites.join(', ') : DASH}</strong></div>
         </section>
         <section className="timesheet-summary" aria-label="สรุปรายเดือน">{boxes.map(([label, value]) => <div key={label}><span>{label}</span><strong>{value}</strong></div>)}</section>

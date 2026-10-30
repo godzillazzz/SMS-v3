@@ -52,10 +52,10 @@ function CheckpointDialog({ department, initial, busy, error, onSubmit, onClose 
   const [locationNote, setLocationNote] = useState(initial?.locationNote || '');
   const [sortOrder, setSortOrder] = useState(String(initial?.sortOrder ?? 0));
   const valid = code.trim() && name.trim();
-  return <Dialog title={initial ? `แก้ไขจุดตรวจ ${initial.code}` : `เพิ่มจุดตรวจในแผนก ${department}`} busy={busy} onClose={onClose}>
+  return <Dialog title={initial ? `แก้ไขจุดตรวจ ${initial.code}` : `เพิ่มจุดตรวจในจุดปฏิบัติงาน ${department}`} busy={busy} onClose={onClose}>
     <form onSubmit={(event) => { event.preventDefault(); if (valid) onSubmit({ code: code.trim(), name: name.trim(), department, locationNote: locationNote.trim(), sortOrder: Number(sortOrder) || 0 }); }}>
       <div className="leave-type-dialog__fields">
-        <label className="field-group"><span>แผนก</span><input value={department} disabled readOnly /></label>
+        <label className="field-group"><span>จุดปฏิบัติงาน</span><input value={department} disabled readOnly /></label>
         <label className="field-group"><span>รหัสจุดตรวจ *</span><input value={code} disabled={Boolean(initial)} maxLength={50} placeholder="เช่น AN0-01" onChange={(event) => setCode(event.target.value.toUpperCase())} required />{!initial && <small>รหัสแก้ไม่ได้หลังสร้าง</small>}</label>
         <label className="field-group"><span>ชื่อจุดตรวจ *</span><input value={name} maxLength={150} placeholder="เช่น ประตูทางเข้าหลัก" onChange={(event) => setName(event.target.value)} required /></label>
         <label className="field-group"><span>ตำแหน่ง / คำอธิบาย</span><input value={locationNote} maxLength={500} placeholder="เช่น ด้านหลังอาคาร B" onChange={(event) => setLocationNote(event.target.value)} /></label>
@@ -69,12 +69,12 @@ function CheckpointDialog({ department, initial, busy, error, onSubmit, onClose 
 
 function DepartmentDialog({ known, busy, onSubmit, onClose }: { known: string[]; busy: boolean; onSubmit(name: string): void; onClose(): void }) {
   const [name, setName] = useState('');
-  return <Dialog title="เลือกแผนก" busy={busy} onClose={onClose}>
+  return <Dialog title="เลือกจุดปฏิบัติงาน" busy={busy} onClose={onClose}>
     <form onSubmit={(event) => { event.preventDefault(); if (name.trim()) onSubmit(name.trim()); }}>
       <div className="leave-type-dialog__fields">
-        <label className="field-group"><span>ชื่อแผนก *</span><input list="patrol-department-master" value={name} maxLength={100} placeholder="เลือกจากทะเบียนหน่วยงาน" onChange={(event) => setName(event.target.value)} required />
+        <label className="field-group"><span>ชื่อจุดปฏิบัติงาน *</span><input list="patrol-department-master" value={name} maxLength={100} placeholder="เลือกจากทะเบียนจุดปฏิบัติงาน" onChange={(event) => setName(event.target.value)} required />
           <datalist id="patrol-department-master">{known.map((item) => <option key={item} value={item} />)}</datalist>
-          <small>แผนกจะแสดงในรายการเมื่อสร้างจุดตรวจจุดแรก</small></label>
+          <small>จุดปฏิบัติงานจะแสดงในรายการเมื่อสร้างจุดตรวจจุดแรก</small></label>
       </div>
       <footer><button type="button" className="btn-neutral small-action" onClick={onClose}>ยกเลิก</button><button type="submit" className="btn-primary compact" disabled={!name.trim()}>ถัดไป</button></footer>
     </form>
@@ -165,7 +165,7 @@ export function PatrolCenterPage({ token, role }: { token: string; role: string 
     try {
       if (editing?.item) await patrolApi.updateCheckpoint(token, editing.item.id, { name: input.name, locationNote: input.locationNote || null, sortOrder: input.sortOrder });
       else await patrolApi.createCheckpoint(token, input);
-      setNotice(editing?.item ? `บันทึกจุดตรวจ ${editing.item.code} แล้ว` : `สร้างจุดตรวจ ${input.code.toUpperCase()} ในแผนก ${input.department} แล้ว`);
+      setNotice(editing?.item ? `บันทึกจุดตรวจ ${editing.item.code} แล้ว` : `สร้างจุดตรวจ ${input.code.toUpperCase()} ในจุดปฏิบัติงาน ${input.department} แล้ว`);
       setEditing(undefined);
       await loadCheckpoints();
     } catch (reason) { setDialogError(toRequestErrorState(reason, 'ไม่สามารถบันทึกจุดตรวจได้')); }
@@ -208,13 +208,13 @@ export function PatrolCenterPage({ token, role }: { token: string; role: string 
     const to = options.to || reportTo;
     const from = kind === 'daily' ? to : options.from || reportFrom;
     const dept = options.department ?? reportDepartment;
-    if (kind === 'department' && !dept) { setNotice('กรุณาเลือกแผนกสำหรับรายงานรายแผนก'); return; }
+    if (kind === 'department' && !dept) { setNotice('กรุณาเลือกจุดปฏิบัติงานสำหรับรายงานรายจุดปฏิบัติงาน'); return; }
     setBusy(true); setError(undefined);
     try {
       const fetched = await patrolApi.report(token, { ...patrolFetchRange(from, to), department: kind === 'all' ? undefined : dept || undefined });
       const printable = { ...fetched, from, to };
       flushSync(() => setPrintJob({ kind, report: printable }));
-      const label = kind === 'daily' ? 'รายงานการตรวจประจำวัน' : kind === 'department' ? `รายงานการตรวจ-${dept}` : 'รายงานการตรวจทุกแผนก';
+      const label = kind === 'daily' ? 'รายงานการตรวจประจำวัน' : kind === 'department' ? `รายงานการตรวจ-${dept}` : 'รายงานการตรวจทุกจุดปฏิบัติงาน';
       await printDocument('.patrol-report-print', `${label}-${from}${from === to ? '' : `_${to}`}.pdf`, { orientation: 'landscape', margin: '10mm' });
     } catch (reason) { setError(toRequestErrorState(reason, 'ไม่สามารถพิมพ์รายงานการตรวจได้')); }
     finally { setPrintJob(undefined); setBusy(false); }
@@ -236,7 +236,7 @@ export function PatrolCenterPage({ token, role }: { token: string; role: string 
   </div>;
 
   return <section className="patrol-center view-pane layout-page-surface" aria-label="ศูนย์ตรวจจุด">
-    <PageHeader kicker="ตรวจจุด (Patrol)" title="ศูนย์ตรวจจุด" description="ติดตามการตรวจจุดของทุกแผนก วันละ 8 รอบ รอบละ 3 ชั่วโมง จัดการ QR จุดตรวจ และพิมพ์รายงาน" />
+    <PageHeader kicker="ตรวจจุด (Patrol)" title="ศูนย์ตรวจจุด" description="ติดตามการตรวจจุดของทุกจุดปฏิบัติงาน วันละ 8 รอบ รอบละ 3 ชั่วโมง จัดการ QR จุดตรวจ และพิมพ์รายงาน" />
 
     <div className="patrol-tabs" role="tablist" aria-label="เมนูศูนย์ตรวจจุด">
       {tabs.map(([id, label, icon]) => <button key={id} type="button" role="tab" aria-selected={tab === id} className={tab === id ? 'active' : ''} onClick={() => selectTab(id)}><SmsIcon name={icon} size={17} />{label}</button>)}
@@ -248,22 +248,22 @@ export function PatrolCenterPage({ token, role }: { token: string; role: string 
     {tab === 'board' && !openDepartment && <section className="line-settings-card patrol-master-card" aria-labelledby="patrol-board-title">
       <header className="patrol-master-head">
         <div>
-          <h2 id="patrol-board-title">สถานะการตรวจรายแผนก</h2>
+          <h2 id="patrol-board-title">สถานะการตรวจรายจุดปฏิบัติงาน</h2>
           <p>วันที่ {thaiDate(day, { day: 'numeric', month: 'long', year: 'numeric' })} (07:00 – 07:00 น.){day === current.day ? ` · ตอนนี้รอบที่ ${current.round}/${PATROL_ROUNDS} (${current.label} น.)` : ''}</p>
         </div>
         <div className="patrol-master-head__actions">{dayPicker}</div>
       </header>
 
-      <div className="patrol-kpis" aria-label="สรุปทุกแผนก">
+      <div className="patrol-kpis" aria-label="สรุปทุกจุดปฏิบัติงาน">
         <div className="patrol-kpi"><span>ตรวจครบแล้ว</span><strong>{totals.done}<small>/{totals.due} รอบ-จุด</small></strong></div>
         <div className="patrol-kpi patrol-kpi--pending"><span>ขาดตรวจ</span><strong>{totals.missed}<small> รอบ-จุด</small></strong></div>
-        <div className="patrol-kpi"><span>แผนกที่ยังไม่ครบ</span><strong>{totals.departments}<small>/{summaries.length}</small></strong></div>
+        <div className="patrol-kpi"><span>จุดปฏิบัติงานที่ยังไม่ครบ</span><strong>{totals.departments}<small>/{summaries.length}</small></strong></div>
         <div className="patrol-kpi patrol-kpi--done"><span>ความครบถ้วน</span><strong>{totals.due ? Math.round((totals.done / totals.due) * 100) : 0}%</strong><i style={{ width: `${totals.due ? Math.round((totals.done / totals.due) * 100) : 0}%` }} aria-hidden="true" /></div>
       </div>
 
       {loading ? <div className="patrol-empty">กำลังโหลด…</div> : summaries.length === 0 ? <div className="patrol-empty"><SmsIcon name="location" size={28} /><p>ยังไม่มีจุดตรวจ{isAdmin ? ' — เริ่มต้นที่แท็บ “จุดตรวจและ QR”' : ''}</p></div>
-        : <div className="data-table-scroll"><table className="data-surface-table patrol-dept-table" aria-label="สถานะการตรวจรายแผนก">
-          <thead><tr><th scope="col">แผนก</th><th scope="col">จุดตรวจ</th><th scope="col">รอบปัจจุบัน</th><th scope="col">ความครบถ้วนวันนี้</th><th scope="col">ขาดตรวจ</th><th scope="col">สถานะ</th><th scope="col"><span className="sr-only">เปิด</span></th></tr></thead>
+        : <div className="data-table-scroll"><table className="data-surface-table patrol-dept-table" aria-label="สถานะการตรวจรายจุดปฏิบัติงาน">
+          <thead><tr><th scope="col">จุดปฏิบัติงาน</th><th scope="col">จุดตรวจ</th><th scope="col">รอบปัจจุบัน</th><th scope="col">ความครบถ้วนวันนี้</th><th scope="col">ขาดตรวจ</th><th scope="col">สถานะ</th><th scope="col"><span className="sr-only">เปิด</span></th></tr></thead>
           <tbody>{summaries.map((row) => <tr key={row.department} className="patrol-dept-row" onClick={() => setOpenDepartment(row.department)}>
             <td><button type="button" className="patrol-dept-name" onClick={(event) => { event.stopPropagation(); setOpenDepartment(row.department); }}>{row.department}</button></td>
             <td className="tabular">{row.checkpoints} จุด</td>
@@ -279,14 +279,14 @@ export function PatrolCenterPage({ token, role }: { token: string; role: string 
     {tab === 'board' && openDepartment && departmentBoard && <section className="line-settings-card patrol-master-card" aria-labelledby="patrol-dept-title">
       <header className="patrol-master-head">
         <div>
-          <button type="button" className="patrol-back" onClick={() => setOpenDepartment(undefined)}>‹ ทุกแผนก</button>
-          <h2 id="patrol-dept-title">แผนก {openDepartment}</h2>
+          <button type="button" className="patrol-back" onClick={() => setOpenDepartment(undefined)}>‹ ทุกจุดปฏิบัติงาน</button>
+          <h2 id="patrol-dept-title">จุดปฏิบัติงาน {openDepartment}</h2>
           <p><span>{thaiDate(day, { day: 'numeric', month: 'long', year: 'numeric' })}</span> · <span>ตรวจแล้ว {departmentBoard.summary.done}/{departmentBoard.summary.due} รอบ-จุด</span> · <span>ขาด {departmentBoard.summary.missed}</span></p>
         </div>
-        <div className="patrol-master-head__actions">{dayPicker}<button type="button" className="btn-primary" disabled={busy} onClick={() => void printReport('department', { from: day, to: day, department: openDepartment })}><SmsIcon name="report" size={16} />พิมพ์รายงานแผนกนี้</button></div>
+        <div className="patrol-master-head__actions">{dayPicker}<button type="button" className="btn-primary" disabled={busy} onClick={() => void printReport('department', { from: day, to: day, department: openDepartment })}><SmsIcon name="report" size={16} />พิมพ์รายงานจุดปฏิบัติงานนี้</button></div>
       </header>
       <div className="patrol-legend" aria-label="คำอธิบายสัญลักษณ์"><span><i className="patrol-cell--done">✓</i>ตรวจแล้ว (เวลาที่สแกน)</span><span><i className="patrol-cell--pending">●</i>อยู่ในรอบ ยังไม่ตรวจ</span><span><i className="patrol-cell--missed">✕</i>ไม่ได้ตรวจ</span><span><i className="patrol-cell--future" />ยังไม่ถึงรอบ</span></div>
-      {departmentBoard.rows.length === 0 ? <div className="patrol-empty"><p>แผนกนี้ยังไม่มีจุดตรวจที่เปิดใช้งาน</p></div> : <>
+      {departmentBoard.rows.length === 0 ? <div className="patrol-empty"><p>จุดปฏิบัติงานนี้ยังไม่มีจุดตรวจที่เปิดใช้งาน</p></div> : <>
         <div className="patrol-board-scroll patrol-round-desktop">
           <table className="patrol-board patrol-round-board">
             <thead><tr><th scope="col" className="patrol-board__sticky">จุดตรวจ</th>{departmentBoard.windows.map((window) => <th scope="col" key={window.round} className={departmentBoard.summary.currentRound === window.round ? 'is-today' : ''}><b>รอบ {window.round}</b><span>{window.label}</span></th>)}<th scope="col">รวม</th></tr></thead>
@@ -320,15 +320,15 @@ export function PatrolCenterPage({ token, role }: { token: string; role: string 
 
     {tab === 'checkpoints' && isAdmin && !manageDepartment && <section className="line-settings-card patrol-master-card" aria-labelledby="patrol-cp-title">
       <header className="patrol-master-head">
-        <div><h2 id="patrol-cp-title">จุดตรวจและ QR</h2><p>เลือกแผนก แล้วสร้างจุดตรวจและพิมพ์ป้าย QR ของแผนกนั้น</p></div>
+        <div><h2 id="patrol-cp-title">จุดตรวจและ QR</h2><p>เลือกจุดปฏิบัติงาน แล้วสร้างจุดตรวจและพิมพ์ป้าย QR ของจุดปฏิบัติงานนั้น</p></div>
         <div className="patrol-master-head__actions">
           <button type="button" className="btn-neutral" disabled={busy || !checkpoints.some((item) => item.isActive)} onClick={() => void printQr(checkpoints)}><SmsIcon name="qr" size={16} />พิมพ์ QR ทั้งหมด</button>
-          <button type="button" className="btn-primary" disabled={busy} onClick={() => setDepartmentDialog(true)}><SmsIcon name="plus" size={16} />เพิ่มแผนก</button>
+          <button type="button" className="btn-primary" disabled={busy} onClick={() => setDepartmentDialog(true)}><SmsIcon name="plus" size={16} />เพิ่มจุดปฏิบัติงาน</button>
         </div>
       </header>
-      {departments.length === 0 ? <div className="patrol-empty"><SmsIcon name="qr" size={28} /><p>ยังไม่มีจุดตรวจ กด “เพิ่มแผนก” เพื่อเริ่มต้น</p></div>
-        : <div className="data-table-scroll"><table className="data-surface-table patrol-dept-table" aria-label="แผนกที่มีจุดตรวจ">
-          <thead><tr><th scope="col">แผนก</th><th scope="col">จุดที่ใช้งาน</th><th scope="col">ปิดใช้งาน</th><th scope="col">จัดการ</th></tr></thead>
+      {departments.length === 0 ? <div className="patrol-empty"><SmsIcon name="qr" size={28} /><p>ยังไม่มีจุดตรวจ กด “เพิ่มจุดปฏิบัติงาน” เพื่อเริ่มต้น</p></div>
+        : <div className="data-table-scroll"><table className="data-surface-table patrol-dept-table" aria-label="จุดปฏิบัติงานที่มีจุดตรวจ">
+          <thead><tr><th scope="col">จุดปฏิบัติงาน</th><th scope="col">จุดที่ใช้งาน</th><th scope="col">ปิดใช้งาน</th><th scope="col">จัดการ</th></tr></thead>
           <tbody>{departments.map((dept) => {
             const items = checkpoints.filter((item) => item.department === dept);
             const active = items.filter((item) => item.isActive);
@@ -348,19 +348,19 @@ export function PatrolCenterPage({ token, role }: { token: string; role: string 
     {tab === 'checkpoints' && isAdmin && manageDepartment && <section className="line-settings-card patrol-master-card" aria-labelledby="patrol-cpd-title">
       <header className="patrol-master-head">
         <div>
-          <button type="button" className="patrol-back" onClick={() => setManageDepartment(undefined)}>‹ ทุกแผนก</button>
-          <h2 id="patrol-cpd-title">จุดตรวจของแผนก {manageDepartment}</h2>
+          <button type="button" className="patrol-back" onClick={() => setManageDepartment(undefined)}>‹ ทุกจุดปฏิบัติงาน</button>
+          <h2 id="patrol-cpd-title">จุดตรวจของจุดปฏิบัติงาน {manageDepartment}</h2>
           <p>เรียงตามลำดับการเดินตรวจ · QR ของแต่ละจุดใช้สแกนได้เฉพาะจุดนั้น</p>
         </div>
         <div className="patrol-master-head__actions">
-          <button type="button" className="btn-neutral" disabled={busy || !checkpoints.some((item) => item.department === manageDepartment && item.isActive)} onClick={() => void printQr(checkpoints.filter((item) => item.department === manageDepartment))}><SmsIcon name="qr" size={16} />พิมพ์ QR แผนกนี้</button>
+          <button type="button" className="btn-neutral" disabled={busy || !checkpoints.some((item) => item.department === manageDepartment && item.isActive)} onClick={() => void printQr(checkpoints.filter((item) => item.department === manageDepartment))}><SmsIcon name="qr" size={16} />พิมพ์ QR จุดปฏิบัติงานนี้</button>
           <button type="button" className="btn-primary" disabled={busy} onClick={() => { setDialogError(undefined); setEditing({ department: manageDepartment }); }}><SmsIcon name="plus" size={16} />เพิ่มจุดตรวจ</button>
         </div>
       </header>
       {(() => {
         const items = checkpoints.filter((item) => item.department === manageDepartment);
-        if (!items.length) return <div className="patrol-empty"><SmsIcon name="location" size={28} /><p>ยังไม่มีจุดตรวจในแผนกนี้ กด “เพิ่มจุดตรวจ”</p></div>;
-        return <div className="data-table-scroll"><table className="data-surface-table patrol-cp-table" aria-label={`จุดตรวจของแผนก ${manageDepartment}`}>
+        if (!items.length) return <div className="patrol-empty"><SmsIcon name="location" size={28} /><p>ยังไม่มีจุดตรวจในจุดปฏิบัติงานนี้ กด “เพิ่มจุดตรวจ”</p></div>;
+        return <div className="data-table-scroll"><table className="data-surface-table patrol-cp-table" aria-label={`จุดตรวจของจุดปฏิบัติงาน ${manageDepartment}`}>
           <thead><tr><th scope="col">ลำดับ</th><th scope="col">รหัส</th><th scope="col">ชื่อจุดตรวจ</th><th scope="col">ตำแหน่ง</th><th scope="col">QR</th><th scope="col">สถานะ</th><th scope="col"><span className="sr-only">จัดการ</span></th></tr></thead>
           <tbody>{items.map((item) => <tr key={item.id} className={item.isActive ? '' : 'is-inactive'}>
             <td className="tabular">{item.sortOrder ?? 0}</td>
@@ -394,16 +394,16 @@ export function PatrolCenterPage({ token, role }: { token: string; role: string 
 /** Shared print panel: used in the Patrol Center and in Report Center → ส่งออกและพิมพ์. */
 export function PatrolReportPanel({ departments, busy, from, to, department, onFrom, onTo, onDepartment, onPrint }: { departments: string[]; busy: boolean; from: string; to: string; department: string; onFrom(value: string): void; onTo(value: string): void; onDepartment(value: string): void; onPrint(kind: PatrolPrintKind): void }) {
   const cards: Array<[PatrolPrintKind, string, string, 'clock' | 'employees' | 'report', string]> = [
-    ['daily', 'รายงานการตรวจประจำวัน', `วันที่ ${thaiDate(to)} ${department ? `· แผนก ${department}` : '· ทุกแผนก'} — ตาราง 8 รอบของทุกจุด และรายการสแกนเรียงตามเวลา`, 'clock', 'PDF · A4 แนวนอน'],
-    ['department', 'รายงานการตรวจรายแผนก', department ? `แผนก ${department} · ${thaiDate(from)} – ${thaiDate(to)}` : 'เลือกแผนกด้านบนก่อน', 'employees', 'PDF · A4 แนวนอน'],
-    ['all', 'รายงานการตรวจทั้งหมดทุกแผนก', `${thaiDate(from)} – ${thaiDate(to)} · สรุปจำนวนรอบที่ตรวจครบ แยกแผนก`, 'report', 'PDF · A4 แนวนอน']
+    ['daily', 'รายงานการตรวจประจำวัน', `วันที่ ${thaiDate(to)} ${department ? `· จุดปฏิบัติงาน ${department}` : '· ทุกจุดปฏิบัติงาน'} — ตาราง 8 รอบของทุกจุด และรายการสแกนเรียงตามเวลา`, 'clock', 'PDF · A4 แนวนอน'],
+    ['department', 'รายงานการตรวจรายจุดปฏิบัติงาน', department ? `จุดปฏิบัติงาน ${department} · ${thaiDate(from)} – ${thaiDate(to)}` : 'เลือกจุดปฏิบัติงานด้านบนก่อน', 'employees', 'PDF · A4 แนวนอน'],
+    ['all', 'รายงานการตรวจทั้งหมดทุกจุดปฏิบัติงาน', `${thaiDate(from)} – ${thaiDate(to)} · สรุปจำนวนรอบที่ตรวจครบ แยกจุดปฏิบัติงาน`, 'report', 'PDF · A4 แนวนอน']
   ];
   return <section className="line-settings-card patrol-master-card" aria-labelledby="patrol-report-title">
     <header className="patrol-master-head"><div><h2 id="patrol-report-title">พิมพ์รายงานการตรวจ</h2><p>ทุกรายงานใช้หัวกระดาษมาตรฐานของระบบ · นับรอบตามวันตรวจ 07:00 – 07:00 น.</p></div></header>
     <div className="patrol-filters">
       <label className="patrol-field"><span>ตั้งแต่</span><input type="date" value={from} max={to} onChange={(event) => onFrom(event.target.value)} /></label>
       <label className="patrol-field"><span>ถึง</span><input type="date" value={to} min={from} onChange={(event) => onTo(event.target.value)} /></label>
-      <label className="patrol-field"><span>แผนก</span><select value={department} onChange={(event) => onDepartment(event.target.value)}><option value="">ทุกแผนก</option>{departments.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
+      <label className="patrol-field"><span>จุดปฏิบัติงาน</span><select value={department} onChange={(event) => onDepartment(event.target.value)}><option value="">ทุกจุดปฏิบัติงาน</option>{departments.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
     </div>
     <div className="patrol-report-grid">
       {cards.map(([kind, title, description, icon, format]) => <article className={`patrol-report-card patrol-report-card--${kind}`} key={kind}>

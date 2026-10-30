@@ -252,7 +252,7 @@ async function loadCertifiedAttendanceMonth(month, client = prismaDefault) {
 function attendanceSheetXml(certification) {
   const snapshot = certification.snapshot;
   const columns = [
-    'วันที่', 'รหัสพนักงาน', 'ชื่อ-นามสกุล', 'หน่วยงาน',
+    'วันที่', 'รหัสพนักงาน', 'ชื่อ-นามสกุล', 'จุดปฏิบัติงาน',
     'สถานที่ตามตาราง', 'สถานที่ลงเวลาจริง', 'กะ', 'เวลาเริ่มตามกะ', 'เวลาเลิกตามกะ',
     'เวลาเข้า', 'เวลาออก', 'ชั่วโมงทำงาน', 'สาย (นาที)', 'ออกก่อน (นาที)',
     'สถานะเข้างาน', 'สถานะเวลาออก', 'เวลาผิดปกติ', 'Flags', 'ผลการลงเวลา', 'ประเภทสถานที่'

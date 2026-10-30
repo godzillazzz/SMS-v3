@@ -33,7 +33,7 @@ function client() {
 test('MANAGER/SUPERVISOR report scope is all departments with a free department filter, even without an own department', () => {
   for (const role of ['ADMIN', 'MANAGER', 'SUPERVISOR']) {
     for (const department of [null, 'AN1']) {
-      assert.deepEqual(resolveReportScope({ role, department }), { department: null, employeeId: null, label: 'ทุกหน่วยงาน', allowsDepartmentFilter: true });
+      assert.deepEqual(resolveReportScope({ role, department }), { department: null, employeeId: null, label: 'ทุกจุดปฏิบัติงาน', allowsDepartmentFilter: true });
       assert.deepEqual(resolveReportScope({ role, department }, 'AN2'), { department: 'AN2', employeeId: null, label: 'AN2', allowsDepartmentFilter: true });
     }
   }
@@ -48,7 +48,7 @@ test('VIEWER (and unknown roles) still have no report-center scope', () => {
 test('MANAGER without a department gets the executive report with system-wide critical data quality like ADMIN', async () => {
   const report = await getExecutiveReport({ prismaClient: client(), requestUser: { role: 'MANAGER', department: null }, filters: { year: 2026, month: 8 }, now: new Date('2026-08-10T00:00:00Z') });
   const kpi = report.executiveSummary.find((item) => item.key === 'criticalDataQuality');
-  assert.equal(report.scope.departmentName, 'ทุกหน่วยงาน');
+  assert.equal(report.scope.departmentName, 'ทุกจุดปฏิบัติงาน');
   assert.equal(report.scope.allowsDepartmentFilter, true);
   assert.equal(report.dataQualityAvailability, 'AVAILABLE');
   assert.equal(kpi.value, 2, 'global custom rules are counted (1 unclassified + 1 duplicate group)');
@@ -65,7 +65,7 @@ test('report summary accepts MANAGER without a department and a SUPERVISOR depar
   const counter = { count: async () => 0 };
   const proxy = { $transaction: async (calls) => Promise.all(calls), employee: counter, employeeLicense: counter, shiftAssignment: counter, leaveRequest: counter, leaveQuota: counter, user: counter };
   const managerSummary = await getReportSummary({ prismaClient: proxy, requestUser: { role: 'MANAGER', department: null }, filters: { year: 2026, month: 8 } });
-  assert.equal(managerSummary.scope.label, 'ทุกหน่วยงาน');
+  assert.equal(managerSummary.scope.label, 'ทุกจุดปฏิบัติงาน');
   const supervisorSummary = await getReportSummary({ prismaClient: proxy, requestUser: { role: 'SUPERVISOR', department: 'AN1' }, filters: { year: 2026, month: 8, department: 'AN2' } });
   assert.equal(supervisorSummary.scope.department, 'AN2');
 });

@@ -323,7 +323,7 @@ test("Production verifier checks native Git provenance and immutable runtime bef
   assert.ok(sentinelManifest.runtime.includes('เกณฑ์ SLA'));
   assert.ok(sentinelManifest.runtime.includes('การเปลี่ยนแปลงสำคัญ'));
   assert.ok(sentinelManifest.runtime.includes('เปลี่ยนชื่อ'));
-  assert.ok(sentinelManifest.runtime.includes('ย้ายหน่วยงาน / แผนก'));
+  assert.ok(sentinelManifest.runtime.includes('ย้ายจุดปฏิบัติงาน'));
   assert.ok(sentinelManifest.runtime.includes('เปลี่ยนตำแหน่ง'));
   assert.ok(sentinelManifest.runtime.includes('Data Retention Center / การเก็บรักษาข้อมูล'));
   assert.ok(sentinelManifest.runtime.includes('รัน Cleanup รอบถัดไป'));

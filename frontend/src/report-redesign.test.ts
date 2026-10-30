@@ -53,7 +53,7 @@ describe('Report Center redesign (OWNER mockup)', () => {
   });
 
   it('keeps the per-department patrol chart, the leave/licence charts and the gap attention items', () => {
-    for (const text of ['ความครบถ้วนการตรวจจุดรายแผนก', 'คำขอลาตามประเภท · รายการ', 'สถานะใบอนุญาต · รายการ', 'ประเด็นที่ผู้บริหารควรติดตาม']) expect(page).toContain(text);
+    for (const text of ['ความครบถ้วนการตรวจจุดรายจุดปฏิบัติงาน', 'คำขอลาตามประเภท · รายการ', 'สถานะใบอนุญาต · รายการ', 'ประเด็นที่ผู้บริหารควรติดตาม']) expect(page).toContain(text);
   });
 
   it('reserves a grid column for the KPI icon/arrow so long licence titles cannot collide on mobile', () => {

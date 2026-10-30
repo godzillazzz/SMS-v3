@@ -14,7 +14,7 @@ const entityLabels: Record<string, string> = {
   AttendanceDeviceChangeRequest: 'คำขออุปกรณ์ลงเวลา', AttendanceDeviceEnrollment: 'อุปกรณ์ลงเวลา', AttendanceEvent: 'เหตุการณ์ลงเวลา',
   AttendanceEvidence: 'หลักฐานการลงเวลา', AttendanceMonthCertification: 'การรับรองรอบลงเวลา', AttendancePendingEvent: 'รายการลงเวลารอตรวจ',
   AttendanceTimePolicy: 'นโยบายเวลาเข้างาน', AuthOtpChallenge: 'การยืนยันรหัส OTP', AutoSchedule: 'การจัดกะอัตโนมัติ',
-  AutoSchedulePattern: 'รูปแบบจัดกะอัตโนมัติ', DataRetentionCleanupRun: 'รอบลบข้อมูลตามอายุ', DepartmentMaster: 'ข้อมูลแผนก', Employee: 'พนักงาน',
+  AutoSchedulePattern: 'รูปแบบจัดกะอัตโนมัติ', DataRetentionCleanupRun: 'รอบลบข้อมูลตามอายุ', DepartmentMaster: 'ข้อมูลจุดปฏิบัติงาน', Employee: 'พนักงาน',
   EmployeeAutoSchedule: 'การจัดกะรายบุคคล', EmployeeChangeRequest: 'คำขอแก้ไขข้อมูลพนักงาน',
   EmployeeChangeRequestRevision: 'ฉบับแก้ไขข้อมูลพนักงาน', EmployeeLicense: 'ใบอนุญาตพนักงาน',
   EmployeeLicenseDocument: 'เอกสารใบอนุญาต', EmployeeLifecycleEvent: 'ประวัติพนักงาน', EmployeeReferencePhoto: 'รูปอ้างอิงพนักงาน',

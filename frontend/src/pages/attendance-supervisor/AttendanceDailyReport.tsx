@@ -134,7 +134,7 @@ export function AttendanceDailyReport({ date, rows, loading = false, error, filt
         </section>
         <table>
           <thead><tr>
-            <th scope="col">ลำดับ</th><th scope="col">ชื่อ-สกุล</th><th scope="col">รหัส</th><th scope="col">แผนก</th>
+            <th scope="col">ลำดับ</th><th scope="col">ชื่อ-สกุล</th><th scope="col">รหัส</th><th scope="col">จุดปฏิบัติงาน</th>
             <th scope="col">เวลาเข้า</th><th scope="col">เวลาออก</th><th scope="col">ชั่วโมง</th><th scope="col">สถานะ</th>
             <th scope="col">สถานที่</th><th scope="col">หมายเหตุ</th>
           </tr></thead>

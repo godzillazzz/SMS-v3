@@ -44,7 +44,7 @@ test('S1 (OWNER policy 2026-10-30): SUPERVISOR may use the patrol report filter 
 
 // S2 previously failed closed for a SUPERVISOR without a department; the scope is now all departments.
 test('S2 (OWNER policy 2026-10-30): SUPERVISOR without department gets the all-department scope; VIEWER still fails closed', () => {
-  assert.deepEqual(resolveReportScope({ role: 'SUPERVISOR', department: null, employeeId: 'synthetic-employee' }), { department: null, employeeId: null, label: 'ทุกหน่วยงาน', allowsDepartmentFilter: true });
+  assert.deepEqual(resolveReportScope({ role: 'SUPERVISOR', department: null, employeeId: 'synthetic-employee' }), { department: null, employeeId: null, label: 'ทุกจุดปฏิบัติงาน', allowsDepartmentFilter: true });
   assert.throws(() => resolveReportScope({ role: 'VIEWER', department: 'AN1', employeeId: 'synthetic-employee' }), (error) => error.statusCode === 403);
 });
 

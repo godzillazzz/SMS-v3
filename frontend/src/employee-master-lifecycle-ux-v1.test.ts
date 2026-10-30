@@ -26,7 +26,7 @@ describe('Employee critical change actions V2', () => {
       "EMPLOYMENT_TERMINATION",
       "REHIRE",
       "เปลี่ยนชื่อ",
-      "ย้ายหน่วยงาน",
+      "ย้ายจุดปฏิบัติงาน",
       "เปลี่ยนตำแหน่ง",
       "ลาออก",
       "กลับเข้าทำงาน"
@@ -38,21 +38,21 @@ describe('Employee critical change actions V2', () => {
   it('removes duplicate direct editing paths for lifecycle-controlled identity and assignment fields', () => {
     expect(editor).toContain('ชื่อปัจจุบัน');
     expect(editor).toContain('นามสกุลปัจจุบัน');
-    expect(editor).toContain('หน่วยงานปัจจุบัน');
+    expect(editor).toContain('จุดปฏิบัติงานปัจจุบัน');
     expect(editor).toContain('ตำแหน่งปัจจุบัน');
     expect(editor).toContain('readOnly aria-readonly="true"');
     expect(editor).toContain('ใช้ “เปลี่ยนชื่อ” ในหัวข้อ 3. การเปลี่ยนแปลง');
-    expect(editor).toContain('ใช้ “ย้ายหน่วยงาน” ในหัวข้อ 3');
+    expect(editor).toContain('ใช้ “ย้ายจุดปฏิบัติงาน” ในหัวข้อ 3');
     expect(editor).toContain('ใช้ “เปลี่ยนตำแหน่ง” ในหัวข้อ 3');
   });
 
   it('name transfer and position actions show current-to-new context while preserving one Employee identity', () => {
     expect(editor).toContain('ชื่อใหม่');
     expect(editor).toContain('นามสกุลใหม่');
-    expect(editor).toContain('หน่วยงานใหม่');
+    expect(editor).toContain('จุดปฏิบัติงานใหม่');
     expect(editor).toContain('ตำแหน่งใหม่');
     expect(editor).toContain('ปัจจุบัน');
-    expect(editor).toContain('หน่วยงานเดิม');
+    expect(editor).toContain('จุดปฏิบัติงานเดิม');
     expect(editor).toContain('ตำแหน่งเดิม');
     expect(editor).toContain('ระบบจะคงรหัสพนักงานเดิม');
     expect(editor).toContain('api.preflightEmployeeMasterEdit');
@@ -98,7 +98,7 @@ describe('Employee critical change actions V2', () => {
   it('revision history identifies critical change categories in readable labels', () => {
     expect(editor).toContain('revisionCriticalLabels');
     expect(editor).toContain('employee-revision-actions');
-    for (const label of ['เปลี่ยนชื่อ', 'ย้ายหน่วยงาน', 'เปลี่ยนตำแหน่ง', 'เปลี่ยนสถานะการจ้าง']) expect(editor).toContain(label);
+    for (const label of ['เปลี่ยนชื่อ', 'ย้ายจุดปฏิบัติงาน', 'เปลี่ยนตำแหน่ง', 'เปลี่ยนสถานะการจ้าง']) expect(editor).toContain(label);
   });
 
   it('critical action layout remains usable on tablet and phone', () => {

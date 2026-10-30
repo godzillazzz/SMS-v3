@@ -21,7 +21,7 @@ async function signIn(page: Page, monthPrintRequests: string[], role = 'ADMIN') 
   await page.route('**/api/v1/**', (request) => request.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ data: [], meta: { page: 1, total: 0, pageSize: 20, totalPages: 1 } }) }));
   const executiveReport = {
     period: { year: 2026, month: 10, startDate: '2026-10-01', endDate: '2026-10-31', label: 'ตุลาคม 2569' },
-    scope: { departmentName: 'ทุกหน่วยงาน', allowsDepartmentFilter: true, availableDepartments: ['ANO', 'WCS'] },
+    scope: { departmentName: 'ทุกจุดปฏิบัติงาน', allowsDepartmentFilter: true, availableDepartments: ['ANO', 'WCS'] },
     // OWNER policy 2026-10-30: MANAGER/SUPERVISOR receive the all-department KPI like ADMIN; only the ADMIN-only link is removed.
     executiveSummary: kpis.map((item) => role === 'ADMIN' || item.key !== 'criticalDataQuality' ? item : { ...item, targetPath: null }),
     workforce: { totalEmployees: 54, activeEmployees: 52, byDepartment: [{ label: 'ศูนย์ฝึก', count: 20 }, { label: 'พื้นที่เหนือ', count: 18 }, { label: 'พื้นที่คลัง', count: 14 }] }, schedule: { assignmentCount: 500, periodNote: '' },
@@ -71,7 +71,7 @@ for (const viewport of [{ width: 1366, height: 768 }, { width: 375, height: 812 
     // ADMIN sees 5 groups: schedule, personnel, attendance, patrol (owner item 10, 30 Oct 2026), executive.
     await expect(panel.locator('.report-center-export-group')).toHaveCount(5);
     await expect(panel.locator('#export-group-patrol')).toHaveText('การตรวจจุด');
-    for (const title of ['รายงานการตรวจจุดประจำวัน', 'รายงานการตรวจจุดรายแผนก', 'รายงานการตรวจจุดทุกแผนก']) await expect(panel.getByRole('heading', { name: title })).toBeVisible();
+    for (const title of ['รายงานการตรวจจุดประจำวัน', 'รายงานการตรวจจุดรายจุดปฏิบัติงาน', 'รายงานการตรวจจุดทุกจุดปฏิบัติงาน']) await expect(panel.getByRole('heading', { name: title })).toBeVisible();
     for (const title of ['ส่งออกตารางกะ', 'พิมพ์ทะเบียนพนักงาน', 'พิมพ์ทะเบียนใบอนุญาต รปภ.', 'รายงานการลงเวลารายบุคคลของ รปภ.', 'รายงานการลงเวลารายบุคคลทั้งหมด']) {
       await expect(panel.getByRole('heading', { name: title, exact: true })).toBeVisible();
     }
@@ -110,7 +110,7 @@ for (const viewport of [{ width: 1366, height: 768 }, { width: 375, height: 812 
     await expect(panel.locator('.executive-report-context')).toContainText('พนักงานที่ปฏิบัติงาน 52 คน');
     await expect(panel.locator('[data-kpi="patrolCoverage"] .executive-kpi-value strong')).toHaveText('—');
     await expect(panel.locator('[data-kpi="pendingQueue"]')).toContainText('ณ ปัจจุบัน');
-    await expect(panel.getByRole('heading', { name: 'ความครบถ้วนการตรวจจุดรายแผนก' })).toBeVisible();
+    await expect(panel.getByRole('heading', { name: 'ความครบถ้วนการตรวจจุดรายจุดปฏิบัติงาน' })).toBeVisible();
     await expect(panel.getByRole('heading', { name: 'ประเด็นที่ผู้บริหารควรติดตาม' })).toBeVisible();
     await expect(panel.locator('.executive-report-attention-list article')).toHaveCount(3);
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
@@ -152,5 +152,5 @@ test('SUPERVISOR overview never links the ADMIN-only data-quality page and offer
   await expect(card).not.toContainText('ไม่พร้อมใน scope');
   expect(await card.evaluate((node) => node.tagName)).toBe('ARTICLE');
   await expect(page.locator('.report-center-filters select')).toHaveCount(3, { timeout: 5_000 });
-  await expect(page.locator('.report-center-filters label', { hasText: 'หน่วยงาน' })).toBeVisible();
+  await expect(page.locator('.report-center-filters label', { hasText: 'จุดปฏิบัติงาน' })).toBeVisible();
 });

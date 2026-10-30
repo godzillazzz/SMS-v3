@@ -89,7 +89,7 @@ describe('Monthly timesheet (owner reference layout)', () => {
 
   it('renders header, employee block, summary, every day and signatures; unknown data shows –', () => {
     const html = renderToStaticMarkup(<AttendanceOfficialReportPrint report={report} printedAt="2026-09-01T00:00:00.000Z" />);
-    for (const text of ['ใบลงเวลาทำงาน', 'Monthly Timesheet', 'R', 'สิงหาคม พ.ศ. 2569', 'สมชาย ใจดี', 'EMP-001', 'ตำแหน่ง', 'แผนก', 'เวลาทำงาน',
+    for (const text of ['ใบลงเวลาทำงาน', 'Monthly Timesheet', 'R', 'สิงหาคม พ.ศ. 2569', 'สมชาย ใจดี', 'EMP-001', 'ตำแหน่ง', 'จุดปฏิบัติงาน', 'เวลาทำงาน',
       'วันทำงาน', 'มาทำงาน', 'มาสาย', 'ออกก่อนเวลา', 'ลางาน', 'ไม่มีบันทึก', 'นอกสถานที่', 'ชั่วโมงรวม', '34:00', 'ลงชื่อ', '( สมชาย ใจดี )', 'หัวหน้างาน', 'ฝ่ายบุคคล']) expect(html).toContain(text);
     const heads = [...html.matchAll(/<th[^>]*>([^<]*)<\/th>/g)].map((m) => m[1]);
     expect(heads).toEqual(['วันที่', 'วัน', 'เข้างาน', 'ออกงาน', 'ชั่วโมง', 'สถานะ', 'สถานที่', 'หมายเหตุ']);

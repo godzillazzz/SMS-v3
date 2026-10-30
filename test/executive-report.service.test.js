@@ -37,7 +37,7 @@ test('Executive Report uses Bangkok current period and exact leave overlap month
 // MANAGER previously was pinned to its own department; it now gets the ADMIN scope (all + free filter).
 test('Executive Report scopes ADMIN and MANAGER globally or by requested department', () => {
   assert.deepEqual(resolveReportScope({ role: 'ADMIN' }, 'Operations'), { department: 'Operations', employeeId: null, label: 'Operations', allowsDepartmentFilter: true });
-  assert.deepEqual(resolveReportScope({ role: 'MANAGER', department: 'Operations', employeeId: 'employee-1' }), { department: null, employeeId: null, label: 'ทุกหน่วยงาน', allowsDepartmentFilter: true });
+  assert.deepEqual(resolveReportScope({ role: 'MANAGER', department: 'Operations', employeeId: 'employee-1' }), { department: null, employeeId: null, label: 'ทุกจุดปฏิบัติงาน', allowsDepartmentFilter: true });
   assert.deepEqual(resolveReportScope({ role: 'MANAGER', department: 'Operations' }, 'Other'), { department: 'Other', employeeId: null, label: 'Other', allowsDepartmentFilter: true });
   assert.throws(() => resolveReportScope({ role: 'VIEWER', department: 'Operations' }), { statusCode: 403 });
 });

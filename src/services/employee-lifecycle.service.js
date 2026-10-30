@@ -146,7 +146,7 @@ function nextSnapshot(type, priorSnapshot, changes = {}, effectiveDate) {
     current.displayName = `${current.firstName} ${current.lastName}`.trim();
     if (next.user) next.user.displayName = current.displayName;
   } else if (type === 'DEPARTMENT_TRANSFER') {
-    current.department = cleanText(changes.department, 'หน่วยงาน');
+    current.department = cleanText(changes.department, 'จุดปฏิบัติงาน');
     if (next.user) next.user.department = current.department;
   } else if (type === 'POSITION_CHANGE') {
     current.jobTitle = cleanText(changes.jobTitle, 'ตำแหน่ง');
@@ -161,7 +161,7 @@ function nextSnapshot(type, priorSnapshot, changes = {}, effectiveDate) {
   } else if (type === 'REHIRE') {
     current.isActive = true;
     current.employmentStatus = 'ACTIVE';
-    if (String(changes.department || '').trim()) current.department = cleanText(changes.department, 'หน่วยงาน');
+    if (String(changes.department || '').trim()) current.department = cleanText(changes.department, 'จุดปฏิบัติงาน');
     if (String(changes.jobTitle || '').trim()) current.jobTitle = cleanText(changes.jobTitle, 'ตำแหน่ง');
     if (next.user) {
       next.user.department = current.department;
@@ -181,7 +181,7 @@ function actionValidation(type, prior, next) {
   if (!EVENT_TYPES.includes(type)) add('UNSUPPORTED_EVENT_TYPE', 'ประเภทการเปลี่ยนแปลงไม่ถูกต้อง');
   if (type === 'MASTER_EDIT' && sameControlledState(prior.employee, next.employee, MASTER_FIELDS)) add('NO_STATE_CHANGE', 'Employee Master proposal does not change authoritative data.');
   if (type === 'NAME_CHANGE' && prior.employee.displayName === next.employee.displayName) add('NO_STATE_CHANGE', 'ชื่อใหม่ต้องแตกต่างจากชื่อปัจจุบัน');
-  if (type === 'DEPARTMENT_TRANSFER' && prior.employee.department === next.employee.department) add('NO_STATE_CHANGE', 'หน่วยงานใหม่ต้องแตกต่างจากหน่วยงานปัจจุบัน');
+  if (type === 'DEPARTMENT_TRANSFER' && prior.employee.department === next.employee.department) add('NO_STATE_CHANGE', 'จุดปฏิบัติงานใหม่ต้องแตกต่างจากจุดปฏิบัติงานปัจจุบัน');
   if (type === 'POSITION_CHANGE' && prior.employee.jobTitle === next.employee.jobTitle) add('NO_STATE_CHANGE', 'ตำแหน่งใหม่ต้องแตกต่างจากตำแหน่งปัจจุบัน');
   if (type === 'EMPLOYMENT_TERMINATION' && !prior.employee.isActive) add('EMPLOYEE_NOT_ACTIVE', 'พนักงานไม่ได้อยู่ในสถานะปฏิบัติงาน');
   if (type === 'REHIRE' && prior.employee.isActive) add('EMPLOYEE_ALREADY_ACTIVE', 'พนักงานอยู่ในสถานะปฏิบัติงานอยู่แล้ว');

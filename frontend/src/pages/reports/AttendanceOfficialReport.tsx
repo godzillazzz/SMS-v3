@@ -279,8 +279,8 @@ export function AttendanceOfficialReportPanel({ token, month, role, enabled, ini
     {report && <div className="attendance-report-controls" aria-label="ตัวเลือกการพิมพ์ใบลงเวลา">
       <label><span>ข้อมูลถึงวันที่</span><input type="date" aria-label="ข้อมูลถึงวันที่" min={`${month}-01`} max={monthEndDate(month)} value={throughDate} onChange={(event) => setThroughDate(normalizeThroughDate(month, event.target.value))} /></label>
       {role === 'ADMIN'
-        ? <label><span>แผนก</span><select aria-label="เลือกแผนกสำหรับพิมพ์" value={selectedDepartment} onChange={(event) => { setSelectedDepartment(event.target.value); setSelectedEmployeeId(''); }}><option value="">ทุกแผนก</option>{departments.map((department) => <option value={department} key={department}>{department}</option>)}</select></label>
-        : <p className="attendance-report-scope">แผนกที่ได้รับอนุญาต: <strong>{report.scope?.department || departments[0] || 'ไม่พบขอบเขตแผนก'}</strong></p>}
+        ? <label><span>จุดปฏิบัติงาน</span><select aria-label="เลือกจุดปฏิบัติงานสำหรับพิมพ์" value={selectedDepartment} onChange={(event) => { setSelectedDepartment(event.target.value); setSelectedEmployeeId(''); }}><option value="">ทุกจุดปฏิบัติงาน</option>{departments.map((department) => <option value={department} key={department}>{department}</option>)}</select></label>
+        : <p className="attendance-report-scope">จุดปฏิบัติงานที่ได้รับอนุญาต: <strong>{report.scope?.department || departments[0] || 'ไม่พบขอบเขตจุดปฏิบัติงาน'}</strong></p>}
       <label><span>พนักงาน</span><select aria-label="เลือกพนักงานสำหรับพิมพ์" value={selectedPage?.[0]?.employeeId || ''} onChange={(event) => setSelectedEmployeeId(event.target.value)} disabled={!visibleEmployeePages.length}>{visibleEmployeePages.map((rows) => <option value={rows[0].employeeId} key={rows[0].employeeId}>{rows[0].employeeCode || '—'} · {rows[0].employeeName}</option>)}</select></label>
     </div>}
     {loading && <div className="report-center-state" role="status">กำลังโหลด Certified Attendance Snapshot…</div>}
@@ -375,7 +375,7 @@ export function AttendanceOfficialReportPrint({ report, employeePages, throughDa
           <div><span>ชื่อ-สกุล</span><strong>{first?.employeeName || DASH}</strong></div>
           <div><span>รหัสพนักงาน</span><strong>{first?.employeeCode || DASH}</strong></div>
           <div><span>ตำแหน่ง</span><strong>{DASH}</strong></div>
-          <div><span>แผนก</span><strong>{first?.department || DASH}</strong></div>
+          <div><span>จุดปฏิบัติงาน</span><strong>{first?.department || DASH}</strong></div>
           <div><span>สถานที่ปฏิบัติงาน (Site)</span><strong>{sites.length ? sites.join(', ') : DASH}</strong></div>
           <div className="timesheet-employee--wide"><span>เวลาทำงาน</span><strong>{schedules.length ? schedules.join(', ') : DASH}</strong></div>
         </section>

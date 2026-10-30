@@ -81,7 +81,7 @@ function contextText(result: DetailResponse | undefined, query: DetailQuery): st
   const values = [
     result?.date || query.date ? 'วันที่ ' + (result?.date || query.date) : undefined,
     result?.month || query.month ? 'เดือน ' + (result?.month || query.month) : undefined,
-    result?.department || query.department ? 'แผนก ' + (result?.department || query.department) : undefined,
+    result?.department || query.department ? 'จุดปฏิบัติงาน ' + (result?.department || query.department) : undefined,
     result?.status || query.status ? 'สถานะ ' + (result?.status || query.status) : undefined,
     result?.expiryBucket || query.expiryBucket
   ].filter(Boolean);

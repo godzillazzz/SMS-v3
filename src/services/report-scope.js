@@ -34,7 +34,7 @@ function resolveDepartmentScope(requestUser, requestedDepartment) {
   const role = String(requestUser?.role || '').toUpperCase();
   if (!REPORT_SCOPE_ROLES.has(role)) throw new HttpError(403, 'Department report scope is required.');
   const department = requestedDepartment ? String(requestedDepartment).trim() || null : null;
-  return { department, departments: departmentValues(department), employeeId: null, label: department || 'ทุกหน่วยงาน', allowsDepartmentFilter: true };
+  return { department, departments: departmentValues(department), employeeId: null, label: department || 'ทุกจุดปฏิบัติงาน', allowsDepartmentFilter: true };
 }
 
 module.exports = { departmentValues, departmentMatches, scopedDepartmentValues, departmentWhere, resolveDepartmentScope };

@@ -72,7 +72,7 @@ export function quotaProvisioningEmployeeOptions(employees: QuotaEmployee[], quo
     .filter((employee) => employee.isActive && !annualEmployeeIds.has(employee.id) && !ambiguousLegacyEmployeeIds.has(employee.id))
     .map((employee) => ({
       value: employee.id,
-      label: `${employee.employeeCode} · ${employee.firstName} ${employee.lastName} · ${employee.department || 'ไม่ระบุหน่วยงาน'}`
+      label: `${employee.employeeCode} · ${employee.firstName} ${employee.lastName} · ${employee.department || 'ไม่ระบุจุดปฏิบัติงาน'}`
     }));
 }
 

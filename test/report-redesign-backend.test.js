@@ -58,10 +58,10 @@ test('S1 patrol report: MANAGER/SUPERVISOR use the free department filter like A
 test('S2 executive scope: MANAGER/SUPERVISOR without department get all departments, never an employee-ID scope; VIEWER fails closed', async () => {
   for (const role of ['MANAGER', 'SUPERVISOR']) {
     for (const department of [null, '', ' , ']) {
-      assert.deepEqual(resolveReportScope({ role, department, employeeId: 'synthetic-employee' }), { department: null, employeeId: null, label: 'ทุกหน่วยงาน', allowsDepartmentFilter: true });
+      assert.deepEqual(resolveReportScope({ role, department, employeeId: 'synthetic-employee' }), { department: null, employeeId: null, label: 'ทุกจุดปฏิบัติงาน', allowsDepartmentFilter: true });
     }
     const report = await getExecutiveReport({ prismaClient: reportPrisma(), requestUser: { role, department: null, employeeId: 'synthetic-employee' }, filters: { year: 2026, month: 8 } });
-    assert.equal(report.scope.departmentName, 'ทุกหน่วยงาน');
+    assert.equal(report.scope.departmentName, 'ทุกจุดปฏิบัติงาน');
   }
   assert.throws(() => resolveReportScope({ role: 'VIEWER', department: 'AN1', employeeId: 'synthetic-employee' }), (error) => error.statusCode === 403);
   assert.equal(resolveReportScope({ role: 'ADMIN' }).department, null);

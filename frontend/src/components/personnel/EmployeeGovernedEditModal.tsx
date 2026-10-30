@@ -48,7 +48,7 @@ type PersonnelMasterData = { departments: PersonnelMasterOption[]; positions: Pe
 
 const criticalActionLabels: Record<CriticalChangeAction, string> = {
   NAME_CHANGE: 'เปลี่ยนชื่อ',
-  DEPARTMENT_TRANSFER: 'ย้ายหน่วยงาน',
+  DEPARTMENT_TRANSFER: 'ย้ายจุดปฏิบัติงาน',
   POSITION_CHANGE: 'เปลี่ยนตำแหน่ง',
   EMPLOYMENT_TERMINATION: 'ลาออก',
   REHIRE: 'กลับเข้าทำงาน'
@@ -65,7 +65,7 @@ const inferCriticalAction = (proposal: Record<string, unknown> | null | undefine
 const revisionCriticalLabels = (fields: string[]) => {
   const values: string[] = [];
   if (fields.some((field) => field === 'firstName' || field === 'lastName')) values.push('เปลี่ยนชื่อ');
-  if (fields.includes('department')) values.push('ย้ายหน่วยงาน');
+  if (fields.includes('department')) values.push('ย้ายจุดปฏิบัติงาน');
   if (fields.includes('jobTitle')) values.push('เปลี่ยนตำแหน่ง');
   if (fields.includes('isActive')) values.push('เปลี่ยนสถานะการจ้าง');
   return values;
@@ -73,7 +73,7 @@ const revisionCriticalLabels = (fields: string[]) => {
 const activeStatuses = new Set(['DRAFT', 'PENDING_APPROVAL', 'RETURNED_FOR_CORRECTION']);
 const operationalFields = ['employeeCode', 'firstName', 'lastName', 'department', 'jobTitle', 'isActive'] as const;
 const adminFields = [...operationalFields, 'email', 'phone', 'address', 'emergencyContact', 'emergencyPhone', 'hiredAt', 'skill'] as const;
-const labels: Record<string, string> = { employeeCode: 'รหัสพนักงาน', firstName: 'ชื่อ', lastName: 'นามสกุล', email: 'อีเมลติดต่อ', phone: 'โทรศัพท์', address: 'ที่อยู่', emergencyContact: 'ผู้ติดต่อฉุกเฉิน', emergencyPhone: 'โทรศัพท์ฉุกเฉิน', department: 'หน่วยงาน', jobTitle: 'ตำแหน่ง', hiredAt: 'วันที่เริ่มงาน', skill: 'ทักษะ/คุณสมบัติ', isActive: 'สถานะการทำงาน' };
+const labels: Record<string, string> = { employeeCode: 'รหัสพนักงาน', firstName: 'ชื่อ', lastName: 'นามสกุล', email: 'อีเมลติดต่อ', phone: 'โทรศัพท์', address: 'ที่อยู่', emergencyContact: 'ผู้ติดต่อฉุกเฉิน', emergencyPhone: 'โทรศัพท์ฉุกเฉิน', department: 'จุดปฏิบัติงาน', jobTitle: 'ตำแหน่ง', hiredAt: 'วันที่เริ่มงาน', skill: 'ทักษะ/คุณสมบัติ', isActive: 'สถานะการทำงาน' };
 const statusLabel: Record<string, string> = { DRAFT: 'ฉบับร่าง', PENDING_APPROVAL: `รอ ${roleDisplayName('ADMIN')} อนุมัติ`, RETURNED_FOR_CORRECTION: 'ส่งกลับให้แก้ไข', APPROVED: 'อนุมัติแล้ว', REJECTED: 'ไม่อนุมัติ', CANCELLED: 'ยกเลิกแล้ว' };
 const impactLabels: Record<keyof Preflight['impacts'], string> = { futureShiftAssignments: 'เวรในอนาคต', pendingLeaveRequests: 'ลารอพิจารณา', approvedFutureLeaveRequests: 'ลาอนุมัติในอนาคต', activeLicenses: 'ใบอนุญาต', licenseDocuments: 'เอกสารใบอนุญาต' };
 const approvedFutureRequest = (requests: ChangeRequest[]) => requests.find((request) => request.status === 'APPROVED' && !request.appliedAt && request.revisions?.some((revision) => revision.effectiveMode === 'FUTURE_EFFECTIVE'));
@@ -151,7 +151,7 @@ export function EmployeeGovernedEditModal({ token, employee, role, onClose, onCh
       if (!active) return;
       const data = result?.data as PersonnelMasterData | undefined;
       setPersonnelMasters({ departments: Array.isArray(data?.departments) ? data!.departments : [], positions: Array.isArray(data?.positions) ? data!.positions : [] });
-    }).catch(() => { if (active) setPersonnelMastersError('ไม่สามารถโหลดรายการหน่วยงานและตำแหน่งได้ จึงปิดการเปลี่ยนหน่วยงานและตำแหน่งไว้ชั่วคราว'); })
+    }).catch(() => { if (active) setPersonnelMastersError('ไม่สามารถโหลดรายการจุดปฏิบัติงานและตำแหน่งได้ จึงปิดการเปลี่ยนจุดปฏิบัติงานและตำแหน่งไว้ชั่วคราว'); })
       .finally(() => { if (active) setPersonnelMastersLoading(false); });
     return () => { active = false; };
   }, [token]);
@@ -268,7 +268,7 @@ export function EmployeeGovernedEditModal({ token, employee, role, onClose, onCh
       <header className="employee-governed-header"><div><p>ข้อมูลพนักงาน · ขั้นตอนการแก้ไขที่กำกับไว้</p><h2 id="employee-governed-title">แก้ไขข้อมูลพนักงาน</h2><span>{employee.employeeCode} · {employee.firstName} {employee.lastName}</span></div><button ref={closeRef} type="button" aria-label="ปิด" onClick={onClose} disabled={busy}><SmsIcon name="close" size={20} /></button></header>
       <div className="employee-governed-body">
         {!isAdmin && activeRequest && <div className={`employee-request-banner employee-request-banner--${activeRequest.status.toLowerCase()}`}><strong>{statusLabel[activeRequest.status]}</strong><span>คำขอ · ฉบับที่ {activeRequest.currentRevision || '—'}</span>{activeRequest.lastReviewerComment && <p>ความเห็นจากผู้ดูแลระบบ: {activeRequest.lastReviewerComment}</p>}</div>}
-        {!isAdmin && activeRequest && <section className="employee-authoritative-context"><strong>ข้อมูลทะเบียนพนักงานปัจจุบัน</strong><div><span>รหัส {employee.employeeCode}</span><span>{employee.firstName} {employee.lastName}</span><span>{employee.department || 'ไม่ระบุหน่วยงาน'}</span><span>{employee.jobTitle || 'ไม่ระบุตำแหน่ง'}</span><span>{employee.isActive ? 'ปฏิบัติงาน' : 'ลาออก'}</span></div><small>{activeRequest.status === 'PENDING_APPROVAL' ? 'ข้อเสนอที่ส่งแล้วแสดงแบบอ่านอย่างเดียวด้านล่าง' : activeRequest.status === 'RETURNED_FOR_CORRECTION' ? 'ฟอร์มด้านล่างเป็นข้อเสนอเดิมที่ส่งกลับมาให้แก้ไข โดยฉบับก่อนหน้ายังคงไม่เปลี่ยนแปลง' : 'ฟอร์มด้านล่างเป็นฉบับร่างที่ยังไม่ส่งตรวจสอบ'}</small></section>}
+        {!isAdmin && activeRequest && <section className="employee-authoritative-context"><strong>ข้อมูลทะเบียนพนักงานปัจจุบัน</strong><div><span>รหัส {employee.employeeCode}</span><span>{employee.firstName} {employee.lastName}</span><span>{employee.department || 'ไม่ระบุจุดปฏิบัติงาน'}</span><span>{employee.jobTitle || 'ไม่ระบุตำแหน่ง'}</span><span>{employee.isActive ? 'ปฏิบัติงาน' : 'ลาออก'}</span></div><small>{activeRequest.status === 'PENDING_APPROVAL' ? 'ข้อเสนอที่ส่งแล้วแสดงแบบอ่านอย่างเดียวด้านล่าง' : activeRequest.status === 'RETURNED_FOR_CORRECTION' ? 'ฟอร์มด้านล่างเป็นข้อเสนอเดิมที่ส่งกลับมาให้แก้ไข โดยฉบับก่อนหน้ายังคงไม่เปลี่ยนแปลง' : 'ฟอร์มด้านล่างเป็นฉบับร่างที่ยังไม่ส่งตรวจสอบ'}</small></section>}
         {(activeRequest || futureApprovedRequest) && <section className="employee-governed-section employee-change-conflict-summary" aria-label="สถานะคำขอและรายการรอมีผล"><h3>สถานะการเปลี่ยนแปลงที่ต้องเห็นก่อนแก้ไข</h3>{activeRequest && <div className={`employee-request-banner employee-request-banner--${activeRequest.status.toLowerCase()}`}><strong>{statusLabel[activeRequest.status] || 'ไม่ระบุสถานะ'}</strong><span>มีคำขอที่ยังอยู่ระหว่างดำเนินการ · ฉบับที่ {activeRequest.currentRevision || '—'}</span></div>}{futureApprovedRequest && <div className="employee-request-banner employee-request-banner--approved"><strong>อนุมัติแล้ว · รอวันที่มีผล</strong><span>{futureApprovedRequest.revisions?.find((revision) => revision.effectiveMode === 'FUTURE_EFFECTIVE')?.effectiveDate ? `มีผล ${cleanDate(futureApprovedRequest.revisions?.find((revision) => revision.effectiveMode === 'FUTURE_EFFECTIVE')?.effectiveDate)}` : 'มีรายการเปลี่ยนแปลงที่กำหนดวันมีผลล่วงหน้าซึ่งยังไม่มีผล'}</span></div>}<small>ระบบไม่รวมรายการเหล่านี้เข้ากับการแก้ไขใหม่โดยอัตโนมัติ และระบบส่วนกลางยังคงเป็นผู้ตรวจสอบความขัดแย้งและการแก้ไขพร้อมกัน</small></section>}
         {error && <div className="employee-governed-alert employee-governed-alert--error"><RequestErrorContent error={error} /></div>}
         {notice && <div className="employee-governed-alert employee-governed-alert--success">{notice}</div>}
@@ -279,7 +279,7 @@ export function EmployeeGovernedEditModal({ token, employee, role, onClose, onCh
           {isAdmin && <><label><span>อีเมลติดต่อ</span><input type="email" value={String(form.email || '')} onChange={(event) => update('email', event.target.value)} /></label><label><span>โทรศัพท์</span><input value={String(form.phone || '')} onChange={(event) => update('phone', event.target.value)} /></label>{(['address', 'emergencyContact', 'emergencyPhone'] as const).map((field) => <label key={field}><span>{labels[field]}</span><input maxLength={field === 'address' ? 500 : field === 'emergencyContact' ? 255 : 50} value={String(form[field] || '')} onChange={(event) => update(field, event.target.value)} /></label>)}</>}
         </div></section>
         <section className="employee-governed-section"><h3>2. ข้อมูลการปฏิบัติงาน</h3><div className="employee-governed-grid">
-          <label><span>หน่วยงานปัจจุบัน</span><input value={String(employee.department || '')} readOnly aria-readonly="true" /><small>ใช้ “ย้ายหน่วยงาน” ในหัวข้อ 3 เพื่อเปลี่ยนอย่างมีประวัติ</small></label>
+          <label><span>จุดปฏิบัติงานปัจจุบัน</span><input value={String(employee.department || '')} readOnly aria-readonly="true" /><small>ใช้ “ย้ายจุดปฏิบัติงาน” ในหัวข้อ 3 เพื่อเปลี่ยนอย่างมีประวัติ</small></label>
           <label><span>ตำแหน่งปัจจุบัน</span><input value={String(employee.jobTitle || '')} readOnly aria-readonly="true" /><small>ใช้ “เปลี่ยนตำแหน่ง” ในหัวข้อ 3 เพื่อเปลี่ยนอย่างมีประวัติ</small></label>
           {isAdmin && <><label><span>วันที่เริ่มงาน</span><input type="date" value={cleanDate(employee.hiredAt)} readOnly aria-readonly="true" /><small>วันที่เริ่มงานเป็นข้อมูลลำดับเหตุการณ์การจ้าง หากต้องแก้ต้องใช้ขั้นตอนแก้ไขประวัติที่มีเหตุผลและบันทึกประวัติการใช้งาน</small></label><label className="employee-governed-wide"><span>ทักษะ / คุณสมบัติ</span><input value={String(form.skill || '')} onChange={(event) => update('skill', event.target.value)} /></label></>}
         </div></section>
@@ -288,7 +288,7 @@ export function EmployeeGovernedEditModal({ token, employee, role, onClose, onCh
           <small className="employee-governed-section-note">เลือกประเภทการเปลี่ยนแปลงสำคัญจากจุดเดียว ระบบจะคงรหัสพนักงานเดิม เก็บข้อมูลก่อนและหลังการเปลี่ยนแปลง วันที่มีผล ผู้ดำเนินการ เหตุผล และประวัติการใช้งานตามขั้นตอนเดิม</small>
           <div className="employee-change-action-grid" role="group" aria-label="ประเภทการเปลี่ยนแปลงพนักงาน">
             <button type="button" className={criticalAction === 'NAME_CHANGE' ? 'is-active' : ''} disabled={pendingReadOnly || busy} onClick={() => selectCriticalAction('NAME_CHANGE')}><strong>เปลี่ยนชื่อ</strong><small>{employee.firstName} {employee.lastName}</small></button>
-            <button type="button" className={criticalAction === 'DEPARTMENT_TRANSFER' ? 'is-active' : ''} disabled={pendingReadOnly || busy} onClick={() => selectCriticalAction('DEPARTMENT_TRANSFER')}><strong>ย้ายหน่วยงาน / แผนก</strong><small>{employee.department || 'ยังไม่ระบุหน่วยงาน'}</small></button>
+            <button type="button" className={criticalAction === 'DEPARTMENT_TRANSFER' ? 'is-active' : ''} disabled={pendingReadOnly || busy} onClick={() => selectCriticalAction('DEPARTMENT_TRANSFER')}><strong>ย้ายจุดปฏิบัติงาน</strong><small>{employee.department || 'ยังไม่ระบุจุดปฏิบัติงาน'}</small></button>
             <button type="button" className={criticalAction === 'POSITION_CHANGE' ? 'is-active' : ''} disabled={pendingReadOnly || busy} onClick={() => selectCriticalAction('POSITION_CHANGE')}><strong>เปลี่ยนตำแหน่ง</strong><small>{employee.jobTitle || 'ยังไม่ระบุตำแหน่ง'}</small></button>
             {employee.isActive
               ? <button type="button" className={criticalAction === 'EMPLOYMENT_TERMINATION' ? 'is-active is-danger' : 'is-danger'} disabled={pendingReadOnly || busy} onClick={() => selectCriticalAction('EMPLOYMENT_TERMINATION')}><strong>ลาออก</strong><small>สิ้นสุดสถานะปฏิบัติงาน</small></button>
@@ -303,8 +303,8 @@ export function EmployeeGovernedEditModal({ token, employee, role, onClose, onCh
               <div className="employee-critical-before-after employee-governed-wide"><span>ปัจจุบัน <b>{employee.firstName} {employee.lastName}</b></span><span>หลังเปลี่ยน <b>{String(form.firstName || '')} {String(form.lastName || '')}</b></span></div>
             </div>}
             {criticalAction === 'DEPARTMENT_TRANSFER' && <div className="employee-governed-grid">
-              <label className="employee-governed-wide"><span>หน่วยงานใหม่ <b>*</b></span><select required value={String(form.department || '')} disabled={pendingReadOnly || personnelMastersLoading || Boolean(personnelMastersError)} onChange={(event) => update('department', event.target.value)}><option value="">เลือกหน่วยงาน</option>{personnelMasters.departments.map((item) => <option key={item.id} value={item.name}>{item.name}</option>)}</select>{personnelMastersError && <small>{personnelMastersError}</small>}</label>
-              <div className="employee-critical-before-after employee-governed-wide"><span>หน่วยงานเดิม <b>{employee.department || 'ไม่ระบุ'}</b></span><span>หน่วยงานใหม่ <b>{String(form.department || '') || 'ยังไม่ได้ระบุ'}</b></span></div>
+              <label className="employee-governed-wide"><span>จุดปฏิบัติงานใหม่ <b>*</b></span><select required value={String(form.department || '')} disabled={pendingReadOnly || personnelMastersLoading || Boolean(personnelMastersError)} onChange={(event) => update('department', event.target.value)}><option value="">เลือกจุดปฏิบัติงาน</option>{personnelMasters.departments.map((item) => <option key={item.id} value={item.name}>{item.name}</option>)}</select>{personnelMastersError && <small>{personnelMastersError}</small>}</label>
+              <div className="employee-critical-before-after employee-governed-wide"><span>จุดปฏิบัติงานเดิม <b>{employee.department || 'ไม่ระบุ'}</b></span><span>จุดปฏิบัติงานใหม่ <b>{String(form.department || '') || 'ยังไม่ได้ระบุ'}</b></span></div>
               <small className="employee-governed-wide employee-critical-hint">ระบบจะตรวจเวรในอนาคต ใบลา จุดปฏิบัติงาน หน่วยงาน และบัญชีผู้ใช้ที่เชื่อมโยงก่อนยืนยัน</small>
             </div>}
             {criticalAction === 'POSITION_CHANGE' && <div className="employee-governed-grid">
@@ -317,11 +317,11 @@ export function EmployeeGovernedEditModal({ token, employee, role, onClose, onCh
             <div className="employee-governed-grid employee-critical-governance">
               <label><span>รูปแบบวันที่มีผล</span><select value={effectiveMode} disabled={pendingReadOnly} onChange={(event) => { setEffectiveMode(event.target.value as 'IMMEDIATE' | 'FUTURE_EFFECTIVE'); invalidate(); }}><option value="IMMEDIATE">มีผลทันที</option><option value="FUTURE_EFFECTIVE">กำหนดวันที่มีผล</option></select></label>
               {effectiveMode === 'FUTURE_EFFECTIVE' && <label><span>วันที่มีผล <b>*</b></span><input type="date" required value={effectiveDate} disabled={pendingReadOnly} onChange={(event) => { setEffectiveDate(event.target.value); invalidate(); }} /></label>}
-              <label className="employee-governed-wide"><span>เหตุผล / หมายเหตุ <b>*</b></span><textarea rows={3} required={criticalReasonRequired} value={reason} disabled={pendingReadOnly} onChange={(event) => { setReason(event.target.value); invalidate(); }} /><small>การเปลี่ยนชื่อ ย้ายหน่วยงาน เปลี่ยนตำแหน่ง ลาออก และกลับเข้าทำงาน ต้องมีเหตุผลเพื่อบันทึกประวัติการใช้งาน</small></label>
+              <label className="employee-governed-wide"><span>เหตุผล / หมายเหตุ <b>*</b></span><textarea rows={3} required={criticalReasonRequired} value={reason} disabled={pendingReadOnly} onChange={(event) => { setReason(event.target.value); invalidate(); }} /><small>การเปลี่ยนชื่อ ย้ายจุดปฏิบัติงาน เปลี่ยนตำแหน่ง ลาออก และกลับเข้าทำงาน ต้องมีเหตุผลเพื่อบันทึกประวัติการใช้งาน</small></label>
             </div>
           </div>}
 
-          {!criticalAction && <div className="employee-critical-empty"><strong>เลือกประเภทการเปลี่ยนแปลง</strong><span>เปลี่ยนชื่อ · ย้ายหน่วยงาน · เปลี่ยนตำแหน่ง · {employee.isActive ? 'ลาออก' : 'กลับเข้าทำงาน'}</span></div>}
+          {!criticalAction && <div className="employee-critical-empty"><strong>เลือกประเภทการเปลี่ยนแปลง</strong><span>เปลี่ยนชื่อ · ย้ายจุดปฏิบัติงาน · เปลี่ยนตำแหน่ง · {employee.isActive ? 'ลาออก' : 'กลับเข้าทำงาน'}</span></div>}
         </section>
         <EmployeeReferencePhotoPanel token={token} employeeId={employee.id} role={role} onChanged={onChanged} />
         {isAdmin && preflight && <section className="employee-governed-section employee-impact"><h3>ตรวจสอบผลกระทบก่อนบันทึก</h3><div className="employee-impact-groups"><article className="employee-impact-group employee-impact-group--clear"><strong>ไม่กระทบ</strong>{impactGroups.noImpact.length ? impactGroups.noImpact.map((item) => <span key={item}>{item}</span>) : <span>—</span>}</article><article className="employee-impact-group employee-impact-group--review"><strong>ต้องตรวจสอบ</strong>{impactGroups.review.length ? impactGroups.review.map((item) => <span key={item}>{item}</span>) : <span>ไม่มีคำเตือนจากการตรวจสอบ</span>}</article><article className="employee-impact-group employee-impact-group--follow-up"><strong>ต้องติดตาม</strong>{impactGroups.followUp.length ? impactGroups.followUp.map((item) => <span key={item}>{item}</span>) : <span>ไม่มีรายการอ้างอิงที่ได้รับผลกระทบ</span>}</article></div><small className="employee-impact-authority-note">การจัดกลุ่มนี้นำเสนอผลจากระบบส่วนกลางเท่านั้น โดยไม่เปลี่ยนกฎหรือสิทธิ์การอนุมัติ</small>{preflight.warnings.length > 0 && <label className="employee-warning-confirm"><input type="checkbox" checked={acknowledgeWarnings} onChange={(event) => setAcknowledgeWarnings(event.target.checked)} /> ตรวจสอบคำเตือนแล้วและยืนยันดำเนินการ</label>}</section>}

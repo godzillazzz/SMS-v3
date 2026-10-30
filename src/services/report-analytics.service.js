@@ -146,7 +146,7 @@ function buildDepartmentRoundCoverage({ checkpoints = [], scans = [], from, to, 
   const roundsPerCheckpoint = [...completed.values()].reduce((sum, value) => sum + value, 0);
   const departments = new Map();
   for (const checkpoint of checkpoints) {
-    const name = checkpoint.department || 'ไม่ระบุหน่วยงาน';
+    const name = checkpoint.department || 'ไม่ระบุจุดปฏิบัติงาน';
     const row = departments.get(name) || { department: name, checkpoints: 0, expectedRounds: 0, scannedRounds: 0 };
     row.checkpoints += 1;
     row.expectedRounds += roundsPerCheckpoint;
@@ -154,7 +154,7 @@ function buildDepartmentRoundCoverage({ checkpoints = [], scans = [], from, to, 
   }
   for (const key of scanned) {
     const checkpoint = checkpointById.get(key.split('|')[0]);
-    departments.get(checkpoint.department || 'ไม่ระบุหน่วยงาน').scannedRounds += 1;
+    departments.get(checkpoint.department || 'ไม่ระบุจุดปฏิบัติงาน').scannedRounds += 1;
   }
   const byDepartment = [...departments.values()]
     .sort((a, b) => String(a.department).localeCompare(String(b.department), 'th'))

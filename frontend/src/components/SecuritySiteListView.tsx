@@ -30,7 +30,7 @@ export function SecuritySiteListView({ sites, overlaps, loading, onOpen }: {
               return <tr key={site.id}>
                 <td>
                   <button type="button" className="security-site-list__name" onClick={() => onOpen(site)}>{site.name}</button>
-                  <small className="security-site-list__sub">{departments.length ? `แผนก: ${departments.join(', ')}` : 'ยังไม่ผูกแผนก'}{overlapIds.has(site.id) && <span className="security-site-list__warn">พื้นที่ซ้อนทับ</span>}</small>
+                  <small className="security-site-list__sub">{departments.length ? `จุดปฏิบัติงาน: ${departments.join(', ')}` : 'ยังไม่ผูกจุดปฏิบัติงาน'}{overlapIds.has(site.id) && <span className="security-site-list__warn">พื้นที่ซ้อนทับ</span>}</small>
                 </td>
                 <td className="security-site-list__code">{site.code}</td>
                 <td>{lat && lng

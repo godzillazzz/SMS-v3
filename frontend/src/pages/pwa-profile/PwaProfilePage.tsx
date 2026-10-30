@@ -70,7 +70,7 @@ export function PwaProfilePage({ user, online, readOnly = false, onOpenPasskeys,
       <dl>
         <div><dt>อีเมล</dt><dd>{user?.email || '-'}</dd></div>
         <div><dt>Role</dt><dd>{roleDisplayName(user?.role || 'VIEWER')}</dd></div>
-        <div><dt>หน่วยงาน</dt><dd>{user?.department || '-'}</dd></div>
+        <div><dt>จุดปฏิบัติงาน</dt><dd>{user?.department || '-'}</dd></div>
         <div><dt>การเชื่อมต่อ</dt><dd className={online ? 'is-online' : 'is-offline'}>{online ? 'ออนไลน์' : 'ออฟไลน์'}</dd></div>
       </dl>
     </section>

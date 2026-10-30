@@ -114,9 +114,9 @@ function panelFacts(item: ApprovalCenterItem): Array<[string, unknown]> {
     facts.push(['ไฟล์', meta(item, 'fileName')]);
   } else if (item.type === 'REGISTRATION_REQUEST') {
     facts.push(['พนักงานที่ตรงกัน', meta(item, 'matchedEmployeeName')]);
-    facts.push(['หน่วยงานที่แจ้ง', meta(item, 'departmentHint')]);
+    facts.push(['จุดปฏิบัติงานที่แจ้ง', meta(item, 'departmentHint')]);
   } else if (item.type === 'USER_ACCESS') {
-    facts.push(['หน่วยงาน', meta(item, 'department')]);
+    facts.push(['จุดปฏิบัติงาน', meta(item, 'department')]);
   } else if (item.type === 'EMPLOYEE_REFERENCE_PHOTO') {
     facts.push(['ไฟล์', item.photo?.fileName]);
   }

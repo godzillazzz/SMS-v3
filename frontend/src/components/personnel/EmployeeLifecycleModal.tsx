@@ -40,7 +40,7 @@ type Props = { token: string; employee: PersonnelRecord; onClose(): void; onAppl
 
 const typeLabels: Record<CriticalChangeType, string> = {
   NAME_CHANGE: 'เปลี่ยนชื่อ',
-  DEPARTMENT_TRANSFER: 'ย้ายหน่วยงาน',
+  DEPARTMENT_TRANSFER: 'ย้ายจุดปฏิบัติงาน',
   POSITION_CHANGE: 'เปลี่ยนตำแหน่ง',
   EMPLOYMENT_TERMINATION: 'ลาออก',
   REHIRE: 'กลับเข้าทำงาน',
@@ -56,7 +56,7 @@ const fieldLabels: Record<string, string> = {
   lastName: 'นามสกุล',
   email: 'อีเมล',
   phone: 'โทรศัพท์',
-  department: 'หน่วยงาน',
+  department: 'จุดปฏิบัติงาน',
   jobTitle: 'ตำแหน่ง',
   hiredAt: 'วันที่เริ่มงาน',
   skill: 'ทักษะ / คุณสมบัติ',
@@ -283,7 +283,7 @@ export function EmployeeLifecycleModal({ token, employee, onClose, onApplied }: 
       <header className="lifecycle-header"><div><p>ทะเบียนพนักงาน · การเปลี่ยนแปลงสำคัญ</p><h2 id="lifecycle-title">การเปลี่ยนแปลงสำคัญของพนักงาน</h2><span>{employee.employeeCode} · {employee.firstName} {employee.lastName}</span></div><button ref={closeRef} type="button" aria-label="ปิด" disabled={busy} onClick={onClose}><SmsIcon name="close" size={20} /></button></header>
       <div className="lifecycle-layout">
         <form className="lifecycle-form" onSubmit={(event) => { event.preventDefault(); void (preflight ? submit() : runPreflight()); }}>
-          <div className="lifecycle-current"><strong>ข้อมูลปัจจุบัน</strong><span>{employee.department || 'ไม่ระบุหน่วยงาน'} · {employee.jobTitle || 'ไม่ระบุตำแหน่ง'} · {employee.isActive ? 'ปฏิบัติงาน' : 'ไม่ปฏิบัติงาน'}</span></div>
+          <div className="lifecycle-current"><strong>ข้อมูลปัจจุบัน</strong><span>{employee.department || 'ไม่ระบุจุดปฏิบัติงาน'} · {employee.jobTitle || 'ไม่ระบุตำแหน่ง'} · {employee.isActive ? 'ปฏิบัติงาน' : 'ไม่ปฏิบัติงาน'}</span></div>
           <div className="lifecycle-guidance"><strong>ใช้สำหรับข้อมูลที่มีผลต่อประวัติบุคลากร</strong><span>รูปอ้างอิงใบหน้า ใบอนุญาต และสิทธิ์ระบบยังคงจัดการผ่าน ขั้นตอน เฉพาะของแต่ละโมดูล</span></div>
           {error && <div className="lifecycle-alert lifecycle-alert--error" role="alert"><RequestErrorContent error={error} /></div>}
           {success && <div className="lifecycle-alert lifecycle-alert--success" role="status">{success}</div>}
@@ -293,7 +293,7 @@ export function EmployeeLifecycleModal({ token, employee, onClose, onApplied }: 
           </select></label>
 
           {type === 'NAME_CHANGE' && <div className="lifecycle-field-grid"><label><span>ชื่อใหม่</span><input required value={changes.firstName} onChange={(event) => { setChanges({ ...changes, firstName: event.target.value }); invalidate(); }} /></label><label><span>นามสกุลใหม่</span><input required value={changes.lastName} onChange={(event) => { setChanges({ ...changes, lastName: event.target.value }); invalidate(); }} /></label></div>}
-          {(type === 'DEPARTMENT_TRANSFER' || type === 'REHIRE') && <label><span>หน่วยงานใหม่</span><input required value={changes.department} onChange={(event) => { setChanges({ ...changes, department: event.target.value }); invalidate(); }} /></label>}
+          {(type === 'DEPARTMENT_TRANSFER' || type === 'REHIRE') && <label><span>จุดปฏิบัติงานใหม่</span><input required value={changes.department} onChange={(event) => { setChanges({ ...changes, department: event.target.value }); invalidate(); }} /></label>}
           {(type === 'POSITION_CHANGE' || type === 'REHIRE') && <label><span>ตำแหน่งใหม่</span><input required value={changes.jobTitle} onChange={(event) => { setChanges({ ...changes, jobTitle: event.target.value }); invalidate(); }} /></label>}
           {type === 'EMPLOYEE_CODE_CHANGE' && <label><span>รหัสพนักงานใหม่</span><input required maxLength={50} value={changes.employeeCode} onChange={(event) => { setChanges({ ...changes, employeeCode: event.target.value }); invalidate(); }} /><small>รหัสต้องไม่ซ้ำกับพนักงานรายอื่น</small></label>}
           {type === 'CONTACT_CHANGE' && <div className="lifecycle-field-grid"><label><span>อีเมลติดต่อ</span><input type="email" maxLength={255} value={changes.email} onChange={(event) => { setChanges({ ...changes, email: event.target.value }); invalidate(); }} /></label><label><span>โทรศัพท์</span><input maxLength={50} value={changes.phone} onChange={(event) => { setChanges({ ...changes, phone: event.target.value }); invalidate(); }} /></label></div>}

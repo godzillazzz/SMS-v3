@@ -13,7 +13,7 @@ describe('EMP-UX Department / Position Master frontend authority', () => {
     expect(main).toContain("const SettingsPage = React.lazy(() => import('./pages/settings/SettingsPage')");
     expect(settingsPage).toContain("const PersonnelMasterPanel = React.lazy(() => import('../../components/PersonnelMasterPanel')");
     expect(settingsPage).toContain('<PersonnelMasterPanel token={token} />');
-    expect(panel).toContain('<h2>หน่วยงานและตำแหน่ง</h2>');
+    expect(panel).toContain('<h2>จุดปฏิบัติงานและตำแหน่ง</h2>');
     expect(panel).toContain('api.createPersonnelMaster');
     expect(panel).toContain('api.updatePersonnelMaster');
     expect(panel).not.toContain('deletePersonnelMaster');
@@ -29,11 +29,11 @@ describe('EMP-UX Department / Position Master frontend authority', () => {
   it('new Employee Department and Position fields are Master-backed selects', () => {
     const block = main.slice(main.indexOf('const openEmployeeEditor'), main.indexOf('const [shiftEditorTarget'));
     expect(block).toContain('api.personnelMasters(auth.token, true)');
-    expect(block).toContain("name: 'department', label: 'หน่วยงาน', type: 'select'");
+    expect(block).toContain("name: 'department', label: 'จุดปฏิบัติงาน', type: 'select'");
     expect(block).toContain("name: 'jobTitle', label: 'ตำแหน่ง', type: 'select'");
   });
   it('existing Employee critical changes fail closed to active master selectors', () => {
-    expect(editor).toContain('เลือกหน่วยงาน');
+    expect(editor).toContain('เลือกจุดปฏิบัติงาน');
     expect(editor).toContain('เลือกตำแหน่ง');
     expect(editor).toContain('Boolean(personnelMastersError)');
   });

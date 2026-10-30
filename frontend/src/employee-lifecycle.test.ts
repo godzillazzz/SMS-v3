@@ -23,7 +23,7 @@ describe('Employee single-entry governed changes', () => {
   });
 
   it('keeps all important ทะเบียนพนักงาน fields in the same governed editor', () => {
-    for (const label of ['รหัสพนักงาน', 'ชื่อ', 'นามสกุล', 'อีเมลติดต่อ', 'โทรศัพท์', 'หน่วยงาน', 'ตำแหน่ง', 'วันที่เริ่มงาน', 'ทักษะ / คุณสมบัติ']) {
+    for (const label of ['รหัสพนักงาน', 'ชื่อ', 'นามสกุล', 'อีเมลติดต่อ', 'โทรศัพท์', 'จุดปฏิบัติงาน', 'ตำแหน่ง', 'วันที่เริ่มงาน', 'ทักษะ / คุณสมบัติ']) {
       expect(editor).toContain(label);
     }
     expect(editor).toContain('3. การเปลี่ยนแปลง');
@@ -38,7 +38,7 @@ describe('Employee single-entry governed changes', () => {
     expect(editor).toContain("selectCriticalAction('EMPLOYMENT_TERMINATION')");
     expect(editor).toContain("selectCriticalAction('REHIRE')");
     expect(editor).toContain("effectiveMode === 'FUTURE_EFFECTIVE'");
-    expect(editor).toContain('การเปลี่ยนชื่อ ย้ายหน่วยงาน เปลี่ยนตำแหน่ง ลาออก และกลับเข้าทำงาน ต้องมีเหตุผลเพื่อบันทึกประวัติการใช้งาน');
+    expect(editor).toContain('การเปลี่ยนชื่อ ย้ายจุดปฏิบัติงาน เปลี่ยนตำแหน่ง ลาออก และกลับเข้าทำงาน ต้องมีเหตุผลเพื่อบันทึกประวัติการใช้งาน');
   });
 
   it('keeps Admin preflight, impact acknowledgement, optimistic concurrency, and audited mutation', () => {

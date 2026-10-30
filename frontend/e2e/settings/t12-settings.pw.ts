@@ -11,7 +11,7 @@ const sections = [
   { id: 'leave-policy', path: 'leave-policy', label: 'นโยบายการลา', selector: '.leave-policy-settings-card' },
   { id: 'leave-types', path: 'leave-types', label: 'ประเภทการลา', selector: '.leave-type-master-card' },
   { id: 'auto-schedule', path: 'auto-schedule', label: 'รูปแบบจัดกะอัตโนมัติ', selector: '.auto-schedule-pattern-master-card' },
-  { id: 'departments-positions', path: 'departments-positions', label: 'หน่วยงานและตำแหน่ง', selector: '.personnel-master-card' },
+  { id: 'departments-positions', path: 'departments-positions', label: 'จุดปฏิบัติงานและตำแหน่ง', selector: '.personnel-master-card' },
   { id: 'approval-permissions', path: 'approval-permissions', label: 'สิทธิ์อนุมัติ', selector: '.approval-authority-matrix-card' },
   { id: 'data-retention', path: 'data-retention', label: 'การเก็บรักษาข้อมูล', selector: '.retention-center-card' },
   { id: 'notifications', path: 'notifications', label: 'การแจ้งเตือน', selector: '.notification-center-card' }

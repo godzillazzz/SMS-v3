@@ -48,7 +48,7 @@ describe('employee register print (A4 landscape)', () => {
     const text = root.textContent || '';
     for (const label of ['ทั้งหมด', 'ใช้งาน', 'ทดลองงาน', 'ลา', 'พักงาน', 'ไม่ใช้งาน']) expect(root.querySelector('.personnel-register-print__summary')?.textContent).toContain(label);
     const headers = Array.from(root.querySelectorAll('thead th')).map((th) => th.textContent);
-    expect(headers).toEqual(['รหัส', 'ชื่อ-สกุล', 'แผนก', 'ตำแหน่ง', 'ประเภท', 'วันเริ่มงาน', 'อายุงาน', 'โทรศัพท์', 'สถานะ']);
+    expect(headers).toEqual(['รหัส', 'ชื่อ-สกุล', 'จุดปฏิบัติงาน', 'ตำแหน่ง', 'ประเภท', 'วันเริ่มงาน', 'อายุงาน', 'โทรศัพท์', 'สถานะ']);
     const first = Array.from(root.querySelectorAll('tbody tr')[0].querySelectorAll('td')).map((td) => td.textContent);
     expect(first[0]).toBe('EMP-001'); expect(first[4]).toBe('–'); expect(first[6]).toBe('6 ปี 9 เดือน'); expect(first[7]).toBe('0811111111'); expect(first[8]).toBe('ใช้งาน');
     const second = Array.from(root.querySelectorAll('tbody tr')[1].querySelectorAll('td')).map((td) => td.textContent);

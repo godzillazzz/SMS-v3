@@ -65,19 +65,19 @@ for (const viewport of [{ width: 1366, height: 768 }, { width: 375, height: 812 
     await page.goto('/app/patrol/center');
     const center = page.locator('.patrol-center');
     await expect(center.getByRole('heading', { name: 'ศูนย์ตรวจจุด' })).toBeVisible();
-    await expect(center.getByRole('heading', { name: 'สถานะการตรวจรายแผนก' })).toBeVisible();
+    await expect(center.getByRole('heading', { name: 'สถานะการตรวจรายจุดปฏิบัติงาน' })).toBeVisible();
     // WCS-01 is inactive in the fixture, so only ANO has active checkpoints to track.
     await expect(center.locator('.patrol-dept-table tbody tr')).toHaveCount(1);
     await noHorizontalOverflow(page);
     await page.screenshot({ path: `test-results/patrol-v2-list-${viewport.width}.png`, fullPage: true });
 
     await center.getByRole('button', { name: 'ANO', exact: true }).click();
-    await expect(center.getByRole('heading', { name: 'แผนก ANO' })).toBeVisible();
+    await expect(center.getByRole('heading', { name: 'จุดปฏิบัติงาน ANO' })).toBeVisible();
     const rounds = viewport.width > 640 ? center.locator('.patrol-round-desktop') : center.locator('.patrol-round-mobile');
     await expect(rounds).toBeVisible();
     await noHorizontalOverflow(page);
     await page.screenshot({ path: `test-results/patrol-v2-dept-${viewport.width}.png`, fullPage: true });
-    await center.getByRole('button', { name: /ทุกแผนก/ }).first().click();
+    await center.getByRole('button', { name: /ทุกจุดปฏิบัติงาน/ }).first().click();
 
     await center.getByRole('tab', { name: 'จุดตรวจและ QR' }).click();
     const head = center.locator('.patrol-master-head__actions').first();
@@ -86,9 +86,9 @@ for (const viewport of [{ width: 1366, height: 768 }, { width: 375, height: 812 
     await noHorizontalOverflow(page);
     await page.screenshot({ path: `test-results/patrol-v2-cp-list-${viewport.width}.png`, fullPage: true });
     await center.getByRole('button', { name: 'ANO', exact: true }).click();
-    await expect(center.getByRole('heading', { name: 'จุดตรวจของแผนก ANO' })).toBeVisible();
+    await expect(center.getByRole('heading', { name: 'จุดตรวจของจุดปฏิบัติงาน ANO' })).toBeVisible();
     await center.getByRole('button', { name: 'เพิ่มจุดตรวจ' }).click();
-    await expect(page.getByRole('dialog')).toContainText('เพิ่มจุดตรวจในแผนก ANO');
+    await expect(page.getByRole('dialog')).toContainText('เพิ่มจุดตรวจในจุดปฏิบัติงาน ANO');
     await page.screenshot({ path: `test-results/patrol-v2-cp-dialog-${viewport.width}.png` });
     await page.getByRole('dialog').getByRole('button', { name: 'ยกเลิก' }).click();
     await noHorizontalOverflow(page);

@@ -120,7 +120,7 @@ function sourceRegressionContracts() {
     'การเปลี่ยนแปลงสำคัญของพนักงาน',
     'ผลกระทบและคำเตือน',
     'ประวัติการเปลี่ยนแปลงสำคัญ',
-    'ย้ายหน่วยงาน',
+    'ย้ายจุดปฏิบัติงาน',
     'อ่านอย่างเดียว',
     'confirmation !== employee.employeeCode'
   ], 'EMPLOYEE_LIFECYCLE_RENDERER_CONTRACT_FAILED');

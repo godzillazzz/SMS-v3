@@ -4,8 +4,8 @@ export type PatrolPrintKind = 'daily' | 'department' | 'all';
 
 const TITLES: Record<PatrolPrintKind, [string, string]> = {
   daily: ['รายงานการตรวจจุดประจำวัน', 'DAILY PATROL REPORT'],
-  department: ['รายงานการตรวจจุดรายแผนก', 'DEPARTMENT PATROL REPORT'],
-  all: ['รายงานการตรวจจุดทุกแผนก', 'ALL DEPARTMENTS PATROL REPORT']
+  department: ['รายงานการตรวจจุดรายจุดปฏิบัติงาน', 'DEPARTMENT PATROL REPORT'],
+  all: ['รายงานการตรวจจุดทุกจุดปฏิบัติงาน', 'ALL DEPARTMENTS PATROL REPORT']
 };
 
 function Letterhead({ kind, report }: { kind: PatrolPrintKind; report: PatrolReport }) {
@@ -24,7 +24,7 @@ function Letterhead({ kind, report }: { kind: PatrolPrintKind; report: PatrolRep
       </div>
     </header>
     <div className="leave-print-divider"><div className="leave-print-divider-accent" /></div>
-    <p className="patrol-print-filter">แผนก: {report.department || 'ทุกแผนก'} · พิมพ์เมื่อ {thaiDate(report.generatedAt.slice(0, 10))} {thaiTime(report.generatedAt)} น.</p>
+    <p className="patrol-print-filter">จุดปฏิบัติงาน: {report.department || 'ทุกจุดปฏิบัติงาน'} · พิมพ์เมื่อ {thaiDate(report.generatedAt.slice(0, 10))} {thaiTime(report.generatedAt)} น.</p>
   </>;
 }
 
@@ -47,7 +47,7 @@ function SummaryCards({ report, now }: { report: PatrolReport; now: Date }) {
     const board = buildRoundBoard({ day, now, checkpoints: all, scans: patrolScans(report) });
     due += board.summary.due; done += board.summary.done;
   }
-  const cards: Array<[string, string | number]> = [['แผนก', groups.length], ['จุดตรวจ', all.length], ['รอบ-จุดที่ต้องตรวจ', due], ['ตรวจแล้ว', done], ['ขาดตรวจ', Math.max(0, due - done)], ['ความครบถ้วน', `${due ? Math.round((done / due) * 100) : 0}%`]];
+  const cards: Array<[string, string | number]> = [['จุดปฏิบัติงาน', groups.length], ['จุดตรวจ', all.length], ['รอบ-จุดที่ต้องตรวจ', due], ['ตรวจแล้ว', done], ['ขาดตรวจ', Math.max(0, due - done)], ['ความครบถ้วน', `${due ? Math.round((done / due) * 100) : 0}%`]];
   return <section className="patrol-print-cards">{cards.map(([label, value]) => <div key={label}><span>{label}</span><strong>{value}</strong></div>)}</section>;
 }
 
@@ -61,7 +61,7 @@ function Signatures() {
 function ScanTable({ report }: { report: PatrolReport }) {
   const scans = patrolScans(report);
   return <table className="patrol-print-table">
-    <thead><tr><th>ลำดับ</th><th>วันที่</th><th>เวลา</th><th>แผนกจุด</th><th>รหัสจุด</th><th>ชื่อจุดตรวจ</th><th>ผู้ตรวจ</th><th>แผนกผู้ตรวจ</th><th>หมายเหตุ</th></tr></thead>
+    <thead><tr><th>ลำดับ</th><th>วันที่</th><th>เวลา</th><th>จุดปฏิบัติงาน</th><th>รหัสจุด</th><th>ชื่อจุดตรวจ</th><th>ผู้ตรวจ</th><th>จุดปฏิบัติงานผู้ตรวจ</th><th>หมายเหตุ</th></tr></thead>
     <tbody>{scans.length === 0 ? <tr><td colSpan={9} className="patrol-print-empty">ไม่มีการสแกนในช่วงที่เลือก</td></tr> : scans.map((scan, index) => <tr key={scan.id}>
       <td>{index + 1}</td><td>{thaiDate(new Date(Date.parse(scan.scannedAt) + 7 * 3_600_000).toISOString().slice(0, 10), { day: 'numeric', month: 'short' })}</td><td>{thaiTime(scan.scannedAt)}</td><td>{scan.checkpointDepartment}</td><td>{scan.checkpointCode || '—'}</td><td>{scan.checkpointName || '—'}</td>
       <td>{scan.employeeName || '—'}</td><td>{scan.employeeDepartment || '—'}</td><td>{scan.note || '—'}</td>
@@ -118,7 +118,7 @@ function DepartmentSummary({ report, now }: { report: PatrolReport; now: Date })
     return { department: group.department, checkpoints: group.checkpoints.length, due, done, missed: Math.max(0, due - done), percent: due ? Math.round((done / due) * 100) : 0 };
   });
   return <table className="patrol-print-table patrol-print-dept">
-    <thead><tr><th>แผนก</th><th>จุดตรวจ</th><th>รอบ-จุดที่ต้องตรวจ</th><th>ตรวจแล้ว</th><th>ขาดตรวจ</th><th>ความครบถ้วน</th></tr></thead>
+    <thead><tr><th>จุดปฏิบัติงาน</th><th>จุดตรวจ</th><th>รอบ-จุดที่ต้องตรวจ</th><th>ตรวจแล้ว</th><th>ขาดตรวจ</th><th>ความครบถ้วน</th></tr></thead>
     <tbody>{rows.map((row) => <tr key={row.department}><td>{row.department}</td><td>{row.checkpoints}</td><td>{row.due}</td><td>{row.done}</td><td>{row.missed}</td><td>{row.percent}%</td></tr>)}</tbody>
   </table>;
 }
@@ -129,7 +129,7 @@ export function PatrolReportPrint({ kind, report, now = new Date() }: { kind: Pa
   return <article className={`print-only patrol-report-print patrol-report-print--${kind}`} aria-hidden="true">
     <Letterhead kind={kind} report={report} />
     <SummaryCards report={report} now={now} />
-    {kind === 'all' && <><h2 className="patrol-print-h2">สรุปรายแผนก</h2><DepartmentSummary report={report} now={now} /></>}
+    {kind === 'all' && <><h2 className="patrol-print-h2">สรุปรายจุดปฏิบัติงาน</h2><DepartmentSummary report={report} now={now} /></>}
     <h2 className="patrol-print-h2">{single || kind === 'daily' ? 'สถานะการตรวจ 8 รอบ (รอบละ 3 ชั่วโมง)' : 'จำนวนรอบที่ตรวจครบต่อวัน'}</h2>
     {single || kind === 'daily' ? <RoundMatrix report={report} day={report.to} now={now} /> : <DayRoundMatrix report={report} now={now} />}
     {kind !== 'all' && <><h2 className="patrol-print-h2 patrol-print-break">รายการสแกนเรียงตามเวลา</h2><ScanTable report={report} /></>}
@@ -144,7 +144,7 @@ export function PatrolCheckpointQrSheet({ items }: { items: Array<PatrolCheckpoi
       <img src={item.dataUrl} alt={`QR ${item.code}`} width={512} height={512} />
       <h2>{item.code}</h2>
       <p className="patrol-qr-card__name">{item.name}</p>
-      <p className="patrol-qr-card__meta">แผนก {item.department}{item.locationNote ? ` · ${item.locationNote}` : ''}</p>
+      <p className="patrol-qr-card__meta">จุดปฏิบัติงาน {item.department}{item.locationNote ? ` · ${item.locationNote}` : ''}</p>
       <footer>สแกนด้วยเมนู “สแกนจุดตรวจ” ในแอป SMS แล้วถ่ายรูปจุดตรวจ · QR v{item.qrVersion}</footer>
     </article>)}
   </section>;

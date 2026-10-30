@@ -242,7 +242,7 @@ async function notifyNewRegistration({ displayName, email, department }) {
         <table style="border-collapse: collapse; margin: 15px 0; width: 100%; background: #f8fafc; border-radius: 8px;">
           <tr><td style="padding: 10px; font-weight: bold; border-bottom: 1px solid #e2e8f0; width: 140px;">ชื่อ-นามสกุล:</td><td style="padding: 10px; border-bottom: 1px solid #e2e8f0;">${safeDisplayName}</td></tr>
           <tr><td style="padding: 10px; font-weight: bold; border-bottom: 1px solid #e2e8f0;">อีเมล:</td><td style="padding: 10px; border-bottom: 1px solid #e2e8f0;">${safeEmail}</td></tr>
-          <tr><td style="padding: 10px; font-weight: bold;">แผนก:</td><td style="padding: 10px;">${safeDepartment}</td></tr>
+          <tr><td style="padding: 10px; font-weight: bold;">จุดปฏิบัติงาน:</td><td style="padding: 10px;">${safeDepartment}</td></tr>
         </table>
         <p>กรุณาเข้าสู่ระบบที่หน้า <strong>จัดการผู้ใช้งาน (User Management)</strong> เพื่อ Match Employee Master และอนุมัติ โดยสิทธิ์เริ่มต้นหลังอนุมัติคือ <strong>VIEWER</strong></p>
         <p style="color: #64748b; font-size: 13px; margin-bottom: 0;">ระบบ Security Management System v3</p>

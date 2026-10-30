@@ -40,7 +40,7 @@ describe('AttendanceDailyReport (owner A4 reference)', () => {
     const cards = Array.from(report.querySelectorAll('.attendance-daily-report__card'), (card) => card.textContent);
     expect(cards).toEqual(['พนักงานทั้งหมด5', 'ลงเวลาเข้า3', 'มาสาย1', 'ออกก่อน1', 'ขาดงาน0', 'ไม่มีบันทึก1', 'นอกสถานที่1']);
     const headers = Array.from(report.querySelectorAll('thead th'), (th) => th.textContent);
-    expect(headers).toEqual(['ลำดับ', 'ชื่อ-สกุล', 'รหัส', 'แผนก', 'เวลาเข้า', 'เวลาออก', 'ชั่วโมง', 'สถานะ', 'สถานที่', 'หมายเหตุ']);
+    expect(headers).toEqual(['ลำดับ', 'ชื่อ-สกุล', 'รหัส', 'จุดปฏิบัติงาน', 'เวลาเข้า', 'เวลาออก', 'ชั่วโมง', 'สถานะ', 'สถานที่', 'หมายเหตุ']);
     const body = Array.from(report.querySelectorAll('tbody tr'), (tr) => Array.from(tr.querySelectorAll('td'), (td) => td.textContent));
     expect(body[0]).toEqual(['1', 'อนันต์ ตัวอย่าง', 'EMP-101', 'รปภ.', '07:55', '17:05', '9:10', 'มาทำงาน', '–', '–']);
     expect(body[1]).toEqual(['2', 'บุญ ตัวอย่าง', 'EMP-202', '–', '08:20', '–', '–', 'มาสาย', 'นอกสถานที่', 'อุปกรณ์ไม่ตรง · นอกพื้นที่']);

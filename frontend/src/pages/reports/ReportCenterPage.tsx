@@ -90,7 +90,7 @@ export function ReportCenterPage({ token, role, onNavigate, initialTab = 'execut
     let active = true;
     patrolApi.checkpoints(token)
       .then((rows) => { if (active) setPatrolDepartments([...new Set(rows.map((row) => row.department))].sort((a, b) => a.localeCompare(b, 'th'))); })
-      .catch((reason) => { if (active) setExportNotice(toRequestErrorState(reason, 'ไม่สามารถโหลดรายชื่อแผนกจุดตรวจได้')); });
+      .catch((reason) => { if (active) setExportNotice(toRequestErrorState(reason, 'ไม่สามารถโหลดรายชื่อจุดปฏิบัติงานของจุดตรวจได้')); });
     return () => { active = false; };
   }, [activeTab, token, canPatrol]);
 
@@ -103,7 +103,7 @@ export function ReportCenterPage({ token, role, onNavigate, initialTab = 'execut
     try {
       const fetched = await patrolApi.report(token, { ...patrolFetchRange(from, patrolDate), department: kind === 'all' ? undefined : patrolDepartment || undefined });
       flushSync(() => setPatrolPrintJob({ kind, report: { ...fetched, from, to: patrolDate } }));
-      const label = kind === 'daily' ? 'รายงานการตรวจประจำวัน' : kind === 'department' ? `รายงานการตรวจ-${patrolDepartment}` : 'รายงานการตรวจทุกแผนก';
+      const label = kind === 'daily' ? 'รายงานการตรวจประจำวัน' : kind === 'department' ? `รายงานการตรวจ-${patrolDepartment}` : 'รายงานการตรวจทุกจุดปฏิบัติงาน';
       await printDocument('.patrol-report-print', `${label}-${from}${from === patrolDate ? '' : `_${patrolDate}`}.pdf`, { orientation: 'landscape', margin: '10mm' });
     } catch (reason) {
       setExportNotice(toRequestErrorState(reason, 'ไม่สามารถพิมพ์รายงานการตรวจจุดได้'));
@@ -232,10 +232,10 @@ export function ReportCenterPage({ token, role, onNavigate, initialTab = 'execut
       <div className="report-center-filters">
         <label><span>เดือน</span><select value={filters.month} onChange={(event) => setFilters((value) => ({ ...value, month: Number(event.target.value) }))}>{monthNames.map((name, index) => <option value={index + 1} key={name}>{name}</option>)}</select></label>
         <label><span>ปี</span><select value={filters.year} onChange={(event) => setFilters((value) => ({ ...value, year: Number(event.target.value) }))}>{years.map((item) => <option key={item} value={item}>พ.ศ. {item + 543}</option>)}</select></label>
-        {canFilterDepartment && <label><span>หน่วยงาน</span><select value={filters.department} onChange={(event) => setFilters((value) => ({ ...value, department: event.target.value }))}><option value="">ทุกหน่วยงาน</option>{departmentOptions.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>}
+        {canFilterDepartment && <label><span>จุดปฏิบัติงาน</span><select value={filters.department} onChange={(event) => setFilters((value) => ({ ...value, department: event.target.value }))}><option value="">ทุกจุดปฏิบัติงาน</option>{departmentOptions.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>}
       </div>
       {!canFilterDepartment && <p className="report-center-filter-note">ขอบเขตข้อมูลกำหนดโดยเซิร์ฟเวอร์ตามสิทธิ์ของบัญชีของคุณ</p>}
-      {activeTab === 'export' && ['ADMIN', 'SUPERVISOR'].includes(role) && ATTENDANCE_OFFICIAL_REPORT_ENABLED && <p className="report-center-filter-note">ใบลงเวลาใช้ Certified Snapshot ตามสิทธิ์ผู้ใช้; SUPERVISOR เห็นข้อมูลเฉพาะแผนกที่ผูกกับบัญชี</p>}
+      {activeTab === 'export' && ['ADMIN', 'SUPERVISOR'].includes(role) && ATTENDANCE_OFFICIAL_REPORT_ENABLED && <p className="report-center-filter-note">ใบลงเวลาใช้ Certified Snapshot ตามสิทธิ์ผู้ใช้; SUPERVISOR เห็นข้อมูลเฉพาะจุดปฏิบัติงานที่ผูกกับบัญชี</p>}
     </SectionCard>
 
     <div className="report-center-tabs" role="tablist" aria-label="ประเภทรายงาน" onKeyDown={activateTabFromKeyboard}>
@@ -258,7 +258,7 @@ export function ReportCenterPage({ token, role, onNavigate, initialTab = 'execut
               <div className="report-center-export-icon" aria-hidden="true"><SmsIcon name="calendar" size={22} /></div>
               <div className="report-center-export-body">
                 <h3>ส่งออกตารางกะ</h3>
-                <p>ตารางกะประจำเดือน{attendanceMonthLabel} {filters.department ? `หน่วยงาน ${filters.department}` : 'ทุกหน่วยงาน'}</p>
+                <p>ตารางกะประจำเดือน{attendanceMonthLabel} {filters.department ? `จุดปฏิบัติงาน ${filters.department}` : 'ทุกจุดปฏิบัติงาน'}</p>
                 <small className="report-center-export-format">Excel (.xlsx)</small>
               </div>
               <button type="button" className="btn-primary" disabled={Boolean(exportBusy)} aria-busy={exportBusy === 'schedule' || undefined} onClick={() => void exportScheduleExcelAction()}>
@@ -318,7 +318,7 @@ export function ReportCenterPage({ token, role, onNavigate, initialTab = 'execut
               <div className="report-center-export-icon" aria-hidden="true"><SmsIcon name="history" size={22} /></div>
               <div className="report-center-export-body">
                 <h3>รายงานการลงเวลารายบุคคลทั้งหมด</h3>
-                <p>ใบลงเวลาของพนักงาน Active ทุกคน{filters.department ? ` หน่วยงาน ${filters.department}` : ''} เดือน{attendanceMonthLabel}</p>
+                <p>ใบลงเวลาของพนักงาน Active ทุกคน{filters.department ? ` จุดปฏิบัติงาน ${filters.department}` : ''} เดือน{attendanceMonthLabel}</p>
                 <small className="report-center-export-format">PDF · A4 แนวตั้ง</small>
                 <small className="report-center-export-hint">อาจใช้เวลาประมวลผล 20–30 วินาที</small>
               </div>
@@ -333,14 +333,14 @@ export function ReportCenterPage({ token, role, onNavigate, initialTab = 'execut
           <header className="report-center-export-group__head"><h3 id="export-group-patrol">การตรวจจุด</h3><span>วันละ 8 รอบ รอบละ 3 ชั่วโมง · หัวกระดาษมาตรฐาน</span></header>
           <div className="report-center-patrol-filters">
             <label className="report-center-export-select"><span>วันที่</span><input type="date" aria-label="วันที่รายงานการตรวจจุด" value={patrolDate} max={patrolToday()} onChange={(event) => event.target.value && setPatrolDate(event.target.value)} /></label>
-            <label className="report-center-export-select"><span>แผนก</span><select aria-label="แผนกสำหรับรายงานการตรวจจุด" value={patrolDepartment} onChange={(event) => setPatrolDepartment(event.target.value)}><option value="">ทุกแผนก</option>{patrolDepartments.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
+            <label className="report-center-export-select"><span>จุดปฏิบัติงาน</span><select aria-label="จุดปฏิบัติงานสำหรับรายงานการตรวจจุด" value={patrolDepartment} onChange={(event) => setPatrolDepartment(event.target.value)}><option value="">ทุกจุดปฏิบัติงาน</option>{patrolDepartments.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
           </div>
           <div className="report-center-export-grid">
             <article className="report-center-export-card report-center-export-card--patrol">
               <div className="report-center-export-icon" aria-hidden="true"><SmsIcon name="clock" size={22} /></div>
               <div className="report-center-export-body">
                 <h3>รายงานการตรวจจุดประจำวัน</h3>
-                <p>วันที่ {patrolThaiDate(patrolDate)} {patrolDepartment ? `แผนก ${patrolDepartment}` : 'ทุกแผนก'} · ตาราง 8 รอบและรายการสแกนตามเวลา</p>
+                <p>วันที่ {patrolThaiDate(patrolDate)} {patrolDepartment ? `จุดปฏิบัติงาน ${patrolDepartment}` : 'ทุกจุดปฏิบัติงาน'} · ตาราง 8 รอบและรายการสแกนตามเวลา</p>
                 <small className="report-center-export-format">PDF · A4 แนวนอน</small>
               </div>
               <button type="button" className="btn-primary" disabled={Boolean(exportBusy)} aria-busy={exportBusy === 'patrol-daily' || undefined} onClick={() => void printPatrolAction('daily')}>{exportBusy === 'patrol-daily' ? 'กำลังเตรียม…' : 'พิมพ์ประจำวัน'}</button>
@@ -348,20 +348,20 @@ export function ReportCenterPage({ token, role, onNavigate, initialTab = 'execut
             <article className="report-center-export-card report-center-export-card--patrol">
               <div className="report-center-export-icon" aria-hidden="true"><SmsIcon name="employees" size={22} /></div>
               <div className="report-center-export-body">
-                <h3>รายงานการตรวจจุดรายแผนก</h3>
-                <p>{patrolDepartment ? `แผนก ${patrolDepartment} · ตั้งแต่ต้นเดือนถึง ${patrolThaiDate(patrolDate)}` : 'เลือกแผนกด้านบนก่อน'}</p>
+                <h3>รายงานการตรวจจุดรายจุดปฏิบัติงาน</h3>
+                <p>{patrolDepartment ? `จุดปฏิบัติงาน ${patrolDepartment} · ตั้งแต่ต้นเดือนถึง ${patrolThaiDate(patrolDate)}` : 'เลือกจุดปฏิบัติงานด้านบนก่อน'}</p>
                 <small className="report-center-export-format">PDF · A4 แนวนอน</small>
               </div>
-              <button type="button" className="btn-primary" disabled={Boolean(exportBusy) || !patrolDepartment} aria-busy={exportBusy === 'patrol-department' || undefined} onClick={() => void printPatrolAction('department')}>{exportBusy === 'patrol-department' ? 'กำลังเตรียม…' : 'พิมพ์รายแผนก'}</button>
+              <button type="button" className="btn-primary" disabled={Boolean(exportBusy) || !patrolDepartment} aria-busy={exportBusy === 'patrol-department' || undefined} onClick={() => void printPatrolAction('department')}>{exportBusy === 'patrol-department' ? 'กำลังเตรียม…' : 'พิมพ์รายจุดปฏิบัติงาน'}</button>
             </article>
             <article className="report-center-export-card report-center-export-card--patrol">
               <div className="report-center-export-icon" aria-hidden="true"><SmsIcon name="report" size={22} /></div>
               <div className="report-center-export-body">
-                <h3>รายงานการตรวจจุดทุกแผนก</h3>
-                <p>สรุปรอบที่ตรวจครบแยกแผนก ตั้งแต่ต้นเดือนถึง {patrolThaiDate(patrolDate)}</p>
+                <h3>รายงานการตรวจจุดทุกจุดปฏิบัติงาน</h3>
+                <p>สรุปรอบที่ตรวจครบแยกจุดปฏิบัติงาน ตั้งแต่ต้นเดือนถึง {patrolThaiDate(patrolDate)}</p>
                 <small className="report-center-export-format">PDF · A4 แนวนอน</small>
               </div>
-              <button type="button" className="btn-primary" disabled={Boolean(exportBusy)} aria-busy={exportBusy === 'patrol-all' || undefined} onClick={() => void printPatrolAction('all')}>{exportBusy === 'patrol-all' ? 'กำลังเตรียม…' : 'พิมพ์ทุกแผนก'}</button>
+              <button type="button" className="btn-primary" disabled={Boolean(exportBusy)} aria-busy={exportBusy === 'patrol-all' || undefined} onClick={() => void printPatrolAction('all')}>{exportBusy === 'patrol-all' ? 'กำลังเตรียม…' : 'พิมพ์ทุกจุดปฏิบัติงาน'}</button>
             </article>
           </div>
         </section>}

@@ -220,7 +220,7 @@ export function RegistrationReviewPanel({ hideWhenEmpty = false, token, role, re
           return <button type="button" key={row.id} className={`registration-review__request registration-review__request--${requestTone[row.status] || 'neutral'} ${row.id === selectedId ? 'is-selected' : ''}`} aria-pressed={row.id === selectedId} onClick={() => selectRequest(row.id)}>
             <span className="registration-review__request-top"><strong>{row.submittedName}</strong><em className={`registration-review__status registration-review__status--${requestTone[row.status] || 'neutral'}`}>{requestStatus[row.status] || row.status}</em></span>
             <span className="registration-review__request-email">{row.email}</span>
-            <small>{row.departmentHint || 'ไม่ระบุหน่วยงาน'}{createdAt ? ` · ${createdAt}` : ''}</small>
+            <small>{row.departmentHint || 'ไม่ระบุจุดปฏิบัติงาน'}{createdAt ? ` · ${createdAt}` : ''}</small>
           </button>;
         })}</div> : <p className="registration-review__empty">ยังไม่มีคำขอที่ยืนยันอีเมลแล้ว</p>}
         <DataTablePagination page={page} totalPages={pageMeta.totalPages} onChange={(nextPage) => { setPage(nextPage); setMobileDetail(false); }} ariaLabel="แบ่งหน้าคำขอลงทะเบียน" loading={loading} className="registration-review__pagination" />
@@ -235,7 +235,7 @@ export function RegistrationReviewPanel({ hideWhenEmpty = false, token, role, re
             <dl className="registration-review__facts">
               <div><dt>ชื่อที่ผู้สมัครแจ้ง</dt><dd>{selected.submittedName}</dd></div>
               <div><dt>อีเมล</dt><dd>{selected.email}</dd></div>
-              <div><dt>หน่วยงาน / พื้นที่</dt><dd>{selected.departmentHint || '-'}</dd></div>
+              <div><dt>จุดปฏิบัติงาน / พื้นที่</dt><dd>{selected.departmentHint || '-'}</dd></div>
               <div><dt>สถานะคำขอ</dt><dd>{requestStatus[selected.status] || selected.status}</dd></div>
             </dl>
           </section>
@@ -270,8 +270,8 @@ export function RegistrationReviewPanel({ hideWhenEmpty = false, token, role, re
             {selectedCandidate && <section className="registration-review__comparison" aria-labelledby="registration-review-comparison-title">
               <header><div><h3 id="registration-review-comparison-title">เปรียบเทียบก่อนจับคู่</h3></div><p>ตรวจสอบข้อมูลทั้งสองฝั่งก่อนยืนยันการเชื่อมโยงกับทะเบียนพนักงาน</p></header>
               <div className="registration-review__compare-grid">
-                <article><span>ข้อมูลผู้สมัคร</span><dl><div><dt>ชื่อที่แจ้ง</dt><dd>{selected.submittedName}</dd></div><div><dt>หน่วยงานที่แจ้ง</dt><dd>{selected.departmentHint || '-'}</dd></div></dl></article>
-                <article><span>ทะเบียนพนักงาน</span><dl><div><dt>ชื่อพนักงาน</dt><dd>{candidateName(selectedCandidate)}</dd></div><div><dt>หน่วยงาน</dt><dd>{selectedCandidate.department || '-'}</dd></div><div><dt>รหัสภายใน</dt><dd>{selectedCandidate.employeeCode}</dd></div><div><dt>ตำแหน่ง</dt><dd>{selectedCandidate.jobTitle || '-'}</dd></div></dl></article>
+                <article><span>ข้อมูลผู้สมัคร</span><dl><div><dt>ชื่อที่แจ้ง</dt><dd>{selected.submittedName}</dd></div><div><dt>จุดปฏิบัติงานที่แจ้ง</dt><dd>{selected.departmentHint || '-'}</dd></div></dl></article>
+                <article><span>ทะเบียนพนักงาน</span><dl><div><dt>ชื่อพนักงาน</dt><dd>{candidateName(selectedCandidate)}</dd></div><div><dt>จุดปฏิบัติงาน</dt><dd>{selectedCandidate.department || '-'}</dd></div><div><dt>รหัสภายใน</dt><dd>{selectedCandidate.employeeCode}</dd></div><div><dt>ตำแหน่ง</dt><dd>{selectedCandidate.jobTitle || '-'}</dd></div></dl></article>
               </div>
               <div className="registration-review__match-action"><p><SmsIcon name="shield" size={16} />การเลือกนี้เป็นการตรวจสอบโดยผู้มีสิทธิ์ ไม่ใช่การยืนยันตัวตนอัตโนมัติ</p><button type="button" className="btn-primary" disabled={busy} onClick={() => void match(selectedCandidate.id)}>{busy ? 'กำลังจับคู่…' : 'จับคู่พนักงาน'}</button></div>
             </section>}

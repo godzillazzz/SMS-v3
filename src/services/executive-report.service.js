@@ -238,7 +238,7 @@ async function getExecutiveReport({ prismaClient, requestUser, filters, now = ne
 
   const statusCounts = numberFromGroup(leaveByStatusRows, 'status', ['PENDING', 'APPROVED', 'REJECTED', 'CANCELLED']);
   const byType = leaveByTypeRows.map((row) => ({ label: leaveTypeDisplayName(row.leaveType, row.leaveTypeNameSnapshot), code: row.leaveType, count: row._count?._all || 0 }));
-  const workforceByDepartment = workforceRows.filter((row) => row.active > 0).map((row) => ({ label: row.department || 'ไม่ระบุหน่วยงาน', count: row.active }));
+  const workforceByDepartment = workforceRows.filter((row) => row.active > 0).map((row) => ({ label: row.department || 'ไม่ระบุจุดปฏิบัติงาน', count: row.active }));
   const qualityCategory = (rule) => quality.categories.find((item) => item.rule === rule)?.count || 0;
   const license = {
     expired: qualityCategory('LICENSE_EXPIRED'),
@@ -265,14 +265,14 @@ async function getExecutiveReport({ prismaClient, requestUser, filters, now = ne
 
   return {
     period: { year, month, startDate: period.startDate.toISOString().slice(0, 10), endDate: period.endDate.toISOString().slice(0, 10), label: thaiMonthLabel(year, month) },
-    scope: { departmentId: null, departmentName: scope.label, allowsDepartmentFilter: scope.allowsDepartmentFilter, availableDepartments: workforceByDepartment.map((item) => item.label).filter((item) => item !== 'ไม่ระบุหน่วยงาน') },
+    scope: { departmentId: null, departmentName: scope.label, allowsDepartmentFilter: scope.allowsDepartmentFilter, availableDepartments: workforceByDepartment.map((item) => item.label).filter((item) => item !== 'ไม่ระบุจุดปฏิบัติงาน') },
     executiveSummary: kpis,
     attendance,
     patrol: patrol.available ? { available: true, expectedRounds: patrol.expectedRounds, scannedRounds: patrol.scannedRounds, missedRounds: patrol.missedRounds, coveragePercent: patrol.coveragePercent, byDepartment: patrol.byDepartment, config: patrol.config, checkpointBasis: 'CURRENT_ACTIVE_CHECKPOINTS' } : { available: false, reason: patrol.reason, byDepartment: [] },
     pendingQueue: { ...pending, asOf: 'CURRENT' },
     dataQualityAvailability,
     workforce: { totalEmployees, activeEmployees, byDepartment: workforceByDepartment, asOfDate: workforceAsOfDate.toISOString().slice(0, 10) },
-    schedule: { assignmentCount, periodNote: 'จำนวนรายการจัดเวรตามหน่วยงานที่บันทึกไว้ในเวลาจัดเวร ไม่ใช่ตัวชี้วัด Coverage หรือกำลังคนขาด' },
+    schedule: { assignmentCount, periodNote: 'จำนวนรายการจัดเวรตามจุดปฏิบัติงานที่บันทึกไว้ในเวลาจัดเวร ไม่ใช่ตัวชี้วัด Coverage หรือกำลังคนขาด' },
     leave,
     license,
     dataQuality: { ...quality.summary, categories: quality.categories, asOfDate: asOfDate.toISOString().slice(0, 10) },

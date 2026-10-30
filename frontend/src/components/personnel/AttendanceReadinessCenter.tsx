@@ -112,7 +112,7 @@ export function AttendanceReadinessCenter({ token, enabled, onReadinessChange }:
             </div>
             <div className="attendance-readiness-center__list">
               {rows.map((row) => <article key={row.employee.id} className="attendance-readiness-row">
-                <div><strong>{row.employee.firstName} {row.employee.lastName}</strong><small>{row.employee.employeeCode} · {row.employee.department || 'ไม่ระบุหน่วยงาน'} · {row.employee.jobTitle || 'ไม่ระบุตำแหน่ง'}</small></div>
+                <div><strong>{row.employee.firstName} {row.employee.lastName}</strong><small>{row.employee.employeeCode} · {row.employee.department || 'ไม่ระบุจุดปฏิบัติงาน'} · {row.employee.jobTitle || 'ไม่ระบุตำแหน่ง'}</small></div>
                 <span className={row.status === 'READY' ? 'status-badge status-badge--success' : 'status-badge status-badge--warning'}>{row.status === 'READY' ? 'พร้อม' : 'ไม่พร้อม'}</span>
                 <p>{row.status === 'READY' ? 'ผ่าน prerequisite ที่บังคับทั้งหมด' : row.blockers.map((item) => item.label).join(' · ')}</p>
               </article>)}

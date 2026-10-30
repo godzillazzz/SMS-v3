@@ -79,18 +79,18 @@ describe('ทะเบียนพนักงาน Governed Edit V1 frontend c
     expect(editor).not.toContain("update('employeeCode'");
     expect(editor).not.toContain("update('hiredAt'");
     expect(editor).toContain('ใช้ “เปลี่ยนชื่อ”');
-    expect(editor).toContain('ใช้ “ย้ายหน่วยงาน”');
+    expect(editor).toContain('ใช้ “ย้ายจุดปฏิบัติงาน”');
     expect(editor).toContain('ใช้ “เปลี่ยนตำแหน่ง”');
   });
 
   it('Department and Position critical actions use active Master selectors and fail closed', () => {
     expect(editor).toContain('api.personnelMasters(token, true)');
-    expect(editor).toContain('เลือกหน่วยงาน');
+    expect(editor).toContain('เลือกจุดปฏิบัติงาน');
     expect(editor).toContain('เลือกตำแหน่ง');
     expect(editor).toContain('personnelMasters.departments.map');
     expect(editor).toContain('personnelMasters.positions.map');
     expect(editor).toContain('Boolean(personnelMastersError)');
-    expect(editor).not.toContain('placeholder="ระบุหน่วยงานใหม่"');
+    expect(editor).not.toContain('placeholder="ระบุจุดปฏิบัติงานใหม่"');
     expect(editor).not.toContain('placeholder="ระบุตำแหน่งใหม่"');
     expect(api).toContain('personnelMasters:');
   });

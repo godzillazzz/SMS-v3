@@ -182,7 +182,7 @@ export function LeaveDecisionConfirmation({
         <div className="leave-decision-dialog__body">
           <div className="leave-decision-dialog__identity">
             <strong>{target.employeeName || 'ไม่ระบุชื่อพนักงาน'}</strong>
-            <span>{target.department || 'ไม่ระบุแผนก'} · {target.leaveType || 'ไม่ระบุประเภทลา'}</span>
+            <span>{target.department || 'ไม่ระบุจุดปฏิบัติงาน'} · {target.leaveType || 'ไม่ระบุประเภทลา'}</span>
           </div>
           <dl className="leave-decision-dialog__summary">
             <div><dt>วันที่ลา</dt><dd>{target.dateRange || '—'}</dd></div>

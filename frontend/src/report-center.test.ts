@@ -43,7 +43,7 @@ describe('Unified Report Center V1 source contract', () => {
     expect(page).toContain('useState<ExecutiveReportFilters>');
     expect(page).toContain('filters={filters} onFiltersChange={setFilters}');
     expect(page).toContain("export const REPORT_DEPARTMENT_FILTER_ROLES = ['ADMIN', 'MANAGER', 'SUPERVISOR'];");
-    expect(page).toContain('{canFilterDepartment && <label><span>หน่วยงาน</span>');
+    expect(page).toContain('{canFilterDepartment && <label><span>จุดปฏิบัติงาน</span>');
     expect(page).toContain('ขอบเขตข้อมูลกำหนดโดยเซิร์ฟเวอร์ตามสิทธิ์ของบัญชีของคุณ');
     expect(page).toContain('refreshSignal={refreshSignal}');
     expect(page).toContain('รีเฟรชข้อมูล');

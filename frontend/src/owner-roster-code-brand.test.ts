@@ -66,7 +66,7 @@ describe('Owner-approved roster and brand contracts', () => {
     expect(operational).toContain('@media print');
     expect(operational).toContain('.print-table tbody .print-department-group-row > .schedule-department-group-sticky');
     expect(main).toContain('className="schedule-department-group-row print-department-group-row"');
-    expect(main).toContain("{dept || 'ไม่ระบุแผนก'} · {deptEmployees.length} คน");
+    expect(main).toContain("{dept || 'ไม่ระบุจุดปฏิบัติงาน'} · {deptEmployees.length} คน");
   });
 
   it('uses the complete horizontal brand image without duplicate HTML subtitles', () => {

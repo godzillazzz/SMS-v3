@@ -43,7 +43,7 @@ export const SETTINGS_SECTIONS = [
   { id: 'leave-policy', path: 'leave-policy', label: 'นโยบายการลา', description: 'ค่าเริ่มต้นและเงื่อนไขคำขอลา' },
   { id: 'leave-types', path: 'leave-types', label: 'ประเภทการลา', description: 'ชื่อและสถานะประเภทการลา' },
   { id: 'auto-schedule', path: 'auto-schedule', label: 'รูปแบบจัดกะอัตโนมัติ', description: 'รูปแบบและลำดับการจัดกะ' },
-  { id: 'departments-positions', path: 'departments-positions', label: 'หน่วยงานและตำแหน่ง', description: 'ข้อมูลหน่วยงานและตำแหน่งที่ใช้ในระบบ' },
+  { id: 'departments-positions', path: 'departments-positions', label: 'จุดปฏิบัติงานและตำแหน่ง', description: 'ข้อมูลจุดปฏิบัติงานและตำแหน่งที่ใช้ในระบบ' },
   { id: 'approval-permissions', path: 'approval-permissions', label: 'สิทธิ์อนุมัติ', description: 'ผู้ตรวจคำขอและเกณฑ์เวลาอนุมัติ' },
   { id: 'data-retention', path: 'data-retention', label: 'การเก็บรักษาข้อมูล', description: 'ระยะเวลาเก็บข้อมูลภายใต้ขั้นตอนกำกับ' },
   { id: 'notifications', path: 'notifications', label: 'การแจ้งเตือน', description: 'ช่องทางและข้อความแจ้งเตือน' }

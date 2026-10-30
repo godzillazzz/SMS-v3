@@ -581,7 +581,7 @@ function Login() {
 
               {mode === 'register' && <>
                 <label className="field-group auth-field" htmlFor="registration-name"><span>ชื่อ-นามสกุล</span><input id="registration-name" value={submittedName} onChange={(event) => setSubmittedName(event.target.value)} type="text" minLength={2} maxLength={200} required autoComplete="name" /><small className="field-hint">ใช้สำหรับส่งคำขอให้ผู้ดูแลตรวจสอบ ข้อมูลนี้ไม่ใช่ข้อมูลยืนยันตัวบุคคลจากทะเบียนพนักงาน</small></label>
-                <label className="field-group auth-field" htmlFor="registration-department"><span>หน่วยงาน / พื้นที่ <em>ถ้ามี</em></span><input id="registration-department" value={departmentHint} onChange={(event) => setDepartmentHint(event.target.value)} type="text" maxLength={100} /><small className="field-hint">ระบุหน่วยงานหรือพื้นที่เพื่อช่วยผู้ดูแลตรวจสอบ ข้อมูลนี้ไม่แก้ไขทะเบียนพนักงาน</small></label>
+                <label className="field-group auth-field" htmlFor="registration-department"><span>จุดปฏิบัติงาน / พื้นที่ <em>ถ้ามี</em></span><input id="registration-department" value={departmentHint} onChange={(event) => setDepartmentHint(event.target.value)} type="text" maxLength={100} /><small className="field-hint">ระบุจุดปฏิบัติงานหรือพื้นที่เพื่อช่วยผู้ดูแลตรวจสอบ ข้อมูลนี้ไม่แก้ไขทะเบียนพนักงาน</small></label>
               </>}
 
               {mode === 'registerVerify' && <div className="auth-otp-intro"><span><SmsIcon name="shield" size={18} /></span><div><b>เราได้ส่งรหัส 6 หลักไปยัง</b><strong>{maskedEmail}</strong></div></div>}
@@ -986,7 +986,7 @@ const tablePages: Record<OperationalPage, { title: string; eyebrow: string; desc
   ] },
   schedule: { title: 'ตารางกะ', eyebrow: 'ตารางและกฎการทำงาน', description: 'ตารางกะย้อนหลังเรียงจากวันที่ล่าสุด', columns: [
     { label: 'วันที่', value: (row) => date(row.workDate) }, { label: 'พนักงาน', value: (row) => text(row.employeeNameSnapshot) },
-    { label: 'หน่วยงาน', value: (row) => text(row.departmentSnapshot) }, { label: 'กะ', value: (row) => text(nested(row.shiftType).code) },
+    { label: 'จุดปฏิบัติงาน', value: (row) => text(row.departmentSnapshot) }, { label: 'กะ', value: (row) => text(nested(row.shiftType).code) },
     { label: 'เวลา', value: (row) => `${text(row.startTime)}–${text(row.endTime)}` }, { label: 'ชั่วโมง', value: (row) => text(row.hours) }
   ] },
   approvals: { title: 'อนุมัติตารางกะ', eyebrow: 'ตารางและกฎการทำงาน', description: 'ประวัติสถานะและฉบับแก้ไขการอนุมัติตาราง', columns: [
@@ -1739,7 +1739,7 @@ function LeavePrintDocument({ row, ledger }: { row: DataRow; ledger: LeavePrintL
         ข้าพเจ้า {text(row.employeeNameSnapshot)}{' '}
         รหัสพนักงาน {text(row.employeeCodeSnapshot || row.employeeCode || '–')}{' '}
         ตำแหน่ง {text(row.jobTitle || nested(row.employee).jobTitle || 'พนักงานรักษาความปลอดภัย')}{' '}
-        สังกัดแผนก {text(row.departmentSnapshot || row.department || '–')}{' '}
+        สังกัดจุดปฏิบัติงาน {text(row.departmentSnapshot || row.department || '–')}{' '}
         มีความประสงค์ขอ{leaveName} เนื่องจาก {text(row.reasonDetail || row.reason || '–')}{' '}
         ตั้งแต่วันที่ {startDateStr} ถึงวันที่ {endDateStr}{' '}
         มีกำหนด {text(row.dayCount)} วันทำการ{' '}
@@ -2495,10 +2495,10 @@ function Dashboard() {
     reports: 'รายงานสรุปข้อมูลการปฏิบัติงาน',
     executiveReport: 'สรุปข้อมูลสำคัญสำหรับการติดตามและบริหารงาน',
     attendanceReport: 'รายงานการลงเวลาประจำเดือนที่รับรองแล้ว พร้อม PDF และ Excel',
-    users: 'กำหนดบทบาทและแผนกก่อนอนุมัติบัญชี',
-    securitySite: 'กำหนดจุดรักษาความปลอดภัย ขอบเขตพื้นที่ การเชื่อมโยงหน่วยงาน และวงจรรหัส QR สำหรับลงเวลา',
+    users: 'กำหนดบทบาทและจุดปฏิบัติงานก่อนอนุมัติบัญชี',
+    securitySite: 'กำหนดจุดรักษาความปลอดภัย ขอบเขตพื้นที่ การเชื่อมโยงจุดปฏิบัติงาน และวงจรรหัส QR สำหรับลงเวลา',
     patrol: 'สแกน QR ที่ป้ายจุดตรวจ แล้วถ่ายรูปสภาพจุดตรวจ 1 รูปต่อจุด',
-    patrolCenter: 'ติดตามการตรวจจุดของทุกแผนก จัดการ QR จุดตรวจ และพิมพ์รายงาน',
+    patrolCenter: 'ติดตามการตรวจจุดของทุกจุดปฏิบัติงาน จัดการ QR จุดตรวจ และพิมพ์รายงาน',
     settings: 'ตั้งค่าระบบสำหรับค่าที่ผ่านการกำกับ ตรวจสอบความถูกต้อง และบันทึกประวัติ',
     audit: 'ประวัติการใช้งานและการเปลี่ยนแปลงข้อมูล',
   };
@@ -2592,7 +2592,7 @@ function Dashboard() {
         { name: 'email', label: 'อีเมล', type: 'email', section: 'ติดต่อ' },
         { name: 'phone', label: 'โทรศัพท์' },
         ...(auth.user?.role === 'ADMIN' ? [{ name: 'address', label: 'ที่อยู่' }, { name: 'emergencyContact', label: 'ผู้ติดต่อฉุกเฉิน' }, { name: 'emergencyPhone', label: 'โทรศัพท์ฉุกเฉิน' }] : []),
-        { name: 'department', label: 'หน่วยงาน', type: 'select', options: [{ value: '', label: 'ไม่ระบุหน่วยงาน' }, ...departments.map((item) => ({ value: item.name, label: item.name }))] },
+        { name: 'department', label: 'จุดปฏิบัติงาน', type: 'select', options: [{ value: '', label: 'ไม่ระบุจุดปฏิบัติงาน' }, ...departments.map((item) => ({ value: item.name, label: item.name }))] },
         { name: 'jobTitle', label: 'ตำแหน่ง', type: 'select', options: [{ value: '', label: 'ไม่ระบุตำแหน่ง' }, ...positions.map((item) => ({ value: item.name, label: item.name }))] },
         { name: 'hiredAt', label: 'วันที่เริ่มงาน', type: 'date' }
       ];
@@ -2602,7 +2602,7 @@ function Dashboard() {
         'employees'
       );
     } catch (reason) {
-      setOperationError(toRequestErrorState(reason, 'ไม่สามารถโหลด รายการหน่วยงานและตำแหน่ง สำหรับเพิ่มพนักงานได้'));
+      setOperationError(toRequestErrorState(reason, 'ไม่สามารถโหลด รายการจุดปฏิบัติงานและตำแหน่ง สำหรับเพิ่มพนักงานได้'));
     }
   };
 
@@ -2675,7 +2675,7 @@ function Dashboard() {
       title: `กำหนดโควตาวันลา ปี ${thaiQuotaYearLabel(quotaYear)}`, submitLabel: 'บันทึกโควตา',
       notice: showQuotaLegacyWarning ? 'มีรายการโควตาเดิมที่ยังไม่จับคู่ หากเป็นข้อมูลของพนักงานรายนี้ให้ตรวจสอบและใช้ “จับคู่พนักงาน” แทนการสร้างรายการใหม่' : undefined,
       fields: [
-        { name: 'employeeId', label: 'พนักงาน (รหัส · ชื่อ · หน่วยงาน)', type: 'select', required: true, options: quotaEmployeeOptions },
+        { name: 'employeeId', label: 'พนักงาน (รหัส · ชื่อ · จุดปฏิบัติงาน)', type: 'select', required: true, options: quotaEmployeeOptions },
         { name: 'sickLeave', label: 'ลาป่วย', type: 'number', required: true, min: 0, max: 999 },
         { name: 'personalLeave', label: 'ลากิจ', type: 'number', required: true, min: 0, max: 999 },
         { name: 'vacationLeave', label: 'ลาพักร้อน', type: 'number', required: true, min: 0, max: 999 }
@@ -2823,7 +2823,7 @@ function Dashboard() {
     }
 
     if (action === 'link' && activePage === 'quota') {
-      runEditor({ title: row.employeeId ? 'จัดประเภทปีให้ข้อมูลโควตาเดิม' : 'จับคู่ข้อมูลเดิมกับพนักงานและปี', submitLabel: 'ยืนยันการจัดประเภท', fields: [{ name: 'employeeId', label: 'พนักงาน (รหัส · ชื่อ · หน่วยงาน)', type: 'select', required: true, options: row.employeeId ? employeeOptions.filter((option) => option.value === String(row.employeeId)) : employeeOptions }, { name: 'quotaYear', label: 'ปีสิทธิ์', type: 'select', required: true, options: quotaYearOptions }], values: { employeeId: String(row.employeeId || ''), quotaYear: String(quotaYear) } }, (form) => api.linkLeaveQuota(auth.token!, id, form.employeeId, Number(form.quotaYear)));
+      runEditor({ title: row.employeeId ? 'จัดประเภทปีให้ข้อมูลโควตาเดิม' : 'จับคู่ข้อมูลเดิมกับพนักงานและปี', submitLabel: 'ยืนยันการจัดประเภท', fields: [{ name: 'employeeId', label: 'พนักงาน (รหัส · ชื่อ · จุดปฏิบัติงาน)', type: 'select', required: true, options: row.employeeId ? employeeOptions.filter((option) => option.value === String(row.employeeId)) : employeeOptions }, { name: 'quotaYear', label: 'ปีสิทธิ์', type: 'select', required: true, options: quotaYearOptions }], values: { employeeId: String(row.employeeId || ''), quotaYear: String(quotaYear) } }, (form) => api.linkLeaveQuota(auth.token!, id, form.employeeId, Number(form.quotaYear)));
       return;
     }
     if (action === 'document' && activePage === 'licenses') {
@@ -2861,7 +2861,7 @@ function Dashboard() {
       }, (form) => api.updateLeaveQuota(auth.token!, id, form));
       else if (activePage === 'users') runEditor({
         title: 'แก้ไขผู้ใช้และสิทธิ์', submitLabel: 'บันทึกสิทธิ์',
-        fields: [{ name: 'role', label: 'บทบาท', type: 'select', required: true, options: ['ADMIN', 'MANAGER', 'SUPERVISOR', 'VIEWER'].map((value) => ({ value, label: ROLE_DISPLAY_LABEL[value] || value })) }, { name: 'department', label: 'หน่วยงาน' }, { name: 'accountStatus', label: 'สถานะบัญชี', type: 'select', required: true, options: ['ACTIVE', 'PENDING', 'SUSPENDED', 'REJECTED'].map((value) => ({ value, label: value })) }],
+        fields: [{ name: 'role', label: 'บทบาท', type: 'select', required: true, options: ['ADMIN', 'MANAGER', 'SUPERVISOR', 'VIEWER'].map((value) => ({ value, label: ROLE_DISPLAY_LABEL[value] || value })) }, { name: 'department', label: 'จุดปฏิบัติงาน' }, { name: 'accountStatus', label: 'สถานะบัญชี', type: 'select', required: true, options: ['ACTIVE', 'PENDING', 'SUSPENDED', 'REJECTED'].map((value) => ({ value, label: value })) }],
         values: { role: String(row.role || ''), department: String(row.department || ''), accountStatus: String(row.accountStatus || '') }
       }, (form) => api.updateUser(auth.token!, id, form));
       return;
@@ -3229,7 +3229,7 @@ function Dashboard() {
       };
       return <section className="view-pane schedule-calendar-page nexus-roster-workspace layout-roster-page layout-page-surface">
 
-        <PageHeader kicker="ตารางและกฎการทำงาน" title="ตารางกะรายเดือน" description="จัดกะรายเดือน แก้ไขในฉบับร่างแล้วบันทึกการเปลี่ยนแปลงก่อนตรวจและส่งอนุมัติ" actions={<div className="heading-actions">{auth.user?.role === 'ADMIN' && !auth.isViewingAs && <button className="btn-neutral small-action" onClick={() => setActivePage('approvalCenter', { type: 'SCHEDULE' })}>ประวัติการอนุมัติ</button>}{approval.status === 'APPROVED' && <><button className="excel-action" disabled={scheduleExportBusy} onClick={exportApprovedExcel}>▦ {scheduleExportBusy ? 'กำลังสร้าง Excel…' : `ส่งออก Excel${selectedDepartments.length ? ` · ${selectedDepartments.length} แผนก` : ''}`}</button><button className="btn-info small-action" onClick={() => void printScheduleDocument()}><SmsIcon name="report" /> ส่งออก PDF</button></>}</div>} />
+        <PageHeader kicker="ตารางและกฎการทำงาน" title="ตารางกะรายเดือน" description="จัดกะรายเดือน แก้ไขในฉบับร่างแล้วบันทึกการเปลี่ยนแปลงก่อนตรวจและส่งอนุมัติ" actions={<div className="heading-actions">{auth.user?.role === 'ADMIN' && !auth.isViewingAs && <button className="btn-neutral small-action" onClick={() => setActivePage('approvalCenter', { type: 'SCHEDULE' })}>ประวัติการอนุมัติ</button>}{approval.status === 'APPROVED' && <><button className="excel-action" disabled={scheduleExportBusy} onClick={exportApprovedExcel}>▦ {scheduleExportBusy ? 'กำลังสร้าง Excel…' : `ส่งออก Excel${selectedDepartments.length ? ` · ${selectedDepartments.length} จุดปฏิบัติงาน` : ''}`}</button><button className="btn-info small-action" onClick={() => void printScheduleDocument()}><SmsIcon name="report" /> ส่งออก PDF</button></>}</div>} />
         <StepFlow title="ลำดับการจัดตารางกะ" description="สถานะจากรายการที่โหลดและฉบับร่าง ต้องเปิดผลตรวจกฎของเดือนนี้แยกต่างหาก" steps={[
 {id:'month',icon:'calendar',label:'ขั้นที่หนึ่ง',title:'เลือกเดือน',desc:monthLabel,completed:!operationLoading && !operationError && calendar.month===scheduleMonth},
 {id:'arrange',icon:'edit',label:'ขั้นที่สอง',title:'จัดกะ',desc:Object.keys(scheduleDrafts).length ? 'ยังมีฉบับร่างที่ต้องบันทึก' : 'ตรวจรายการที่บันทึกในตาราง',completed:!operationLoading && !operationError && calendar.month===scheduleMonth && Object.keys(scheduleDrafts).length===0 && calendarEmployees.some(employee=>Array.isArray(employee.shifts) && employee.shifts.length>0)},
@@ -3252,13 +3252,13 @@ function Dashboard() {
                 className="btn-neutral small-action schedule-department-trigger"
                 onClick={() => setDeptMenuOpen((prev) => !prev)}
               >
-                <SmsIcon name="employees" /> แผนก: {selectedDepartments.length === 0 ? 'ทุกแผนก' : `${selectedDepartments.length} แผนกที่เลือก`} ▾
+                <SmsIcon name="employees" /> จุดปฏิบัติงาน: {selectedDepartments.length === 0 ? 'ทุกจุดปฏิบัติงาน' : `${selectedDepartments.length} จุดปฏิบัติงานที่เลือก`} ▾
               </button>
               {deptMenuOpen && (
                 <div className="schedule-department-popover">
                   <div className="schedule-department-popover-header">
-                    <span>เลือกแผนกที่ต้องการกรอง</span>
-                    <button type="button" className="schedule-department-clear" onClick={() => setSelectedDepartments([])}>แสดงทุกแผนก</button>
+                    <span>เลือกจุดปฏิบัติงานที่ต้องการกรอง</span>
+                    <button type="button" className="schedule-department-clear" onClick={() => setSelectedDepartments([])}>แสดงทุกจุดปฏิบัติงาน</button>
                   </div>
                   <div style={{ maxHeight: '200px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '6px' }}>
                     {departments.map((dept) => {
@@ -3675,7 +3675,7 @@ function Dashboard() {
             </div>
             <div className="print-empty-state">
               <strong>ไม่พบข้อมูลตารางกะสำหรับเดือนนี้</strong>
-              <span>กรุณาตรวจสอบเดือนหรือแผนกที่เลือกก่อนส่งออก PDF</span>
+              <span>กรุณาตรวจสอบเดือนหรือจุดปฏิบัติงานที่เลือกก่อนส่งออก PDF</span>
             </div>
           </div>
         )}
@@ -3688,7 +3688,7 @@ function Dashboard() {
               </div>
               <div className="print-metadata">
                 <div className="print-metadata-left">
-                  <span>แผนก: <strong>{dept || 'ทั่วไป'}</strong></span>
+                  <span>จุดปฏิบัติงาน: <strong>{dept || 'ทั่วไป'}</strong></span>
                   <span style={{ marginLeft: '12px' }}>ฉบับแก้ไข: <strong>{text(printData.approval.revision || 1)}</strong></span>
                   <span style={{ marginLeft: '12px' }}>อนุมัติโดย: <strong>{text(printData.approval.approvedBy || printData.approval.approvedByDisplayName || roleDisplayName('ADMIN'))}</strong></span>
                   <span style={{ marginLeft: '12px' }}>วันที่อนุมัติ: <strong>{printData.approval.approvedAt ? formatApprovalDateTime(printData.approval.approvedAt) : '-'}</strong></span>
@@ -3723,7 +3723,7 @@ function Dashboard() {
                 <tbody>
                   <tr className="schedule-department-group-row print-department-group-row">
                     <th className="schedule-department-group-sticky" scope="rowgroup" colSpan={printData.dates.length + 4}>
-                      {dept || 'ไม่ระบุแผนก'} · {deptEmployees.length} คน
+                      {dept || 'ไม่ระบุจุดปฏิบัติงาน'} · {deptEmployees.length} คน
                     </th>
                   </tr>
                   {deptEmployees.map((employee, idx) => {

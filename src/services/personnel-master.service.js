@@ -34,7 +34,7 @@ async function list({ prismaClient = prisma, activeOnly = false } = {}) {
 async function assertActiveValue(client, kind, value) {
   if (value === null || value === undefined || String(value).trim() === '') return null;
   const row = await modelFor(client, kind).findUnique({ where: { normalizedName: normalizeName(value) } });
-  if (!row || !row.isActive) throw new HttpError(409, kind === 'department' ? 'หน่วยงานใหม่ต้องเลือกจาก Department Master ที่ Active' : 'ตำแหน่งใหม่ต้องเลือกจาก Position Master ที่ Active', { code: 'PERSONNEL_MASTER_ACTIVE_VALUE_REQUIRED', kind, value: String(value) });
+  if (!row || !row.isActive) throw new HttpError(409, kind === 'department' ? 'จุดปฏิบัติงานใหม่ต้องเลือกจาก Department Master ที่ Active' : 'ตำแหน่งใหม่ต้องเลือกจาก Position Master ที่ Active', { code: 'PERSONNEL_MASTER_ACTIVE_VALUE_REQUIRED', kind, value: String(value) });
   return row.name;
 }
 

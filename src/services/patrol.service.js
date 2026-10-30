@@ -362,7 +362,7 @@ function createPatrolService({ prisma = prismaDefault, storage, audit = auditDef
         }
       })
     ]);
-    if (scans.length > REPORT_SCAN_LIMIT) throw http(422, 'PATROL_REPORT_TOO_LARGE', 'ข้อมูลรายงานมีมากเกินไป โปรดลดช่วงวันหรือเลือกแผนกเพื่อจำกัดข้อมูล');
+    if (scans.length > REPORT_SCAN_LIMIT) throw http(422, 'PATROL_REPORT_TOO_LARGE', 'ข้อมูลรายงานมีมากเกินไป โปรดลดช่วงวันหรือเลือกจุดปฏิบัติงานเพื่อจำกัดข้อมูล');
     const inRange = scans.filter((scan) => {
       const day = scan.workDate instanceof Date ? scan.workDate.toISOString().slice(0, 10) : String(scan.workDate).slice(0, 10);
       return day >= range.dates[0] && day <= range.dates.at(-1);

@@ -170,10 +170,10 @@ export function PatrolRoundCard({ progress, department, onDepartment, now = Date
         <h2 id="patrol-round-title">ตรวจแล้ว {done}/{total} จุด</h2>
         <p className="patrol-muted">เหลือเวลารอบนี้ {durationLabel(minutesUntil(progress.roundEnd, now))}</p>
       </div>
-      <label className="patrol-field patrol-round-card__dept"><span>แผนก</span><select value={department || progress.department || ''} onChange={(event) => onDepartment(event.target.value)}>{progress.departments.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
+      <label className="patrol-field patrol-round-card__dept"><span>จุดปฏิบัติงาน</span><select value={department || progress.department || ''} onChange={(event) => onDepartment(event.target.value)}>{progress.departments.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
     </header>
     <div className="patrol-round-card__bar" role="progressbar" aria-label="ความคืบหน้ารอบนี้" aria-valuemin={0} aria-valuemax={100} aria-valuenow={percent}><i style={{ width: `${percent}%` }} /></div>
-    {total === 0 ? <p className="patrol-empty">แผนกนี้ยังไม่มีจุดตรวจ</p> : <ul className="patrol-round-card__list">
+    {total === 0 ? <p className="patrol-empty">จุดปฏิบัติงานนี้ยังไม่มีจุดตรวจ</p> : <ul className="patrol-round-card__list">
       {progress.checkpoints.map((item) => <li key={item.id} className={item.doneThisRound ? 'is-done' : 'is-pending'}>
         <span className="patrol-round-card__mark" aria-hidden="true">{item.doneThisRound ? '✓' : ''}</span>
         <span className="patrol-round-card__name"><strong>{item.code}</strong> {item.name}</span>
@@ -248,7 +248,7 @@ export function PatrolScanPage({ token }: { token: string }) {
       <div>
         <p className="patrol-hero__kicker">ตรวจจุด · {thaiDate(today, { day: 'numeric', month: 'long', year: 'numeric' })}</p>
         <h1>สแกนจุดตรวจ</h1>
-        <p>สแกน QR ที่ป้ายจุดตรวจ แล้วถ่ายรูปสภาพจุดนั้น 1 รูป สแกนจุดของแผนกอื่นได้</p>
+        <p>สแกน QR ที่ป้ายจุดตรวจ แล้วถ่ายรูปสภาพจุดนั้น 1 รูป สแกนจุดของจุดปฏิบัติงานอื่นได้</p>
       </div>
     </header>
 
@@ -258,7 +258,7 @@ export function PatrolScanPage({ token }: { token: string }) {
       <div className="patrol-success__badge" aria-hidden="true"><SmsIcon name="check" size={30} /></div>
       <h2>บันทึกการตรวจแล้ว</h2>
       <p><strong>{result.checkpointCode}</strong> · {result.checkpointName}</p>
-      <p className="patrol-muted">แผนก {result.checkpointDepartment} · เวลา {thaiTime(result.scannedAt)} น.{result.replayed ? ' · (บันทึกไว้ก่อนหน้าแล้ว)' : ''}</p>
+      <p className="patrol-muted">จุดปฏิบัติงาน {result.checkpointDepartment} · เวลา {thaiTime(result.scannedAt)} น.{result.replayed ? ' · (บันทึกไว้ก่อนหน้าแล้ว)' : ''}</p>
       <button type="button" className="btn-primary patrol-cta" onClick={reset}><SmsIcon name="qr" size={20} />สแกนจุดถัดไป</button>
     </div> : step === 'review' || step === 'saving' ? <div className="patrol-review">
       <div className="patrol-review__checkpoint">

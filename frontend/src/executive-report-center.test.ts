@@ -13,7 +13,7 @@ describe('Executive Report presentation and export contract', () => {
   // scope control follows the server's allowsDepartmentFilter (ADMIN/MANAGER/SUPERVISOR) instead of ADMIN-only.
   it('preserves the existing executive API contract and the ADMIN/MANAGER/SUPERVISOR department scope control', () => {
     expect(page).toContain('api.executiveReport(token, { year, month, department: department || undefined })');
-    expect(page).toContain("(report?.scope.allowsDepartmentFilter ?? ['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(role)) && <label><span>หน่วยงาน</span>");
+    expect(page).toContain("(report?.scope.allowsDepartmentFilter ?? ['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(role)) && <label><span>จุดปฏิบัติงาน</span>");
     expect(page).toContain('filters?: ExecutiveReportFilters');
     expect(page).toContain('embedded?: boolean');
     expect(page).toContain('onReportChange?(report?: ExecutiveReport): void');
