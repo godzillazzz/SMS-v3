@@ -22,13 +22,21 @@ function createStorageProxyRouter({ environment = process.env, db = prisma, audi
       });
       if (!row || row.storageDeletedAt || row.storageDeletionRequestedAt || row.purgedAt || row.purgeRequestedAt) throw new HttpError(410, 'Stored object is no longer viewable.');
       if (req.user.role !== 'ADMIN') {
+        const actorEmployeeId = req.user.employeeAuthority?.id;
+        const actorEmployee = actorEmployeeId && db.employee?.findUnique
+          ? await db.employee.findUnique({
+            where: { id: actorEmployeeId },
+            select: { id: true, department: true, isActive: true, deletedAt: true }
+          })
+          : null;
         const employee = row.employee || (row.employeeId && db.employee?.findUnique
           ? await db.employee.findUnique({ where: { id: row.employeeId }, select: { id: true, department: true } })
           : null);
-        const actorDepartment = req.user.department || req.user.employeeAuthority?.department;
-        const sameEmployee = req.user.employeeAuthority?.id && String(req.user.employeeAuthority.id) === String(row.employeeId);
-        const inDepartment = actorDepartment && employee?.department && actorDepartment === employee.department;
-        if (!employee || (!sameEmployee && !inDepartment)) throw new HttpError(403, 'Stored object is outside the actor scope.');
+        const sameEmployee = actorEmployeeId && String(actorEmployeeId) === String(row.employeeId);
+        const inDepartment = actorEmployee?.department && employee?.department && actorEmployee.department === employee.department;
+        if (!actorEmployee || actorEmployee.isActive !== true || actorEmployee.deletedAt || !employee || (!sameEmployee && !inDepartment)) {
+          throw new HttpError(403, 'Stored object is outside the actor scope.');
+        }
       }
       const result = await readResolver.read(row);
       res.set({ 'Content-Type': result.mimeType, 'Content-Length': String(result.sizeBytes), 'Content-Security-Policy': "default-src 'none'; frame-ancestors 'self'", 'Cache-Control': 'private, no-store' });
