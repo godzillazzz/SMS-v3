@@ -15,7 +15,7 @@ const CANDIDATES_FILE = 'scripts/ci/g06-production-migration-candidates.json';
 const ATP_WORKFLOW = '.github/workflows/apply-approved-attendance-time-policy-production-migration.yml';
 const DEPLOY_WORKFLOW = '.github/workflows/deploy-approved-production-v2.yml';
 const RETIRED_SOURCE_SHA = '500aaa53d60d6835cccec16c79ca25de00ab06c6';
-const REVIEWED_HISTORY_SHA = '3e3993eebd21b52b8e6b337cefffe96a9562e55a';
+const REVIEWED_HISTORY_SHA = '813b4b8b953fa7bb3cd6ed75d6fd2e242aedb0bc';
 const PIN_UPDATE_INSTRUCTION = 'prisma/schema.prisma changed: update ATTENDANCE_SCHEMA_SHA256 in '
   + 'scripts/ci/attendance-schema-pin.js together with its governed evidence and tests in the same governed commit';
 
