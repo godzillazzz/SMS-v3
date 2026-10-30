@@ -115,3 +115,12 @@ html[data-theme] .app-shell.pwa-shell .content-area .layout-page-surface.leave-p
 /* Owner 2026-10-29: an empty state nested in a table/list card is flat and spans the card. */
 :root .app-shell :is(.data-table-empty-cell .data-state,.leave-history-mobile-list>.data-state).data-state{width:100%!important;margin:0!important;border:0!important;background:none!important;box-shadow:none!important}
 :root .app-shell .data-table-shell:has(.data-table-empty-cell,.leave-history-mobile-list>.data-state){box-shadow:none!important}
+
+#sms-app .leave-quota-panel{display:grid;gap:12px;padding:18px;border:1px solid var(--color-border);border-radius:12px;background:var(--color-surface);color:var(--color-text)}
+#sms-app .leave-quota-panel h2{margin:0;font-size:16px}
+#sms-app .leave-quota-panel__row{display:grid;gap:4px;font-size:13px}
+#sms-app .leave-quota-panel__row span{color:var(--color-text-secondary)}
+#sms-app .leave-quota-panel__track{height:6px;border-radius:999px;background:var(--color-surface-muted)}
+#sms-app .leave-quota-panel__track i{display:block;height:100%;border-radius:inherit;background:var(--color-primary)}
+@media(max-width:1100px){#sms-app .leave-page.leave-mode-all .leave-side{display:contents}#sms-app .leave-page.leave-mode-all .leave-quota-panel{order:-1}}
+.pwa-shell .leave-page .leave-quota-panel{order:-1}
