@@ -1703,7 +1703,12 @@ html[data-theme] .app-shell:not(.pwa-shell) .content-area .attendance-supervisor
 }
 
 /* Keep daily cells readable without truncating times or flags. */
-.attendance-supervisor-v4__table :is(th,td,td strong,td small){font-size:11px!important}
+#sms-app .main-area .attendance-supervisor-v4__table :is(th,td,td strong,td small){font-size:11px!important}
+#sms-app .main-area .attendance-supervisor-v4__table :is(th,td){padding:6px 5px}
+#sms-app .main-area .attendance-supervisor-v4__table th{white-space:normal;overflow-wrap:anywhere;text-overflow:clip}
+#sms-app .main-area .attendance-supervisor-v4__table td{white-space:normal;overflow-wrap:anywhere}
+.attendance-supervisor-v4__table td:has(.attendance-supervisor-v4__status){white-space:normal}
+.attendance-supervisor-v4__table .attendance-supervisor-v4__status{max-width:100%;white-space:normal;overflow-wrap:anywhere}
 .attendance-supervisor-v4__table .attendance-supervisor-v4__site{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;white-space:normal;overflow-wrap:anywhere}
 .attendance-supervisor-v4__table td:has(.attendance-supervisor-v4__flags){overflow:visible;white-space:normal}
 .attendance-supervisor-v4__flags span{font-size:11px;white-space:normal;overflow-wrap:anywhere}
