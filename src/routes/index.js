@@ -25,6 +25,7 @@ const personnelMastersRoutes = require('./personnel-masters.routes');
 const systemHealthRoutes = require('./system-health.routes');
 const telemetryRoutes = require('./telemetry.routes');
 const g06UatProvisioningRoutes = require('./g06-uat-provisioning.routes');
+const { createPatrolRoutes } = require('./patrol.routes');
 
 const router = express.Router();
 router.use('/auth', authRoutes);
@@ -45,6 +46,7 @@ router.use('/storage-proxy', createStorageProxyRouter());
 router.use('/face-verification-self-hosted', selfHostedFaceVerificationRoutes);
 router.use('/admin/security-sites', securitySitesRoutes);
 router.use('/personnel-masters', personnelMastersRoutes);
+router.use('/patrol', createPatrolRoutes());
 router.use('/admin/system-health', systemHealthRoutes);
 router.use('/admin/telemetry', telemetryRoutes);
 router.use('/admin/g06-uat', g06UatProvisioningRoutes);

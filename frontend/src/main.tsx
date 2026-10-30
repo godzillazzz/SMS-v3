@@ -170,6 +170,8 @@ const DataQualityCenterPage = React.lazy(() => import('./pages/data-quality/Data
 const SystemHealthPage = React.lazy(() => import('./pages/system-health/SystemHealthPage').then((module) => ({ default: module.SystemHealthPage })));
 const AccessManagementPage = React.lazy(() => import('./pages/access-management/AccessManagementPage').then((module) => ({ default: module.AccessManagementPage })));
 const AttendanceDevicePage = React.lazy(() => import('./pages/attendance-device/AttendanceDevicePage').then((module) => ({ default: module.AttendanceDevicePage })));
+const PatrolScanPage = React.lazy(() => import('./pages/patrol/PatrolScanPage').then((module) => ({ default: module.PatrolScanPage })));
+const PatrolCenterPage = React.lazy(() => import('./pages/patrol/PatrolCenterPage').then((module) => ({ default: module.PatrolCenterPage })));
 const SecuritySiteManagementPanel = React.lazy(() => import('./components/SecuritySiteManagementPanel').then((module) => ({ default: module.SecuritySiteManagementPanel })));
 const PwaProfilePage = React.lazy(() => import('./pages/pwa-profile/PwaProfilePage').then((module) => ({ default: module.PwaProfilePage })));
 const AttendanceHistoryPwaPage = React.lazy(() => import('./pages/pwa-attendance/AttendanceHistoryPwaPage').then((module) => ({ default: module.AttendanceHistoryPwaPage })));
@@ -217,6 +219,10 @@ const navigation: Array<{ label: string; items: Array<{ id: Page; icon: SmsIconN
     { id: 'attendance', icon: 'attendance', label: 'ลงเวลา' },
     { id: 'attendanceSupervisor', icon: 'dashboard', label: 'ศูนย์ควบคุมการลงเวลา' },
     { id: 'attendanceDevice', icon: 'device', label: 'อุปกรณ์ลงเวลา' }
+  ] },
+  { label: 'ตรวจจุด', items: [
+    { id: 'patrol', icon: 'qr', label: 'สแกนจุดตรวจ' },
+    { id: 'patrolCenter', icon: 'location', label: 'ศูนย์ตรวจจุด' }
   ] },
   { label: 'ตารางกะ', items: [
     { id: 'schedule', icon: 'calendar', label: 'ตารางกะรายเดือน' },
@@ -969,7 +975,7 @@ function EmployeeMagicWandModal({
   );
 }
 
-type OperationalPage = Exclude<Page, 'dashboard' | 'dashboardDetails' | 'employees' | 'approvalCenter' | 'attendance' | 'attendanceSupervisor' | 'attendanceHistory' | 'employeeSchedule' | 'attendanceDevice' | 'profile' | 'reportCenter' | 'reports' | 'executiveReport' | 'attendanceReport' | 'shiftSetup' | 'securitySite' | 'settings' | 'leavePending' | 'leaveHistory' | 'dataQuality' | 'systemHealth'>;
+type OperationalPage = Exclude<Page, 'dashboard' | 'dashboardDetails' | 'employees' | 'approvalCenter' | 'attendance' | 'attendanceSupervisor' | 'attendanceHistory' | 'employeeSchedule' | 'attendanceDevice' | 'profile' | 'reportCenter' | 'reports' | 'executiveReport' | 'attendanceReport' | 'shiftSetup' | 'securitySite' | 'settings' | 'patrol' | 'patrolCenter' | 'leavePending' | 'leaveHistory' | 'dataQuality' | 'systemHealth'>;
 
 const tablePages: Record<OperationalPage, { title: string; eyebrow: string; description: string; columns: Array<{ label: string; value: (row: DataRow) => React.ReactNode }> }> = {
   licenses: { title: 'ใบอนุญาตพนักงาน', eyebrow: 'จัดการบุคลากร', description: 'ตรวจสอบประเภท เลขที่ สถานะ และวันหมดอายุใบอนุญาต', columns: [
@@ -2395,14 +2401,14 @@ function Dashboard() {
   }, [activePage, auth.token, auth.user?.id, auth.user?.role, operationPage, dataQualityPageSize, dataQualityFilters, operationRefresh]);
 
   useEffect(() => {
-    if (!auth.token || activePage === 'dashboard' || activePage === 'dashboardDetails' || activePage === 'employees' || activePage === 'approvalCenter' || activePage === 'attendance' || activePage === 'attendanceSupervisor' || activePage === 'attendanceHistory' || activePage === 'employeeSchedule' || activePage === 'attendanceDevice' || activePage === 'profile' || activePage === 'shiftSetup' || activePage === 'schedule' || activePage === 'audit' || activePage === 'dataQuality' || activePage === 'systemHealth' || activePage === 'reportCenter' || activePage === 'reports' || activePage === 'executiveReport' || activePage === 'attendanceReport' || activePage === 'securitySite') return;
+    if (!auth.token || activePage === 'dashboard' || activePage === 'dashboardDetails' || activePage === 'employees' || activePage === 'approvalCenter' || activePage === 'attendance' || activePage === 'attendanceSupervisor' || activePage === 'attendanceHistory' || activePage === 'employeeSchedule' || activePage === 'attendanceDevice' || activePage === 'profile' || activePage === 'shiftSetup' || activePage === 'schedule' || activePage === 'audit' || activePage === 'dataQuality' || activePage === 'systemHealth' || activePage === 'reportCenter' || activePage === 'reports' || activePage === 'executiveReport' || activePage === 'attendanceReport' || activePage === 'patrol' || activePage === 'patrolCenter' || activePage === 'securitySite') return;
     if (activePage === 'users' && !canLoadAccessManagement(auth.user?.role || 'VIEWER')) {
       setOperationLoading(false);
       setOperationError(undefined);
       setOperationResponse({ data: [] });
       return;
     }
-    const loaders: Record<Exclude<Page, 'dashboard' | 'dashboardDetails' | 'employees' | 'approvalCenter' | 'attendance' | 'attendanceSupervisor' | 'attendanceHistory' | 'employeeSchedule' | 'attendanceDevice' | 'profile' | 'shiftSetup' | 'schedule' | 'dataQuality' | 'systemHealth' | 'reportCenter' | 'reports' | 'executiveReport' | 'attendanceReport' | 'securitySite'>, (token: string, page: number) => Promise<DataResponse>> = {
+    const loaders: Record<Exclude<Page, 'dashboard' | 'dashboardDetails' | 'employees' | 'approvalCenter' | 'attendance' | 'attendanceSupervisor' | 'attendanceHistory' | 'employeeSchedule' | 'attendanceDevice' | 'profile' | 'shiftSetup' | 'schedule' | 'dataQuality' | 'systemHealth' | 'reportCenter' | 'reports' | 'executiveReport' | 'attendanceReport' | 'patrol' | 'patrolCenter' | 'securitySite'>, (token: string, page: number) => Promise<DataResponse>> = {
       licenses: api.licenses, approvals: api.scheduleApprovals,
       rules: api.schedulingRules, leave: api.leaveRequests, leavePending: api.leaveRequests, leaveHistory: api.leaveRequests, quota: api.leaveQuotas,
       users: api.users, audit: api.auditEvents, settings: api.systemSettings
@@ -2491,6 +2497,8 @@ function Dashboard() {
     attendanceReport: 'รายงานการลงเวลาประจำเดือนที่รับรองแล้ว พร้อม PDF และ Excel',
     users: 'กำหนดบทบาทและแผนกก่อนอนุมัติบัญชี',
     securitySite: 'กำหนดจุดรักษาความปลอดภัย ขอบเขตพื้นที่ การเชื่อมโยงหน่วยงาน และวงจรรหัส QR สำหรับลงเวลา',
+    patrol: 'สแกน QR ที่ป้ายจุดตรวจ แล้วถ่ายรูปสภาพจุดตรวจ 1 รูปต่อจุด',
+    patrolCenter: 'ติดตามการตรวจจุดของทุกแผนก จัดการ QR จุดตรวจ และพิมพ์รายงาน',
     settings: 'ตั้งค่าระบบสำหรับค่าที่ผ่านการกำกับ ตรวจสอบความถูกต้อง และบันทึกประวัติ',
     audit: 'ประวัติการใช้งานและการเปลี่ยนแปลงข้อมูล',
   };
@@ -2502,6 +2510,8 @@ function Dashboard() {
     .map((section) => ({ ...section, items: section.items.filter((item) =>
       // D-U3: only accounts linked to an employee can clock in; others do not see the menu (the route and permissions are unchanged).
       !(item.id === 'attendance' && !auth.user?.employeeId)
+      // Patrol scanning also requires a linked employee, so hide it for unlinked accounts.
+      && !(item.id === 'patrol' && !auth.user?.employeeId)
       // D-U2: leave approvals live in the Approval Center; /app/leave/pending still works from links.
       && item.id !== 'leavePending') }))
     .filter((section) => section.items.length > 0);
@@ -3518,6 +3528,8 @@ function Dashboard() {
         />
       </div>;
     }
+    if (activePage === 'patrol' && auth.token) return <PatrolScanPage token={auth.token} />;
+    if (activePage === 'patrolCenter' && auth.token) return <PatrolCenterPage token={auth.token} role={auth.user?.role || 'VIEWER'} />;
     if (activePage === 'securitySite' && auth.token) {
       return <SecuritySiteManagementPanel token={auth.token} />;
     }

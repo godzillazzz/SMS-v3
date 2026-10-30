@@ -48,7 +48,7 @@ function preparePrintLayout(frameDocument: Document, orientation: PrintOrientati
     @page { size: A4 ${orientation}; margin: ${margin}; }
     html, body { margin: 0 !important; min-height: 0 !important; height: auto !important; overflow: visible !important; background: #fff !important; color: #000 !important; }
     body { padding: 0 !important; }
-    .print-only, .leave-print-document, .attendance-official-report-print { display: block !important; position: static !important; width: 100% !important; min-height: 0 !important; height: auto !important; max-height: none !important; overflow: visible !important; background: #fff !important; }
+    .print-only, .leave-print-document, .attendance-official-report-print, .patrol-report-print { display: block !important; position: static !important; width: 100% !important; min-height: 0 !important; height: auto !important; max-height: none !important; overflow: visible !important; background: #fff !important; }
     .t29-table-print { box-sizing: border-box; width: 100%; color: #0f172a; background: #fff; font-family: 'IBM Plex Sans Thai', 'Noto Sans Thai', sans-serif; font-size: 10pt; }
     .t29-table-print h1 { margin: 0 0 3mm; padding-bottom: 3mm; border-bottom: 1.5px solid #0f172a; font-size: 18pt; }
     .t29-table-print h1::before { content: 'SMS'; display: inline-block; margin-right: 3mm; padding: 1mm 2mm; border-radius: 1.5mm; background: #0f172a; color: #fff; font-size: 9pt; vertical-align: 3pt; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
@@ -84,6 +84,7 @@ function preparePrintLayout(frameDocument: Document, orientation: PrintOrientati
     .attendance-report-table { width: 100% !important; }
     .attendance-report-table thead { display: table-header-group !important; }
     .attendance-report-table tr { break-inside: avoid !important; page-break-inside: avoid !important; }
+    .patrol-qr-sheet { display: grid !important; position: static !important; }
     .attendance-supervisor-print { display: block !important; color: #0f172a; font-family: 'Noto Sans Thai', Inter, sans-serif; }
     .attendance-supervisor-print-page { break-after: page; page-break-after: always; }
     .attendance-supervisor-print-page:last-child { break-after: auto; page-break-after: auto; }

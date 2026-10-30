@@ -16,6 +16,8 @@ export const PAGE_PATHS = {
   shiftSetup: '/app/shift-codes',
   users: '/app/users',
   securitySite: '/app/sites',
+  patrol: '/app/patrol',
+  patrolCenter: '/app/patrol/center',
   leave: '/app/leave',
   leavePending: '/app/leave/approvals',
   leaveHistory: '/app/leave/history',
@@ -97,6 +99,8 @@ const PAGE_TITLES: Record<RoutePage, string> = {
   shiftSetup: 'รหัสกะและเวลา',
   users: 'ผู้ใช้และสิทธิ์',
   securitySite: 'จุดรักษาความปลอดภัย',
+  patrol: 'สแกนจุดตรวจ',
+  patrolCenter: 'ศูนย์ตรวจจุด',
   leave: 'คำขอลา',
   leavePending: 'อนุมัติคำขอลา',
   leaveHistory: 'ประวัติการลา',
@@ -220,6 +224,7 @@ export function canViewRoutePage(page: RoutePage, auth: { user?: { role?: string
   if (page === 'dataQuality') return auth.user?.role === 'ADMIN';
   if (page === 'systemHealth') return auth.user?.role === 'ADMIN';
   if (page === 'securitySite') return auth.user?.role === 'ADMIN';
+  if (page === 'patrolCenter') return ['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(auth.user?.role || '');
   if (page === 'settings') return auth.user?.role === 'ADMIN';
   if (page === 'users') return ['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(auth.user?.role || '');
   if (page === 'quota') return auth.user?.role === 'ADMIN';

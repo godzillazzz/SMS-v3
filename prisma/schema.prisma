@@ -509,6 +509,7 @@ model Employee {
   attendanceSessions          AttendanceSession[]
   attendanceEvidence          AttendanceEvidence[]
   deviceSelfies               AttendanceDeviceSelfie[]
+  patrolScans                 PatrolScan[]
 
   scheduleRosterSnapshots ScheduleRosterSnapshot[]
 
@@ -1449,4 +1450,53 @@ model EmailDeliveryReservation {
 
   @@index([status, retryAfter])
   @@map("email_delivery_reservations")
+}
+
+model PatrolCheckpoint {
+  id           String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code         String       @unique @db.VarChar(50)
+  name         String       @db.VarChar(150)
+  department   String       @db.VarChar(100)
+  locationNote String?      @map("location_note") @db.VarChar(500)
+  sortOrder    Int          @default(0) @map("sort_order")
+  isActive     Boolean      @default(true) @map("is_active")
+  qrToken      String       @unique @map("qr_token") @db.VarChar(64)
+  qrVersion    Int          @default(1) @map("qr_version")
+  qrRotatedAt  DateTime     @default(now()) @map("qr_rotated_at")
+  createdAt    DateTime     @default(now()) @map("created_at")
+  updatedAt    DateTime     @updatedAt @map("updated_at")
+  scans        PatrolScan[]
+
+  @@index([department, isActive, sortOrder])
+  @@map("patrol_checkpoints")
+}
+
+model PatrolScan {
+  id                   String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  checkpointId         String           @map("checkpoint_id") @db.Uuid
+  employeeId           String           @map("employee_id") @db.Uuid
+  scannedByUserId      String?          @map("scanned_by_user_id") @db.Uuid
+  clientScanId         String           @unique @map("client_scan_id") @db.Uuid
+  scannedAt            DateTime         @default(now()) @map("scanned_at")
+  workDate             DateTime         @map("work_date") @db.Date
+  checkpointDepartment String           @map("checkpoint_department") @db.VarChar(100)
+  employeeDepartment   String?          @map("employee_department") @db.VarChar(100)
+  latitude             Decimal?         @db.Decimal(10, 7)
+  longitude            Decimal?         @db.Decimal(10, 7)
+  accuracyMeters       Int?             @map("accuracy_meters")
+  note                 String?          @db.VarChar(500)
+  photoStorageProvider String           @map("photo_storage_provider") @db.VarChar(20)
+  photoBucket          String           @map("photo_bucket") @db.VarChar(255)
+  photoObjectKey       String           @unique @map("photo_object_key") @db.VarChar(500)
+  photoMimeType        String           @map("photo_mime_type") @db.VarChar(50)
+  photoSizeBytes       Int              @map("photo_size_bytes")
+  photoChecksum        String           @map("photo_checksum") @db.Char(64)
+  createdAt            DateTime         @default(now()) @map("created_at")
+  checkpoint           PatrolCheckpoint @relation(fields: [checkpointId], references: [id], onDelete: Restrict)
+  employee             Employee         @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+
+  @@index([workDate, checkpointId])
+  @@index([checkpointId, scannedAt])
+  @@index([employeeId, scannedAt])
+  @@map("patrol_scans")
 }
