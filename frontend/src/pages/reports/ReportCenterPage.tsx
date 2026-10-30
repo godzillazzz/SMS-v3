@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { flushSync } from 'react-dom';
 import { api } from '../../api';
 import { RequestErrorContent, toRequestErrorState, type RequestErrorInput } from '../../request-error';
 import { printDocument } from '../../schedule-print';
@@ -14,6 +15,9 @@ import { EmployeeRegisterPrint, LicenseRegisterPrint, type LicenseRecord } from 
 import type { PersonnelRecord } from '../../components/personnel/types';
 import { attendanceSupervisorMonthPrint } from '../attendance-supervisor/attendance-supervisor-client';
 import { AttendanceMonthToDatePrint, attendanceMonthPrintRows, type AttendanceMonthPrintPayload, type AttendancePrintEmployee, type AttendancePrintRow } from '../attendance-supervisor/AttendanceMonthToDatePrint';
+import { collectAllPages, EMPLOYEE_PAGE_SIZE, monthPrintTargetDate } from './report-center-export';
+import '../../styles/personnel-directory.css';
+import '../../styles/timesheet-print.css';
 import { SmsIcon, type SmsIconName } from '../../components/SmsIcon';
 import { activateTabFromKeyboard } from '../../components/AccessibleTabs';
 import { PageHeader, SectionCard } from '../../components/layout';
@@ -62,6 +66,7 @@ export function ReportCenterPage({ token, role, onNavigate, initialTab = 'execut
   const departmentOptions = executiveReport?.scope.availableDepartments || [];
   const pdfFilename = printableFilename(executiveReport, filters.department);
   const attendanceMonth = `${filters.year}-${String(filters.month).padStart(2, '0')}`;
+  const attendanceMonthLabel = `${monthNames[filters.month - 1] || ''} ${filters.year + 543}`.trim();
 
   useEffect(() => {
     setSummary(undefined);
@@ -93,11 +98,28 @@ export function ReportCenterPage({ token, role, onNavigate, initialTab = 'execut
   }, [activeTab, token, summaryRefresh, summaryLoaded, filters.year, filters.month, filters.department]);
 
   const [exportBusy, setExportBusy] = useState<string>();
-  const [exportNotice, setExportNotice] = useState<string>();
+  const [exportNotice, setExportNotice] = useState<RequestErrorInput>();
   const [printEmployees, setPrintEmployees] = useState<PersonnelRecord[]>([]);
   const [printLicenses, setPrintLicenses] = useState<LicenseRecord[]>([]);
   const [printAttendanceRows, setPrintAttendanceRows] = useState<AttendancePrintRow[]>([]);
   const [printAttendanceEmployees, setPrintAttendanceEmployees] = useState<AttendancePrintEmployee[]>([]);
+  const [printAttendanceDate, setPrintAttendanceDate] = useState('');
+  const [timesheetEmployees, setTimesheetEmployees] = useState<PersonnelRecord[]>([]);
+  const [timesheetEmployeeId, setTimesheetEmployeeId] = useState('');
+  const [timesheetEmployeesLoaded, setTimesheetEmployeesLoaded] = useState(false);
+
+  useEffect(() => {
+    if (activeTab !== 'export' || timesheetEmployeesLoaded) return;
+    let active = true;
+    collectAllPages<PersonnelRecord>((pageNumber) => api.employees(token, { page: pageNumber, pageSize: EMPLOYEE_PAGE_SIZE, isActive: true }))
+      .then((rows) => { if (active) { setTimesheetEmployees(rows); setTimesheetEmployeesLoaded(true); } })
+      .catch((reason) => { if (active) { setTimesheetEmployeesLoaded(true); setExportNotice(toRequestErrorState(reason, 'ไม่สามารถโหลดรายชื่อพนักงานสำหรับพิมพ์ได้')); } });
+    return () => { active = false; };
+  }, [activeTab, token, timesheetEmployeesLoaded]);
+
+  const timesheetEmployeeOptions = useMemo(() => timesheetEmployees
+    .filter((employee) => !filters.department || employee.department === filters.department)
+    .sort((left, right) => String(left.employeeCode || '').localeCompare(String(right.employeeCode || ''))), [timesheetEmployees, filters.department]);
 
   const exportScheduleExcelAction = async () => {
     setExportBusy('schedule');
@@ -114,8 +136,8 @@ export function ReportCenterPage({ token, role, onNavigate, initialTab = 'execut
       a.download = result.fileName || `SMS-Schedule-${attendanceMonth}.xlsx`;
       a.click();
       URL.revokeObjectURL(url);
-    } catch {
-      setExportNotice('ไม่สามารถส่งออกตารางกะได้');
+    } catch (reason) {
+      setExportNotice(toRequestErrorState(reason, 'ไม่สามารถส่งออกตารางกะได้'));
     } finally {
       setExportBusy(undefined);
     }
@@ -125,14 +147,12 @@ export function ReportCenterPage({ token, role, onNavigate, initialTab = 'execut
     setExportBusy('personnel');
     setExportNotice(undefined);
     try {
-      const response = await api.employees(token, { page: 1, pageSize: 500, department: filters.department || undefined });
-      const raw = Array.isArray(response?.data) ? response.data : Array.isArray(response?.data?.rows) ? response.data.rows : [];
+      const raw = await collectAllPages<PersonnelRecord>((pageNumber) => api.employees(token, { page: pageNumber, pageSize: EMPLOYEE_PAGE_SIZE, department: filters.department || undefined }));
       if (!raw.length) { setExportNotice('ไม่พบข้อมูลพนักงานสำหรับพิมพ์'); return; }
-      setPrintEmployees(raw);
-      await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+      flushSync(() => setPrintEmployees(raw));
       await printDocument('#personnel-register-print', `ทะเบียนรายชื่อพนักงาน-${attendanceMonth}.pdf`, { orientation: 'landscape', margin: '10mm' });
-    } catch {
-      setExportNotice('ไม่สามารถพิมพ์ทะเบียนพนักงานได้');
+    } catch (reason) {
+      setExportNotice(toRequestErrorState(reason, 'ไม่สามารถพิมพ์ทะเบียนพนักงานได้'));
     } finally {
       setExportBusy(undefined);
     }
@@ -142,68 +162,52 @@ export function ReportCenterPage({ token, role, onNavigate, initialTab = 'execut
     setExportBusy('licenses');
     setExportNotice(undefined);
     try {
-      const response = await api.licenses(token, 1, 'ALL');
-      const raw = Array.isArray(response?.data) ? response.data : Array.isArray(response?.data?.rows) ? response.data.rows : [];
+      const allLicenses = await collectAllPages<LicenseRecord>((pageNumber) => api.licenses(token, pageNumber, 'ACTIVE'));
+      const raw = filters.department ? allLicenses.filter((license) => license.employee?.department === filters.department) : allLicenses;
       if (!raw.length) { setExportNotice('ไม่พบข้อมูลใบอนุญาตสำหรับพิมพ์'); return; }
-      setPrintLicenses(raw);
-      await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+      flushSync(() => setPrintLicenses(raw));
       await printDocument('#license-register-print', `ทะเบียนใบอนุญาต-รปภ-${attendanceMonth}.pdf`, { orientation: 'landscape', margin: '10mm' });
-    } catch {
-      setExportNotice('ไม่สามารถพิมพ์ทะเบียนใบอนุญาตได้');
+    } catch (reason) {
+      setExportNotice(toRequestErrorState(reason, 'ไม่สามารถพิมพ์ทะเบียนใบอนุญาตได้'));
     } finally {
       setExportBusy(undefined);
     }
   };
 
   const exportAttendanceTimesheetAction = async (singleEmployeeOnly: boolean) => {
+    if (singleEmployeeOnly && !timesheetEmployeeId) { setExportNotice('กรุณาเลือกพนักงานก่อนพิมพ์รายบุคคล'); return; }
+    const targetDate = monthPrintTargetDate(filters.year, filters.month);
+    if (!targetDate) { setExportNotice('เดือนที่เลือกยังไม่เริ่ม จึงยังไม่มีข้อมูลการลงเวลา'); return; }
     setExportBusy(singleEmployeeOnly ? 'timesheet-single' : 'timesheet-all');
     setExportNotice(undefined);
     try {
-      const todayText = `${filters.year}-${String(filters.month).padStart(2, '0')}-01`;
-      // Use month end or current date
-      const lastDay = new Date(Date.UTC(filters.year, filters.month, 0)).getUTCDate();
-      const targetDate = `${filters.year}-${String(filters.month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
-      const response = await attendanceSupervisorMonthPrint(token, targetDate) as { data?: AttendanceMonthPrintPayload };
-      if (!response.data || !Array.isArray(response.data.employees) || !response.data.employees.length) {
-        setExportNotice('ไม่พบข้อมูลการลงเวลาสำหรับพิมพ์');
-        return;
-      }
+      const response = await (singleEmployeeOnly
+        ? attendanceSupervisorMonthPrint(token, targetDate, timesheetEmployeeId)
+        : attendanceSupervisorMonthPrint(token, targetDate)) as { data?: AttendanceMonthPrintPayload };
+      if (!response.data || !Array.isArray(response.data.employees)) throw new Error('invalid month print payload');
       let sourceEmployees = response.data.employees;
-      if (filters.department) {
-        sourceEmployees = sourceEmployees.filter((e) => e.department === filters.department);
-      }
-      if (singleEmployeeOnly) {
-        sourceEmployees = sourceEmployees.slice(0, 1);
-      }
-      if (!sourceEmployees.length) {
-        setExportNotice('ไม่พบพนักงานในขอบเขตที่เลือกสำหรับพิมพ์');
-        return;
-      }
-      const targetEmployees: AttendancePrintEmployee[] = sourceEmployees.map((e) => ({
-        id: e.id,
-        employeeCode: e.employeeCode,
-        displayName: e.employeeName,
-        department: e.department,
+      if (singleEmployeeOnly) sourceEmployees = sourceEmployees.filter((employee) => employee.id === timesheetEmployeeId);
+      else if (filters.department) sourceEmployees = sourceEmployees.filter((employee) => employee.department === filters.department);
+      if (!sourceEmployees.length) { setExportNotice('ไม่พบพนักงานในขอบเขตที่เลือกสำหรับพิมพ์'); return; }
+      const targetEmployees: AttendancePrintEmployee[] = sourceEmployees.map((employee) => ({
+        id: employee.id,
+        employeeCode: employee.employeeCode,
+        displayName: employee.employeeName,
+        department: employee.department,
         isActive: true
       }));
-      setPrintAttendanceRows(attendanceMonthPrintRows({ ...response.data, employees: sourceEmployees }));
-      setPrintAttendanceEmployees(targetEmployees);
-      let ready = false;
-      for (let i = 0; i < 20; i++) {
-        await new Promise<void>((resolve) => setTimeout(resolve, 50));
-        if (document.querySelector('.attendance-supervisor-print .attendance-supervisor-print-page')) {
-          ready = true;
-          break;
-        }
-      }
-      if (!ready) throw new Error('ไม่สามารถเตรียมข้อมูลสำหรับพิมพ์ได้');
+      flushSync(() => {
+        setPrintAttendanceDate(targetDate);
+        setPrintAttendanceRows(attendanceMonthPrintRows({ ...response.data!, employees: sourceEmployees }));
+        setPrintAttendanceEmployees(targetEmployees);
+      });
       await printDocument(
         '.attendance-supervisor-print',
         singleEmployeeOnly ? `ใบลงเวลารายบุคคล-${sourceEmployees[0]?.employeeCode || 'staff'}-${attendanceMonth}.pdf` : `ใบลงเวลารายบุคคลทั้งหมด-${attendanceMonth}.pdf`,
         { orientation: 'portrait', margin: '0' }
       );
-    } catch {
-      setExportNotice('ไม่สามารถพิมพ์ใบลงเวลารายบุคคลได้');
+    } catch (reason) {
+      setExportNotice(toRequestErrorState(reason, 'ไม่สามารถพิมพ์ใบลงเวลารายบุคคลได้'));
     } finally {
       setPrintAttendanceRows([]);
       setPrintAttendanceEmployees([]);
@@ -250,78 +254,101 @@ export function ReportCenterPage({ token, role, onNavigate, initialTab = 'execut
 
     <div id="report-panel-export" role="tabpanel" aria-labelledby="report-tab-export" hidden={activeTab !== 'export'} className="report-center-tab-panel">
       <SectionCard kicker="ส่งออกรายงาน" title="รูปแบบที่รองรับ" description="เลือกส่งออกจากข้อมูลและรูปแบบที่ระบบรองรับในปัจจุบัน" className="report-center-export-section">
-      {exportNotice && <div className="report-center-state report-center-state--error" role="alert" style={{ marginBottom: '12px' }}><strong>แจ้งเตือนการส่งออก</strong><span>{exportNotice}</span></div>}
-      <div className="report-center-export-grid">
-        <article className="report-center-export-card">
-          <div className="report-center-export-icon">XLS</div>
-          <div>
-            <h3>ส่งออกตารางกะ</h3>
-            <p>ส่งออกตารางกะการทำงานประจำเดือน {attendanceMonth} ในรูปแบบ Excel (.xlsx) ตามตัวกรองหน่วยงานที่เลือก</p>
-            <small>รูปแบบที่รองรับ: Excel (.xlsx)</small>
+      {exportNotice && <div className="report-center-state report-center-state--error report-center-export-alert" role="alert"><strong>แจ้งเตือนการส่งออก</strong><RequestErrorContent error={exportNotice} /></div>}
+      <div className="report-center-export-groups">
+        <section className="report-center-export-group" aria-labelledby="export-group-schedule">
+          <header className="report-center-export-group__head"><h3 id="export-group-schedule">ตารางกะ</h3><span>ไฟล์ข้อมูลสำหรับวางแผนกำลังพล</span></header>
+          <div className="report-center-export-grid">
+            <article className="report-center-export-card report-center-export-card--schedule">
+              <div className="report-center-export-icon" aria-hidden="true"><SmsIcon name="calendar" size={22} /></div>
+              <div className="report-center-export-body">
+                <h3>ส่งออกตารางกะ</h3>
+                <p>ตารางกะประจำเดือน{attendanceMonthLabel} {filters.department ? `หน่วยงาน ${filters.department}` : 'ทุกหน่วยงาน'}</p>
+                <small className="report-center-export-format">Excel (.xlsx)</small>
+              </div>
+              <button type="button" className="btn-primary" disabled={Boolean(exportBusy)} aria-busy={exportBusy === 'schedule' || undefined} onClick={() => void exportScheduleExcelAction()}>
+                {exportBusy === 'schedule' ? 'กำลังส่งออก…' : 'ส่งออกตารางกะ'}
+              </button>
+            </article>
           </div>
-          <button type="button" className="btn-primary" disabled={Boolean(exportBusy)} onClick={() => void exportScheduleExcelAction()}>
-            {exportBusy === 'schedule' ? 'กำลังส่งออก…' : 'ส่งออกตารางกะ'}
-          </button>
-        </article>
+        </section>
 
-        <article className="report-center-export-card">
-          <div className="report-center-export-icon">EMP</div>
-          <div>
-            <h3>พิมพ์ทะเบียนพนักงาน</h3>
-            <p>พิมพ์ทะเบียนรายชื่อพนักงาน (EMPLOYEE REGISTER) พร้อมหัวเอกสารมาตรฐานและสรุปสถานะบุคลากร</p>
-            <small>รูปแบบที่รองรับ: PDF / Print A4 แนวนอน</small>
+        <section className="report-center-export-group" aria-labelledby="export-group-personnel">
+          <header className="report-center-export-group__head"><h3 id="export-group-personnel">ทะเบียนบุคลากร</h3><span>เอกสารพิมพ์พร้อมหัวกระดาษมาตรฐาน</span></header>
+          <div className="report-center-export-grid">
+            <article className="report-center-export-card report-center-export-card--personnel">
+              <div className="report-center-export-icon" aria-hidden="true"><SmsIcon name="employees" size={22} /></div>
+              <div className="report-center-export-body">
+                <h3>พิมพ์ทะเบียนพนักงาน</h3>
+                <p>รายชื่อพนักงานทั้งหมด พร้อมสรุปสถานะบุคลากร</p>
+                <small className="report-center-export-format">PDF · A4 แนวนอน</small>
+              </div>
+              <button type="button" className="btn-primary" disabled={Boolean(exportBusy)} aria-busy={exportBusy === 'personnel' || undefined} onClick={() => void exportPersonnelRegisterAction()}>
+                {exportBusy === 'personnel' ? 'กำลังเตรียม…' : 'พิมพ์ทะเบียนพนักงาน'}
+              </button>
+            </article>
+            <article className="report-center-export-card report-center-export-card--personnel">
+              <div className="report-center-export-icon" aria-hidden="true"><SmsIcon name="license" size={22} /></div>
+              <div className="report-center-export-body">
+                <h3>พิมพ์ทะเบียนใบอนุญาต รปภ.</h3>
+                <p>เลขที่บัตร วันออกบัตร วันหมดอายุ และสถานะของพนักงานที่ปฏิบัติงาน</p>
+                <small className="report-center-export-format">PDF · A4 แนวนอน</small>
+              </div>
+              <button type="button" className="btn-primary" disabled={Boolean(exportBusy)} aria-busy={exportBusy === 'licenses' || undefined} onClick={() => void exportLicenseRegisterAction()}>
+                {exportBusy === 'licenses' ? 'กำลังเตรียม…' : 'พิมพ์ทะเบียนใบอนุญาต'}
+              </button>
+            </article>
           </div>
-          <button type="button" className="btn-primary" disabled={Boolean(exportBusy)} onClick={() => void exportPersonnelRegisterAction()}>
-            {exportBusy === 'personnel' ? 'กำลังเตรียม…' : 'พิมพ์ทะเบียนพนักงาน'}
-          </button>
-        </article>
+        </section>
 
-        <article className="report-center-export-card">
-          <div className="report-center-export-icon">LIC</div>
-          <div>
-            <h3>พิมพ์ทะเบียนใบอนุญาต รปภ.</h3>
-            <p>พิมพ์ทะเบียนใบอนุญาต รปภ. (ธภ.7) ทั้งหมด พร้อมเลขที่บัตร วันออกบัตร วันหมดอายุ และสถานะ</p>
-            <small>รูปแบบที่รองรับ: PDF / Print A4 แนวนอน</small>
+        <section className="report-center-export-group" aria-labelledby="export-group-attendance">
+          <header className="report-center-export-group__head"><h3 id="export-group-attendance">การลงเวลา</h3><span>ใบลงเวลาทำงานรายเดือน 1 คนต่อ 1 หน้า</span></header>
+          <div className="report-center-export-grid">
+            <article className="report-center-export-card report-center-export-card--attendance">
+              <div className="report-center-export-icon" aria-hidden="true"><SmsIcon name="attendance" size={22} /></div>
+              <div className="report-center-export-body">
+                <h3>รายงานการลงเวลารายบุคคลของ รปภ.</h3>
+                <p>ใบลงเวลาประจำวันของพนักงานที่เลือก เดือน{attendanceMonthLabel}</p>
+                <label className="report-center-export-select"><span>พนักงาน</span><select aria-label="เลือกพนักงานสำหรับพิมพ์รายบุคคล" value={timesheetEmployeeId} disabled={!timesheetEmployeesLoaded} onChange={(event) => setTimesheetEmployeeId(event.target.value)}>
+                  <option value="">{timesheetEmployeesLoaded ? `เลือกพนักงาน (${timesheetEmployeeOptions.length} คน)` : 'กำลังโหลดรายชื่อ…'}</option>
+                  {timesheetEmployeeOptions.map((employee) => <option key={employee.id} value={employee.id}>{`${employee.displayName || `${employee.firstName || ''} ${employee.lastName || ''}`.trim()} (${employee.employeeCode}${employee.department ? ` · ${employee.department}` : ''})`}</option>)}
+                </select></label>
+                <small className="report-center-export-format">PDF · A4 แนวตั้ง</small>
+              </div>
+              <button type="button" className="btn-primary" disabled={Boolean(exportBusy) || !timesheetEmployeeId} aria-busy={exportBusy === 'timesheet-single' || undefined} onClick={() => void exportAttendanceTimesheetAction(true)}>
+                {exportBusy === 'timesheet-single' ? 'กำลังเตรียม…' : 'พิมพ์รายบุคคล'}
+              </button>
+            </article>
+            <article className="report-center-export-card report-center-export-card--attendance">
+              <div className="report-center-export-icon" aria-hidden="true"><SmsIcon name="history" size={22} /></div>
+              <div className="report-center-export-body">
+                <h3>รายงานการลงเวลารายบุคคลทั้งหมด</h3>
+                <p>ใบลงเวลาของพนักงาน Active ทุกคน{filters.department ? ` หน่วยงาน ${filters.department}` : ''} เดือน{attendanceMonthLabel}</p>
+                <small className="report-center-export-format">PDF · A4 แนวตั้ง</small>
+                <small className="report-center-export-hint">อาจใช้เวลาประมวลผล 20–30 วินาที</small>
+              </div>
+              <button type="button" className="btn-primary" disabled={Boolean(exportBusy)} aria-busy={exportBusy === 'timesheet-all' || undefined} onClick={() => void exportAttendanceTimesheetAction(false)}>
+                {exportBusy === 'timesheet-all' ? 'กำลังเตรียม…' : 'พิมพ์ทั้งหมด'}
+              </button>
+            </article>
           </div>
-          <button type="button" className="btn-primary" disabled={Boolean(exportBusy)} onClick={() => void exportLicenseRegisterAction()}>
-            {exportBusy === 'licenses' ? 'กำลังเตรียม…' : 'พิมพ์ทะเบียนใบอนุญาต รปภ.'}
-          </button>
-        </article>
+        </section>
 
-        <article className="report-center-export-card">
-          <div className="report-center-export-icon">ATT</div>
-          <div>
-            <h3>พิมพ์รายงานการลงเวลาประจำวันรายบุคคลของ รปภ.</h3>
-            <p>พิมพ์ใบลงเวลาทำงานรายบุคคล (Monthly Timesheet) ตัดรอบประจำเดือน {attendanceMonth} (1 คน/เดือน/1 ใบ)</p>
-            <small>รูปแบบที่รองรับ: PDF / Print A4 แนวตั้ง</small>
+        <section className="report-center-export-group" aria-labelledby="export-group-executive">
+          <header className="report-center-export-group__head"><h3 id="export-group-executive">ผู้บริหาร</h3><span>สรุปภาพรวมตามตัวกรองด้านบน</span></header>
+          <div className="report-center-export-grid">
+            <article className="report-center-export-card report-center-export-card--executive"><div className="report-center-export-icon" aria-hidden="true"><SmsIcon name="report" size={22} /></div><div className="report-center-export-body"><h3>รายงานผู้บริหาร PDF</h3><p>ใช้ข้อมูลและตัวกรองเดียวกับแท็บภาพรวมผู้บริหาร พร้อมรูปแบบเอกสาร A4 ที่มีอยู่เดิม</p><small className="report-center-export-format">PDF · A4</small></div><button type="button" className="btn-primary" disabled={!executiveReport} onClick={exportPdf}>ส่งออก PDF</button></article>
+            {['ADMIN', 'SUPERVISOR'].includes(role) && ATTENDANCE_OFFICIAL_REPORT_ENABLED && <AttendanceOfficialReportPanel token={token} month={attendanceMonth} role={role} enabled={activeTab === 'export'} initialEmployeeId={initialEmployeeId} />}
           </div>
-          <button type="button" className="btn-primary" disabled={Boolean(exportBusy)} onClick={() => void exportAttendanceTimesheetAction(true)}>
-            {exportBusy === 'timesheet-single' ? 'กำลังเตรียม…' : 'พิมพ์รายงานประจำวันรายบุคคล'}
-          </button>
-        </article>
-
-        <article className="report-center-export-card">
-          <div className="report-center-export-icon">ALL</div>
-          <div>
-            <h3>พิมพ์รายงานการลงเวลารายบุคคลทั้งหมดของพนักงาน</h3>
-            <p>พิมพ์ใบลงเวลาทำงานของพนักงานทุกคนที่ Active ในระบบ ประจำเดือน {attendanceMonth} (แยก 1 คน/เดือน/1 ใบ)</p>
-            <small>รูปแบบที่รองรับ: PDF / Print A4 แนวตั้ง</small>
-          </div>
-          <button type="button" className="btn-primary" disabled={Boolean(exportBusy)} onClick={() => void exportAttendanceTimesheetAction(false)}>
-            {exportBusy === 'timesheet-all' ? 'กำลังเตรียม…' : 'พิมพ์รายบุคคลทั้งหมด'}
-          </button>
-        </article>
-
-        <article className="report-center-export-card"><div className="report-center-export-icon">PDF</div><div><h3>รายงานผู้บริหาร PDF</h3><p>ใช้ข้อมูลและตัวกรองเดียวกับแท็บภาพรวมผู้บริหาร พร้อมรูปแบบเอกสาร A4 ที่มีอยู่เดิม</p><small>รูปแบบที่รองรับ: PDF</small></div><button type="button" className="btn-primary" disabled={!executiveReport} onClick={exportPdf}>ส่งออก PDF</button></article>
-        {['ADMIN', 'SUPERVISOR'].includes(role) && ATTENDANCE_OFFICIAL_REPORT_ENABLED && <AttendanceOfficialReportPanel token={token} month={attendanceMonth} role={role} enabled={activeTab === 'export'} initialEmployeeId={initialEmployeeId} />}
+        </section>
       </div>
       {!executiveReport && <div className="report-center-state" role="status"><strong>กำลังเตรียมข้อมูลสำหรับส่งออก</strong><span>รอข้อมูล Executive Report จาก API เดิม</span></div>}
       </SectionCard>
     </div>
 
-    {printEmployees.length > 0 && <div className="print-only" style={{ display: 'none' }}><EmployeeRegisterPrint rows={printEmployees} /></div>}
-    {printLicenses.length > 0 && <div className="print-only" style={{ display: 'none' }}><LicenseRegisterPrint rows={printLicenses} /></div>}
-    {printAttendanceEmployees.length > 0 && <AttendanceMonthToDatePrint date={`${filters.year}-${String(filters.month).padStart(2, '0')}-${String(new Date(Date.UTC(filters.year, filters.month, 0)).getUTCDate()).padStart(2, '0')}`} employees={printAttendanceEmployees} rows={printAttendanceRows} />}
+    {printEmployees.length > 0 && <div className="personnel-print-source"><EmployeeRegisterPrint rows={printEmployees} /></div>}
+    {printLicenses.length > 0 && <div className="personnel-print-source"><LicenseRegisterPrint rows={printLicenses} /></div>}
+    {printAttendanceEmployees.length > 0 && printAttendanceDate && <AttendanceMonthToDatePrint date={printAttendanceDate} employees={printAttendanceEmployees} rows={printAttendanceRows} />}
     {executiveReport && <ExecutiveReportPrint report={executiveReport} />}
   </section>;
 }

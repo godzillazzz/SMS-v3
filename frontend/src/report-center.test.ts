@@ -53,9 +53,10 @@ describe('Unified Report Center V1 source contract', () => {
   it('exposes only the currently enabled export capability and keeps preview-only Attendance governance fail-closed', () => {
     expect(page).toContain("printDocument('.executive-report-print', pdfFilename, { orientation: 'landscape', margin: '12mm' })");
     expect(page).toContain('รายงานผู้บริหาร PDF');
-    expect(page).toContain('รูปแบบที่รองรับ: PDF');
+    expect(page).toContain('<small className="report-center-export-format">PDF · A4</small>');
     expect(page).toContain('<ExecutiveReportPrint report={executiveReport} />');
     expect(page).not.toContain('Export Excel');
+    for (const label of ['ส่งออกตารางกะ', 'พิมพ์ทะเบียนพนักงาน', 'พิมพ์ทะเบียนใบอนุญาต รปภ.', 'รายงานการลงเวลารายบุคคลของ รปภ.', 'รายงานการลงเวลารายบุคคลทั้งหมด']) expect(page).toContain(label);
     expect(attendanceGovernanceRoute).toContain("require('../config/attendance-api-policy')");
     expect(attendanceGovernanceRoute).toContain('return attendanceApiEnabled() ? next() : next(new HttpError(404, \'Not found.\'));');
     expect(attendanceGovernanceRoute).not.toContain("if (environment.VERCEL_ENV === 'production') return false;");
