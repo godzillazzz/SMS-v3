@@ -165,6 +165,56 @@ test('coverage marks each checkpoint scanned or pending for the day, grouped by 
   assert.equal(coverage.departments.find((item) => item.department === 'WCS').scanned, 0);
 });
 
+test('report rejects more than 5,000 scans instead of silently truncating the result', async () => {
+  const scans = Array.from({ length: 5001 }, (_, index) => ({
+    id: `scan-${index}`,
+    checkpointId: 'checkpoint-1',
+    checkpointDepartment: 'ANO',
+    workDate: new Date('2026-10-30T00:00:00.000Z'),
+    scannedAt: new Date('2026-10-30T01:00:00.000Z'),
+    employee: null,
+    checkpoint: null
+  }));
+  let queryTake;
+  const { svc } = service({
+    prisma: {
+      patrolCheckpoint: { findMany: async () => [] },
+      patrolScan: { findMany: async ({ take }) => { queryTake = take; return scans.slice(0, take); } }
+    }
+  });
+
+  await assert.rejects(
+    svc.report({ actor: admin, from: '2026-10-30', to: '2026-10-30' }),
+    (error) => error.statusCode === 422 && error.details?.code === 'PATROL_REPORT_TOO_LARGE'
+  );
+  assert.equal(queryTake, 5001, 'fetch one extra row to detect truncation');
+});
+
+test('report returns exactly 5,000 scans without a size error', async () => {
+  const scans = Array.from({ length: 5000 }, (_, index) => ({
+    id: `scan-${index}`,
+    checkpointId: 'checkpoint-1',
+    checkpointDepartment: 'ANO',
+    workDate: new Date('2026-10-30T00:00:00.000Z'),
+    scannedAt: new Date('2026-10-30T01:00:00.000Z'),
+    employee: null,
+    checkpoint: null
+  }));
+  let queryTake;
+  const { svc } = service({
+    prisma: {
+      patrolCheckpoint: { findMany: async () => [] },
+      patrolScan: { findMany: async ({ take }) => { queryTake = take; return scans.slice(0, take); } }
+    }
+  });
+
+  const report = await svc.report({ actor: admin, from: '2026-10-30', to: '2026-10-30' });
+
+  assert.equal(queryTake, 5001, 'fetch one extra row to detect truncation');
+  assert.equal(report.scans.length, 5000);
+  assert.equal(report.coverage.summary.scans, 5000);
+});
+
 test('report access: VIEWER is limited to own scans; MANAGER/SUPERVISOR/ADMIN see all departments', async () => {
   const { svc } = service({ randomBytes: (n) => crypto.randomBytes(n) });
   const cp = await svc.createCheckpoint({ actor: admin, input: { code: 'CP1', name: 'Gate', department: 'ANO' } });

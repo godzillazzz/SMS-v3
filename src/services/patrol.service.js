@@ -9,6 +9,7 @@ const { detectedType } = require('./attachment-optimizer.service');
 const PATROL_QR_PREFIX = 'SMSPATROL1:';
 const MAX_PHOTO_BYTES = 1024 * 1024;
 const MAX_REPORT_DAYS = 62;
+const REPORT_SCAN_LIMIT = 5000;
 const MIME_BY_TYPE = Object.freeze({ jpeg: 'image/jpeg', png: 'image/png' });
 const REPORT_ROLES = new Set(['ADMIN', 'MANAGER', 'SUPERVISOR']);
 // Owner design (30 Oct 2026): one patrol day = 07:00–07:00 Asia/Bangkok, 8 rounds x 3 hours.
@@ -345,13 +346,14 @@ function createPatrolService({ prisma = prismaDefault, storage, audit = auditDef
       prisma.patrolScan.findMany({
         where: { workDate: { gte: range.start, lte: scanEnd }, ...(dept ? { checkpointDepartment: dept } : {}) },
         orderBy: [{ scannedAt: 'asc' }],
-        take: 5000,
+        take: REPORT_SCAN_LIMIT + 1,
         include: {
           employee: { select: { id: true, employeeCode: true, firstName: true, lastName: true, displayName: true, department: true } },
           checkpoint: { select: { id: true, code: true, name: true, department: true } }
         }
       })
     ]);
+    if (scans.length > REPORT_SCAN_LIMIT) throw http(422, 'PATROL_REPORT_TOO_LARGE', 'ข้อมูลรายงานมีมากเกินไป โปรดลดช่วงวันหรือเลือกแผนกเพื่อจำกัดข้อมูล');
     const inRange = scans.filter((scan) => {
       const day = scan.workDate instanceof Date ? scan.workDate.toISOString().slice(0, 10) : String(scan.workDate).slice(0, 10);
       return day >= range.dates[0] && day <= range.dates.at(-1);
