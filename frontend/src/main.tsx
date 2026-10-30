@@ -238,7 +238,7 @@ const navigation: Array<{ label: string; items: Array<{ id: Page; icon: SmsIconN
   { label: 'รายงาน', items: [{ id: 'reportCenter', icon: 'report', label: 'รายงานและวิเคราะห์' }] },
   { label: 'ตั้งค่า', items: [
     { id: 'users', icon: 'users', label: 'ผู้ใช้และสิทธิ์' },
-    { id: 'securitySite', icon: 'location', label: 'จุดรักษาความปลอดภัยและ QR' },
+    { id: 'securitySite', icon: 'location', label: 'จุดรักษาการณ์และ QR' },
     { id: 'settings', icon: 'settings', label: 'ตั้งค่าระบบ' }
   ] },
   { label: 'ผู้ดูแลระบบ', items: [
@@ -3657,7 +3657,7 @@ function Dashboard() {
         <div className="content-area"><React.Suspense fallback={<AppLoader variant="content" message={loadingMessages.page} />}>{content()}</React.Suspense></div>
         {pwaShell && <nav className="pwa-bottom-nav" aria-label="เมนู PWA">
           <button type="button" className={activePage === 'attendance' ? 'active' : ''} onClick={() => selectPwaPage('attendance')}><SmsIcon name="clock" size={20} /><span>ลงเวลา</span></button>
-          <button type="button" className={activePage === 'attendanceHistory' ? 'active' : ''} onClick={() => selectPwaPage('attendanceHistory')}><SmsIcon name="history" size={20} /><span>ประวัติ</span></button>
+          <button type="button" className={activePage === 'patrol' ? 'active' : ''} onClick={() => selectPwaPage('patrol')}><SmsIcon name="qr" size={20} /><span>ตรวจจุด</span></button>
           <button type="button" className={activePage === 'employeeSchedule' ? 'active' : ''} onClick={() => selectPwaPage('employeeSchedule')}><SmsIcon name="calendar" size={20} /><span>ตารางงาน</span></button>
           <button type="button" className={activePage === 'leave' ? 'active' : ''} onClick={() => selectPwaPage('leave')}><SmsIcon name="leave" size={20} /><span>ลา</span></button>
           <button type="button" className={activePage === 'profile' ? 'active' : ''} onClick={() => selectPwaPage('profile')}><SmsIcon name="users" size={20} /><span>โปรไฟล์</span></button>

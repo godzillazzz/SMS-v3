@@ -838,7 +838,7 @@
   color: #0c58d6;
   background: #f5f9ff;
   font: inherit;
-  font-size: 9px;
+  font-size: 13px;
   font-weight: 780;
   cursor: pointer;
   transition: transform .16s ease, background .16s ease, box-shadow .16s ease;
@@ -850,10 +850,22 @@
   box-shadow: 0 7px 16px rgba(31, 96, 180, .12);
 }
 
+.attendance-supervisor-v4__governance-actions .attendance-supervisor-v4__governance-void {
+  grid-column: 1 / -1;
+  color: #b42318;
+  background: #fef3f2;
+  border-color: #f4b4ae;
+}
+
+.attendance-supervisor-v4__governance-actions .attendance-supervisor-v4__governance-void:hover {
+  background: #fde4e1;
+  box-shadow: 0 7px 16px rgba(180, 35, 24, .14);
+}
+
 .attendance-supervisor-v4__governance-actions small {
   grid-column: 1 / -1;
-  color: #7e899a;
-  font-size: 8px;
+  color: #5f6d84;
+  font-size: 12px;
   line-height: 1.5;
 }
 

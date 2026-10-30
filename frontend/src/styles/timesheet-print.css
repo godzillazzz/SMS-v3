@@ -20,21 +20,26 @@
 .timesheet-employee--wide { grid-column: 1 / -1; }
 .timesheet-employee span { color: #52677a; font-size: 7pt; }
 .timesheet-employee strong { overflow-wrap: anywhere; }
-.timesheet-summary { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 1.2mm; margin-bottom: 2mm; }
+.timesheet-summary { display: grid; grid-template-columns: repeat(9, minmax(0, 1fr)); gap: 1.2mm; margin-bottom: 2mm; }
 .timesheet-summary > div { display: grid; gap: .4mm; padding: 1.2mm .8mm; border: 1px solid #c9d6e6; border-radius: 1.2mm; text-align: center; }
 .timesheet-summary span { color: #52677a; font-size: 7pt; }
 .timesheet-summary strong { color: #173566; font-size: 10.5pt; line-height: 1.1; font-variant-numeric: tabular-nums; }
 .timesheet-table { width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 7.5pt; line-height: 1.1; }
 .timesheet-table th, .timesheet-table td { padding: .55mm 1mm; border: 1px solid #cfd9e5; overflow-wrap: anywhere; }
 .timesheet-table th { background: #173566; color: #fff; font-weight: 700; }
-.timesheet-table th:nth-child(1) { width: 12%; }
-.timesheet-table th:nth-child(2) { width: 8%; }
-.timesheet-table th:nth-child(3), .timesheet-table th:nth-child(4) { width: 10%; }
-.timesheet-table th:nth-child(5) { width: 8%; }
-.timesheet-table th:nth-child(6) { width: 11%; }
-.timesheet-table th:nth-child(7) { width: 15%; }
+.timesheet-table th:nth-child(1) { width: 11%; }
+.timesheet-table th:nth-child(2) { width: 6%; }
+.timesheet-table th:nth-child(3), .timesheet-table th:nth-child(4) { width: 9%; }
+.timesheet-table th:nth-child(5) { width: 7%; }
+.timesheet-table th:nth-child(6) { width: 15%; }
+.timesheet-table th:nth-child(7) { width: auto; }
 .timesheet-table td:nth-child(-n+6) { text-align: center; white-space: nowrap; }
 .timesheet-table td { font-variant-numeric: tabular-nums; }
+.timesheet-table td.timesheet-status--off { color: #64748b; background: #f3f5f8; }
+.timesheet-table td.timesheet-status--danger { color: #b42318; font-weight: 700; }
+.timesheet-table td.timesheet-status--warn { color: #b45309; font-weight: 700; }
+.timesheet-table td.timesheet-status--leave { color: #1d4ed8; }
+.timesheet-table td:nth-child(7) { white-space: normal; text-align: left; }
 .timesheet-day--weekend td { background: #eef1f5; color: #5b6878; }
 .timesheet-status--absent, .timesheet-day--absent td.timesheet-status--absent { color: #c62828; font-weight: 700; }
 .timesheet-status--warn { color: #b45309; font-weight: 600; }

@@ -324,7 +324,11 @@ function statusLabel(status: string) {
     ABSENT: 'ขาด',
     TIME_ABNORMAL: 'เวลาผิดปกติ',
     COMPLETE: 'ครบเวลา',
-    SCHEDULED: 'มีตาราง'
+    SCHEDULED: 'มีตาราง',
+    NOT_ACTIONABLE: 'วันหยุด',
+    REQUIRES_ATTENTION: 'ต้องตรวจสอบ',
+    INCOMPLETE: 'ข้อมูลไม่ครบ',
+    NO_RECORD: 'ไม่มีบันทึก'
   };
   return map[status] || status || '—';
 }
@@ -1050,17 +1054,17 @@ export function AttendanceSupervisorPage({ token, role, department, employeeAuth
     <table className="attendance-supervisor-v4__table data-surface-table" aria-label={attendanceTableLabel}>
       <colgroup>
         {mode === 'history' && <col style={{ width: '8%' }} />}
-        <col style={{ width: mode === 'history' ? '18%' : '20%' }} />
-        <col style={{ width: '5%' }} />
+        <col style={{ width: mode === 'history' ? '15%' : '16%' }} />
+        <col style={{ width: '4%' }} />
         <col style={{ width: '13%' }} />
         <col style={{ width: '13%' }} />
-        <col style={{ width: '6%' }} />
-        <col style={{ width: '6%' }} />
+        <col style={{ width: '5.5%' }} />
+        <col style={{ width: '5.5%' }} />
+        <col style={{ width: '9%' }} />
+        <col style={{ width: '7.5%' }} />
+        <col style={{ width: '10.5%' }} />
         <col style={{ width: '9%' }} />
         <col style={{ width: '7%' }} />
-        <col style={{ width: '8%' }} />
-        <col style={{ width: '7%' }} />
-        <col style={{ width: '6%' }} />
       </colgroup>
       <thead>
         <tr>
@@ -1091,7 +1095,6 @@ export function AttendanceSupervisorPage({ token, role, department, employeeAuth
                 <span className="personnel-avatar" aria-hidden="true" data-avatar-tone={avatarTone(row.employeeCode || row.employeeId)}>{initials(row.employeeName)}</span>
                 <span className="attendance-supervisor-v4__identity-name">
                   <strong>{row.employeeName}</strong>
-                  {row.employeeCode && <small className="attendance-supervisor-v4__identity-code">({row.employeeCode})</small>}
                 </span>
               </span>
             </td>
@@ -1568,7 +1571,7 @@ export function AttendanceSupervisorPage({ token, role, department, employeeAuth
 
             <section className="attendance-supervisor-v4__governance-actions">
               {detail.sessionState === 'VOIDED' && <span className="attendance-supervisor-v4__status is-danger">VOIDED</span>}
-              {admin && desktopWeb && detail.sessionState !== 'VOIDED' && detail.sessionId && <button type="button" className="btn-danger" onClick={() => setVoidDialog({ sessionId: detail.sessionId as string, employeeName: detail.employeeName, reason: '' })}>
+              {admin && desktopWeb && detail.sessionState !== 'VOIDED' && detail.sessionId && <button type="button" className="attendance-supervisor-v4__governance-void" onClick={() => setVoidDialog({ sessionId: detail.sessionId as string, employeeName: detail.employeeName, reason: '' })}>
                 ยกเลิก Attendance (ADMIN)
               </button>}
               <button type="button" onClick={() => openNewAdjustment('CONFIRM_WORK_PERFORMED')}>
@@ -1578,7 +1581,7 @@ export function AttendanceSupervisorPage({ token, role, department, employeeAuth
                 แก้ไขเวลาปฏิบัติงาน
               </button>
               <small>
-                การกดปุ่มจะสร้างคำขอเท่านั้น · Pending ไม่มีผลต่อ Attendance · ADMIN ต้องอนุมัติแยกต่างหาก
+                การกดปุ่มเป็นการส่งคำขอ ยังไม่มีผลกับการลงเวลา จนกว่า ADMIN จะอนุมัติ
               </small>
             </section>
           </>}

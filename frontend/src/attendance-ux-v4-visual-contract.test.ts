@@ -39,7 +39,7 @@ describe('Attendance UX V4 visual acceptance contract', () => {
     expect(page).toContain('ลงเวลาแทนพนักงาน');
     expect(page).toContain('onOpenSupervisor');
     const nav = main.slice(main.indexOf('className="pwa-bottom-nav"'), main.indexOf('</nav>}', main.indexOf('className="pwa-bottom-nav"')));
-    for (const label of ['ลงเวลา', 'ประวัติ', 'ตารางงาน', 'ลา', 'โปรไฟล์']) expect(nav).toContain(label);
+    for (const label of ['ลงเวลา', 'ตรวจจุด', 'ตารางงาน', 'ลา', 'โปรไฟล์']) expect(nav).toContain(label);
   });
 
   it('uses real employee, shift, site, history and schedule read models rather than mockup sample records', () => {

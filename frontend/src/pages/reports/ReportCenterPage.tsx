@@ -16,6 +16,10 @@ import type { PersonnelRecord } from '../../components/personnel/types';
 import { attendanceSupervisorMonthPrint } from '../attendance-supervisor/attendance-supervisor-client';
 import { AttendanceMonthToDatePrint, attendanceMonthPrintRows, type AttendanceMonthPrintPayload, type AttendancePrintEmployee, type AttendancePrintRow } from '../attendance-supervisor/AttendanceMonthToDatePrint';
 import { collectAllPages, EMPLOYEE_PAGE_SIZE, monthPrintTargetDate } from './report-center-export';
+import { patrolApi } from '../patrol/patrol-client';
+import { bangkokToday as patrolToday, patrolFetchRange, thaiDate as patrolThaiDate, type PatrolReport } from '../patrol/patrol-model';
+import { PatrolReportPrint, type PatrolPrintKind } from '../patrol/PatrolPrint';
+import '../patrol/patrol.css';
 import '../../styles/personnel-directory.css';
 import '../../styles/timesheet-print.css';
 import { SmsIcon, type SmsIconName } from '../../components/SmsIcon';
@@ -107,6 +111,39 @@ export function ReportCenterPage({ token, role, onNavigate, initialTab = 'execut
   const [timesheetEmployees, setTimesheetEmployees] = useState<PersonnelRecord[]>([]);
   const [timesheetEmployeeId, setTimesheetEmployeeId] = useState('');
   const [timesheetEmployeesLoaded, setTimesheetEmployeesLoaded] = useState(false);
+  const canPatrol = ['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(role);
+  const [patrolDate, setPatrolDate] = useState(() => patrolToday());
+  const [patrolDepartment, setPatrolDepartment] = useState('');
+  const [patrolDepartments, setPatrolDepartments] = useState<string[]>([]);
+  const [patrolPrintJob, setPatrolPrintJob] = useState<{ kind: PatrolPrintKind; report: PatrolReport }>();
+
+  useEffect(() => {
+    if (activeTab !== 'export' || !canPatrol) return;
+    let active = true;
+    patrolApi.checkpoints(token)
+      .then((rows) => { if (active) setPatrolDepartments([...new Set(rows.map((row) => row.department))].sort((a, b) => a.localeCompare(b, 'th'))); })
+      .catch((reason) => { if (active) setExportNotice(toRequestErrorState(reason, 'ไม่สามารถโหลดรายชื่อแผนกจุดตรวจได้')); });
+    return () => { active = false; };
+  }, [activeTab, token, canPatrol]);
+
+  const printPatrolAction = async (kind: PatrolPrintKind) => {
+    if (kind === 'department' && !patrolDepartment) return;
+    const monthFrom = `${patrolDate.slice(0, 8)}01`;
+    const from = kind === 'daily' ? patrolDate : monthFrom;
+    setExportBusy(`patrol-${kind}`);
+    setExportNotice(undefined);
+    try {
+      const fetched = await patrolApi.report(token, { ...patrolFetchRange(from, patrolDate), department: kind === 'all' ? undefined : patrolDepartment || undefined });
+      flushSync(() => setPatrolPrintJob({ kind, report: { ...fetched, from, to: patrolDate } }));
+      const label = kind === 'daily' ? 'รายงานการตรวจประจำวัน' : kind === 'department' ? `รายงานการตรวจ-${patrolDepartment}` : 'รายงานการตรวจทุกแผนก';
+      await printDocument('.patrol-report-print', `${label}-${from}${from === patrolDate ? '' : `_${patrolDate}`}.pdf`, { orientation: 'landscape', margin: '10mm' });
+    } catch (reason) {
+      setExportNotice(toRequestErrorState(reason, 'ไม่สามารถพิมพ์รายงานการตรวจจุดได้'));
+    } finally {
+      setPatrolPrintJob(undefined);
+      setExportBusy(undefined);
+    }
+  };
 
   useEffect(() => {
     if (activeTab !== 'export' || timesheetEmployeesLoaded) return;
@@ -334,6 +371,43 @@ export function ReportCenterPage({ token, role, onNavigate, initialTab = 'execut
           </div>
         </section>
 
+        {canPatrol && <section className="report-center-export-group" aria-labelledby="export-group-patrol">
+          <header className="report-center-export-group__head"><h3 id="export-group-patrol">การตรวจจุด</h3><span>วันละ 8 รอบ รอบละ 3 ชั่วโมง · หัวกระดาษมาตรฐาน</span></header>
+          <div className="report-center-patrol-filters">
+            <label className="report-center-export-select"><span>วันที่</span><input type="date" aria-label="วันที่รายงานการตรวจจุด" value={patrolDate} max={patrolToday()} onChange={(event) => event.target.value && setPatrolDate(event.target.value)} /></label>
+            <label className="report-center-export-select"><span>แผนก</span><select aria-label="แผนกสำหรับรายงานการตรวจจุด" value={patrolDepartment} onChange={(event) => setPatrolDepartment(event.target.value)}><option value="">ทุกแผนก</option>{patrolDepartments.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
+          </div>
+          <div className="report-center-export-grid">
+            <article className="report-center-export-card report-center-export-card--patrol">
+              <div className="report-center-export-icon" aria-hidden="true"><SmsIcon name="clock" size={22} /></div>
+              <div className="report-center-export-body">
+                <h3>รายงานการตรวจจุดประจำวัน</h3>
+                <p>วันที่ {patrolThaiDate(patrolDate)} {patrolDepartment ? `แผนก ${patrolDepartment}` : 'ทุกแผนก'} · ตาราง 8 รอบและรายการสแกนตามเวลา</p>
+                <small className="report-center-export-format">PDF · A4 แนวนอน</small>
+              </div>
+              <button type="button" className="btn-primary" disabled={Boolean(exportBusy)} aria-busy={exportBusy === 'patrol-daily' || undefined} onClick={() => void printPatrolAction('daily')}>{exportBusy === 'patrol-daily' ? 'กำลังเตรียม…' : 'พิมพ์ประจำวัน'}</button>
+            </article>
+            <article className="report-center-export-card report-center-export-card--patrol">
+              <div className="report-center-export-icon" aria-hidden="true"><SmsIcon name="employees" size={22} /></div>
+              <div className="report-center-export-body">
+                <h3>รายงานการตรวจจุดรายแผนก</h3>
+                <p>{patrolDepartment ? `แผนก ${patrolDepartment} · ตั้งแต่ต้นเดือนถึง ${patrolThaiDate(patrolDate)}` : 'เลือกแผนกด้านบนก่อน'}</p>
+                <small className="report-center-export-format">PDF · A4 แนวนอน</small>
+              </div>
+              <button type="button" className="btn-primary" disabled={Boolean(exportBusy) || !patrolDepartment} aria-busy={exportBusy === 'patrol-department' || undefined} onClick={() => void printPatrolAction('department')}>{exportBusy === 'patrol-department' ? 'กำลังเตรียม…' : 'พิมพ์รายแผนก'}</button>
+            </article>
+            <article className="report-center-export-card report-center-export-card--patrol">
+              <div className="report-center-export-icon" aria-hidden="true"><SmsIcon name="report" size={22} /></div>
+              <div className="report-center-export-body">
+                <h3>รายงานการตรวจจุดทุกแผนก</h3>
+                <p>สรุปรอบที่ตรวจครบแยกแผนก ตั้งแต่ต้นเดือนถึง {patrolThaiDate(patrolDate)}</p>
+                <small className="report-center-export-format">PDF · A4 แนวนอน</small>
+              </div>
+              <button type="button" className="btn-primary" disabled={Boolean(exportBusy)} aria-busy={exportBusy === 'patrol-all' || undefined} onClick={() => void printPatrolAction('all')}>{exportBusy === 'patrol-all' ? 'กำลังเตรียม…' : 'พิมพ์ทุกแผนก'}</button>
+            </article>
+          </div>
+        </section>}
+
         <section className="report-center-export-group" aria-labelledby="export-group-executive">
           <header className="report-center-export-group__head"><h3 id="export-group-executive">ผู้บริหาร</h3><span>สรุปภาพรวมตามตัวกรองด้านบน</span></header>
           <div className="report-center-export-grid">
@@ -350,5 +424,6 @@ export function ReportCenterPage({ token, role, onNavigate, initialTab = 'execut
     {printLicenses.length > 0 && <div className="personnel-print-source"><LicenseRegisterPrint rows={printLicenses} /></div>}
     {printAttendanceEmployees.length > 0 && printAttendanceDate && <AttendanceMonthToDatePrint date={printAttendanceDate} employees={printAttendanceEmployees} rows={printAttendanceRows} />}
     {executiveReport && <ExecutiveReportPrint report={executiveReport} />}
+    {patrolPrintJob && <PatrolReportPrint kind={patrolPrintJob.kind} report={patrolPrintJob.report} />}
   </section>;
 }

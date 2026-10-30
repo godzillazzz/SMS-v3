@@ -178,3 +178,37 @@ test('report access: VIEWER is limited to own scans; MANAGER/SUPERVISOR/ADMIN se
   const mine = await svc.myScans({ actor: guardA, date: '2026-10-30' });
   assert.equal(mine.length, 1);
 });
+
+test('report carries round coverage: 8 rounds x 3h from 07:00 Bangkok, after-midnight scans belong to the previous patrol day', async () => {
+  const times = ['2026-10-30T00:10:00.000Z', '2026-10-30T00:40:00.000Z', '2026-10-30T06:30:00.000Z', '2026-10-30T20:00:00.000Z', '2026-10-31T00:05:00.000Z'];
+  let index = 0;
+  const { svc } = service({ randomBytes: (n) => crypto.randomBytes(n), clock: () => new Date(times[Math.min(index, times.length - 1)]) });
+  const cp = await svc.createCheckpoint({ actor: admin, input: { code: 'CP1', name: 'Gate', department: 'ANO' } });
+  for (index = 0; index < times.length; index += 1) {
+    await svc.recordScan({ actor: guardA, input: { qrPayload: cp.qrPayload, clientScanId: crypto.randomUUID() }, photo: { buffer: JPEG, mimetype: 'image/jpeg' } });
+  }
+  const report = await svc.report({ actor: admin, from: '2026-10-30', to: '2026-10-30' });
+  assert.deepEqual(report.rounds.config, { perDay: 8, hours: 3, startHour: 7, timeZone: 'Asia/Bangkok' });
+  // 07:10 and 07:40 -> round 1 (once), 13:30 -> round 3, 03:00 next calendar day -> round 7; 07:05 on 31 Oct is the next patrol day
+  assert.deepEqual(report.rounds.byCheckpoint[cp.id]['2026-10-30'], [1, 3, 7]);
+  assert.equal(report.rounds.byCheckpoint[cp.id]['2026-10-31'], undefined);
+});
+
+test('progress lets a linked guard see the current round for a department without QR tokens or other guards\' identities', async () => {
+  const { svc } = service({ randomBytes: (n) => crypto.randomBytes(n), clock: () => new Date('2026-10-30T06:30:00.000Z') });
+  const a = await svc.createCheckpoint({ actor: admin, input: { code: 'A1', name: 'Gate', department: 'ANO' } });
+  await svc.createCheckpoint({ actor: admin, input: { code: 'A2', name: 'Yard', department: 'ANO' } });
+  await svc.createCheckpoint({ actor: admin, input: { code: 'W1', name: 'Store', department: 'WCS' } });
+  await svc.recordScan({ actor: guardA, input: { qrPayload: a.qrPayload, clientScanId: crypto.randomUUID() }, photo: { buffer: JPEG, mimetype: 'image/jpeg' } });
+  const progress = await svc.progress({ actor: guardA });
+  assert.equal(progress.department, 'ANO', 'defaults to the guard\'s own department');
+  assert.deepEqual(progress.departments, ['ANO', 'WCS']);
+  assert.equal(progress.patrolDay, '2026-10-30');
+  assert.equal(progress.round, 3);
+  assert.equal(progress.checkpoints.length, 2);
+  assert.equal(progress.checkpoints.some((item) => 'qrPayload' in item || 'qrToken' in item), false);
+  assert.deepEqual(progress.checkpoints.map((item) => [item.code, item.doneThisRound]), [['A1', true], ['A2', false]]);
+  const other = await svc.progress({ actor: guardA, department: 'WCS' });
+  assert.deepEqual(other.checkpoints.map((item) => item.code), ['W1']);
+  await assert.rejects(svc.progress({ actor: unlinked }), (error) => error.statusCode === 403);
+});

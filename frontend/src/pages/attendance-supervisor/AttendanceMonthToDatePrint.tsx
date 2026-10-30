@@ -32,6 +32,8 @@ export type AttendancePrintRow = {
   workSiteContext?: 'ASSIGNED_SITE' | 'SUPPORT_SITE';
   assignedSite?: { name?: string | null; code?: string | null } | null;
   expectedSite?: { name?: string | null; code?: string | null } | null;
+  actualSite?: { name?: string | null; code?: string | null } | null;
+  attendanceSites?: Array<{ eventType?: string | null; actualSite?: { name?: string | null; code?: string | null } | null; workSiteContext?: string | null }>;
 };
 
 export type AttendanceMonthPrintDay = {
@@ -103,19 +105,60 @@ function has(row: AttendancePrintRow, flag: string) {
   return row.attendanceStatus === flag || (row.flags || []).includes(flag);
 }
 
+function isOffDay(row: AttendancePrintRow) {
+  return row.attendanceStatus === 'NOT_ACTIONABLE' || String(row.shift?.code || '').toUpperCase() === 'OFF';
+}
+
+function offDay(rows: AttendancePrintRow[]) {
+  return rows.length > 0 && rows.every(isOffDay);
+}
+
 function dayStatus(rows: AttendancePrintRow[]) {
   if (!rows.length) return DASH;
   if (rows.some((row) => has(row, 'LEAVE'))) return 'ลา';
+  if (offDay(rows)) return rows.some((row) => row.checkInAt) ? 'มาทำงาน (วันหยุด)' : 'วันหยุด';
   if (rows.some((row) => has(row, 'ABSENT'))) return 'ขาดงาน';
   if (rows.some((row) => has(row, 'LATE'))) return 'มาสาย';
   if (rows.some((row) => row.checkInAt)) return 'มาทำงาน';
   return 'ไม่มีบันทึก';
 }
 
+function statusTone(status: string) {
+  if (status === 'วันหยุด') return 'timesheet-status--off';
+  if (status === 'ขาดงาน' || status === 'ไม่มีบันทึก') return 'timesheet-status--danger';
+  if (status === 'มาสาย') return 'timesheet-status--warn';
+  if (status === 'ลา') return 'timesheet-status--leave';
+  return undefined;
+}
+
+function siteLabel(site?: { name?: string | null; code?: string | null } | null) {
+  return site?.name || site?.code || '';
+}
+
+function eventSite(rows: AttendancePrintRow[], eventType: 'CHECK_IN' | 'CHECK_OUT') {
+  for (const row of rows) {
+    const found = (row.attendanceSites || []).find((site) => site.eventType === eventType && siteLabel(site.actualSite));
+    if (found) return siteLabel(found.actualSite);
+  }
+  return '';
+}
+
+/** Note naming the Site actually used when attendance happened away from the assigned Site. */
+function siteNote(rows: AttendancePrintRow[]) {
+  if (rows.some((row) => has(row, 'OUTSIDE_ALL_SITES'))) return 'นอกพื้นที่ทุก Site';
+  if (!rows.some((row) => row.workSiteContext === 'SUPPORT_SITE')) return '';
+  const checkIn = eventSite(rows, 'CHECK_IN');
+  const checkOut = eventSite(rows, 'CHECK_OUT');
+  if (checkIn && checkOut && checkIn !== checkOut) return `เข้า: ${checkIn} · ออก: ${checkOut}`;
+  const single = checkIn || checkOut || rows.map((row) => siteLabel(row.actualSite)).find(Boolean);
+  return single ? `ลงเวลาที่: ${single}` : 'นอกสถานที่';
+}
+
 function notes(rows: AttendancePrintRow[]) {
   const labels: string[] = [];
   if (rows.some((row) => has(row, 'EARLY_OUT'))) labels.push('ออกก่อน');
-  if (rows.some((row) => has(row, 'OUTSIDE_ALL_SITES') || row.workSiteContext === 'SUPPORT_SITE')) labels.push('นอกสถานที่');
+  const site = siteNote(rows);
+  if (site) labels.push(site);
   if (rows.some((row) => has(row, 'WRONG_SHIFT'))) labels.push('ผิดกะ');
   if (rows.some((row) => row.abnormalTime || has(row, 'TIME_ABNORMAL'))) labels.push('เวลาผิดปกติ');
   return labels.join(' · ') || DASH;
@@ -129,8 +172,10 @@ function firstTime(rows: AttendancePrintRow[], key: 'checkInAt' | 'checkOutAt') 
 function summary(rows: AttendancePrintRow[]) {
   const days = [...new Set(rows.map((row) => row.date.slice(0, 10)))];
   const count = (predicate: (dayRows: AttendancePrintRow[]) => boolean) => days.filter((date) => predicate(rows.filter((row) => row.date.slice(0, 10) === date))).length;
+  const offDays = days.filter((date) => offDay(rows.filter((row) => row.date.slice(0, 10) === date))).length;
   return [
-    ['วันทำงาน', String(days.length)],
+    ['วันทำงาน', String(days.length - offDays)],
+    ['วันหยุด', String(offDays)],
     ['มาทำงาน', String(count((day) => day.some((row) => Boolean(row.checkInAt))))],
     ['มาสาย', String(count((day) => day.some((row) => has(row, 'LATE'))))],
     ['ออกก่อน', String(count((day) => day.some((row) => has(row, 'EARLY_OUT'))))],
@@ -181,7 +226,7 @@ export function AttendanceMonthToDatePrint({ date, employees, rows }: { date: st
         </section>
         <section className="timesheet-summary" aria-label="สรุปรายเดือน">{boxes.map(([label, value]) => <div key={label}><span>{label}</span><strong>{value}</strong></div>)}</section>
         <table className="timesheet-table"><thead><tr><th>วันที่</th><th>วัน</th><th>เวลาเข้า</th><th>เวลาออก</th><th>ชั่วโมง</th><th>สถานะ</th><th>หมายเหตุ</th></tr></thead>
-          <tbody>{days.map((day) => <tr key={day.date}><td>{thaiDate(day.date)}</td><td>{weekday(day.date)}</td><td>{time(firstTime(day.rows, 'checkInAt'))}</td><td>{time(firstTime(day.rows, 'checkOutAt'))}</td><td>{duration(minutes(day.rows))}</td><td>{dayStatus(day.rows)}</td><td>{notes(day.rows)}</td></tr>)}</tbody>
+          <tbody>{days.map((day) => <tr key={day.date}><td>{thaiDate(day.date)}</td><td>{weekday(day.date)}</td><td>{time(firstTime(day.rows, 'checkInAt'))}</td><td>{time(firstTime(day.rows, 'checkOutAt'))}</td><td>{duration(minutes(day.rows))}</td><td className={statusTone(dayStatus(day.rows))}>{dayStatus(day.rows)}</td><td>{notes(day.rows)}</td></tr>)}</tbody>
         </table>
         <footer className="timesheet-signatures">{['พนักงาน', 'หัวหน้างาน', 'ฝ่ายบุคคล'].map((label): ReactNode => <div key={label}><i /><strong>{label}</strong><span>วันที่ ____/____/______</span></div>)}</footer>
         <div className="timesheet-auditline">ข้อมูลจริงจากประวัติ Attendance วันที่ 1–{Number(date.slice(8, 10))} · หน้า {pageIndex + 1}/{employees.length}</div>

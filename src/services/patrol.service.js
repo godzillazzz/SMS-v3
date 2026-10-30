@@ -11,6 +11,12 @@ const MAX_PHOTO_BYTES = 1024 * 1024;
 const MAX_REPORT_DAYS = 62;
 const MIME_BY_TYPE = Object.freeze({ jpeg: 'image/jpeg', png: 'image/png' });
 const REPORT_ROLES = new Set(['ADMIN', 'MANAGER', 'SUPERVISOR']);
+// Owner design (30 Oct 2026): one patrol day = 07:00–07:00 Asia/Bangkok, 8 rounds x 3 hours.
+const ROUNDS_PER_DAY = 8;
+const ROUND_HOURS = 3;
+const DAY_START_HOUR = 7;
+const BANGKOK_OFFSET_MS = 7 * 3600000;
+const HOUR_MS = 3600000;
 
 function http(statusCode, code, message) { return new HttpError(statusCode, message, { code }); }
 
@@ -114,6 +120,30 @@ function optionalNumber(value, min, max) {
   const number = Number(value);
   if (!Number.isFinite(number) || number < min || number > max) return null;
   return number;
+}
+
+function patrolDayStartMs(day) {
+  return Date.parse(`${day}T00:00:00.000Z`) + DAY_START_HOUR * HOUR_MS - BANGKOK_OFFSET_MS;
+}
+
+function patrolRoundOf(instant) {
+  const time = instant instanceof Date ? instant.getTime() : Date.parse(instant);
+  const day = new Date(time + BANGKOK_OFFSET_MS - DAY_START_HOUR * HOUR_MS).toISOString().slice(0, 10);
+  return { day, round: Math.floor((time - patrolDayStartMs(day)) / (ROUND_HOURS * HOUR_MS)) + 1 };
+}
+
+function buildRounds({ scans, dates }) {
+  const wanted = new Set(dates);
+  const byCheckpoint = {};
+  for (const scan of scans) {
+    const { day, round } = patrolRoundOf(scan.scannedAt);
+    if (!wanted.has(day)) continue;
+    const days = (byCheckpoint[scan.checkpointId] ||= {});
+    const rounds = (days[day] ||= []);
+    if (!rounds.includes(round)) rounds.push(round);
+  }
+  for (const days of Object.values(byCheckpoint)) for (const rounds of Object.values(days)) rounds.sort((a, b) => a - b);
+  return { config: { perDay: ROUNDS_PER_DAY, hours: ROUND_HOURS, startHour: DAY_START_HOUR, timeZone: 'Asia/Bangkok' }, byCheckpoint };
 }
 
 function buildCoverage({ checkpoints, scans, dates }) {
@@ -308,10 +338,12 @@ function createPatrolService({ prisma = prismaDefault, storage, audit = auditDef
     requireReporter(actor);
     const range = dateRange(from, to);
     const dept = department ? text(department, 100, 'department') : null;
+    // Rounds after midnight (00:00–07:00) belong to the previous patrol day, so read one extra calendar day.
+    const scanEnd = new Date(range.end.getTime() + 86400000);
     const [checkpoints, scans] = await Promise.all([
       prisma.patrolCheckpoint.findMany({ where: { isActive: true, ...(dept ? { department: dept } : {}) }, orderBy: [{ department: 'asc' }, { sortOrder: 'asc' }, { code: 'asc' }] }),
       prisma.patrolScan.findMany({
-        where: { workDate: { gte: range.start, lte: range.end }, ...(dept ? { checkpointDepartment: dept } : {}) },
+        where: { workDate: { gte: range.start, lte: scanEnd }, ...(dept ? { checkpointDepartment: dept } : {}) },
         orderBy: [{ scannedAt: 'asc' }],
         take: 5000,
         include: {
@@ -320,7 +352,74 @@ function createPatrolService({ prisma = prismaDefault, storage, audit = auditDef
         }
       })
     ]);
-    return { from: range.dates[0], to: range.dates.at(-1), department: dept, generatedAt: clock().toISOString(), coverage: buildCoverage({ checkpoints, scans, dates: range.dates }), scans: scans.map(safeScan) };
+    const inRange = scans.filter((scan) => {
+      const day = scan.workDate instanceof Date ? scan.workDate.toISOString().slice(0, 10) : String(scan.workDate).slice(0, 10);
+      return day >= range.dates[0] && day <= range.dates.at(-1);
+    });
+    const patrolScans = scans.filter((scan) => {
+      const { day } = patrolRoundOf(scan.scannedAt);
+      return day >= range.dates[0] && day <= range.dates.at(-1);
+    });
+    return {
+      from: range.dates[0],
+      to: range.dates.at(-1),
+      department: dept,
+      generatedAt: clock().toISOString(),
+      coverage: buildCoverage({ checkpoints, scans: inRange, dates: range.dates }),
+      rounds: buildRounds({ scans, dates: range.dates }),
+      scans: inRange.map(safeScan),
+      patrolScans: patrolScans.map(safeScan)
+    };
+  }
+
+  async function progress({ actor, department }) {
+    const employeeId = requireScanner(actor);
+    const now = clock();
+    const { day, round } = patrolRoundOf(now);
+    const roundStart = new Date(patrolDayStartMs(day) + (round - 1) * ROUND_HOURS * HOUR_MS);
+    const roundEnd = new Date(roundStart.getTime() + ROUND_HOURS * HOUR_MS);
+    const active = await prisma.patrolCheckpoint.findMany({ where: { isActive: true }, orderBy: [{ department: 'asc' }, { sortOrder: 'asc' }, { code: 'asc' }] });
+    const departments = [...new Set(active.map((row) => row.department))];
+    let selected = department ? text(department, 100, 'department') : null;
+    if (!selected) {
+      const employee = await prisma.employee.findUnique({ where: { id: employeeId } });
+      const own = String(employee?.department || '').split(',').map((value) => value.trim()).find((value) => departments.includes(value));
+      selected = own || departments[0] || null;
+    }
+    const checkpoints = active.filter((row) => row.department === selected);
+    const scans = selected ? await prisma.patrolScan.findMany({
+      where: { checkpointDepartment: selected, workDate: { gte: new Date(`${bangkokWorkDate(roundStart)}T00:00:00.000Z`), lte: new Date(`${bangkokWorkDate(roundEnd)}T00:00:00.000Z`) } },
+      orderBy: [{ scannedAt: 'asc' }],
+      take: 2000
+    }) : [];
+    const inRound = scans.filter((scan) => {
+      const at = scan.scannedAt instanceof Date ? scan.scannedAt : new Date(scan.scannedAt);
+      return at >= roundStart && at < roundEnd;
+    });
+    const label = (date) => new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Bangkok', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(date);
+    return {
+      patrolDay: day,
+      round,
+      rounds: ROUNDS_PER_DAY,
+      roundLabel: `${label(roundStart)}–${label(roundEnd)}`,
+      roundStart: roundStart.toISOString(),
+      roundEnd: roundEnd.toISOString(),
+      department: selected,
+      departments,
+      checkpoints: checkpoints.map((row) => {
+        const mine = inRound.filter((scan) => scan.checkpointId === row.id);
+        const last = mine[mine.length - 1];
+        return {
+          id: row.id,
+          code: row.code,
+          name: row.name,
+          locationNote: row.locationNote ?? null,
+          doneThisRound: mine.length > 0,
+          lastScanAt: last ? (last.scannedAt instanceof Date ? last.scannedAt.toISOString() : last.scannedAt) : null,
+          scannedByMe: mine.some((scan) => scan.employeeId === employeeId)
+        };
+      })
+    };
   }
 
   async function myScans({ actor, date }) {
@@ -348,7 +447,7 @@ function createPatrolService({ prisma = prismaDefault, storage, audit = auditDef
     return { bytes, mimeType: row.photoMimeType };
   }
 
-  return { listCheckpoints, createCheckpoint, updateCheckpoint, rotateQr, resolveQr, recordScan, report, myScans, photo };
+  return { listCheckpoints, createCheckpoint, updateCheckpoint, rotateQr, resolveQr, recordScan, report, progress, myScans, photo };
 }
 
-module.exports = { PATROL_QR_PREFIX, MAX_REPORT_DAYS, bangkokWorkDate, buildCoverage, parseQrPayload, createPatrolService };
+module.exports = { PATROL_QR_PREFIX, MAX_REPORT_DAYS, ROUNDS_PER_DAY, ROUND_HOURS, DAY_START_HOUR, bangkokWorkDate, patrolRoundOf, buildRounds, buildCoverage, parseQrPayload, createPatrolService };

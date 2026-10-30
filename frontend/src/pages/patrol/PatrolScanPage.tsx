@@ -5,7 +5,7 @@ import { SmsIcon } from '../../components/SmsIcon';
 import { canvasToOptimizedJpeg } from '../../lib/attachment-optimizer';
 import { toRequestErrorState, RequestErrorContent, type RequestErrorInput } from '../../request-error';
 import { patrolApi } from './patrol-client';
-import { bangkokToday, parsePatrolQr, thaiDate, thaiTime, type PatrolCheckpoint, type PatrolScan } from './patrol-model';
+import { bangkokToday, parsePatrolQr, thaiDate, thaiTime, type PatrolCheckpoint, type PatrolProgress, type PatrolScan } from './patrol-model';
 import './patrol.css';
 
 type Step = 'idle' | 'scanQr' | 'photo' | 'review' | 'saving' | 'done';
@@ -148,6 +148,41 @@ function CameraStage({ mode, onQr, onPhoto, onCancel }: { mode: 'qr' | 'photo'; 
   </div>, document.body);
 }
 
+function minutesUntil(iso: string, now: number) {
+  return Math.max(0, Math.ceil((Date.parse(iso) - now) / 60_000));
+}
+
+function durationLabel(minutes: number) {
+  const hours = Math.floor(minutes / 60);
+  return hours ? `${hours} ชม. ${minutes % 60} นาที` : `${minutes} นาที`;
+}
+
+/** Current 3-hour round for the guard's department: what is still left to check. */
+export function PatrolRoundCard({ progress, department, onDepartment, now = Date.now() }: { progress?: PatrolProgress; department: string; onDepartment: (value: string) => void; now?: number }) {
+  if (!progress) return null;
+  const done = progress.checkpoints.filter((item) => item.doneThisRound).length;
+  const total = progress.checkpoints.length;
+  const percent = total ? Math.round((done / total) * 100) : 0;
+  return <section className="patrol-round-card" aria-labelledby="patrol-round-title">
+    <header>
+      <div>
+        <p className="patrol-round-card__kicker">รอบที่ {progress.round}/{progress.rounds} · {progress.roundLabel} น.</p>
+        <h2 id="patrol-round-title">ตรวจแล้ว {done}/{total} จุด</h2>
+        <p className="patrol-muted">เหลือเวลารอบนี้ {durationLabel(minutesUntil(progress.roundEnd, now))}</p>
+      </div>
+      <label className="patrol-field patrol-round-card__dept"><span>แผนก</span><select value={department || progress.department || ''} onChange={(event) => onDepartment(event.target.value)}>{progress.departments.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
+    </header>
+    <div className="patrol-round-card__bar" role="progressbar" aria-label="ความคืบหน้ารอบนี้" aria-valuemin={0} aria-valuemax={100} aria-valuenow={percent}><i style={{ width: `${percent}%` }} /></div>
+    {total === 0 ? <p className="patrol-empty">แผนกนี้ยังไม่มีจุดตรวจ</p> : <ul className="patrol-round-card__list">
+      {progress.checkpoints.map((item) => <li key={item.id} className={item.doneThisRound ? 'is-done' : 'is-pending'}>
+        <span className="patrol-round-card__mark" aria-hidden="true">{item.doneThisRound ? '✓' : ''}</span>
+        <span className="patrol-round-card__name"><strong>{item.code}</strong> {item.name}</span>
+        <span className="patrol-round-card__state">{item.doneThisRound ? `${thaiTime(item.lastScanAt)} น.` : 'ยังไม่ตรวจ'}</span>
+      </li>)}
+    </ul>}
+  </section>;
+}
+
 export function PatrolScanPage({ token }: { token: string }) {
   const [step, setStep] = useState<Step>('idle');
   const [qrPayload, setQrPayload] = useState('');
@@ -160,10 +195,17 @@ export function PatrolScanPage({ token }: { token: string }) {
   const scanIdRef = useRef<string>('');
   const today = bangkokToday();
 
+  const [progress, setProgress] = useState<PatrolProgress>();
+  const [progressDepartment, setProgressDepartment] = useState('');
   const loadHistory = useCallback(() => {
     patrolApi.myScans(token, today).then(setHistory).catch(() => undefined);
-  }, [token, today]);
+    patrolApi.progress(token, progressDepartment || undefined).then(setProgress).catch(() => undefined);
+  }, [token, today, progressDepartment]);
   useEffect(() => { loadHistory(); }, [loadHistory]);
+  useEffect(() => {
+    const timer = window.setInterval(() => { patrolApi.progress(token, progressDepartment || undefined).then(setProgress).catch(() => undefined); }, 60_000);
+    return () => window.clearInterval(timer);
+  }, [token, progressDepartment]);
   useEffect(() => () => { if (photo?.url) URL.revokeObjectURL(photo.url); }, [photo]);
 
   const reset = () => {
@@ -242,6 +284,8 @@ export function PatrolScanPage({ token }: { token: string }) {
         <li><b>3</b>ตรวจสอบแล้วกดยืนยัน</li>
       </ol>
     </div>}
+
+    {(step === 'idle' || step === 'scanQr' || step === 'photo') && <PatrolRoundCard progress={progress} department={progressDepartment} onDepartment={setProgressDepartment} />}
 
     <section className="patrol-history" aria-labelledby="patrol-history-title">
       <header><h2 id="patrol-history-title">ที่ตรวจแล้ววันนี้</h2><span className="patrol-chip patrol-chip--count">{history.length} จุด</span></header>

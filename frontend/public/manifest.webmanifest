@@ -2,7 +2,7 @@
   "id": "/?pwa=1",
   "name": "SMS Employee",
   "short_name": "SMS",
-  "description": "Security Management System สำหรับลงเวลา ประวัติ ตารางงาน ลา และโปรไฟล์พนักงาน",
+  "description": "Security Management System สำหรับลงเวลา ตรวจจุด ตารางงาน ลา และโปรไฟล์พนักงาน",
   "lang": "th",
   "start_url": "/?pwa=1&page=attendance",
   "scope": "/",
@@ -36,9 +36,9 @@
       ]
     },
     {
-      "name": "ประวัติ",
-      "short_name": "ประวัติ",
-      "url": "/?pwa=1&page=attendanceHistory",
+      "name": "ตรวจจุด",
+      "short_name": "ตรวจจุด",
+      "url": "/?pwa=1&page=patrol",
       "icons": [
         {
           "src": "/pwa-icon-192.png",

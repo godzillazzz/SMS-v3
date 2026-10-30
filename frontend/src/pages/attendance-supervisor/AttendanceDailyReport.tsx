@@ -27,7 +27,8 @@ const DASH = '–';
 
 const has = (row: DailyReportRow, flag: string) => (row.flags || []).includes(flag) || row.attendanceStatus === flag;
 const isLeave = (row: DailyReportRow) => has(row, 'LEAVE');
-const isNoRecord = (row: DailyReportRow) => !row.checkInAt && !row.checkOutAt && !isLeave(row) && row.attendanceStatus !== 'SCHEDULED';
+const isOff = (row: DailyReportRow) => row.attendanceStatus === 'NOT_ACTIONABLE';
+const isNoRecord = (row: DailyReportRow) => !row.checkInAt && !row.checkOutAt && !isLeave(row) && !isOff(row) && row.attendanceStatus !== 'SCHEDULED';
 
 export function dailyReportSummary(rows: DailyReportRow[]) {
   const key = (row: DailyReportRow) => row.employeeId ? `employee:${row.employeeId}` : `assignment:${row.assignmentId}`;
@@ -46,6 +47,7 @@ export function dailyReportSummary(rows: DailyReportRow[]) {
 
 export function dailyReportStatus(row: DailyReportRow): { label: string; tone: 'good' | 'warning' | 'danger' | 'neutral' } {
   if (isLeave(row)) return { label: 'ลา', tone: 'neutral' };
+  if (isOff(row)) return { label: row.checkInAt ? 'มาทำงาน (วันหยุด)' : 'วันหยุด', tone: 'neutral' };
   if (row.attendanceStatus === 'SCHEDULED' && !row.checkInAt && !row.checkOutAt) return { label: 'ยังไม่ถึงเวลาลงงาน', tone: 'neutral' };
   if (isNoRecord(row)) return { label: 'ไม่มีบันทึก', tone: 'danger' };
   if (has(row, 'LATE')) return { label: 'มาสาย', tone: 'warning' };

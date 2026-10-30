@@ -70,6 +70,13 @@ function createPatrolRoutes({
       res.status(result.replayed ? 200 : 201).json({ data: result });
     } catch (error) { next(error); }
   });
+  router.get('/progress', async (req, res, next) => {
+    try {
+      const query = z.object({ department: z.string().trim().min(1).max(100).optional() }).parse(req.query);
+      res.set('Cache-Control', 'no-store');
+      res.json({ data: await service.progress({ actor: req.user, department: query.department }) });
+    } catch (error) { next(error); }
+  });
   router.get('/scans/mine', async (req, res, next) => {
     try {
       const query = z.object({ date: date.optional() }).parse(req.query);

@@ -143,7 +143,7 @@ describe('Attendance Supervisor UX V4', () => {
     expect(page).toContain("openNewAdjustment('CONFIRM_WORK_PERFORMED')");
     expect(page).toContain("openNewAdjustment('ADJUST_WORK_TIME')");
     expect(page).toContain('ส่งคำขอให้ ADMIN พิจารณา');
-    expect(page).toContain('Pending ไม่มีผลต่อ Attendance');
+    expect(page).toContain('ยังไม่มีผลกับการลงเวลา จนกว่า ADMIN จะอนุมัติ');
     expect(adjustmentClient).toContain('/attendance/adjustment-requests');
     expect(adjustmentClient).not.toContain('/attendance/governance/assignments/');
   });

@@ -108,3 +108,13 @@ describe('AttendanceDailyReport (owner A4 reference)', () => {
   });
 
 });
+
+describe('daily report OFF day (owner 2026-10-30)', () => {
+  const off: DailyReportRow = { ...base, assignmentId: 'off1', employeeId: 'e-off', employeeName: 'วันหยุด ตัวอย่าง', checkInAt: null, checkOutAt: null, workedMinutes: null, attendanceStatus: 'NOT_ACTIONABLE' };
+  it('labels a not-actionable OFF assignment as วันหยุด, not ไม่มีบันทึก', () => {
+    expect(dailyReportStatus(off)).toEqual({ label: 'วันหยุด', tone: 'neutral' });
+  });
+  it('does not count an OFF day as no-record', () => {
+    expect(dailyReportSummary([off]).noRecord).toBe(0);
+  });
+});

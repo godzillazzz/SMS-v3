@@ -80,3 +80,15 @@ test('patrol router is mounted under /api/v1/patrol', () => {
   const index = require('node:fs').readFileSync(require('node:path').join(__dirname, '../src/routes/index.js'), 'utf8');
   assert.match(index, /router\.use\('\/patrol', createPatrolRoutes\(\)\)/);
 });
+
+test('progress endpoint is available to any authenticated scanner, forwards department and is not cached', async () => {
+  const calls = [];
+  const service = { progress: async (input) => { calls.push(input); return { round: 3 }; } };
+  const server = app({ sub: 'v', role: 'VIEWER', employeeAuthority: { id: 'e' } }, service);
+  const response = await request(server).get('/api/v1/patrol/progress?department=ANO');
+  assert.equal(response.status, 200);
+  assert.equal(response.headers['cache-control'], 'no-store');
+  assert.deepEqual(response.body.data, { round: 3 });
+  assert.equal(calls[0].department, 'ANO');
+  assert.equal((await request(server).get(`/api/v1/patrol/progress?department=${'x'.repeat(101)}`)).status, 400);
+});

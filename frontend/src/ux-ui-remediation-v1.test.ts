@@ -110,7 +110,7 @@ describe('UXUI-REM-01 audited remediation contracts', () => {
     expect(attendance).not.toContain('SMS Time 4.0 Preview');
     expect(main).toContain("label: 'ศูนย์อนุมัติ'");
     expect(main).toContain("label: 'ประสิทธิภาพและสถานะระบบ'");
-    expect(main).toContain("label: 'จุดรักษาความปลอดภัยและ QR'");
+    expect(main).toContain("label: 'จุดรักษาการณ์และ QR'");
     expect(reports).toContain('<SmsIcon name="refresh" size={16} />');
     expect(reports).toContain('<SmsIcon name={icon} size={18} />');
     expect(systemHealth).toContain('<SmsIcon name="refresh" size={16} />');

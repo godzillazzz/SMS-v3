@@ -32,9 +32,20 @@ const checkpoints = [
   { id: 'c3', code: 'WCS-01', name: 'คลังสินค้า', department: 'WCS', locationNote: null, sortOrder: 1, isActive: false, qrVersion: 1, qrPayload: `SMSPATROL1:${'c'.repeat(43)}` }
 ];
 
+function scansToday() {
+  const at = (hour: number, minute = 10) => new Date(Date.parse(`${today}T00:00:00.000Z`) + (hour - 7) * 3_600_000 + minute * 60_000).toISOString();
+  return [
+    { id: 's1', checkpointId: 'c1', checkpointCode: 'ANO-01', checkpointName: 'ประตูทางเข้าหลัก', checkpointDepartment: 'ANO', employeeId: 'e1', employeeName: 'สมชาย ใจดี', scannedAt: at(7, 12), workDate: today, photoUrl: '/api/v1/patrol/scans/s1/photo' },
+    { id: 's2', checkpointId: 'c2', checkpointCode: 'ANO-02', checkpointName: 'ลานจอดรถด้านหลังอาคาร B', checkpointDepartment: 'ANO', employeeId: 'e1', employeeName: 'สมชาย ใจดี', scannedAt: at(7, 40), workDate: today, photoUrl: '/api/v1/patrol/scans/s2/photo' },
+    { id: 's3', checkpointId: 'c1', checkpointCode: 'ANO-01', checkpointName: 'ประตูทางเข้าหลัก', checkpointDepartment: 'ANO', employeeId: 'e1', employeeName: 'สมหญิง รักงาน', scannedAt: at(10, 30), workDate: today, photoUrl: '/api/v1/patrol/scans/s3/photo' }
+  ];
+}
+
 async function signIn(page: Page, role: 'ADMIN' | 'VIEWER') {
   await page.route('**/api/v1/**', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ data: [], meta: { page: 1, total: 0, pageSize: 20, totalPages: 1 } }) }));
-  await page.route('**/api/v1/patrol/report?**', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ data: report() }) }));
+  await page.route('**/api/v1/patrol/report?**', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ data: { ...report(), patrolScans: scansToday(), scans: scansToday() } }) }));
+  await page.route('**/api/v1/patrol/progress**', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ data: { patrolDay: today, round: 2, rounds: 8, roundLabel: '10:00–13:00', roundStart: new Date(Date.now() - 3_600_000).toISOString(), roundEnd: new Date(Date.now() + 5_400_000).toISOString(), department: 'ANO', departments: ['ANO', 'WCS'], checkpoints: [{ id: 'c1', code: 'ANO-01', name: 'ประตูทางเข้าหลัก', locationNote: null, doneThisRound: true, lastScanAt: new Date().toISOString(), scannedByMe: true }, { id: 'c2', code: 'ANO-02', name: 'ลานจอดรถด้านหลังอาคาร B', locationNote: null, doneThisRound: false, lastScanAt: null, scannedByMe: false }] } }) }));
+  await page.route('**/api/v1/personnel-masters**', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ data: { departments: [{ name: 'ANO' }, { name: 'WCS' }, { name: 'AN5' }], positions: [] } }) }));
   await page.route('**/api/v1/patrol/checkpoints**', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ data: checkpoints }) }));
   await page.route('**/api/v1/patrol/scans/mine**', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ data: [{ id: 's1', checkpointId: 'c1', checkpointCode: 'ANO-01', checkpointName: 'ประตูทางเข้าหลัก', checkpointDepartment: 'ANO', employeeId: 'e1', scannedAt: `${today}T02:15:00.000Z`, workDate: today, photoUrl: '/api/v1/patrol/scans/s1/photo' }] }) }));
   await page.route('**/api/v1/auth/refresh', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ accessToken: 'fixture-access-token', user: { id: 'u1', email: 'x@example.test', displayName: `${role} Fixture`, role, employeeId: 'e1' } }) }));
@@ -48,42 +59,51 @@ async function noHorizontalOverflow(page: Page) {
 }
 
 for (const viewport of [{ width: 1366, height: 768 }, { width: 375, height: 812 }]) {
-  test(`patrol center board, checkpoints and reports render at ${viewport.width}px`, async ({ page }) => {
+  test(`patrol center department list, department rounds and checkpoint management at ${viewport.width}px`, async ({ page }) => {
     await page.setViewportSize(viewport);
     await signIn(page, 'ADMIN');
     await page.goto('/app/patrol/center');
     const center = page.locator('.patrol-center');
     await expect(center.getByRole('heading', { name: 'ศูนย์ตรวจจุด' })).toBeVisible();
-    await expect(center.locator('.patrol-board tbody tr').filter({ has: page.locator('.patrol-cell') })).toHaveCount(3);
-    await expect(center.locator('.patrol-cell--done').first()).toBeVisible();
-    await expect(center.locator('.patrol-kpi').nth(3)).toContainText('57%');
+    await expect(center.getByRole('heading', { name: 'สถานะการตรวจรายแผนก' })).toBeVisible();
+    // WCS-01 is inactive in the fixture, so only ANO has active checkpoints to track.
+    await expect(center.locator('.patrol-dept-table tbody tr')).toHaveCount(1);
     await noHorizontalOverflow(page);
-    await page.screenshot({ path: `test-results/patrol-board-${viewport.width}.png`, fullPage: true });
+    await page.screenshot({ path: `test-results/patrol-v2-list-${viewport.width}.png`, fullPage: true });
+
+    await center.getByRole('button', { name: 'ANO', exact: true }).click();
+    await expect(center.getByRole('heading', { name: 'แผนก ANO' })).toBeVisible();
+    const rounds = viewport.width > 640 ? center.locator('.patrol-round-desktop') : center.locator('.patrol-round-mobile');
+    await expect(rounds).toBeVisible();
+    await noHorizontalOverflow(page);
+    await page.screenshot({ path: `test-results/patrol-v2-dept-${viewport.width}.png`, fullPage: true });
+    await center.getByRole('button', { name: /ทุกแผนก/ }).first().click();
 
     await center.getByRole('tab', { name: 'จุดตรวจและ QR' }).click();
-    await expect(center.locator('.patrol-cp-list li')).toHaveCount(3);
-    await center.getByRole('button', { name: 'ออก QR ใหม่' }).first().click();
-    await expect(page.getByRole('dialog')).toContainText('ป้าย QR เดิมจะใช้ไม่ได้ทันที');
-    await page.getByRole('button', { name: 'ยกเลิก' }).last().click();
+    const head = center.locator('.patrol-master-head__actions').first();
+    const boxes = await head.locator('> button').evaluateAll((nodes) => nodes.map((node) => node.getBoundingClientRect().top));
+    expect(Math.max(...boxes) - Math.min(...boxes)).toBeLessThan(4);
     await noHorizontalOverflow(page);
-    await page.screenshot({ path: `test-results/patrol-checkpoints-${viewport.width}.png`, fullPage: true });
-
-    await center.getByRole('tab', { name: 'พิมพ์รายงาน' }).click();
-    await expect(center.locator('.patrol-report-card')).toHaveCount(3);
-    await expect(center.locator('.patrol-report-card--department button')).toBeDisabled();
+    await page.screenshot({ path: `test-results/patrol-v2-cp-list-${viewport.width}.png`, fullPage: true });
+    await center.getByRole('button', { name: 'ANO', exact: true }).click();
+    await expect(center.getByRole('heading', { name: 'จุดตรวจของแผนก ANO' })).toBeVisible();
+    await center.getByRole('button', { name: 'เพิ่มจุดตรวจ' }).click();
+    await expect(page.getByRole('dialog')).toContainText('เพิ่มจุดตรวจในแผนก ANO');
+    await page.screenshot({ path: `test-results/patrol-v2-cp-dialog-${viewport.width}.png` });
+    await page.getByRole('dialog').getByRole('button', { name: 'ยกเลิก' }).click();
     await noHorizontalOverflow(page);
-    await page.screenshot({ path: `test-results/patrol-reports-${viewport.width}.png`, fullPage: true });
+    await page.screenshot({ path: `test-results/patrol-v2-cp-dept-${viewport.width}.png`, fullPage: true });
   });
 
-  test(`patrol scan page is usable at ${viewport.width}px`, async ({ page }) => {
+  test(`patrol scan page shows the current round at ${viewport.width}px`, async ({ page }) => {
     await page.setViewportSize(viewport);
     await signIn(page, 'VIEWER');
     await page.goto('/app/patrol');
     const scan = page.locator('.patrol-scan-page');
     await expect(scan.getByRole('heading', { name: 'สแกนจุดตรวจ' })).toBeVisible();
-    await expect(scan.getByRole('button', { name: /เริ่มสแกน QR/ })).toBeVisible();
-    await expect(scan.locator('.patrol-history li')).toHaveCount(1);
+    await expect(scan.locator('.patrol-round-card')).toContainText('รอบที่ 2/8');
+    await expect(scan.locator('.patrol-round-card__list li')).toHaveCount(2);
     await noHorizontalOverflow(page);
-    await page.screenshot({ path: `test-results/patrol-scan-${viewport.width}.png`, fullPage: true });
+    await page.screenshot({ path: `test-results/patrol-v2-scan-${viewport.width}.png`, fullPage: true });
   });
 }

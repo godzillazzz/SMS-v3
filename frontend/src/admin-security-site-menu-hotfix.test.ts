@@ -8,7 +8,7 @@ const panel = readFileSync(new URL('./components/SecuritySiteManagementPanel.tsx
 describe('Admin Security Site menu hotfix', () => {
   it('restores an explicit Admin navigation route for Security Site and QR lifecycle', () => {
     expect(main).toContain("| 'securitySite' | 'settings'");
-    expect(main).toContain("{ id: 'securitySite', icon: 'location', label: 'จุดรักษาความปลอดภัยและ QR' }");
+    expect(main).toContain("{ id: 'securitySite', icon: 'location', label: 'จุดรักษาการณ์และ QR' }");
     expect(routing).toContain("if (page === 'securitySite') return auth.user?.role === 'ADMIN'");
   });
 

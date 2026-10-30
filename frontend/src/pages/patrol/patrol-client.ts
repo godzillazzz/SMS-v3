@@ -1,6 +1,6 @@
 import { ApiRequestError, normalizeRequestId } from '../../api';
 import { attendanceAuthenticatedRequest } from '../../attendance-auth-request';
-import type { PatrolCheckpoint, PatrolReport, PatrolScan } from './patrol-model';
+import type { PatrolCheckpoint, PatrolProgress, PatrolReport, PatrolScan } from './patrol-model';
 
 async function parse<T>(response: Response, fallback: string): Promise<T> {
   const payload = await response.json().catch(() => ({}));
@@ -46,6 +46,9 @@ export const patrolApi = {
     if (input.note?.trim()) body.append('note', input.note.trim());
     body.append('photo', photo, 'checkpoint.jpg');
     return parse<PatrolScan>(await attendanceAuthenticatedRequest('/patrol/scans', token, { method: 'POST', credentials: 'include', body }), 'บันทึกการตรวจไม่สำเร็จ');
+  },
+  async progress(token: string, department?: string) {
+    return parse<PatrolProgress>(await json(`/patrol/progress${department ? `?department=${encodeURIComponent(department)}` : ''}`, token), 'ไม่สามารถโหลดรอบการตรวจได้');
   },
   async myScans(token: string, date?: string) {
     return parse<PatrolScan[]>(await json(`/patrol/scans/mine${date ? `?date=${encodeURIComponent(date)}` : ''}`, token), 'ไม่สามารถโหลดประวัติการตรวจได้');

@@ -16,10 +16,14 @@ const index = read('../index.html');
 
 describe('Attendance UX V4 Employee Mobile/PWA shell', () => {
   it('keeps five primary self-service tabs while allowing the device-remediation route inside the PWA shell', () => {
-    expect(mode).toContain("export const SMS_PWA_PAGES: SmsPwaPage[] = ['attendance', 'attendanceHistory', 'employeeSchedule', 'leave', 'profile']");
+    // Owner decision 30 Oct 2026: the Patrol scan tab replaces the History tab; History stays reachable from Attendance.
+    expect(mode).toContain("export const SMS_PWA_PAGES: SmsPwaPage[] = ['attendance', 'patrol', 'attendanceHistory', 'employeeSchedule', 'leave', 'profile']");
     expect(mode).not.toContain("'attendanceDevice'");
     const nav = main.slice(main.indexOf('className="pwa-bottom-nav"'), main.indexOf('</nav>}', main.indexOf('className="pwa-bottom-nav"')));
-    for (const label of ['ลงเวลา', 'ประวัติ', 'ตารางงาน', 'ลา', 'โปรไฟล์']) expect(nav).toContain(label);
+    for (const label of ['ลงเวลา', 'ตรวจจุด', 'ตารางงาน', 'ลา', 'โปรไฟล์']) expect(nav).toContain(label);
+    expect(nav.match(/<button /g)).toHaveLength(5);
+    expect(nav).not.toContain("selectPwaPage('attendanceHistory')");
+    expect(main).toContain("onTodayHistory={() => selectPwaPage('attendanceHistory', { today: true })}");
     for (const adminLabel of ['Dashboard', 'พนักงาน', 'ผู้ใช้งาน']) expect(nav).not.toContain(adminLabel);
   });
 
@@ -76,7 +80,7 @@ describe('Attendance UX V4 Employee Mobile/PWA shell', () => {
     expect(manifest.start_url).toBe('/?pwa=1&page=attendance');
     expect(manifest.shortcuts.map((item: { url: string }) => item.url)).toEqual([
       '/?pwa=1&page=attendance',
-      '/?pwa=1&page=attendanceHistory',
+      '/?pwa=1&page=patrol',
       '/?pwa=1&page=employeeSchedule',
       '/?pwa=1&page=leave',
       '/?pwa=1&page=profile'

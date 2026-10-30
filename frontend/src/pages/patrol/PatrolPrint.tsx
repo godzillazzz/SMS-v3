@@ -1,4 +1,4 @@
-import { coverageCellTone, summarizeByDepartment, thaiDate, thaiTime, type PatrolCheckpoint, type PatrolReport } from './patrol-model';
+import { PATROL_ROUNDS, buildRoundBoard, patrolRoundWindows, roundsByDay, thaiDate, thaiTime, type PatrolCheckpoint, type PatrolReport } from './patrol-model';
 
 export type PatrolPrintKind = 'daily' | 'department' | 'all';
 
@@ -28,9 +28,26 @@ function Letterhead({ kind, report }: { kind: PatrolPrintKind; report: PatrolRep
   </>;
 }
 
-function SummaryCards({ report }: { report: PatrolReport }) {
-  const { summary } = report.coverage;
-  const cards: Array<[string, string | number]> = [['จุดตรวจ', summary.checkpoints], ['ตรวจแล้ว', summary.scanned], ['ยังไม่ตรวจ', summary.pending], ['จำนวนสแกน', summary.scans], ['ครอบคลุม', `${summary.percent}%`]];
+type Group = { department: string; checkpoints: Array<{ id: string; code: string; name: string }> };
+
+function groupsOf(report: PatrolReport): Group[] {
+  return report.coverage.departments.map((group) => ({ department: group.department, checkpoints: group.checkpoints.map((item) => ({ id: item.id, code: item.code, name: item.name })) }));
+}
+
+function rangeDays(report: PatrolReport) { return report.coverage.dates.filter((day) => day >= report.from && day <= report.to); }
+
+function patrolScans(report: PatrolReport) { return report.patrolScans || report.scans; }
+
+function SummaryCards({ report, now }: { report: PatrolReport; now: Date }) {
+  const groups = groupsOf(report);
+  const all = groups.flatMap((group) => group.checkpoints);
+  const days = rangeDays(report);
+  let due = 0; let done = 0;
+  for (const day of days) {
+    const board = buildRoundBoard({ day, now, checkpoints: all, scans: patrolScans(report) });
+    due += board.summary.due; done += board.summary.done;
+  }
+  const cards: Array<[string, string | number]> = [['แผนก', groups.length], ['จุดตรวจ', all.length], ['รอบ-จุดที่ต้องตรวจ', due], ['ตรวจแล้ว', done], ['ขาดตรวจ', Math.max(0, due - done)], ['ความครบถ้วน', `${due ? Math.round((done / due) * 100) : 0}%`]];
   return <section className="patrol-print-cards">{cards.map(([label, value]) => <div key={label}><span>{label}</span><strong>{value}</strong></div>)}</section>;
 }
 
@@ -42,67 +59,80 @@ function Signatures() {
 }
 
 function ScanTable({ report }: { report: PatrolReport }) {
+  const scans = patrolScans(report);
   return <table className="patrol-print-table">
-    <thead><tr><th>ลำดับ</th><th>เวลา</th><th>วันที่</th><th>แผนกจุด</th><th>รหัสจุด</th><th>ชื่อจุดตรวจ</th><th>ผู้ตรวจ</th><th>แผนกผู้ตรวจ</th><th>หมายเหตุ</th></tr></thead>
-    <tbody>{report.scans.length === 0 ? <tr><td colSpan={9} className="patrol-print-empty">ไม่มีการสแกนในช่วงที่เลือก</td></tr> : report.scans.map((scan, index) => <tr key={scan.id}>
-      <td>{index + 1}</td><td>{thaiTime(scan.scannedAt)}</td><td>{thaiDate(scan.workDate, { day: 'numeric', month: 'short' })}</td><td>{scan.checkpointDepartment}</td><td>{scan.checkpointCode || '—'}</td><td>{scan.checkpointName || '—'}</td>
-      <td>{scan.employeeName || '—'}{scan.employeeCode ? ` (${scan.employeeCode})` : ''}</td><td>{scan.employeeDepartment || '—'}</td><td>{scan.note || '—'}</td>
+    <thead><tr><th>ลำดับ</th><th>วันที่</th><th>เวลา</th><th>แผนกจุด</th><th>รหัสจุด</th><th>ชื่อจุดตรวจ</th><th>ผู้ตรวจ</th><th>แผนกผู้ตรวจ</th><th>หมายเหตุ</th></tr></thead>
+    <tbody>{scans.length === 0 ? <tr><td colSpan={9} className="patrol-print-empty">ไม่มีการสแกนในช่วงที่เลือก</td></tr> : scans.map((scan, index) => <tr key={scan.id}>
+      <td>{index + 1}</td><td>{thaiDate(new Date(Date.parse(scan.scannedAt) + 7 * 3_600_000).toISOString().slice(0, 10), { day: 'numeric', month: 'short' })}</td><td>{thaiTime(scan.scannedAt)}</td><td>{scan.checkpointDepartment}</td><td>{scan.checkpointCode || '—'}</td><td>{scan.checkpointName || '—'}</td>
+      <td>{scan.employeeName || '—'}</td><td>{scan.employeeDepartment || '—'}</td><td>{scan.note || '—'}</td>
     </tr>)}</tbody>
   </table>;
 }
 
-function DailyCheckpointTable({ report, today }: { report: PatrolReport; today: string }) {
-  const day = report.to;
-  return <table className="patrol-print-table">
-    <thead><tr><th>ลำดับ</th><th>แผนก</th><th>รหัสจุด</th><th>ชื่อจุดตรวจ</th><th>สถานะ</th><th>จำนวนครั้ง</th><th>ตรวจล่าสุด</th><th>ผู้ตรวจล่าสุด</th></tr></thead>
-    <tbody>{report.coverage.departments.flatMap((group) => group.checkpoints.map((item) => ({ group, item }))).map(({ group, item }, index) => {
-      const cell = item.days[day];
-      const tone = coverageCellTone(cell, day, today);
-      return <tr key={item.id}>
-        <td>{index + 1}</td><td>{group.department}</td><td>{item.code}</td><td>{item.name}</td>
-        <td><span className={`patrol-print-status patrol-print-status--${tone}`}>{tone === 'done' ? 'ตรวจแล้ว' : tone === 'pending' ? 'รอตรวจ' : 'ไม่ได้ตรวจ'}</span></td>
-        <td>{cell?.count || 0}</td><td>{cell?.lastScanAt ? `${thaiTime(cell.lastScanAt)} น.` : '—'}</td><td>{cell?.lastEmployeeName || '—'}</td>
-      </tr>;
-    })}</tbody>
+/** One patrol day: checkpoint x 8 rounds, each cell = scan time or ✕. */
+function RoundMatrix({ report, day, now }: { report: PatrolReport; day: string; now: Date }) {
+  const windows = patrolRoundWindows(day);
+  return <table className="patrol-print-table patrol-print-matrix patrol-print-rounds">
+    <thead><tr><th>จุดตรวจ</th>{windows.map((window) => <th key={window.round}>รอบ {window.round}<br /><small>{window.label}</small></th>)}<th>ครบ</th></tr></thead>
+    {groupsOf(report).map((group) => {
+      const board = buildRoundBoard({ day, now, checkpoints: group.checkpoints, scans: patrolScans(report) });
+      return <tbody key={group.department}>
+        <tr className="patrol-print-group"><td colSpan={PATROL_ROUNDS + 2}>{group.department} — ตรวจแล้ว {board.summary.done}/{board.summary.due} รอบ-จุด</td></tr>
+        {board.rows.map((row) => <tr key={row.id}>
+          <td className="patrol-print-matrix__name">{row.code} {row.name}</td>
+          {row.cells.map((cell) => <td key={cell.round} className={`patrol-print-cell--${cell.tone === 'done' ? 'done' : cell.tone === 'missed' ? 'missed' : 'pending'}`}>{cell.tone === 'done' ? `${thaiTime(cell.lastScanAt)}${cell.count > 1 ? ` (${cell.count})` : ''}` : cell.tone === 'missed' ? '✕' : cell.tone === 'current' ? '•' : ''}</td>)}
+          <td>{row.done}/{row.due}</td>
+        </tr>)}
+      </tbody>;
+    })}
   </table>;
 }
 
-function CoverageMatrix({ report, today }: { report: PatrolReport; today: string }) {
-  const dates = report.coverage.dates;
+/** Multiple patrol days: completed rounds per checkpoint per day (e.g. 7/8). */
+function DayRoundMatrix({ report, now }: { report: PatrolReport; now: Date }) {
+  const days = rangeDays(report);
   return <table className="patrol-print-table patrol-print-matrix">
-    <thead><tr><th>จุดตรวจ</th>{dates.map((day) => <th key={day}>{Number(day.slice(8))}</th>)}<th>รวม</th></tr></thead>
-    {report.coverage.departments.map((group) => <tbody key={group.department}>
-      <tr className="patrol-print-group"><td colSpan={dates.length + 2}>{group.department} — ตรวจแล้ว {group.scanned}/{group.total}</td></tr>
-      {group.checkpoints.map((item) => <tr key={item.id}>
-        <td className="patrol-print-matrix__name">{item.code} {item.name}</td>
-        {dates.map((day) => { const tone = coverageCellTone(item.days[day], day, today); return <td key={day} className={`patrol-print-cell--${tone}`}>{tone === 'done' ? (item.days[day].count > 1 ? item.days[day].count : '✓') : tone === 'future' ? '' : tone === 'pending' ? '•' : '✕'}</td>; })}
-        <td>{item.scannedDays}/{dates.length}</td>
-      </tr>)}
-    </tbody>)}
+    <thead><tr><th>จุดตรวจ</th>{days.map((day) => <th key={day}>{Number(day.slice(8))}</th>)}<th>รวม</th></tr></thead>
+    {groupsOf(report).map((group) => {
+      const table = roundsByDay({ dates: days, now, checkpoints: group.checkpoints, scans: patrolScans(report) });
+      return <tbody key={group.department}>
+        <tr className="patrol-print-group"><td colSpan={days.length + 2}>{group.department}</td></tr>
+        {group.checkpoints.map((item) => {
+          const totals = days.reduce((sum, day) => ({ done: sum.done + (table[item.id]?.[day]?.done || 0), due: sum.due + (table[item.id]?.[day]?.due || 0) }), { done: 0, due: 0 });
+          return <tr key={item.id}>
+            <td className="patrol-print-matrix__name">{item.code} {item.name}</td>
+            {days.map((day) => { const cell = table[item.id]?.[day]; const full = cell && cell.due > 0 && cell.done >= cell.due; return <td key={day} className={full ? 'patrol-print-cell--done' : cell && cell.done < cell.due ? 'patrol-print-cell--missed' : ''}>{cell && cell.due ? `${cell.done}/${cell.due}` : ''}</td>; })}
+            <td>{totals.done}/{totals.due}</td>
+          </tr>;
+        })}
+      </tbody>;
+    })}
   </table>;
 }
 
-export function PatrolReportPrint({ kind, report, today }: { kind: PatrolPrintKind; report: PatrolReport; today: string }) {
-  const departments = summarizeByDepartment(report.coverage.departments);
+function DepartmentSummary({ report, now }: { report: PatrolReport; now: Date }) {
+  const days = rangeDays(report);
+  const rows = groupsOf(report).map((group) => {
+    let due = 0; let done = 0;
+    for (const day of days) { const board = buildRoundBoard({ day, now, checkpoints: group.checkpoints, scans: patrolScans(report) }); due += board.summary.due; done += board.summary.done; }
+    return { department: group.department, checkpoints: group.checkpoints.length, due, done, missed: Math.max(0, due - done), percent: due ? Math.round((done / due) * 100) : 0 };
+  });
+  return <table className="patrol-print-table patrol-print-dept">
+    <thead><tr><th>แผนก</th><th>จุดตรวจ</th><th>รอบ-จุดที่ต้องตรวจ</th><th>ตรวจแล้ว</th><th>ขาดตรวจ</th><th>ความครบถ้วน</th></tr></thead>
+    <tbody>{rows.map((row) => <tr key={row.department}><td>{row.department}</td><td>{row.checkpoints}</td><td>{row.due}</td><td>{row.done}</td><td>{row.missed}</td><td>{row.percent}%</td></tr>)}</tbody>
+  </table>;
+}
+
+export function PatrolReportPrint({ kind, report, now = new Date() }: { kind: PatrolPrintKind; report: PatrolReport; today?: string; now?: Date }) {
+  const days = rangeDays(report);
+  const single = days.length === 1;
   return <article className={`print-only patrol-report-print patrol-report-print--${kind}`} aria-hidden="true">
     <Letterhead kind={kind} report={report} />
-    <SummaryCards report={report} />
-    {kind === 'daily' && <>
-      <h2 className="patrol-print-h2">สถานะจุดตรวจ</h2>
-      <DailyCheckpointTable report={report} today={today} />
-      <h2 className="patrol-print-h2">รายการสแกนตามเวลา</h2>
-      <ScanTable report={report} />
-    </>}
-    {kind !== 'daily' && <>
-      {kind === 'all' && <table className="patrol-print-table patrol-print-dept">
-        <thead><tr><th>แผนก</th><th>จุด-วันทั้งหมด</th><th>ตรวจแล้ว</th><th>ยังไม่ตรวจ</th><th>ครอบคลุม</th></tr></thead>
-        <tbody>{departments.map((item) => <tr key={item.department}><td>{item.department}</td><td>{item.total}</td><td>{item.scanned}</td><td>{item.pending}</td><td>{item.percent}%</td></tr>)}</tbody>
-      </table>}
-      <h2 className="patrol-print-h2">ตารางสถานะการตรวจ</h2>
-      <CoverageMatrix report={report} today={today} />
-      <h2 className="patrol-print-h2 patrol-print-break">รายการสแกน</h2>
-      <ScanTable report={report} />
-    </>}
+    <SummaryCards report={report} now={now} />
+    {kind === 'all' && <><h2 className="patrol-print-h2">สรุปรายแผนก</h2><DepartmentSummary report={report} now={now} /></>}
+    <h2 className="patrol-print-h2">{single || kind === 'daily' ? 'สถานะการตรวจ 8 รอบ (รอบละ 3 ชั่วโมง)' : 'จำนวนรอบที่ตรวจครบต่อวัน'}</h2>
+    {single || kind === 'daily' ? <RoundMatrix report={report} day={report.to} now={now} /> : <DayRoundMatrix report={report} now={now} />}
+    {kind !== 'all' && <><h2 className="patrol-print-h2 patrol-print-break">รายการสแกนเรียงตามเวลา</h2><ScanTable report={report} /></>}
     <Signatures />
   </article>;
 }

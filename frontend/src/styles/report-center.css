@@ -55,3 +55,10 @@
   .report-center-export-groups .report-center-export-card { grid-template-columns:1fr; gap:10px; padding:14px; }
   .report-center-export-groups .report-center-export-icon { width:38px; height:38px; }
 }
+
+/* Patrol export group (owner 2026-10-30) */
+.report-center-patrol-filters { display:flex; flex-wrap:wrap; gap:12px; margin:0 0 12px; }
+.report-center-patrol-filters .report-center-export-select { flex:0 1 220px; }
+.report-center-patrol-filters input[type="date"] { width:100%; min-height:38px; border:1px solid #d6dee9; border-radius:10px; padding:6px 10px; background:#fff; font:inherit; font-size:14px; }
+.report-center-export-card--patrol .report-center-export-icon { background:#e3f5f2; color:#0d7d72; }
+@media (max-width:640px) { .report-center-patrol-filters .report-center-export-select { flex:1 1 100%; } }
