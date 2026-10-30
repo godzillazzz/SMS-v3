@@ -63,7 +63,7 @@ describe('Employee critical change actions V2', () => {
   it('department transfer calls out dependent schedule leave site authority and linked account impact review', () => {
     expect(editor).toContain('เวรในอนาคต');
     expect(editor).toContain('ใบลา');
-    expect(editor).toContain('จุดปฏิบัติงาน หน่วยงาน');
+    expect(editor).toContain('ใบลา จุดปฏิบัติงาน และบัญชีผู้ใช้');
     expect(editor).toContain('บัญชีผู้ใช้ที่เชื่อมโยง');
     expect(editor).toContain('preflight.impacts.futureShiftAssignments');
     expect(editor).toContain('preflight.impacts.pendingLeaveRequests');

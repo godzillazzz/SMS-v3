@@ -151,7 +151,7 @@ export function EmployeeGovernedEditModal({ token, employee, role, onClose, onCh
       if (!active) return;
       const data = result?.data as PersonnelMasterData | undefined;
       setPersonnelMasters({ departments: Array.isArray(data?.departments) ? data!.departments : [], positions: Array.isArray(data?.positions) ? data!.positions : [] });
-    }).catch(() => { if (active) setPersonnelMastersError('ไม่สามารถโหลดรายการจุดปฏิบัติงานและตำแหน่งได้ จึงปิดการเปลี่ยนจุดปฏิบัติงานและตำแหน่งไว้ชั่วคราว'); })
+    }).catch(() => { if (active) setPersonnelMastersError('ไม่สามารถโหลดรายการจุดปฏิบัติงานและตำแหน่งได้ จึงปิดการเปลี่ยนไว้ชั่วคราว'); })
       .finally(() => { if (active) setPersonnelMastersLoading(false); });
     return () => { active = false; };
   }, [token]);
@@ -305,7 +305,7 @@ export function EmployeeGovernedEditModal({ token, employee, role, onClose, onCh
             {criticalAction === 'DEPARTMENT_TRANSFER' && <div className="employee-governed-grid">
               <label className="employee-governed-wide"><span>จุดปฏิบัติงานใหม่ <b>*</b></span><select required value={String(form.department || '')} disabled={pendingReadOnly || personnelMastersLoading || Boolean(personnelMastersError)} onChange={(event) => update('department', event.target.value)}><option value="">เลือกจุดปฏิบัติงาน</option>{personnelMasters.departments.map((item) => <option key={item.id} value={item.name}>{item.name}</option>)}</select>{personnelMastersError && <small>{personnelMastersError}</small>}</label>
               <div className="employee-critical-before-after employee-governed-wide"><span>จุดปฏิบัติงานเดิม <b>{employee.department || 'ไม่ระบุ'}</b></span><span>จุดปฏิบัติงานใหม่ <b>{String(form.department || '') || 'ยังไม่ได้ระบุ'}</b></span></div>
-              <small className="employee-governed-wide employee-critical-hint">ระบบจะตรวจเวรในอนาคต ใบลา จุดปฏิบัติงาน หน่วยงาน และบัญชีผู้ใช้ที่เชื่อมโยงก่อนยืนยัน</small>
+              <small className="employee-governed-wide employee-critical-hint">ระบบจะตรวจเวรในอนาคต ใบลา จุดปฏิบัติงาน และบัญชีผู้ใช้ที่เชื่อมโยงก่อนยืนยัน</small>
             </div>}
             {criticalAction === 'POSITION_CHANGE' && <div className="employee-governed-grid">
               <label className="employee-governed-wide"><span>ตำแหน่งใหม่ <b>*</b></span><select required value={String(form.jobTitle || '')} disabled={pendingReadOnly || personnelMastersLoading || Boolean(personnelMastersError)} onChange={(event) => update('jobTitle', event.target.value)}><option value="">เลือกตำแหน่ง</option>{personnelMasters.positions.map((item) => <option key={item.id} value={item.name}>{item.name}</option>)}</select>{personnelMastersError && <small>{personnelMastersError}</small>}</label>

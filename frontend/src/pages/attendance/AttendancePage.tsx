@@ -1392,7 +1392,7 @@ export function AttendancePage({ token, displayName, department, readOnly = fals
         <div className="attendance-v3-identity-copy">
           <span className="attendance-v3-kicker">SMS EMPLOYEE</span>
           <h1>{displayName || 'ผู้ใช้งาน SMS'}</h1>
-          <p>{department || 'หน่วยงานตามทะเบียนพนักงาน'}</p>
+          <p>{department || 'จุดปฏิบัติงานตามทะเบียนพนักงาน'}</p>
         </div>
         <div className="attendance-v3-assignment-grid">
           <div>

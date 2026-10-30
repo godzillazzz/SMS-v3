@@ -63,7 +63,7 @@ describe('Attendance Supervisor UX V4', () => {
   });
 
   it('implements approved dashboard filters and KPI/read-model fields', () => {
-    for (const label of ['หน่วยงาน', 'จุดปฏิบัติงาน', 'กะ', 'พนักงาน', 'สถานะ']) expect(page).toContain(label);
+    for (const label of ['จุดปฏิบัติงาน', 'สถานที่ลงเวลา', 'กะ', 'พนักงาน', 'สถานะ']) expect(page).toContain(label);
     for (const label of ['ต้องตรวจสอบ', 'มีตาราง', 'ลงเวลาแล้ว', 'กำลังปฏิบัติงาน', 'ยังไม่ลงเวลา', 'มาสาย', 'ออกก่อนเวลา', 'ผิดกะ', 'ช่วยจุดอื่น', 'นอกพื้นที่', 'ลา', 'ขาด', 'เวลาผิดปกติ']) {
       expect(page).toContain(label);
     }

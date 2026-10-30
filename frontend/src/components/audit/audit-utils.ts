@@ -24,7 +24,7 @@ const entityLabels: Record<string, string> = {
   NotificationEventPolicy: 'นโยบายการแจ้งเตือน', NotificationTestSend: 'การทดสอบส่งอีเมล', RefreshSession: 'เซสชันเข้าสู่ระบบ',
   RegistrationRequest: 'คำขอลงทะเบียน', RetentionPolicyChange: 'การเปลี่ยนนโยบายเก็บข้อมูล', ScheduleApproval: 'การอนุมัติตารางกะ',
   ScheduleExport: 'การส่งออกตารางกะ', SchedulingRule: 'กฎการจัดกะ', SecuritySite: 'จุดปฏิบัติงาน',
-  SecuritySiteDepartment: 'แผนกประจำจุดปฏิบัติงาน', SecuritySiteQrCredential: 'ข้อมูล QR จุดปฏิบัติงาน',
+  SecuritySiteDepartment: 'การผูกจุดปฏิบัติงาน', SecuritySiteQrCredential: 'ข้อมูล QR จุดปฏิบัติงาน',
   ShiftAssignment: 'รายการกะ', ShiftType: 'ประเภทกะ', SystemSetting: 'การตั้งค่าระบบ', User: 'ผู้ใช้',
   UserAccessMutation: 'การเปลี่ยนสิทธิ์ผู้ใช้', UserCredential: 'ข้อมูลรับรองผู้ใช้', ViewAsSession: 'เซสชันดูแทนผู้ใช้',
   WebAuthnCredential: 'กุญแจผ่าน'

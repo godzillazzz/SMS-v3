@@ -12,7 +12,7 @@ describe('audit presentation utilities', () => {
     expect(formatAuditTime('2026-08-10T00:30:00.000Z')).toContain('2569');
     expect(actionLabel('LOGIN_FAILED')).toBe('เข้าสู่ระบบไม่สำเร็จ');
     expect(entityLabel('DepartmentMaster')).toBe('ข้อมูลจุดปฏิบัติงาน');
-    expect(entityLabel('SecuritySiteDepartment')).toBe('แผนกประจำจุดปฏิบัติงาน');
+    expect(entityLabel('SecuritySiteDepartment')).toBe('การผูกจุดปฏิบัติงาน');
     expect(moduleLabel('USER_ACCESS')).toBe('ผู้ใช้และสิทธิ์');
     expect(auditRoleLabel('ADMIN')).toBe('ผู้ดูแลระบบ');
     expect(auditEventLabel('TOKEN_REUSE')).toBe('ตรวจพบการใช้โทเค็นซ้ำ');

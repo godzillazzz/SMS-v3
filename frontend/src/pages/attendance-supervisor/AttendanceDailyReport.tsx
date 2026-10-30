@@ -128,7 +128,7 @@ export function AttendanceDailyReport({ date, rows, loading = false, error, filt
         <div className="leave-print-divider">
           <div className="leave-print-divider-accent" />
         </div>
-        <p className="attendance-daily-report__filter-text" style={{ fontSize: '8pt', color: '#475569', margin: '0 0 2mm' }}>ตัวกรอง: แผนก {filters?.department || 'ทั้งหมด'} · จุดปฏิบัติงาน {filters?.site || 'ทั้งหมด'} · กะ {filters?.shift || 'ทั้งหมด'} · พนักงาน {filters?.employee || 'ทั้งหมด'} · สถานะ {filters?.status || 'ทั้งหมด'}</p>
+        <p className="attendance-daily-report__filter-text" style={{ fontSize: '8pt', color: '#475569', margin: '0 0 2mm' }}>ตัวกรอง: จุดปฏิบัติงาน {filters?.department || 'ทั้งหมด'} · สถานที่ลงเวลา {filters?.site || 'ทั้งหมด'} · กะ {filters?.shift || 'ทั้งหมด'} · พนักงาน {filters?.employee || 'ทั้งหมด'} · สถานะ {filters?.status || 'ทั้งหมด'}</p>
         <section className="attendance-daily-report__cards" aria-label="สรุปการลงเวลา">
           {cards.map(([label, value]) => <div className="attendance-daily-report__card" key={label}><span>{label}</span><strong>{loading || error ? DASH : value}</strong></div>)}
         </section>

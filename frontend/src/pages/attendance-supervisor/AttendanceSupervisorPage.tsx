@@ -1162,7 +1162,7 @@ export function AttendanceSupervisorPage({ token, role, department, employeeAuth
       </div>} />
 
     {mode !== 'requests' ? <>
-      <SectionCard className="attendance-supervisor-v4__filter-card" kicker="ค้นหารายการ" title="ตัวกรองข้อมูลลงเวลา" description="เลือกช่วงเวลา หน่วยงาน สถานที่ กะ พนักงาน และสถานะที่ต้องการตรวจสอบ">
+      <SectionCard className="attendance-supervisor-v4__filter-card" kicker="ค้นหารายการ" title="ตัวกรองข้อมูลลงเวลา" description="เลือกช่วงเวลา จุดปฏิบัติงาน สถานที่ลงเวลา กะ พนักงาน และสถานะที่ต้องการตรวจสอบ">
       <section className="attendance-supervisor-v4__filters">
         {mode === 'daily' ? (
           <label><span>วันที่</span><input type="date" value={date} onChange={(event) => setDate(event.target.value)} /></label>
@@ -1171,7 +1171,7 @@ export function AttendanceSupervisorPage({ token, role, department, employeeAuth
           <label><span>ถึง</span><input type="date" value={to} onChange={(event) => setTo(event.target.value)} /></label>
         </>}
         <label>
-          <span>หน่วยงาน</span>
+          <span>จุดปฏิบัติงาน</span>
           <select
             value={departmentFilter}
             disabled={viewer || filtersLoading}
@@ -1185,7 +1185,7 @@ export function AttendanceSupervisorPage({ token, role, department, employeeAuth
           </select>
         </label>
         <label>
-          <span>จุดปฏิบัติงาน</span>
+          <span>สถานที่ลงเวลา</span>
           <select value={siteId} disabled={filtersLoading} onChange={(event) => setSiteId(event.target.value)}>
             <option value="">ทั้งหมด</option>
             {sites.filter((site) => site.isActive).map((site) => (

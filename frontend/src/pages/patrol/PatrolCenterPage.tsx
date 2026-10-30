@@ -208,7 +208,7 @@ export function PatrolCenterPage({ token, role }: { token: string; role: string 
     const to = options.to || reportTo;
     const from = kind === 'daily' ? to : options.from || reportFrom;
     const dept = options.department ?? reportDepartment;
-    if (kind === 'department' && !dept) { setNotice('กรุณาเลือกจุดปฏิบัติงานสำหรับรายงานรายจุดปฏิบัติงาน'); return; }
+    if (kind === 'department' && !dept) { setNotice('กรุณาเลือกจุดปฏิบัติงานสำหรับรายงาน'); return; }
     setBusy(true); setError(undefined);
     try {
       const fetched = await patrolApi.report(token, { ...patrolFetchRange(from, to), department: kind === 'all' ? undefined : dept || undefined });
@@ -320,7 +320,7 @@ export function PatrolCenterPage({ token, role }: { token: string; role: string 
 
     {tab === 'checkpoints' && isAdmin && !manageDepartment && <section className="line-settings-card patrol-master-card" aria-labelledby="patrol-cp-title">
       <header className="patrol-master-head">
-        <div><h2 id="patrol-cp-title">จุดตรวจและ QR</h2><p>เลือกจุดปฏิบัติงาน แล้วสร้างจุดตรวจและพิมพ์ป้าย QR ของจุดปฏิบัติงานนั้น</p></div>
+        <div><h2 id="patrol-cp-title">จุดตรวจและ QR</h2><p>เลือกจุดปฏิบัติงาน แล้วสร้างจุดตรวจและพิมพ์ป้าย QR</p></div>
         <div className="patrol-master-head__actions">
           <button type="button" className="btn-neutral" disabled={busy || !checkpoints.some((item) => item.isActive)} onClick={() => void printQr(checkpoints)}><SmsIcon name="qr" size={16} />พิมพ์ QR ทั้งหมด</button>
           <button type="button" className="btn-primary" disabled={busy} onClick={() => setDepartmentDialog(true)}><SmsIcon name="plus" size={16} />เพิ่มจุดปฏิบัติงาน</button>
