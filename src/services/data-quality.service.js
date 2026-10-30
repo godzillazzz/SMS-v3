@@ -296,9 +296,11 @@ async function getDataQualityIssues({ prismaClient = prisma, query = {}, now = n
   };
 }
 
-async function getDataQualitySummary({ prismaClient = prisma, filters = {}, now = new Date() } = {}) {
+// includeUnscopedRules=false drops CUSTOM_RULES: they read quota/leave rows system-wide and cannot be
+// filtered by department, so a department-scoped caller must never receive their counts (S3).
+async function getDataQualitySummary({ prismaClient = prisma, filters = {}, now = new Date(), includeUnscopedRules = true } = {}) {
   const rules = buildRuleDefinitions(filters, now);
-  const customRules = CUSTOM_RULES
+  const customRules = (includeUnscopedRules ? CUSTOM_RULES : [])
     .filter((rule) => !filters.severity || rule.severity === filters.severity)
     .filter((rule) => !filters.module || rule.module === filters.module)
     .filter((rule) => !filters.rule || rule.name === filters.rule);
@@ -316,6 +318,7 @@ async function getDataQualitySummary({ prismaClient = prisma, filters = {}, now 
 }
 
 module.exports = {
+  CUSTOM_RULES,
   DEFAULT_PAGE_SIZE,
   MAX_PAGE_SIZE,
   DATA_QUALITY_QUERY_CONCURRENCY,

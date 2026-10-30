@@ -48,7 +48,8 @@ function fakeDb() {
         }).map((row) => ({ ...row, employee: employees.find((employee) => employee.id === row.employeeId), checkpoint: checkpoints.find((checkpoint) => checkpoint.id === row.checkpointId) }));
       }
     },
-    employee: { async findUnique({ where }) { return employees.find((row) => row.id === where.id) || null; } }
+    employee: { async findUnique({ where }) { return employees.find((row) => row.id === where.id) || null; } },
+    user: { async findUnique({ where }) { return { m: { department: 'ANO' } }[where.id] || null; } }
   };
   return db;
 }
@@ -215,7 +216,7 @@ test('report returns exactly 5,000 scans without a size error', async () => {
   assert.equal(report.coverage.summary.scans, 5000);
 });
 
-test('report access: VIEWER is limited to own scans; MANAGER/SUPERVISOR/ADMIN see all departments', async () => {
+test('report access: VIEWER is limited to own scans; MANAGER sees own department; ADMIN sees all departments', async () => {
   const { svc } = service({ randomBytes: (n) => crypto.randomBytes(n) });
   const cp = await svc.createCheckpoint({ actor: admin, input: { code: 'CP1', name: 'Gate', department: 'ANO' } });
   await svc.recordScan({ actor: guardA, input: { qrPayload: cp.qrPayload, clientScanId: crypto.randomUUID() }, photo: { buffer: JPEG, mimetype: 'image/jpeg' } });

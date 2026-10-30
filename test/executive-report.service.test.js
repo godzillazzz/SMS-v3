@@ -11,7 +11,9 @@ function reportClient(calls = []) {
       { department: 'Operations', total: 3, active: 3 },
       { department: 'Other', total: 1, active: 0 }
     ]),
-    shiftAssignment: { count: record('shiftAssignment.count', 8) },
+    shiftAssignment: { count: record('shiftAssignment.count', 8), findMany: record('shiftAssignment.findMany', []) },
+    patrolCheckpoint: { findMany: record('patrolCheckpoint.findMany', []) },
+    patrolScan: { findMany: record('patrolScan.findMany', []) },
     leaveRequest: { count: record('leaveRequest.count', 0), groupBy: async (query) => { calls.push({ name: 'leaveRequest.groupBy', query }); return query.by[0] === 'status' ? [{ status: 'PENDING', _count: { _all: 1 } }, { status: 'APPROVED', _count: { _all: 2 } }] : [{ leaveType: 'ลาป่วย', _count: { _all: 3 } }]; } },
     leaveQuota: { count: record('leaveQuota.count', 1) },
     employeeLicenseDocument: { count: async (query) => { calls.push({ name: 'employeeLicenseDocument.count', query }); return query.where.status === 'PENDING' ? 1 : 6; } }
@@ -69,7 +71,9 @@ test('Executive Report accepts empty data as zero rather than an unavailable val
   client.leaveQuota.count = async () => 0;
   client.employeeLicenseDocument.count = async () => 0;
   const report = await getExecutiveReport({ prismaClient: client, requestUser: { role: 'MANAGER', department: 'Operations', employeeId: null }, filters: { year: 2026, month: 8 }, now: new Date('2026-08-10T00:00:00.000Z') });
-  assert.equal(report.executiveSummary.every((item) => item.value === 0), true);
+  // OWNER redesign: counts stay 0, but a rate without a base (0/0) and an unloaded queue are null ("—"), never 0%.
+  const nullable = new Set(['attendanceRate', 'patrolCoverage', 'pendingQueue']);
+  assert.equal(report.executiveSummary.every((item) => nullable.has(item.key) ? item.value === null : item.value === 0), true);
   assert.deepEqual(report.managementAttention, []);
 });
 
@@ -95,6 +99,8 @@ test('Executive Report performance instrumentation executes safely with a truthy
     'EXEC_WORKFORCE_ASOF',
     'EXEC_SCHEDULE',
     'EXEC_LEAVE',
+    'EXEC_ATTENDANCE',
+    'EXEC_PATROL',
     'EXEC_DATA_QUALITY',
     'EXEC_LICENSE'
   ]));

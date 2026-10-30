@@ -5,6 +5,7 @@ const prismaDefault = require('../config/prisma');
 const auditDefault = require('./audit.service');
 const HttpError = require('../utils/http-error');
 const { detectedType } = require('./attachment-optimizer.service');
+const { resolveDepartmentScope, departmentWhere } = require('./report-scope');
 
 const PATROL_QR_PREFIX = 'SMSPATROL1:';
 const MAX_PHOTO_BYTES = 1024 * 1024;
@@ -335,16 +336,32 @@ function createPatrolService({ prisma = prismaDefault, storage, audit = auditDef
     return { ...safeScan({ ...row, checkpoint, employee }), replayed: false };
   }
 
+  // S1: ADMIN keeps the free department filter. MANAGER/SUPERVISOR are pinned server-side to their own
+  // department tokens (exact match per comma value); asking for any other department is 403 before any read.
+  async function reportScope(actor, department) {
+    const role = String(actor?.role || '').toUpperCase();
+    const requested = department ? text(department, 100, 'department') : null;
+    if (role === 'ADMIN') return { department: requested, departments: requested ? [requested] : null, filter: requested };
+    const ownDepartment = actor && Object.hasOwn(actor, 'department')
+      ? actor.department
+      : (actor?.sub && typeof prisma.user?.findUnique === 'function'
+        ? (await prisma.user.findUnique({ where: { id: actor.sub }, select: { department: true } }))?.department
+        : null);
+    const scope = resolveDepartmentScope({ role, department: ownDepartment }, requested);
+    return { department: scope.department, departments: scope.departments, filter: departmentWhere(scope) };
+  }
+
   async function report({ actor, from, to, department }) {
     requireReporter(actor);
     const range = dateRange(from, to);
-    const dept = department ? text(department, 100, 'department') : null;
+    const scope = await reportScope(actor, department);
+    const deptFilter = scope.filter;
     // Rounds after midnight (00:00–07:00) belong to the previous patrol day, so read one extra calendar day.
     const scanEnd = new Date(range.end.getTime() + 86400000);
     const [checkpoints, scans] = await Promise.all([
-      prisma.patrolCheckpoint.findMany({ where: { isActive: true, ...(dept ? { department: dept } : {}) }, orderBy: [{ department: 'asc' }, { sortOrder: 'asc' }, { code: 'asc' }] }),
+      prisma.patrolCheckpoint.findMany({ where: { isActive: true, ...(deptFilter ? { department: deptFilter } : {}) }, orderBy: [{ department: 'asc' }, { sortOrder: 'asc' }, { code: 'asc' }] }),
       prisma.patrolScan.findMany({
-        where: { workDate: { gte: range.start, lte: scanEnd }, ...(dept ? { checkpointDepartment: dept } : {}) },
+        where: { workDate: { gte: range.start, lte: scanEnd }, ...(deptFilter ? { checkpointDepartment: deptFilter } : {}) },
         orderBy: [{ scannedAt: 'asc' }],
         take: REPORT_SCAN_LIMIT + 1,
         include: {
@@ -365,7 +382,8 @@ function createPatrolService({ prisma = prismaDefault, storage, audit = auditDef
     return {
       from: range.dates[0],
       to: range.dates.at(-1),
-      department: dept,
+      department: scope.department,
+      departments: scope.departments,
       generatedAt: clock().toISOString(),
       coverage: buildCoverage({ checkpoints, scans: inRange, dates: range.dates }),
       rounds: buildRounds({ scans, dates: range.dates }),

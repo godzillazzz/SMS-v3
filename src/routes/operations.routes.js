@@ -50,6 +50,8 @@ const { getAuditLogPage } = require('../services/audit-log-viewer.service');
 const systemSettingHistoryService = require('../services/system-setting-history.service');
 const { assertSystemSettingChangeSafe, guardrailMetadata } = require('../services/system-setting-guardrail.service');
 const { getExecutiveReport } = require('../services/executive-report.service');
+const { createApprovalCenterService } = require('../services/approval-center.service');
+const reportApprovalQueue = createApprovalCenterService();
 const { getReportSummary, reportSummaryQuery } = require('../services/report-summary.service');
 const { ensureEmployeeOperationalForShift, projectedScheduleConflictIds } = require('../services/employee-operational-eligibility.service');
 const shiftService = require('../services/shift.service');
@@ -465,7 +467,9 @@ router.get('/executive-report', authorize('ADMIN', 'MANAGER', 'SUPERVISOR'), asy
     const parsedQuery = executiveReportQuery.safeParse(req.query);
     if (!parsedQuery.success) throw new HttpError(400, 'Executive report filter is invalid.');
     const currentUser = await prisma.user.findUniqueOrThrow({ where: { id: req.user.sub }, select: { role: true, employeeId: true, department: true } });
-    res.json({ data: await getExecutiveReport({ prismaClient: prisma, requestUser: currentUser, filters: parsedQuery.data, requestId: req.requestId }) });
+    // KPI 7 is the caller's current actionable Approval Center queue (same role policy as the Approval Center badge).
+    const pendingQueue = req.user.impersonation ? null : () => reportApprovalQueue.summary({ actor: req.user, correlationId: req.requestId });
+    res.json({ data: await getExecutiveReport({ prismaClient: prisma, requestUser: currentUser, filters: parsedQuery.data, requestId: req.requestId, pendingQueue }) });
   } catch (error) { next(error); }
 });
 router.get('/licenses', authorize('ADMIN', 'MANAGER', 'SUPERVISOR'), async (req, res, next) => {

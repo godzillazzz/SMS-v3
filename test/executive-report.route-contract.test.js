@@ -23,3 +23,9 @@ test('Executive Report uses bounded validated Gregorian period filters', () => {
   assert.match(source, /month: z\.coerce\.number\(\)\.int\(\)\.min\(1\)\.max\(12\)/);
   assert.match(source, /year: z\.coerce\.number\(\)\.int\(\)\.min\(2020\)\.max\(2100\)/);
 });
+
+test('Executive Report wires KPI 7 to the caller-scoped Approval Center queue and never for View As', () => {
+  const source = fs.readFileSync('src/routes/operations.routes.js', 'utf8');
+  assert.match(source, /const pendingQueue = req\.user\.impersonation \? null : \(\) => reportApprovalQueue\.summary\(\{ actor: req\.user/);
+  assert.match(source, /getExecutiveReport\(\{ prismaClient: prisma, requestUser: currentUser, filters: parsedQuery\.data, requestId: req\.requestId, pendingQueue \}\)/);
+});
