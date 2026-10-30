@@ -2,15 +2,22 @@ import { type ReactNode, useEffect, useMemo, useState } from 'react';
 import { api } from '../../api';
 import { RequestErrorContent, toRequestErrorState, type RequestErrorInput } from '../../request-error';
 import { printDocument } from '../../schedule-print';
-import { currentBangkokMonth, currentBangkokYear, formatThaiDateTime, formatThaiMonthName } from '../../thai-date-time';
+import { currentBangkokMonth, currentBangkokYear, formatThaiDate, formatThaiDateTime, formatThaiMonthName } from '../../thai-date-time';
+import { SmsIcon, type SmsIconName } from '../../components/SmsIcon';
 import '../../styles/executive-report.css';
 
 type ReportItem = { label: string; count: number };
 type Attention = { severity: string; title: string; description: string; count: number; targetPath?: string };
+export type ExecutiveKpi = { key: string; label: string; value: number | null; unit: string; status: string; group?: 'operations' | 'action'; numerator?: number | null; denominator?: number | null; targetPath?: string | null; asOf?: string; unavailableLabel?: string; breakdown?: { expired: number; expiringWithin30Days: number } };
+type PatrolDepartment = { department: string; checkpoints: number; expectedRounds: number; scannedRounds: number; missedRounds: number; coveragePercent: number | null };
 export type ExecutiveReport = {
   period: { year: number; month: number; startDate: string; endDate: string; label: string };
   scope: { departmentName: string; allowsDepartmentFilter: boolean; availableDepartments: string[] };
-  executiveSummary: Array<{ key: string; label: string; value: number; unit: string; status: string }>;
+  executiveSummary: ExecutiveKpi[];
+  attendance?: { scheduledAssignments: number; checkedInAssignments: number; absentAssignments: number; assistOtherSiteCheckIns: number; attendanceRate: number | null };
+  patrol?: { available: boolean; expectedRounds?: number; scannedRounds?: number; missedRounds?: number; coveragePercent?: number | null; byDepartment: PatrolDepartment[] };
+  pendingQueue?: { available: boolean; total: number | null; asOf: string };
+  dataQualityAvailability?: 'AVAILABLE' | 'PARTIAL_SCOPE';
   workforce: { totalEmployees: number; activeEmployees: number; byDepartment: ReportItem[] };
   schedule: { assignmentCount: number; periodNote: string };
   leave: { totalRequests: number; statusCounts: Record<string, number>; byType: ReportItem[]; overlapRule: string };
@@ -24,6 +31,8 @@ export type ExecutiveReportFilters = { year: number; month: number; department: 
 export const monthNames = Array.from({ length: 12 }, (_, index) => formatThaiMonthName(index + 1));
 const leaveStatusLabel: Record<string, string> = { APPROVED: 'อนุมัติแล้ว', PENDING: 'รอพิจารณา', REJECTED: 'ไม่อนุมัติ', CANCELLED: 'ยกเลิก', RETURNED: 'ส่งกลับแก้ไข' };
 const thaiNumber = (value: number) => new Intl.NumberFormat('th-TH').format(value);
+// A KPI without a base (0/0) or outside the caller's scope arrives as null and is shown as "—", never 0.
+export const kpiValueText = (item: Pick<ExecutiveKpi, 'value' | 'unit'>) => item.value === null || item.value === undefined ? '—' : item.unit === '%' ? `${new Intl.NumberFormat('th-TH', { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(item.value)}%` : thaiNumber(item.value);
 const formatDateTime = (value: string) => formatThaiDateTime(value);
 
 function Chart({ title, items }: { title: string; items: ReportItem[] }) {
@@ -35,7 +44,7 @@ export function ExecutiveReportPrint({ report }: { report: ExecutiveReport }) {
   return <article className="print-only executive-report-print" aria-hidden="true">
     <section className="executive-report-print-page">
       <header><p>SECURITY MANAGEMENT SYSTEM</p><h1>รายงานผู้บริหาร</h1><span>{report.period.label} · {report.scope.departmentName}</span><small>สร้างรายงาน {formatDateTime(report.generatedAt)}</small></header>
-      <div className="executive-report-print-kpis">{report.executiveSummary.map((item) => <div key={item.key}><span>{item.label}</span><strong>{thaiNumber(item.value)} <small>{item.unit}</small></strong></div>)}</div>
+      <div className="executive-report-print-kpis">{report.executiveSummary.map((item) => <div key={item.key}><span>{item.label}</span><strong>{kpiValueText(item)} {item.unit !== '%' && <small>{item.unit}</small>}</strong></div>)}</div>
       <PrintSection title="กำลังพลและการจัดเวร"><p>พนักงานทั้งหมด {thaiNumber(report.workforce.totalEmployees)} คน · พนักงานที่ปฏิบัติงาน {thaiNumber(report.workforce.activeEmployees)} คน · รายการจัดเวร {thaiNumber(report.schedule.assignmentCount)} รายการ</p><PrintList items={report.workforce.byDepartment} /></PrintSection>
       <PrintSection title="การลา"><p>คำขอลาที่ทับซ้อนกับช่วงเวลา {thaiNumber(report.leave.totalRequests)} รายการ · รอพิจารณา {thaiNumber(report.leave.statusCounts.PENDING || 0)} · อนุมัติ {thaiNumber(report.leave.statusCounts.APPROVED || 0)}</p><PrintList items={report.leave.byType} /></PrintSection>
       <PrintSection title="สถานะใบอนุญาต"><p>หมดอายุ {thaiNumber(report.license.expired)} · ใกล้หมดอายุภายใน 30 วัน {thaiNumber(report.license.expiringWithin30Days)} · ใช้งานได้เกิน 30 วัน {thaiNumber(report.license.validBeyond30Days)} · รอตรวจสอบ {thaiNumber(report.license.pendingReview)}</p></PrintSection>
@@ -49,6 +58,63 @@ export function ExecutiveReportPrint({ report }: { report: ExecutiveReport }) {
 function PrintSection({ title, children }: { title: string; children: ReactNode }) { return <section className="executive-report-print-section"><h2>{title}</h2>{children}</section>; }
 function PrintList({ items }: { items: ReportItem[] }) { return items.length ? <ul>{items.slice(0, 6).map((item) => <li key={item.label}><span>{item.label}</span><b>{thaiNumber(item.count)}</b></li>)}</ul> : null; }
 
+
+// KPI cards only link to pages the signed-in role can open (mirrors routing.ts canViewRoutePage).
+const ROUTE_ROLES: Record<string, string[]> = {
+  attendanceSupervisor: ['ADMIN', 'MANAGER', 'SUPERVISOR'],
+  patrolCenter: ['ADMIN', 'MANAGER', 'SUPERVISOR'],
+  licenses: ['ADMIN', 'MANAGER', 'SUPERVISOR'],
+  leavePending: ['ADMIN', 'MANAGER', 'SUPERVISOR'],
+  approvalCenter: ['ADMIN', 'MANAGER', 'SUPERVISOR'],
+  dataQuality: ['ADMIN'],
+  leaveHistory: ['ADMIN', 'MANAGER', 'SUPERVISOR']
+};
+export function kpiTarget(targetPath: string | null | undefined, role: string): string | null {
+  if (!targetPath) return null;
+  return ROUTE_ROLES[targetPath]?.includes(role) ? targetPath : null;
+}
+
+const KPI_ICON: Record<string, SmsIconName> = { attendanceRate: 'clock', absentAssignments: 'attendance', patrolCoverage: 'location', assistOtherSite: 'shield', licenseAttention: 'license', pendingLeave: 'leave', pendingQueue: 'approval', criticalDataQuality: 'quality' };
+
+function kpiDetail(item: ExecutiveKpi): string {
+  if (item.unavailableLabel && item.value === null) return item.unavailableLabel;
+  switch (item.key) {
+    case 'attendanceRate': return item.denominator ? `${thaiNumber(item.numerator || 0)} / ${thaiNumber(item.denominator)} กะ · เช็กอินจริง ÷ กะที่จัด` : 'ยังไม่มีกะที่ถึงเวลาในช่วงนี้';
+    case 'absentAssignments': return 'กะที่สิ้นสุดแล้ว ไม่รวม OFF และลาที่อนุมัติ';
+    case 'patrolCoverage': return item.denominator ? `${thaiNumber(item.numerator || 0)} / ${thaiNumber(item.denominator)} รอบ · จุดตรวจ × รอบที่สิ้นสุดแล้ว` : 'ยังไม่มีรอบตรวจที่สิ้นสุดในช่วงนี้';
+    case 'assistOtherSite': return 'เช็กอิน Support-Site ที่ไม่ซ้ำ';
+    case 'licenseAttention': return `หมดอายุ ${thaiNumber(item.breakdown?.expired || 0)} · ใกล้หมดอายุ ${thaiNumber(item.breakdown?.expiringWithin30Days || 0)}`;
+    case 'pendingLeave': return 'ช่วงวันลาทับซ้อนกับเดือนที่เลือก';
+    case 'pendingQueue': return 'ณ ปัจจุบัน · คิวที่คุณดำเนินการได้';
+    case 'criticalDataQuality': return item.unavailableLabel ? `บางกฎ${item.unavailableLabel}` : 'ต้องตรวจสอบและแก้ไข';
+    default: return '';
+  }
+}
+
+function KpiCard({ item, role, onNavigate }: { item: ExecutiveKpi; role: string; onNavigate(page: string): void }) {
+  const target = kpiTarget(item.targetPath, role);
+  const body = <>
+    <span className="executive-kpi-head"><i aria-hidden="true"><SmsIcon name={KPI_ICON[item.key] || 'report'} size={16} /></i><span className="executive-kpi-title">{item.label}</span>{target && <b className="executive-kpi-arrow" aria-hidden="true">↗</b>}</span>
+    <span className="executive-kpi-value"><strong>{kpiValueText(item)}</strong>{item.value !== null && item.unit !== '%' && <small>{item.unit}</small>}</span>
+    <span className="executive-kpi-detail">{kpiDetail(item)}</span>
+  </>;
+  const className = `executive-report-kpi executive-kpi ${item.status}${item.value === null ? ' is-empty' : ''}`;
+  return target
+    ? <button type="button" className={className} data-kpi={item.key} onClick={() => onNavigate(target)} aria-label={`${item.label} ${kpiValueText(item)} — เปิดรายละเอียด`}>{body}</button>
+    : <article className={className} data-kpi={item.key}>{body}</article>;
+}
+
+function PatrolDepartmentChart({ patrol }: { patrol: ExecutiveReport['patrol'] }) {
+  const rows = patrol?.byDepartment || [];
+  return <section className="executive-report-panel executive-patrol-chart" aria-labelledby="executive-patrol-title">
+    <header><h2 id="executive-patrol-title">ความครบถ้วนการตรวจจุดรายแผนก</h2><small>รอบที่มีสแกน ÷ รอบที่กำหนด</small></header>
+    {!patrol?.available ? <p className="executive-report-empty">ข้อมูลการตรวจจุดเกินขีดจำกัดของรายงาน โปรดดูที่ศูนย์ตรวจจุด</p>
+      : rows.length ? rows.map((row) => <div className={`executive-report-bar executive-patrol-bar${row.coveragePercent !== null && row.coveragePercent < 90 ? ' is-low' : ''}`} key={row.department}><span>{row.department}</span><div><i style={{ width: `${row.coveragePercent === null ? 0 : Math.max(2, row.coveragePercent)}%` }} /></div><b>{row.coveragePercent === null ? '—' : `${row.coveragePercent.toFixed(1)}%`}</b></div>)
+        : <p className="executive-report-empty">ไม่มีจุดตรวจที่เปิดใช้งานในขอบเขตนี้</p>}
+    <small className="executive-report-note">8 รอบต่อวัน (07:00 ถึง 07:00 วันถัดไป) · คิดเป็นจุดตรวจ × รอบที่สิ้นสุดแล้ว · ใช้รายการจุดตรวจที่เปิดใช้งานปัจจุบัน</small>
+  </section>;
+}
+
 type ExecutiveReportCenterPageProps = {
   token: string;
   role: string;
@@ -59,9 +125,10 @@ type ExecutiveReportCenterPageProps = {
   includePrint?: boolean;
   onReportChange?(report?: ExecutiveReport): void;
   fetchEnabled?: boolean;
+  refreshSignal?: number;
 };
 
-export function ExecutiveReportCenterPage({ token, role, onNavigate, filters, onFiltersChange, embedded = false, includePrint = true, onReportChange, fetchEnabled = true }: ExecutiveReportCenterPageProps) {
+export function ExecutiveReportCenterPage({ token, role, onNavigate, filters, onFiltersChange, embedded = false, includePrint = true, onReportChange, fetchEnabled = true, refreshSignal = 0 }: ExecutiveReportCenterPageProps) {
   const bangkokYear = currentBangkokYear();
   const bangkokMonth = Number(currentBangkokMonth().slice(5, 7));
   const [localYear, setLocalYear] = useState(bangkokYear);
@@ -93,6 +160,12 @@ export function ExecutiveReportCenterPage({ token, role, onNavigate, filters, on
   }, [token, onReportChange]);
 
   useEffect(() => {
+    if (!refreshSignal) return;
+    setLoadedKey('');
+    setRefresh((value) => value + 1);
+  }, [refreshSignal]);
+
+  useEffect(() => {
     if (!fetchEnabled || loadedKey === requestKey) { setLoading(false); return; }
     let active = true;
     setLoading(true); setError(undefined);
@@ -114,11 +187,19 @@ export function ExecutiveReportCenterPage({ token, role, onNavigate, filters, on
     {loading && <div className="executive-report-loading" role="status">กำลังจัดทำรายงานผู้บริหาร…</div>}
     {error && <div className="alert alert-error" role="alert"><RequestErrorContent error={error} /></div>}
     {report && !loading && <>
-      <p className="executive-report-context">รอบรายงาน: <strong>{report.period.label}</strong> · ขอบเขต: <strong>{report.scope.departmentName}</strong> · สร้างเมื่อ {formatDateTime(report.generatedAt)}</p>
-      <div className="executive-report-kpis">{report.executiveSummary.map((item) => <article className={`executive-report-kpi ${item.status}`} key={item.key}><span>{item.label}</span><strong>{thaiNumber(item.value)}</strong><small>{item.unit}</small></article>)}</div>
-      <div className="executive-report-grid executive-report-grid-top"><section className="executive-report-panel"><header><h2>กำลังพลและการจัดเวร</h2><button type="button" className="executive-report-link" onClick={() => onNavigate('schedule')}>ดูรายละเอียด</button></header><div className="executive-report-stat-grid"><div><span>พนักงานทั้งหมด</span><b>{thaiNumber(report.workforce.totalEmployees)} คน</b></div><div><span>พนักงานที่ปฏิบัติงาน</span><b>{thaiNumber(report.workforce.activeEmployees)} คน</b></div><div><span>รายการจัดเวร</span><b>{thaiNumber(report.schedule.assignmentCount)} รายการ</b></div></div><Chart title="พนักงานที่ปฏิบัติงานตามหน่วยงาน" items={report.workforce.byDepartment} /><small className="executive-report-note">{report.schedule.periodNote}</small></section><section className="executive-report-panel"><header><h2>การลา</h2><button type="button" className="executive-report-link" onClick={() => onNavigate('leaveHistory')}>ดูรายละเอียด</button></header><div className="executive-report-statuses">{Object.entries(report.leave.statusCounts).map(([status, count]) => <div key={status}><span>{leaveStatusLabel[status] || status}</span><b>{thaiNumber(count)}</b></div>)}</div><Chart title="คำขอลาตามประเภท" items={report.leave.byType} /><small className="executive-report-note">{report.leave.overlapRule}</small></section></div>
-      <div className="executive-report-grid"><section className="executive-report-panel"><header><h2>สถานะใบอนุญาต</h2><button type="button" className="executive-report-link" onClick={() => onNavigate('licenses')}>ดูรายละเอียด</button></header><Chart title="การปฏิบัติตามใบอนุญาต" items={[{ label: 'หมดอายุ', count: report.license.expired }, { label: 'ใกล้หมดอายุ 30 วัน', count: report.license.expiringWithin30Days }, { label: 'ใช้งานได้เกิน 30 วัน', count: report.license.validBeyond30Days }, { label: 'รอตรวจสอบ', count: report.license.pendingReview }]} /></section><section className="executive-report-panel"><header><h2>คุณภาพข้อมูล</h2>{role === 'ADMIN' && <button type="button" className="executive-report-link" onClick={() => onNavigate('dataQuality')}>ดูรายละเอียด</button>}</header><div className="executive-report-statuses"><div><span>รวม</span><b>{thaiNumber(report.dataQuality.total)}</b></div><div><span>วิกฤต</span><b>{thaiNumber(report.dataQuality.critical)}</b></div><div><span>เตือน</span><b>{thaiNumber(report.dataQuality.warning)}</b></div></div><Chart title="ประเด็นตามกฎตรวจสอบ" items={report.dataQuality.categories.map((item) => ({ label: item.title, count: item.count }))} /></section></div>
-      <section className="executive-report-panel executive-report-attention"><header><h2>ประเด็นที่ผู้บริหารควรติดตาม</h2></header>{report.managementAttention.length ? <div className="executive-report-attention-list">{report.managementAttention.map((item) => <article className={item.severity} key={item.title}><div><span>{item.severity}</span><h3>{item.title}</h3><p>{item.description}</p></div><b>{thaiNumber(item.count)}</b>{item.targetPath && <button type="button" className="executive-report-link" onClick={() => onNavigate(item.targetPath!)}>ดูรายละเอียด</button>}</article>)}</div> : <p className="executive-report-empty">ไม่พบประเด็นสำคัญที่ต้องติดตามในช่วงเวลานี้</p>}</section>
+      <p className="executive-report-context"><span aria-hidden="true">ⓘ</span> รอบรายงาน: <strong>{report.period.label}</strong> · ขอบเขต: <strong>{report.scope.departmentName}</strong> · พนักงานที่ปฏิบัติงาน <strong>{thaiNumber(report.workforce.activeEmployees)} คน</strong> · หน่วยงาน <strong>{thaiNumber(report.scope.allowsDepartmentFilter && !department ? report.workforce.byDepartment.length : 1)} แผนก</strong> · ข้อมูล ณ {formatDateTime(report.generatedAt)}</p>
+      {(['operations', 'action'] as const).map((group) => <section className={`executive-kpi-group executive-kpi-group--${group}`} key={group} aria-labelledby={`executive-kpi-${group}`}>
+        <h2 id={`executive-kpi-${group}`} className="executive-kpi-group__title"><i aria-hidden="true">{group === 'operations' ? '◉' : '!'}</i>{group === 'operations' ? 'งานปฏิบัติการ' : 'ต้องจัดการ'}</h2>
+        <div className="executive-report-kpis executive-kpi-row">{report.executiveSummary.filter((item) => (item.group || 'operations') === group).map((item) => <KpiCard key={item.key} item={item} role={role} onNavigate={onNavigate} />)}</div>
+      </section>)}
+      <div className="executive-report-grid executive-report-grid-top">
+        <PatrolDepartmentChart patrol={report.patrol} />
+        <section className="executive-report-panel executive-leave-license"><header><h2>การลาและใบอนุญาต</h2><button type="button" className="executive-report-link" onClick={() => onNavigate('leaveHistory')}>ดูรายละเอียด ↗</button></header>
+          <div className="executive-leave-license__charts"><Chart title="คำขอลาตามประเภท · รายการ" items={report.leave.byType} /><Chart title="สถานะใบอนุญาต · รายการ" items={[{ label: 'ใช้ได้', count: report.license.validBeyond30Days }, { label: 'ใกล้หมด', count: report.license.expiringWithin30Days }, { label: 'หมดอายุ', count: report.license.expired }]} /></div>
+          <small className="executive-report-note">{report.leave.overlapRule} · สถานะใบอนุญาต ณ {formatThaiDate(`${report.license.asOfDate}T00:00:00+07:00`, { day: 'numeric', month: 'short', year: 'numeric' })}</small>
+        </section>
+      </div>
+      <section className="executive-report-panel executive-report-attention"><header><h2>ประเด็นที่ผู้บริหารควรติดตาม</h2><small>รายการที่ต้องเร่งติดตามในรอบรายงาน</small></header>{report.managementAttention.length ? <div className="executive-report-attention-list">{report.managementAttention.map((item) => { const target = kpiTarget(item.targetPath, role); return <article className={item.severity} key={item.title}><div><h3>{item.title}</h3><p>{item.description}</p></div><b>{thaiNumber(item.count)}</b>{target && <button type="button" className="executive-report-link" onClick={() => onNavigate(target)}>ดูรายละเอียด</button>}</article>; })}</div> : <p className="executive-report-empty">ไม่พบประเด็นสำคัญที่ต้องติดตามในช่วงเวลานี้</p>}</section>
       {includePrint && <ExecutiveReportPrint report={report} />}
     </>}
   </section>;

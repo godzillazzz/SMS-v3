@@ -25,24 +25,28 @@ describe('Unified Report Center V1 source contract', () => {
     expect(navSegment).not.toContain('รายงานและ Export');
   });
 
-  it('provides three accessible tabs and defaults to Executive Overview', () => {
+  it('provides exactly two accessible tabs (ภาพรวม / ส่งออก) and defaults to the overview', () => {
     expect(page).toContain("initialTab = 'executive'");
+    expect(page).toContain("type ReportTab = 'executive' | 'export';");
     expect(page).toContain('role="tablist"');
-    expect(page).toContain('role="tab"');
+    expect((page.match(/role="tab"/g) || []).length).toBe(2);
+    expect((page.match(/role="tabpanel"/g) || []).length).toBe(2);
     expect(page).toContain('aria-selected={activeTab === \'executive\'}');
-    for (const label of ['ภาพรวมผู้บริหาร', 'รายงานรายละเอียด', 'ส่งออก']) expect(page).toContain(label);
+    expect(page).toContain('>ภาพรวม</button>');
+    expect(page).toContain('>ส่งออก</button>');
+    for (const removed of ['report-tab-details', 'report-panel-details', 'รายงานรายละเอียด', 'ภาพรวมผู้บริหาร', 'api.reportSummary', 'summaryCards']) expect(page).not.toContain(removed);
   });
 
-  it('passes shared month/year/department filters to the detailed summary API', () => {
+  it('shares month/year/department filters across both tabs and keeps department selection ADMIN-only', () => {
     expect(page).toContain('useState<ExecutiveReportFilters>');
     expect(page).toContain('filters={filters} onFiltersChange={setFilters}');
-    expect(page).toContain("role === 'ADMIN'");
-    expect(page).toContain('api.reportSummary(token, { year: filters.year, month: filters.month, department: filters.department || undefined })');
-    expect(page).toContain('โดยคำนวณจากข้อมูลฝั่งเซิร์ฟเวอร์');
-    expect(page).toContain('ตามช่วงและขอบเขตที่เลือก');
+    expect(page).toContain("{role === 'ADMIN' && <label><span>หน่วยงาน</span>");
+    expect(page).toContain('ขอบเขตข้อมูลกำหนดโดยเซิร์ฟเวอร์ตามแผนกที่ผูกกับบัญชีของคุณ');
+    expect(page).toContain('refreshSignal={refreshSignal}');
+    expect(page).toContain('รีเฟรชข้อมูล');
   });
 
-  it('reuses the existing Executive Report and extends the report-summary API contract', () => {
+  it('reuses the existing Executive Report and keeps the report-summary API client available', () => {
     expect(page).toContain('<ExecutiveReportCenterPage');
     expect(executive).toContain('api.executiveReport(token, { year, month, department: department || undefined })');
     expect(api).toContain("executiveReport: (token: string, filters: { year?: number; month?: number; department?: string } = {})");
@@ -85,11 +89,12 @@ describe('Unified Report Center V1 source contract', () => {
     expect(app).toContain("reports: 'reportCenter'");
     expect(app).toContain("attendanceReport: 'reportCenter'");
     expect(routing).toContain("if (page === 'attendanceReport') return auth.user?.role === 'ADMIN'");
-    expect(app).toContain("const initialTab = activePage === 'attendanceReport' ? 'export' : activePage === 'reports' ? 'details' : 'executive';");
+    expect(app).toContain("const initialTab = activePage === 'attendanceReport' ? 'export' : 'executive';");
   });
 
   it('contains loading, error, empty, keyboard-focus, tablet and mobile states', () => {
-    for (const text of ['กำลังสรุปข้อมูล…', 'ไม่สามารถโหลดรายงานรายละเอียด', 'ยังไม่มีข้อมูลสรุป', 'กำลังเตรียมข้อมูลสำหรับส่งออก']) expect(page).toContain(text);
+    for (const text of ['กำลังเตรียมข้อมูลสำหรับส่งออก']) expect(page).toContain(text);
+    for (const text of ['กำลังจัดทำรายงานผู้บริหาร…', 'ไม่สามารถโหลดรายงานผู้บริหารได้ กรุณาลองใหม่อีกครั้ง', 'ไม่พบประเด็นสำคัญที่ต้องติดตามในช่วงเวลานี้']) expect(executive).toContain(text);
     expect(styles).toContain(':focus-visible');
     expect(styles).toContain('@media (max-width:760px)');
     expect(styles).toContain('@media (max-width:430px)');
@@ -101,7 +106,7 @@ describe('Performance Hardening V1 report request contract', () => {
   it('suppresses hidden Executive fetches and protects stale export', () => {
     expect(executive).toContain('fetchEnabled?: boolean'); expect(executive).toContain('if (!fetchEnabled || loadedKey === requestKey)'); expect(page).toContain("fetchEnabled={activeTab === 'executive' || activeTab === 'export'}"); expect(page).toContain('setExecutiveReport(undefined)'); expect(page).toContain('disabled={!executiveReport}');
   });
-  it('loads Details once per token until explicit refresh', () => {
-    expect(page).toContain("if (activeTab !== 'details' || summaryLoaded) return;"); expect(page).toContain('setSummaryLoaded(true)'); expect(page).toContain('setSummaryLoaded(false); setSummaryRefresh'); expect(page).toContain('}, [token]);');
+  it('refreshes the overview only through the explicit refresh signal and resets on token change', () => {
+    expect(page).toContain('setRefreshSignal((value) => value + 1)'); expect(executive).toContain('if (!refreshSignal) return;'); expect(page).toContain('}, [token]);');
   });
 });

@@ -22,7 +22,9 @@ describe('Executive Report presentation and export contract', () => {
     expect(page).toContain('ไม่สามารถโหลดรายงานผู้บริหารได้ กรุณาลองใหม่อีกครั้ง');
     expect(page).toContain('ไม่พบประเด็นสำคัญที่ต้องติดตามในช่วงเวลานี้');
     expect(page).toContain("onNavigate('leaveHistory')");
-    expect(page).toContain("onNavigate('licenses')");
+    // Licence/attendance/patrol drill-downs now come from the server KPI targetPath, gated by the role route map.
+    expect(page).toContain("licenses: ['ADMIN', 'MANAGER', 'SUPERVISOR']");
+    expect(page).toContain('onClick={() => onNavigate(target)}');
   });
 
   it('keeps legacy report page IDs internally compatible while the new center owns rendering', () => {
@@ -33,6 +35,7 @@ describe('Executive Report presentation and export contract', () => {
 
   it('uses responsive grids without page-level horizontal layout and protects Thai action controls', () => {
     expect(styles).toContain('grid-template-columns:repeat(5,minmax(0,1fr))');
+    expect(styles).toContain('grid-template-columns:repeat(4,minmax(0,1fr))');
     expect(styles).toContain('@media (max-width:760px)');
     expect(styles).toContain('@media (max-width:430px)');
     expect(styles).toContain('white-space:nowrap');

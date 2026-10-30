@@ -112,7 +112,8 @@ describe('UXUI-REM-01 audited remediation contracts', () => {
     expect(main).toContain("label: 'ประสิทธิภาพและสถานะระบบ'");
     expect(main).toContain("label: 'จุดรักษาการณ์และ QR'");
     expect(reports).toContain('<SmsIcon name="refresh" size={16} />');
-    expect(reports).toContain('<SmsIcon name={icon} size={18} />');
+    // The removed Details tab's metric icons moved to the redesigned Overview KPI cards (OWNER mockup, 30 Oct 2026).
+    expect(read('./pages/executive-report/ExecutiveReportCenterPage.tsx')).toContain("<SmsIcon name={KPI_ICON[item.key] || 'report'} size={16} />");
     expect(systemHealth).toContain('<SmsIcon name="refresh" size={16} />');
   });
 });
