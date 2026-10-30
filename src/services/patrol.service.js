@@ -13,6 +13,7 @@ const MAX_REPORT_DAYS = 62;
 const REPORT_SCAN_LIMIT = 5000;
 const MIME_BY_TYPE = Object.freeze({ jpeg: 'image/jpeg', png: 'image/png' });
 const REPORT_ROLES = new Set(['ADMIN', 'MANAGER', 'SUPERVISOR']);
+const USER_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 // Owner design (30 Oct 2026): one patrol day = 07:00–07:00 Asia/Bangkok, 8 rounds x 3 hours.
 const ROUNDS_PER_DAY = 8;
 const ROUND_HOURS = 3;
@@ -342,11 +343,18 @@ function createPatrolService({ prisma = prismaDefault, storage, audit = auditDef
     const role = String(actor?.role || '').toUpperCase();
     const requested = department ? text(department, 100, 'department') : null;
     if (role === 'ADMIN') return { department: requested, departments: requested ? [requested] : null, filter: requested };
-    const ownDepartment = actor && Object.hasOwn(actor, 'department')
-      ? actor.department
-      : (actor?.sub && typeof prisma.user?.findUnique === 'function'
-        ? (await prisma.user.findUnique({ where: { id: actor.sub }, select: { department: true } }))?.department
-        : null);
+    let ownDepartment = null;
+    if (actor && Object.hasOwn(actor, 'department')) {
+      ownDepartment = actor.department;
+    } else {
+      // Fail closed before touching the database: a non-UUID subject would make Prisma throw (500) on a uuid column.
+      if (typeof actor?.sub !== 'string' || !USER_ID_PATTERN.test(actor.sub) || typeof prisma.user?.findUnique !== 'function') {
+        throw http(403, 'PATROL_REPORT_SCOPE_REQUIRED', 'Department report scope is required.');
+      }
+      const user = await prisma.user.findUnique({ where: { id: actor.sub }, select: { department: true } });
+      if (!user) throw http(403, 'PATROL_REPORT_SCOPE_REQUIRED', 'Department report scope is required.');
+      ownDepartment = user.department;
+    }
     const scope = resolveDepartmentScope({ role, department: ownDepartment }, requested);
     return { department: scope.department, departments: scope.departments, filter: departmentWhere(scope) };
   }

@@ -47,18 +47,20 @@ test('S1 patrol report rejects cross-department filters before any query and def
 
 test('S1 patrol report loads the actor department from the user record (req.user has none) and fails closed when it is missing', async () => {
   const where = [];
-  const users = { 'sup-1': { department: 'AN2' }, 'sup-2': { department: null } };
+  const SUP_1 = '0b6f5a2e-7d1c-4e3a-9b8f-1a2b3c4d5e01';
+  const SUP_2 = '0b6f5a2e-7d1c-4e3a-9b8f-1a2b3c4d5e02';
+  const users = { [SUP_1]: { department: 'AN2' }, [SUP_2]: { department: null } };
   const service = createPatrolService({ prisma: {
     user: { findUnique: async ({ where: lookup }) => users[lookup.id] || null },
     patrolCheckpoint: { findMany: async (query) => { where.push(query.where); return []; } },
     patrolScan: { findMany: async (query) => { where.push(query.where); return []; } }
   } });
-  const report = await service.report({ actor: { sub: 'sup-1', role: 'SUPERVISOR' }, from: '2026-08-01', to: '2026-08-01' });
+  const report = await service.report({ actor: { sub: SUP_1, role: 'SUPERVISOR' }, from: '2026-08-01', to: '2026-08-01' });
   assert.equal(report.department, 'AN2');
   assert.equal(where[0].department, 'AN2');
   assert.equal(where[1].checkpointDepartment, 'AN2');
-  await assert.rejects(service.report({ actor: { sub: 'sup-1', role: 'MANAGER' }, from: '2026-08-01', to: '2026-08-01', department: 'AN1' }), (error) => error.statusCode === 403);
-  await assert.rejects(service.report({ actor: { sub: 'sup-2', role: 'SUPERVISOR' }, from: '2026-08-01', to: '2026-08-01' }), (error) => error.statusCode === 403);
+  await assert.rejects(service.report({ actor: { sub: SUP_1, role: 'MANAGER' }, from: '2026-08-01', to: '2026-08-01', department: 'AN1' }), (error) => error.statusCode === 403);
+  await assert.rejects(service.report({ actor: { sub: SUP_2, role: 'SUPERVISOR' }, from: '2026-08-01', to: '2026-08-01' }), (error) => error.statusCode === 403);
   assert.equal(where.length, 2, 'no reads happen for rejected scopes');
 });
 

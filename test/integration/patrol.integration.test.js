@@ -29,6 +29,8 @@ if (!configured) {
   };
   const service = createPatrolService({ prisma, storage, audit: { log: async () => {} }, clock: () => new Date('2026-10-30T02:00:00.000Z') });
   const admin = { sub: crypto.randomUUID(), role: 'ADMIN' };
+  const managerId = crypto.randomUUID();
+  const manager = { sub: managerId, role: 'MANAGER' };
   const guard = { sub: crypto.randomUUID(), role: 'VIEWER', employeeAuthority: { id: employeeId, isActive: true, deletedAt: null } };
   const photo = { buffer: Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), crypto.randomBytes(256)]), mimetype: 'image/jpeg' };
 
@@ -36,11 +38,13 @@ if (!configured) {
     await prisma.patrolScan.deleteMany({ where: { employeeId } });
     await prisma.patrolCheckpoint.deleteMany({ where: { code: { startsWith: `IT-${marker}` } } });
     await prisma.employee.deleteMany({ where: { id: employeeId } });
+    await prisma.user.deleteMany({ where: { id: managerId } });
   }
 
   test.before(async () => {
     await cleanup();
     await prisma.employee.create({ data: { id: employeeId, employeeCode: `IT${marker}`, firstName: 'Patrol', lastName: 'Guard', department: `ANO-${marker}` } });
+    await prisma.user.create({ data: { id: managerId, email: `patrol-manager-${marker.toLowerCase()}@example.test`, passwordHash: 'synthetic-integration-hash-not-a-credential', displayName: 'Patrol Manager', role: 'MANAGER', department: `ANO-${marker}` } });
   });
   test.after(async () => { await cleanup(); await prisma.$disconnect(); });
 
@@ -59,12 +63,24 @@ if (!configured) {
     assert.equal(await prisma.patrolScan.count({ where: { employeeId } }), 1);
     assert.equal(objects.size, 1);
 
-    const report = await service.report({ actor: { sub: 'm', role: 'MANAGER' }, from: '2026-10-30', to: '2026-10-30' });
+    // ADMIN sees every department, including the cross-department scan.
+    const report = await service.report({ actor: admin, from: '2026-10-30', to: '2026-10-30' });
     const ours = report.coverage.departments.filter((group) => group.department.endsWith(marker));
     assert.equal(ours.length, 2);
     assert.equal(ours.find((group) => group.department === `WCS-${marker}`).scanned, 1);
     assert.equal(ours.find((group) => group.department === `ANO-${marker}`).scanned, 0);
     assert.ok(report.scans.some((row) => row.id === scan.id && row.employeeCode === `IT${marker}` && row.checkpointCode === `IT-${marker}-B`));
+
+    // MANAGER is resolved from the persisted user row and sees only its own department.
+    const managed = await service.report({ actor: manager, from: '2026-10-30', to: '2026-10-30' });
+    assert.equal(managed.department, `ANO-${marker}`);
+    assert.deepEqual(managed.coverage.departments.map((group) => group.department), [`ANO-${marker}`]);
+    assert.equal(managed.coverage.departments[0].scanned, 0);
+    assert.equal(managed.coverage.summary.checkpoints, 1);
+    assert.equal(managed.scans.some((row) => row.id === scan.id), false, 'a WCS checkpoint scan is outside the ANO manager scope');
+    await assert.rejects(service.report({ actor: manager, from: '2026-10-30', to: '2026-10-30', department: `WCS-${marker}` }), (error) => error.statusCode === 403);
+    await assert.rejects(service.report({ actor: { sub: 'm', role: 'MANAGER' }, from: '2026-10-30', to: '2026-10-30' }), (error) => error.statusCode === 403);
+    await assert.rejects(service.report({ actor: { sub: crypto.randomUUID(), role: 'MANAGER' }, from: '2026-10-30', to: '2026-10-30' }), (error) => error.statusCode === 403);
 
     const filtered = await service.report({ actor: admin, from: '2026-10-30', to: '2026-10-30', department: `ANO-${marker}` });
     assert.equal(filtered.scans.length, 0);

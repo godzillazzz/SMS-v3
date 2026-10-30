@@ -6,6 +6,7 @@ const assert = require('node:assert/strict');
 const crypto = require('node:crypto');
 const { createPatrolService, bangkokWorkDate, buildCoverage, PATROL_QR_PREFIX } = require('../src/services/patrol.service');
 
+const MANAGER_ID = '6f1c2d3e-4b5a-4c6d-8e7f-901234567890';
 const JPEG = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), crypto.randomBytes(400)]);
 
 function fakeDb() {
@@ -49,7 +50,8 @@ function fakeDb() {
       }
     },
     employee: { async findUnique({ where }) { return employees.find((row) => row.id === where.id) || null; } },
-    user: { async findUnique({ where }) { return { m: { department: 'ANO' } }[where.id] || null; } }
+    userLookups: [],
+    user: { async findUnique({ where }) { db.userLookups.push(where.id); return { [MANAGER_ID]: { department: 'ANO' } }[where.id] || null; } }
   };
   return db;
 }
@@ -221,13 +223,23 @@ test('report access: VIEWER is limited to own scans; MANAGER sees own department
   const cp = await svc.createCheckpoint({ actor: admin, input: { code: 'CP1', name: 'Gate', department: 'ANO' } });
   await svc.recordScan({ actor: guardA, input: { qrPayload: cp.qrPayload, clientScanId: crypto.randomUUID() }, photo: { buffer: JPEG, mimetype: 'image/jpeg' } });
   await assert.rejects(svc.report({ actor: guardA, from: '2026-10-30', to: '2026-10-30' }), (error) => error.statusCode === 403);
-  const report = await svc.report({ actor: { sub: 'm', role: 'MANAGER' }, from: '2026-10-30', to: '2026-10-30' });
+  const report = await svc.report({ actor: { sub: MANAGER_ID, role: 'MANAGER' }, from: '2026-10-30', to: '2026-10-30' });
   assert.equal(report.scans.length, 1);
   assert.equal(report.scans[0].photoUrl, `/api/v1/patrol/scans/${report.scans[0].id}/photo`);
   assert.equal('photoObjectKey' in report.scans[0], false, 'storage keys are never exposed');
   await assert.rejects(svc.report({ actor: admin, from: '2026-10-01', to: '2027-01-30' }), (error) => error.details?.code === 'PATROL_RANGE_TOO_LARGE');
   const mine = await svc.myScans({ actor: guardA, date: '2026-10-30' });
   assert.equal(mine.length, 1);
+});
+
+test('report scope fails closed with 403 before any user lookup when the actor sub is not a UUID or the user is unknown', async () => {
+  const { svc, db } = service();
+  for (const sub of ['m', '', undefined, 'not-a-uuid', `${MANAGER_ID}x`]) {
+    await assert.rejects(svc.report({ actor: { sub, role: 'MANAGER' }, from: '2026-10-30', to: '2026-10-30' }), (error) => error.statusCode === 403);
+  }
+  assert.deepEqual(db.userLookups, [], 'non-UUID subjects never reach the database');
+  await assert.rejects(svc.report({ actor: { sub: crypto.randomUUID(), role: 'SUPERVISOR' }, from: '2026-10-30', to: '2026-10-30' }), (error) => error.statusCode === 403);
+  assert.equal(db.userLookups.length, 1);
 });
 
 test('report carries round coverage: 8 rounds x 3h from 07:00 Bangkok, after-midnight scans belong to the previous patrol day', async () => {
