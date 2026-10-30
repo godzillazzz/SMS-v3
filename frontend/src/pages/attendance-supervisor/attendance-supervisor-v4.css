@@ -1701,3 +1701,9 @@ html[data-theme] .app-shell:not(.pwa-shell) .content-area .attendance-supervisor
   .attendance-daily-report__sheet { max-width: none; padding: 0; border: 0; border-radius: 0; }
   .attendance-daily-report__cards { grid-template-columns: repeat(7, minmax(0, 1fr)); }
 }
+
+/* Keep daily cells readable without truncating times or flags. */
+.attendance-supervisor-v4__table :is(th,td,td strong,td small){font-size:11px!important}
+.attendance-supervisor-v4__table .attendance-supervisor-v4__site{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;white-space:normal;overflow-wrap:anywhere}
+.attendance-supervisor-v4__table td:has(.attendance-supervisor-v4__flags){overflow:visible;white-space:normal}
+.attendance-supervisor-v4__flags span{font-size:11px;white-space:normal;overflow-wrap:anywhere}

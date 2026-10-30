@@ -1058,13 +1058,13 @@ export function AttendanceSupervisorPage({ token, role, department, employeeAuth
         <col style={{ width: '4%' }} />
         <col style={{ width: '13%' }} />
         <col style={{ width: '13%' }} />
-        <col style={{ width: '5.5%' }} />
-        <col style={{ width: '5.5%' }} />
+        <col style={{ width: '6.5%' }} />
+        <col style={{ width: '6.5%' }} />
         <col style={{ width: '9%' }} />
         <col style={{ width: '7.5%' }} />
         <col style={{ width: '10.5%' }} />
         <col style={{ width: '9%' }} />
-        <col style={{ width: '7%' }} />
+        <col style={{ width: '5%' }} />
       </colgroup>
       <thead>
         <tr>
@@ -1099,8 +1099,8 @@ export function AttendanceSupervisorPage({ token, role, department, employeeAuth
               </span>
             </td>
             <td>{row.shift.code || row.shift.name || '—'}</td>
-            <td>{(row.assignedSite || row.expectedSite)?.name || '—'}</td>
-            <td>{actualSiteLabel(row)}</td>
+            <td><span className="attendance-supervisor-v4__site">{(row.assignedSite || row.expectedSite)?.name || '—'}</span></td>
+            <td><span className="attendance-supervisor-v4__site">{actualSiteLabel(row)}</span></td>
             <td>{time(row.checkInAt)}</td>
             <td>{time(row.checkOutAt)}</td>
             <td>{attendanceTimeLabels(row).join(' · ') || '—'}</td>
