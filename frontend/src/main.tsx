@@ -3664,7 +3664,7 @@ function Dashboard() {
               <label className="mobile-utility-search"><span aria-hidden="true"><SmsIcon name="search" size={17} /></span><input aria-label="ค้นหาพนักงานบนมือถือ" placeholder="ค้นหาพนักงาน..." value={search} onChange={(event) => { setSearch(event.target.value); if (event.target.value && activePage !== 'employees') setActivePage('employees'); }} /></label>
               <button type="button" className="mobile-utility-security" onClick={() => { setMobileUtilityOpen(false); setCommandPaletteOpen(true); }}><SmsIcon name="search" size={18} />ไปยังงานหรือหน้าอื่น</button>
               <div className="mobile-utility-theme"><span>โหมดสี</span><ThemeControl /></div>
-              <div className="mobile-utility-theme"><span>สีหลัก</span><React.Suspense fallback={null}><AccentControl /></React.Suspense></div>
+              <div className="mobile-utility-theme"><span>สีแถบข้าง</span><React.Suspense fallback={null}><AccentControl /></React.Suspense></div>
               <button type="button" className="mobile-utility-display-mode" aria-pressed={desktopView} onClick={toggleDesktopView}><SmsIcon name={desktopView ? 'device' : 'system'} size={16} />{desktopView ? 'กลับมุมมองมือถือ' : 'แสดงแบบเดสก์ท็อป'}</button>
               <button type="button" className="mobile-utility-security" onClick={() => { setMobileUtilityOpen(false); setPasskeyPanelOpen(true); }}><SmsIcon name="key" size={18} />การเข้าสู่ระบบและ Passkey</button>
               <button type="button" className="mobile-utility-logout" onClick={() => auth.logout()}><SmsIcon name="logout" size={18} />ออกจากระบบ</button>

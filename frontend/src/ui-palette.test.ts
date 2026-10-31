@@ -32,6 +32,16 @@ describe('batch12 B global colour palette', () => {
     expect(css).toContain('--color-danger: #b42318');
   });
 
+  it('generates dynamic sidebar CSS for custom options', () => {
+    const custom = {
+      ...DEFAULT_UI_PALETTE,
+      sidebarOptions: [{ id: 'opt-1', label: 'Dark Navy', color: '#102a43' }]
+    };
+    const css = paletteCss(custom);
+    expect(css).toContain('html[data-theme] .app-shell[data-accent="opt-1"]');
+    expect(css).toContain('--color-sidebar-bg: #102a43');
+  });
+
   it('applies and removes a single style element', () => {
     applyUiPalette({ ...DEFAULT_UI_PALETTE, primary: '#1d4ed8' }, document);
     const style = document.getElementById('sms-ui-palette');

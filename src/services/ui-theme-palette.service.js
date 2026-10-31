@@ -52,8 +52,11 @@ function parsePalette(value) {
   try { parsed = JSON.parse(String(value)); } catch { throw invalid('UI theme palette must be JSON.'); }
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw invalid('UI theme palette must be an object.');
   const keys = Object.keys(parsed);
-  if (keys.length !== PALETTE_FIELDS.length || !PALETTE_FIELDS.every((field) => keys.includes(field))) {
-    throw invalid(`UI theme palette must contain exactly: ${PALETTE_FIELDS.join(', ')}.`);
+  // Allowed keys: mandatory PALETTE_FIELDS and optional sidebarOptions
+  const hasAllRequired = PALETTE_FIELDS.every((field) => keys.includes(field));
+  const hasOnlyAllowed = keys.every((key) => PALETTE_FIELDS.includes(key) || key === 'sidebarOptions');
+  if (!hasAllRequired || !hasOnlyAllowed) {
+    throw invalid(`UI theme palette must contain: ${PALETTE_FIELDS.join(', ')}.`);
   }
   const palette = {};
   for (const field of PALETTE_FIELDS) {
@@ -61,13 +64,36 @@ function parsePalette(value) {
     if (!HEX.test(colour)) throw invalid(`${field} must be a #RRGGBB colour.`);
     palette[field] = colour.toLowerCase();
   }
+  if (parsed.sidebarOptions !== undefined) {
+    if (!Array.isArray(parsed.sidebarOptions)) {
+      throw invalid('sidebarOptions must be an array.');
+    }
+    palette.sidebarOptions = parsed.sidebarOptions.map((opt, idx) => {
+      if (!opt || typeof opt !== 'object') throw invalid(`sidebarOptions[${idx}] must be an object.`);
+      const color = String(opt.color ?? '');
+      if (!HEX.test(color)) throw invalid(`sidebarOptions[${idx}].color must be a #RRGGBB colour.`);
+      const id = String(opt.id ?? '').trim() || `custom-${idx + 1}`;
+      const label = String(opt.label ?? '').trim() || id;
+      return { id, label, color: color.toLowerCase() };
+    });
+  }
   return palette;
 }
 
 function contrastViolations(palette) {
-  return PALETTE_FIELDS
+  const violations = PALETTE_FIELDS
     .map((field) => ({ field, ratio: Math.round(contrastRatio(palette[field], CONTRAST_SURFACE[field]) * 100) / 100 }))
     .filter((row) => row.ratio < MIN_CONTRAST);
+  if (Array.isArray(palette.sidebarOptions)) {
+    for (const opt of palette.sidebarOptions) {
+      // Sidebar text is white (#ffffff), ratio must be >= 4.5:1
+      const ratio = Math.round(contrastRatio(opt.color, '#ffffff') * 100) / 100;
+      if (ratio < MIN_CONTRAST) {
+        violations.push({ field: `sidebarOptions(${opt.label || opt.id})`, ratio });
+      }
+    }
+  }
+  return violations;
 }
 
 function normalizeUiThemePalette(value) {

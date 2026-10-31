@@ -25,6 +25,27 @@ test('defaults are the approved mockup palette and all pass 4.5:1', () => {
   assert.equal(normalizeUiThemePalette(JSON.stringify(DEFAULT_UI_THEME_PALETTE)), JSON.stringify(DEFAULT_UI_THEME_PALETTE));
 });
 
+test('sidebar options must maintain contrast against white sidebar text', () => {
+  const badSidebar = {
+    ...DEFAULT_UI_THEME_PALETTE,
+    sidebarOptions: [
+      { id: 'too-bright', label: 'สีเหลืองสว่างเกินไป', color: '#ffea79' }
+    ]
+  };
+  assert.throws(() => normalizeUiThemePalette(JSON.stringify(badSidebar)), (err) => err.code === 'UI_THEME_CONTRAST_TOO_LOW');
+
+  const goodSidebar = {
+    ...DEFAULT_UI_THEME_PALETTE,
+    sidebarOptions: [
+      { id: 'custom-navy', label: 'น้ำเงินเข้มพิเศษ', color: '#102a43' },
+      { id: 'custom-forest', label: 'เขียวป่าลึก', color: '#0b3d2e' }
+    ]
+  };
+  const normalized = JSON.parse(normalizeUiThemePalette(JSON.stringify(goodSidebar)));
+  assert.equal(normalized.sidebarOptions.length, 2);
+  assert.equal(normalized.sidebarOptions[0].color, '#102a43');
+});
+
 test('palette validation rejects bad hex, missing/extra keys and low contrast (fail closed)', () => {
   const bad = (patch) => JSON.stringify({ ...DEFAULT_UI_THEME_PALETTE, ...patch });
   assert.throws(() => normalizeUiThemePalette('not json'), (error) => error.code === 'SYSTEM_SETTING_VALUE_INVALID');

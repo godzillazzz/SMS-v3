@@ -43,7 +43,7 @@ export function UserMenu({ initials, displayName, roleLabel, avatarTone, showAcc
     <div id="topbar-user-menu" className="user-menu__panel" role="menu" aria-label="บัญชีและการตั้งค่าหน้าจอ" hidden={!open}>
       <div className="user-menu__profile"><span className="avatar" data-avatar-tone={avatarTone}>{initials}</span><span><b>{displayName}</b><small>{roleLabel}</small></span></div>
       <div className="user-menu__row"><span>โหมดสี</span><ThemeControl compact /></div>
-      {showAccent && <div className="user-menu__row"><span>สีหลัก</span><React.Suspense fallback={null}><AccentControl /></React.Suspense></div>}
+      {showAccent && <div className="user-menu__row"><span>สีแถบข้าง</span><React.Suspense fallback={null}><AccentControl /></React.Suspense></div>}
       <button type="button" role="menuitem" className="user-menu__item" onClick={run(onToggleDesktopView)}><SmsIcon name={desktopView ? 'device' : 'system'} size={16} />{desktopView ? 'กลับมุมมองมือถือ' : 'แสดงแบบเดสก์ท็อป'}</button>
       <button type="button" role="menuitem" className="user-menu__item" onClick={run(onOpenSecurity)}><SmsIcon name="key" size={16} />การเข้าสู่ระบบและ Passkey</button>
       <button type="button" role="menuitem" className="user-menu__item user-menu__item--danger" onClick={run(onLogout)}><SmsIcon name="logout" size={16} />ออกจากระบบ</button>

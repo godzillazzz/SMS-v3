@@ -44,6 +44,16 @@ const SURFACE: Record<PaletteField, string> = {
 export const MIN_CONTRAST = 4.5;
 const STYLE_ID = 'sms-ui-palette';
 
+export type SidebarOption = {
+  id: string;
+  label: string;
+  color: string;
+};
+
+export type UiPaletteWithSidebar = UiPalette & {
+  sidebarOptions?: SidebarOption[];
+};
+
 export function isHexColour(value: unknown): value is string {
   return typeof value === 'string' && /^#[0-9a-f]{6}$/i.test(value);
 }
@@ -68,17 +78,35 @@ export function paletteContrastChecks(palette: UiPalette) {
   });
 }
 
-export function isValidPalette(value: unknown): value is UiPalette {
-  return Boolean(value) && typeof value === 'object' && PALETTE_FIELDS.every((field) => isHexColour((value as Record<string, unknown>)[field]));
+export function isValidPalette(value: unknown): value is UiPaletteWithSidebar {
+  if (!value || typeof value !== 'object') return false;
+  const val = value as Record<string, unknown>;
+  const baseValid = PALETTE_FIELDS.every((field) => isHexColour(val[field]));
+  if (!baseValid) return false;
+  if (val.sidebarOptions !== undefined) {
+    if (!Array.isArray(val.sidebarOptions)) return false;
+    for (const opt of val.sidebarOptions) {
+      if (!opt || typeof opt !== 'object') return false;
+      const o = opt as Record<string, unknown>;
+      if (typeof o.id !== 'string' || typeof o.label !== 'string' || !isHexColour(o.color)) return false;
+    }
+  }
+  return true;
 }
 
-export function paletteCss(palette: UiPalette) {
+export function paletteCss(palette: UiPaletteWithSidebar) {
   // Doubled class raises specificity above ui-accent.css ([data-theme] .app-shell[data-accent]).
   const scope = 'html[data-theme="light"] .app-shell.app-shell[data-accent], html[data-theme="light"] .app-shell.app-shell';
-  return `${scope} { --color-primary: ${palette.primary}; --color-primary-hover: ${palette.buttonPrimary}; --color-accent: ${palette.primary}; --color-text-secondary: ${palette.secondary}; --color-success: ${palette.success}; --color-warning: ${palette.warning}; --color-danger: ${palette.danger}; --sms-button-primary: ${palette.buttonPrimary}; --sms-button-secondary: ${palette.buttonSecondary}; }`;
+  let css = `${scope} { --color-primary: ${palette.primary}; --color-primary-hover: ${palette.buttonPrimary}; --color-accent: ${palette.primary}; --color-text-secondary: ${palette.secondary}; --color-success: ${palette.success}; --color-warning: ${palette.warning}; --color-danger: ${palette.danger}; --sms-button-primary: ${palette.buttonPrimary}; --sms-button-secondary: ${palette.buttonSecondary}; }`;
+  if (Array.isArray(palette.sidebarOptions)) {
+    for (const opt of palette.sidebarOptions) {
+      css += `\nhtml[data-theme] .app-shell[data-accent="${opt.id}"] { --color-sidebar-bg: ${opt.color}; --color-sidebar-bg-strong: ${opt.color}; --sidebar-active: ${palette.primary}; }`;
+    }
+  }
+  return css;
 }
 
-export function applyUiPalette(palette: UiPalette | null, doc: Document = document) {
+export function applyUiPalette(palette: UiPaletteWithSidebar | null, doc: Document = document) {
   const existing = doc.getElementById(STYLE_ID);
   if (!palette || !isValidPalette(palette)) { existing?.remove(); return; }
   const style = existing || doc.createElement('style');
@@ -87,7 +115,7 @@ export function applyUiPalette(palette: UiPalette | null, doc: Document = docume
   if (!existing) doc.head.appendChild(style);
 }
 
-export async function fetchUiPalette(token: string): Promise<{ palette: UiPalette; isDefault: boolean } | null> {
+export async function fetchUiPalette(token: string): Promise<{ palette: UiPaletteWithSidebar; isDefault: boolean } | null> {
   const response = await attendanceAuthenticatedRequest('/ui-theme', token, { method: 'GET', credentials: 'include' });
   if (!response.ok) throw new Error('UI_THEME_UNAVAILABLE');
   const payload = await response.json().catch(() => ({}));
