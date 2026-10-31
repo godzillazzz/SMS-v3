@@ -42,6 +42,7 @@ describe('batch12 B global colour palette', () => {
     const css = paletteCss(custom);
     expect(css).toContain('html[data-theme] .app-shell[data-accent="opt-1"]');
     expect(css).toContain('--color-sidebar-bg: #102a43');
+    expect(css).toContain('--sidebar-active: color-mix(in srgb, #102a43 75%, #ffffff)');
   });
 
   it('applies and removes a single style element', () => {

@@ -76,7 +76,11 @@ function LeavePrintLedgerButton({ role, row, token, onPrint }: LeavePrintLedgerP
     const requestGeneration = generation.current;
     setState('loading');
     try {
-      const response = await getLeavePrintLedger(token, row.id);
+      // 10-second timeout guard to avoid infinite loading on networks or slow serverless instances
+      const timeoutPromise = new Promise<{ data: LeavePrintLedger }>((_, reject) =>
+        setTimeout(() => reject(new Error('TIMEOUT')), 10000)
+      );
+      const response = await Promise.race([getLeavePrintLedger(token, row.id), timeoutPromise]);
       if (requestGeneration !== generation.current) return;
       const ledger = response?.data as LeavePrintLedger | undefined;
       if (!isPrintReadyLeaveLedger(ledger)) {

@@ -109,7 +109,16 @@ export function paletteCss(palette: UiPaletteWithSidebar) {
   let css = `${scope} { --color-primary: ${palette.primary}; --color-primary-hover: ${palette.buttonPrimary}; --color-accent: ${palette.primary}; --color-text-secondary: ${palette.secondary}; --color-success: ${palette.success}; --color-warning: ${palette.warning}; --color-danger: ${palette.danger}; --sms-button-primary: ${palette.buttonPrimary}; --sms-button-secondary: ${palette.buttonSecondary}; }`;
   if (Array.isArray(palette.sidebarOptions)) {
     for (const opt of palette.sidebarOptions) {
-      css += `\nhtml[data-theme] .app-shell[data-accent="${opt.id}"] { --color-sidebar-bg: ${opt.color}; --color-sidebar-bg-strong: ${opt.color}; --sidebar-active: ${palette.primary}; }`;
+      // Harmonic sidebar tokens: derive active item and background gradient from opt.color
+      // Using color-mix against white gives a harmonious tinted glow in the same hue family
+      css += `\nhtml[data-theme] .app-shell[data-accent="${opt.id}"] {
+  --color-sidebar-bg: ${opt.color};
+  --color-sidebar-bg-strong: color-mix(in srgb, ${opt.color} 84%, #000000);
+  --sidebar-active: color-mix(in srgb, ${opt.color} 75%, #ffffff);
+  --color-sidebar-hover: rgba(255, 255, 255, 0.12);
+  --sidebar-item: color-mix(in srgb, ${opt.color} 30%, #ffffff);
+  --sidebar-label: color-mix(in srgb, ${opt.color} 50%, #ffffff);
+}`;
     }
   }
   return css;
