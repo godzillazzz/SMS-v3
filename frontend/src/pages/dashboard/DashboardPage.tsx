@@ -9,7 +9,7 @@ import { PageHeader, SectionCard } from '../../components/layout';
 import './dashboard-redesign.css';
 import { dashboardDetailQuery, type DashboardDetailMetric } from '../../components/dashboard/deep-links';
 import { lazy, Suspense } from 'react';
-import { OperationsTodaySection } from '../../components/dashboard/OperationsTodayPanel';
+const OperationsTodaySection = lazy(() => import('../../components/dashboard/OperationsTodayPanel').then((module) => ({ default: module.OperationsTodaySection })));
 const AnnouncementHomeCard = lazy(() => import('../announcements/AnnouncementHomeCard').then((module) => ({ default: module.AnnouncementHomeCard })));
 
 /* Loaded on demand to keep the main bundle within its budget; the placeholder keeps the layout steady. */
@@ -74,7 +74,7 @@ export function DashboardPage({ token, summary, loading, error, user, canManage,
   return <section className="nexus-command layout-page-surface dashboard-redesign" aria-label="ภาพรวม">
     <PageHeader kicker={todayLabel} title="ภาพรวมระบบ" lead={`${greeting}, ${firstName}`} description={heroSummary} actions={<div className="dashboard-hero__actions"><button type="button" onClick={() => onNavigate('employees')}><SmsIcon name="search" size={16} />ค้นหาพนักงาน</button><button type="button" onClick={() => onNavigate('schedule')}><SmsIcon name="calendar" size={16} />ตารางกะรายเดือน</button>{canManage && <button type="button" className="is-primary" onClick={() => onOpenApprovalCenter?.('LEAVE_REQUEST')}><SmsIcon name="leave" size={16} />ตรวจคำขอลา</button>}</div>} className="nexus-command__hero dashboard-hero" />
 
-    {token && canManage && <OperationsTodaySection token={token} onNavigate={onNavigate} announcements={<Suspense fallback={null}><AnnouncementHomeCard token={token} onOpenAll={() => onNavigate('announcements')} /></Suspense>} />}
+    {token && canManage && <Suspense fallback={null}><OperationsTodaySection token={token} onNavigate={onNavigate} announcements={<Suspense fallback={null}><AnnouncementHomeCard token={token} onOpenAll={() => onNavigate('announcements')} /></Suspense>} /></Suspense>}
     {token && !canManage && <Suspense fallback={null}><AnnouncementHomeCard token={token} onOpenAll={() => onNavigate('announcements')} /></Suspense>}
 
     <DashboardFilterBar filters={filters} departments={departments} role={user?.role} loading={loading} onChange={onFiltersChange} />
