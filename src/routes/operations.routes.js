@@ -46,6 +46,8 @@ const { leaveRequestListWhere } = require('../utils/leave-request-list-scope');
 const { normalizeScheduleTime } = require('../utils/schedule-time');
 const { getDashboardSummary } = require('../services/dashboard.service');
 const { readUiThemePalette } = require('../services/ui-theme-palette.service');
+const { createDashboardOperationsService } = require('../services/dashboard-operations.service');
+const dashboardOperationsService = createDashboardOperationsService();
 const { getDashboardDetails } = require('../services/dashboard-detail.service');
 const { getAuditLogPage } = require('../services/audit-log-viewer.service');
 const systemSettingHistoryService = require('../services/system-setting-history.service');
@@ -457,6 +459,14 @@ router.get('/dashboard', async (req, res, next) => {
     const parsedQuery = dashboardQuery.safeParse(req.query);
     if (!parsedQuery.success) throw new HttpError(400, 'Dashboard filter is invalid.');
     res.json({ data: await getDashboardSummary({ requestUser: currentUser, filters: parsedQuery.data, requestId: req.requestId }) });
+  } catch (error) { next(error); }
+});
+// Batch 12 B "ภาพรวมวันนี้": real ShiftAssignment/Attendance/Patrol/Leave aggregate for executives.
+router.get('/dashboard/operations-today', authorize('ADMIN', 'MANAGER', 'SUPERVISOR'), async (req, res, next) => {
+  try {
+    const query = z.object({ siteId: z.string().uuid().optional() }).strict().parse(req.query);
+    res.set('Cache-Control', 'no-store');
+    res.json({ data: await dashboardOperationsService.today({ actor: req.user, siteId: query.siteId }) });
   } catch (error) { next(error); }
 });
 router.get('/dashboard/details', async (req, res, next) => {

@@ -2924,7 +2924,7 @@ function Dashboard() {
   };
   const content = () => {
     if (activePage === 'dashboardDetails') return <DashboardDetailsPage token={auth.token} onBack={() => setActivePage('dashboard', { date: dashboardFilters.date, month: dashboardFilters.month, department: dashboardFilters.department }, false)} />;
-    if (activePage === 'dashboard') return <DashboardPage summary={dashboardSummary} loading={dashboardLoading} error={dashboardError} user={auth.user} canManage={canManage} filters={dashboardFilters} pendingApprovalCount={approvalMenuCount('approvalCenter', approvalSummary)} approvalSummary={approvalSummary} approvalCountStatus={approvalCountStatus} onOpenApprovalCenter={(type) => setActivePage('approvalCenter', type ? { type } : undefined, false)} onFiltersChange={updateDashboardFilters} onNavigate={(page, query) => setActivePage(page, query, false)} />;
+    if (activePage === 'dashboard') return <DashboardPage token={auth.token} summary={dashboardSummary} loading={dashboardLoading} error={dashboardError} user={auth.user} canManage={canManage} filters={dashboardFilters} pendingApprovalCount={approvalMenuCount('approvalCenter', approvalSummary)} approvalSummary={approvalSummary} approvalCountStatus={approvalCountStatus} onOpenApprovalCenter={(type) => setActivePage('approvalCenter', type ? { type } : undefined, false)} onFiltersChange={updateDashboardFilters} onNavigate={(page, query) => setActivePage(page, query, false)} />;
     // The former inline dashboard is intentionally disabled. DashboardPage above
     // is the only runtime dashboard presentation.
     if (false) {

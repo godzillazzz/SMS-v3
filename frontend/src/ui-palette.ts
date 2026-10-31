@@ -1,3 +1,5 @@
+import { attendanceAuthenticatedRequest } from './attendance-auth-request';
+
 // Global colour palette (Owner batch 12 B). ADMIN stores it server-side as SystemSetting
 // UI_THEME_PALETTE; every signed-in user reads it from GET /ui-theme. It applies to the light theme of
 // the authenticated shell only — dark mode keeps its tuned tokens (contrast was checked on light
@@ -86,7 +88,6 @@ export function applyUiPalette(palette: UiPalette | null, doc: Document = docume
 }
 
 export async function fetchUiPalette(token: string): Promise<{ palette: UiPalette; isDefault: boolean } | null> {
-  const { attendanceAuthenticatedRequest } = await import('./attendance-auth-request');
   const response = await attendanceAuthenticatedRequest('/ui-theme', token, { method: 'GET', credentials: 'include' });
   if (!response.ok) throw new Error('UI_THEME_UNAVAILABLE');
   const payload = await response.json().catch(() => ({}));
