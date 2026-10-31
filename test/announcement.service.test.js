@@ -19,12 +19,11 @@ function fakePrisma(rows = [], { viewerSites = [SITE_A] } = {}) {
     if ('deletedAt' in where && where.deletedAt === null && row.deletedAt) return false;
     if (where.id && row.id !== where.id) return false;
     if (where.category && row.category !== where.category) return false;
+    if (where.showPopup === true && !row.showPopup) return false;
     if (where.OR) {
       const ok = where.OR.some((clause) => {
         if ('expiresAt' in clause && clause.expiresAt === null) return row.expiresAt === null;
         if (clause.expiresAt?.gt) return row.expiresAt && row.expiresAt > clause.expiresAt.gt;
-        if ('siteId' in clause && clause.siteId === null) return row.siteId === null;
-        if (clause.siteId?.in) return clause.siteId.in.includes(row.siteId);
         return false;
       });
       if (!ok) return false;
@@ -42,7 +41,7 @@ function fakePrisma(rows = [], { viewerSites = [SITE_A] } = {}) {
         return list.slice(0, take);
       },
       async findFirst({ where }) { return state.rows.find((row) => matches(row, where)) || null; },
-      async create({ data }) { const row = { id: `a${state.rows.length + 1}`, createdAt: NOW, updatedAt: NOW, deletedAt: null, updatedBy: null, ...data }; state.rows.push(row); return row; },
+      async create({ data }) { const row = { id: `a${state.rows.length + 1}`, createdAt: NOW, updatedAt: NOW, deletedAt: null, updatedBy: null, imageObjectKey: null, ...data }; state.rows.push(row); return row; },
       async update({ where, data }) { const row = state.rows.find((item) => item.id === where.id); Object.assign(row, data); return row; }
     },
     shiftAssignment: { async findMany() { return viewerSites.map((securitySiteId) => ({ securitySiteId })); } },
@@ -143,4 +142,53 @@ test('create rejects past expiry dates', async () => {
   const service = createAnnouncementService({ prisma: client, audit, clock: () => NOW });
   await assert.rejects(service.create({ actor: ADMIN, input: { title: 't', body: 'b', category: 'GENERAL', expiresOn: '2026-10-30' } }), (error) => error.details?.code === 'ANNOUNCEMENT_EXPIRY_PAST');
   await service.create({ actor: ADMIN, input: { title: 't', body: 'b', category: 'GENERAL', expiresOn: '2026-10-31' } });
+});
+
+const JPEG = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.alloc(64, 1)]);
+const PNG = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.alloc(64, 2)]);
+const WEBP = Buffer.concat([Buffer.from('RIFF'), Buffer.from([0x40, 0, 0, 0]), Buffer.from('WEBPVP8 '), Buffer.alloc(64, 3)]);
+function memoryStorage() {
+  const objects = new Map();
+  return { objects, provider: 'memory', bucket: 'b', async put(key, file) { objects.set(key, file.buffer); return { provider: 'memory', bucket: 'b' }; }, async remove(key) { objects.delete(key); }, async get(key) { return objects.get(key); } };
+}
+
+test('showPopup is stored and popups() returns live popup announcements pinned-first', async () => {
+  const { client, audit } = fakePrisma([
+    base({ id: 'p-old', showPopup: true, createdAt: new Date('2026-10-01T00:00:00Z') }),
+    base({ id: 'p-pin', showPopup: true, pinned: true, createdAt: new Date('2026-09-01T00:00:00Z') }),
+    base({ id: 'no-pop', showPopup: false }),
+    base({ id: 'p-exp', showPopup: true, expiresAt: new Date('2026-10-30T17:00:00Z') }),
+    base({ id: 'p-del', showPopup: true, deletedAt: NOW })
+  ]);
+  const service = createAnnouncementService({ prisma: client, audit, clock: () => NOW });
+  assert.deepEqual((await service.popups({ actor: VIEWER })).map((row) => row.id), ['p-pin', 'p-old']);
+  const created = await service.create({ actor: ADMIN, input: { title: 't', body: 'b', category: 'GENERAL', showPopup: true } });
+  assert.equal(created.showPopup, true);
+  assert.equal((await service.update({ actor: ADMIN, id: created.id, input: { showPopup: false } })).showPopup, false);
+});
+
+test('image upload: ADMIN only, jpeg/png/webp by magic bytes, 5MB cap, replace removes old object', async () => {
+  const { client, audit, state } = fakePrisma([base({ id: 'a1' })]);
+  const storage = memoryStorage();
+  const service = createAnnouncementService({ prisma: client, audit, storage, clock: () => NOW });
+  await assert.rejects(service.setImage({ actor: MANAGER, id: 'a1', file: { buffer: JPEG, mimetype: 'image/jpeg' } }), (error) => error.statusCode === 403);
+  await assert.rejects(service.setImage({ actor: ADMIN, id: 'a1', file: { buffer: Buffer.from('GIF89a....'), mimetype: 'image/gif' } }), (error) => error.statusCode === 415);
+  await assert.rejects(service.setImage({ actor: ADMIN, id: 'a1', file: { buffer: PNG, mimetype: 'image/jpeg' } }), (error) => error.statusCode === 415);
+  await assert.rejects(service.setImage({ actor: ADMIN, id: 'a1', file: { buffer: Buffer.alloc(5 * 1024 * 1024 + 1, 0xff), mimetype: 'image/jpeg' } }), (error) => error.statusCode === 413);
+  const first = await service.setImage({ actor: ADMIN, id: 'a1', file: { buffer: JPEG, mimetype: 'image/jpeg' } });
+  assert.equal(first.hasImage, true);
+  assert.match(first.imageUrl, /^\/api\/v1\/announcements\/a1\/image\?v=/);
+  const firstKey = state.rows[0].imageObjectKey;
+  assert.match(firstKey, /^announcement\/\d{4}-\d{2}\/[0-9a-f-]{36}\.jpg$/);
+  await service.setImage({ actor: ADMIN, id: 'a1', file: { buffer: WEBP, mimetype: 'image/webp' } });
+  assert.equal(storage.objects.has(firstKey), false);
+  assert.match(state.rows[0].imageObjectKey, /\.webp$/);
+  const read = await service.image({ actor: VIEWER, id: 'a1' });
+  assert.equal(read.mimeType, 'image/webp');
+  assert.ok(read.bytes.equals(WEBP));
+  await service.removeImage({ actor: ADMIN, id: 'a1' });
+  assert.equal(state.rows[0].imageObjectKey, null);
+  assert.equal(storage.objects.size, 0);
+  await assert.rejects(service.image({ actor: VIEWER, id: 'a1' }), (error) => error.statusCode === 404);
+  assert.ok(state.audits.some((entry) => entry.metadata?.event === 'ANNOUNCEMENT_IMAGE_SET'));
 });

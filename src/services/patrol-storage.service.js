@@ -18,19 +18,19 @@ function assertPatrolKey(key) {
   return key;
 }
 
-function createS3PatrolStorage({ environment = process.env, backend } = {}) {
+function createS3PatrolStorage({ environment = process.env, backend, assertKey = assertPatrolKey } = {}) {
   const store = backend || createS3ObjectStorage({ environment });
   const bucket = patrolBucket(environment);
   return Object.freeze({
     provider: 's3',
     bucket,
-    async put(key, file) { const stored = await store.put(bucket, assertPatrolKey(key), file); return { ...stored, provider: 's3', bucket }; },
-    async remove(key) { return store.remove(bucket, assertPatrolKey(key)); },
-    async get(key) { return store.get(bucket, assertPatrolKey(key)); }
+    async put(key, file) { const stored = await store.put(bucket, assertKey(key), file); return { ...stored, provider: 's3', bucket }; },
+    async remove(key) { return store.remove(bucket, assertKey(key)); },
+    async get(key) { return store.get(bucket, assertKey(key)); }
   });
 }
 
-function createSupabasePatrolStorage({ environment = process.env, fetchImpl = globalThis.fetch } = {}) {
+function createSupabasePatrolStorage({ environment = process.env, fetchImpl = globalThis.fetch, assertKey = assertPatrolKey } = {}) {
   const config = () => {
     let url = '';
     try { url = new URL(String(environment.SUPABASE_URL || '')).origin; } catch { /* handled below */ }
@@ -38,7 +38,7 @@ function createSupabasePatrolStorage({ environment = process.env, fetchImpl = gl
     if (!url || !serviceKey) throw new HttpError(503, 'Patrol photo storage is not configured.', { code: 'PATROL_STORAGE_NOT_CONFIGURED' });
     return { url, serviceKey, bucket: patrolBucket(environment) };
   };
-  const objectUrl = ({ url, bucket }, key) => `${url}/storage/v1/object/${encodeURIComponent(bucket)}/${assertPatrolKey(key).split('/').map(encodeURIComponent).join('/')}`;
+  const objectUrl = ({ url, bucket }, key) => `${url}/storage/v1/object/${encodeURIComponent(bucket)}/${assertKey(key).split('/').map(encodeURIComponent).join('/')}`;
   const headers = ({ serviceKey }, extra = {}) => ({ authorization: `Bearer ${serviceKey}`, apikey: serviceKey, ...extra });
   return Object.freeze({
     provider: 'supabase',
@@ -63,14 +63,14 @@ function createSupabasePatrolStorage({ environment = process.env, fetchImpl = gl
   });
 }
 
-function selectPatrolStorage({ environment = process.env, backend, fetchImpl } = {}) {
+function selectPatrolStorage({ environment = process.env, backend, fetchImpl, assertKey = assertPatrolKey } = {}) {
   const provider = String(environment.STORAGE_PROVIDER || 'supabase').trim().toLowerCase();
-  if (provider === 'supabase') return createSupabasePatrolStorage({ environment, fetchImpl });
+  if (provider === 'supabase') return createSupabasePatrolStorage({ environment, fetchImpl, assertKey });
   if (provider !== 's3') throw new HttpError(503, 'Object storage provider is unavailable.', { code: 'STORAGE_PROVIDER_INVALID' });
   if ((environment.NODE_ENV === 'production' || environment.VERCEL_ENV === 'production') && environment.STORAGE_S3_PRODUCTION_APPROVED !== 'true') {
     throw new HttpError(503, 'S3 storage is not approved for Production.', { code: 'S3_PRODUCTION_NOT_APPROVED' });
   }
-  return createS3PatrolStorage({ environment, backend });
+  return createS3PatrolStorage({ environment, backend, assertKey });
 }
 
 // Lazily resolved so a missing storage configuration fails only patrol photo calls,

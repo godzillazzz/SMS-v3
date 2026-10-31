@@ -74,3 +74,23 @@ test('validation rejects oversize title, unknown fields, bad ids and bad dates',
   assert.equal((await request(admin).post('/api/v1/announcements').send({ title: 't', body: 'x'.repeat(5001), category: 'GENERAL' })).status, 400);
   assert.equal((await request(admin).patch('/api/v1/announcements/not-a-uuid').send({ pinned: true })).status, 400);
 });
+
+test('popups list is open to every role; image upload/delete ADMIN-only; image read requires auth only', async () => {
+  const svc = { ...service, popups: async () => [{ id: ID }], setImage: async () => ({ id: ID, hasImage: true }), removeImage: async () => ({ id: ID }), image: async () => ({ bytes: Buffer.from([0xff, 0xd8, 0xff]), mimeType: 'image/jpeg' }) };
+  const viewer = app({ sub: 'u', role: 'VIEWER' }, svc);
+  assert.equal((await request(viewer).get('/api/v1/announcements/popups')).status, 200);
+  const img = await request(viewer).get(`/api/v1/announcements/${ID}/image`);
+  assert.equal(img.status, 200);
+  assert.equal(img.headers['content-type'], 'image/jpeg');
+  assert.match(img.headers['cache-control'], /private/);
+  for (const role of ['VIEWER', 'SUPERVISOR', 'MANAGER']) {
+    const server = app({ sub: 'u', role }, svc);
+    assert.equal((await request(server).put(`/api/v1/announcements/${ID}/image`).attach('image', Buffer.from([0xff, 0xd8, 0xff, 0]), { filename: 'a.jpg', contentType: 'image/jpeg' })).status, 403, role);
+    assert.equal((await request(server).delete(`/api/v1/announcements/${ID}/image`)).status, 403, role);
+  }
+  const admin = app({ sub: 'u', role: 'ADMIN' }, svc);
+  assert.equal((await request(admin).put(`/api/v1/announcements/${ID}/image`).attach('image', Buffer.from([0xff, 0xd8, 0xff, 0]), { filename: 'a.jpg', contentType: 'image/jpeg' })).status, 200);
+  assert.equal((await request(admin).put(`/api/v1/announcements/${ID}/image`).attach('image', Buffer.alloc(5 * 1024 * 1024 + 10), { filename: 'a.jpg', contentType: 'image/jpeg' })).status, 413);
+  assert.equal((await request(admin).post('/api/v1/announcements').send({ title: 't', body: 'b', category: 'GENERAL', showPopup: 'yes' })).status, 400);
+  assert.equal((await request(admin).post('/api/v1/announcements').send({ title: 't', body: 'b', category: 'GENERAL', showPopup: true })).status, 201);
+});

@@ -20,7 +20,9 @@ if (!configured) {
   const prisma = new PrismaClient();
   const marker = `IT-${crypto.randomUUID().slice(0, 8)}`;
   const admin = { sub: crypto.randomUUID(), role: 'ADMIN' };
-  const service = createAnnouncementService({ prisma, audit: { log: async () => {} }, clock: () => new Date('2026-10-31T05:00:00.000Z') });
+  const objects = new Map();
+  const storage = { provider: 'memory', bucket: 'it', async put(key, file) { objects.set(key, file.buffer); return {}; }, async remove(key) { objects.delete(key); }, async get(key) { return objects.get(key); } };
+  const service = createAnnouncementService({ prisma, storage, audit: { log: async () => {} }, clock: () => new Date('2026-10-31T05:00:00.000Z') });
 
   test.after(async () => {
     await prisma.announcement.deleteMany({ where: { title: { startsWith: marker } } });
@@ -38,6 +40,13 @@ if (!configured) {
     assert.ok(stored.deletedAt);
     const after = (await service.list({ actor: admin, query: {} })).filter((row) => row.title.startsWith(marker));
     assert.deepEqual(after.map((row) => row.id), [pinned.id]);
+    const popup = await service.create({ actor: admin, input: { title: `${marker} ป๊อปอัป`, body: 'ข้อความ', category: 'EVENT', showPopup: true } });
+    assert.ok((await service.popups({ actor: { sub: 'v', role: 'VIEWER' } })).some((row) => row.id === popup.id));
+    const jpeg = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), crypto.randomBytes(32)]);
+    const withImage = await service.setImage({ actor: admin, id: popup.id, file: { buffer: jpeg, mimetype: 'image/jpeg' } });
+    assert.equal(withImage.hasImage, true);
+    assert.ok((await service.image({ actor: { sub: 'v', role: 'VIEWER' }, id: popup.id })).bytes.equals(jpeg));
+    await assert.rejects(prisma.$executeRawUnsafe(`UPDATE announcements SET image_mime_type = 'image/gif' WHERE id = '${popup.id}'`));
     await assert.rejects(prisma.$executeRawUnsafe(`INSERT INTO announcements (title, body, category, created_by, updated_at) VALUES ('${marker} bad', 'x', 'OTHER', gen_random_uuid(), now())`));
   });
 }
