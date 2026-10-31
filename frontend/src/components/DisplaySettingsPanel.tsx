@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   DEFAULT_UI_PALETTE,
+  DEFAULT_SIDEBAR_OPTIONS,
   PALETTE_FIELDS,
   PALETTE_LABELS,
   isHexColour,
@@ -49,14 +50,17 @@ export function DisplaySettingsPanel({ canEdit, palette, onSave }: Props) {
   const invalid = checks.some((check) => !check.valid);
   const failing = checks.filter((check) => check.valid && !check.pass);
 
+  const effectiveSidebarOptions = useMemo(() => {
+    return draft.sidebarOptions !== undefined ? draft.sidebarOptions : DEFAULT_SIDEBAR_OPTIONS;
+  }, [draft.sidebarOptions]);
+
   // Check contrast for sidebar options against white text (#ffffff)
   const sidebarFailing = useMemo(() => {
-    if (!draft.sidebarOptions) return [];
-    return draft.sidebarOptions.filter((opt) => {
+    return effectiveSidebarOptions.filter((opt) => {
       if (!isHexColour(opt.color)) return true;
       return contrastRatio(opt.color, '#ffffff') < 4.5;
     });
-  }, [draft.sidebarOptions]);
+  }, [effectiveSidebarOptions]);
 
   const status = `${invalid ? 'รหัส HEX ไม่ถูกต้อง · ' : ''}${failing.length || sidebarFailing.length
     ? `ความต่างสีน้อยกว่า 4.5:1: ${[
@@ -74,19 +78,25 @@ export function DisplaySettingsPanel({ canEdit, palette, onSave }: Props) {
     const id = `sb-${Date.now()}`;
     const label = newSidebarLabel.trim() || newSidebarColor.toUpperCase();
     const newOpt: SidebarOption = { id, label, color: newSidebarColor.toUpperCase() };
-    setDraft((cur) => ({
-      ...cur,
-      sidebarOptions: [...(cur.sidebarOptions || []), newOpt]
-    }));
+    setDraft((cur) => {
+      const base = cur.sidebarOptions !== undefined ? cur.sidebarOptions : DEFAULT_SIDEBAR_OPTIONS;
+      return {
+        ...cur,
+        sidebarOptions: [...base, newOpt]
+      };
+    });
     setNewSidebarLabel('');
     setNewSidebarColor('#1E3A5F');
   };
 
   const removeSidebarColor = (id: string) => {
-    setDraft((cur) => ({
-      ...cur,
-      sidebarOptions: (cur.sidebarOptions || []).filter((opt) => opt.id !== id)
-    }));
+    setDraft((cur) => {
+      const base = cur.sidebarOptions !== undefined ? cur.sidebarOptions : DEFAULT_SIDEBAR_OPTIONS;
+      return {
+        ...cur,
+        sidebarOptions: base.filter((opt) => opt.id !== id)
+      };
+    });
   };
 
   const save = async () => {
@@ -136,8 +146,8 @@ export function DisplaySettingsPanel({ canEdit, palette, onSave }: Props) {
           <h3>สีแถบข้าง (Sidebar)</h3>
           <p>Admin เพิ่มหรือลบตัวเลือกสีแถบข้างที่ให้ผู้ใช้เลือกได้ (สีต้องมี contrast กับตัวอักษรสีขาวอย่างน้อย 4.5:1)</p>
           <div className="display-sidebar-list">
-            {(draft.sidebarOptions && draft.sidebarOptions.length > 0) ? (
-              draft.sidebarOptions.map((opt) => (
+            {effectiveSidebarOptions.length > 0 ? (
+              effectiveSidebarOptions.map((opt) => (
                 <div key={opt.id} className="display-sidebar-item">
                   <div className="display-sidebar-swatch">
                     <span style={{ backgroundColor: opt.color }} />
@@ -157,7 +167,7 @@ export function DisplaySettingsPanel({ canEdit, palette, onSave }: Props) {
                 </div>
               ))
             ) : (
-              <p className="display-readonly">ยังไม่มีสีแถบข้างแบบกำหนดเอง (ใช้ชุดสีระบบเริ่มต้น)</p>
+              <p className="display-readonly">ยังไม่มีสีแถบข้าง (เลือกใช้ค่าสีระบบ)</p>
             )}
           </div>
 

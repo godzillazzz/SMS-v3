@@ -12,7 +12,9 @@ describe('batch12 B global colour palette', () => {
     expect(PALETTE_FIELDS).toEqual(['primary', 'secondary', 'buttonPrimary', 'buttonSecondary', 'success', 'warning', 'danger']);
     expect(DEFAULT_UI_PALETTE.primary).toBe('#2563eb');
     const backend = readFileSync(join(__dirname, '../../src/services/ui-theme-palette.service.js'), 'utf8');
-    for (const [field, colour] of Object.entries(DEFAULT_UI_PALETTE)) expect(backend).toContain(`${field}: '${colour}'`);
+    for (const field of PALETTE_FIELDS) {
+      expect(backend).toContain(`${field}: '${DEFAULT_UI_PALETTE[field]}'`);
+    }
   });
 
   it('computes WCAG contrast and flags pairs below 4.5:1', () => {

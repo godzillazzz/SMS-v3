@@ -24,7 +24,7 @@ describe('HR-PRO shell layout (owner decision 2026-10-27)', () => {
     expect(main).not.toContain('className="environment-pill"');
     expect(main).toContain('<UserMenu ');
     expect(userMenu).toContain('<ThemeControl compact />');
-    expect(userMenu).toContain('<AccentControl />');
+    expect(userMenu).toContain('<AccentControl');
     expect(userMenu).toContain('hidden={!open}');
     expect(shell).toContain('min-height: 60px !important');
   });

@@ -7,6 +7,14 @@
 
 const UI_THEME_PALETTE_KEY = 'UI_THEME_PALETTE';
 const MIN_CONTRAST = 4.5;
+const DEFAULT_SIDEBAR_OPTIONS = Object.freeze([
+  { id: 'teal', label: 'เขียวน้ำทะเล', color: '#0b4f4b' },
+  { id: 'indigo', label: 'คราม', color: '#312e81' },
+  { id: 'navy', label: 'น้ำเงินเข้ม', color: '#1e3a5f' },
+  { id: 'emerald', label: 'เขียวมรกต', color: '#0b513b' },
+  { id: 'plum', label: 'พลัม', color: '#572b50' }
+]);
+
 const DEFAULT_UI_THEME_PALETTE = Object.freeze({
   primary: '#2563eb',
   secondary: '#43506a',
@@ -109,15 +117,17 @@ function normalizeUiThemePalette(value) {
 
 async function readUiThemePalette(client) {
   const row = await client.systemSetting.findUnique({ where: { key: UI_THEME_PALETTE_KEY }, select: { value: true, updatedAt: true } });
-  if (!row) return { palette: { ...DEFAULT_UI_THEME_PALETTE }, isDefault: true, updatedAt: null };
+  if (!row) return { palette: { ...DEFAULT_UI_THEME_PALETTE, sidebarOptions: DEFAULT_SIDEBAR_OPTIONS }, isDefault: true, updatedAt: null };
   try {
-    return { palette: JSON.parse(normalizeUiThemePalette(row.value)), isDefault: false, updatedAt: row.updatedAt ? new Date(row.updatedAt).toISOString() : null };
+    const parsed = JSON.parse(normalizeUiThemePalette(row.value));
+    if (!parsed.sidebarOptions) parsed.sidebarOptions = [...DEFAULT_SIDEBAR_OPTIONS];
+    return { palette: parsed, isDefault: false, updatedAt: row.updatedAt ? new Date(row.updatedAt).toISOString() : null };
   } catch {
-    return { palette: { ...DEFAULT_UI_THEME_PALETTE }, isDefault: true, updatedAt: null };
+    return { palette: { ...DEFAULT_UI_THEME_PALETTE, sidebarOptions: DEFAULT_SIDEBAR_OPTIONS }, isDefault: true, updatedAt: null };
   }
 }
 
 module.exports = {
-  UI_THEME_PALETTE_KEY, DEFAULT_UI_THEME_PALETTE, PALETTE_FIELDS, CONTRAST_SURFACE, MIN_CONTRAST,
+  UI_THEME_PALETTE_KEY, DEFAULT_UI_THEME_PALETTE, DEFAULT_SIDEBAR_OPTIONS, PALETTE_FIELDS, CONTRAST_SURFACE, MIN_CONTRAST,
   contrastRatio, contrastViolations, normalizeUiThemePalette, readUiThemePalette
 };

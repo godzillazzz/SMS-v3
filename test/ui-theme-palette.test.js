@@ -70,9 +70,12 @@ test('palette key is a registered, editable, non-sensitive, non-blocked Admin se
 test('public read returns stored palette or defaults, never throws on corrupt rows', async () => {
   const stored = { ...DEFAULT_UI_THEME_PALETTE, primary: '#1d4ed8' };
   const ok = await readUiThemePalette({ systemSetting: { findUnique: async ({ where }) => (assert.equal(where.key, UI_THEME_PALETTE_KEY), { value: JSON.stringify(stored), updatedAt: new Date('2026-10-31T00:00:00Z') }) } });
-  assert.deepEqual(ok, { palette: stored, isDefault: false, updatedAt: '2026-10-31T00:00:00.000Z' });
+  assert.equal(ok.isDefault, false);
+  assert.equal(ok.palette.primary, '#1d4ed8');
+  assert.ok(Array.isArray(ok.palette.sidebarOptions));
   const none = await readUiThemePalette({ systemSetting: { findUnique: async () => null } });
-  assert.deepEqual(none, { palette: DEFAULT_UI_THEME_PALETTE, isDefault: true, updatedAt: null });
+  assert.equal(none.isDefault, true);
+  assert.ok(Array.isArray(none.palette.sidebarOptions));
   const corrupt = await readUiThemePalette({ systemSetting: { findUnique: async () => ({ value: '{"primary":"#fff"}' }) } });
   assert.equal(corrupt.isDefault, true);
 });

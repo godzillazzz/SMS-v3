@@ -5,6 +5,7 @@ import { ThemeControl } from './ThemeControl';
 const AccentControl = React.lazy(() => import('./AccentControl').then((module) => ({ default: module.AccentControl })));
 
 type UserMenuProps = {
+  token?: string;
   initials: string;
   displayName: string;
   roleLabel: string;
@@ -18,7 +19,7 @@ type UserMenuProps = {
 
 // Desktop topbar user menu (owner decision 2026-10-27): theme, accent, display mode, passkey and logout live here.
 // The panel stays mounted (hidden) so AccentControl applies the saved accent on first load.
-export function UserMenu({ initials, displayName, roleLabel, avatarTone, showAccent = true, desktopView, onToggleDesktopView, onOpenSecurity, onLogout }: UserMenuProps) {
+export function UserMenu({ token, initials, displayName, roleLabel, avatarTone, showAccent = true, desktopView, onToggleDesktopView, onOpenSecurity, onLogout }: UserMenuProps) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -43,7 +44,7 @@ export function UserMenu({ initials, displayName, roleLabel, avatarTone, showAcc
     <div id="topbar-user-menu" className="user-menu__panel" role="menu" aria-label="บัญชีและการตั้งค่าหน้าจอ" hidden={!open}>
       <div className="user-menu__profile"><span className="avatar" data-avatar-tone={avatarTone}>{initials}</span><span><b>{displayName}</b><small>{roleLabel}</small></span></div>
       <div className="user-menu__row"><span>โหมดสี</span><ThemeControl compact /></div>
-      {showAccent && <div className="user-menu__row"><span>สีแถบข้าง</span><React.Suspense fallback={null}><AccentControl /></React.Suspense></div>}
+      {showAccent && <div className="user-menu__row"><span>สีแถบข้าง</span><React.Suspense fallback={null}><AccentControl token={token} /></React.Suspense></div>}
       <button type="button" role="menuitem" className="user-menu__item" onClick={run(onToggleDesktopView)}><SmsIcon name={desktopView ? 'device' : 'system'} size={16} />{desktopView ? 'กลับมุมมองมือถือ' : 'แสดงแบบเดสก์ท็อป'}</button>
       <button type="button" role="menuitem" className="user-menu__item" onClick={run(onOpenSecurity)}><SmsIcon name="key" size={16} />การเข้าสู่ระบบและ Passkey</button>
       <button type="button" role="menuitem" className="user-menu__item user-menu__item--danger" onClick={run(onLogout)}><SmsIcon name="logout" size={16} />ออกจากระบบ</button>

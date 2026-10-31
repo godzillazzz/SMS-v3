@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api';
 import { DisplaySettingsPanel } from './DisplaySettingsPanel';
-import { DEFAULT_UI_PALETTE, UI_PALETTE_KEY, applyUiPalette, fetchUiPalette, type UiPalette } from '../ui-palette';
+import { DEFAULT_UI_PALETTE, UI_PALETTE_KEY, applyUiPalette, fetchUiPalette, type UiPaletteWithSidebar } from '../ui-palette';
 
 export function DisplaySettingsSection({ token, canEdit }: { token: string; canEdit: boolean }) {
-  const [palette, setPalette] = useState<UiPalette>(DEFAULT_UI_PALETTE);
+  const [palette, setPalette] = useState<UiPaletteWithSidebar>(DEFAULT_UI_PALETTE);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   useEffect(() => {

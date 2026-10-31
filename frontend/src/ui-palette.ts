@@ -11,14 +11,23 @@ export const PALETTE_FIELDS = ['primary', 'secondary', 'buttonPrimary', 'buttonS
 export type PaletteField = typeof PALETTE_FIELDS[number];
 export type UiPalette = Record<PaletteField, string>;
 
-export const DEFAULT_UI_PALETTE: UiPalette = {
+export const DEFAULT_SIDEBAR_OPTIONS: SidebarOption[] = [
+  { id: 'teal', label: 'เขียวน้ำทะเล', color: '#0b4f4b' },
+  { id: 'indigo', label: 'คราม', color: '#312e81' },
+  { id: 'navy', label: 'น้ำเงินเข้ม', color: '#1e3a5f' },
+  { id: 'emerald', label: 'เขียวมรกต', color: '#0b513b' },
+  { id: 'plum', label: 'พลัม', color: '#572b50' }
+];
+
+export const DEFAULT_UI_PALETTE: UiPaletteWithSidebar = {
   primary: '#2563eb',
   secondary: '#43506a',
   buttonPrimary: '#1d4ed8',
   buttonSecondary: '#43506a',
   success: '#0e7a42',
   warning: '#8f5300',
-  danger: '#b42318'
+  danger: '#b42318',
+  sidebarOptions: DEFAULT_SIDEBAR_OPTIONS
 };
 
 export const PALETTE_LABELS: Record<PaletteField, string> = {
