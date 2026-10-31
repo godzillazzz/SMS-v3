@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   simpleAttendanceBootstrap,
@@ -37,6 +38,8 @@ import './attendance-simple.css';
 
 type Props = {
   token?: string;
+  /** PWA employee home extra content (announcement card); rendered after the attendance surface. */
+  homeFooter?: ReactNode;
   displayName?: string;
   department?: string | null;
   readOnly?: boolean;
@@ -261,7 +264,8 @@ export function AttendanceSimplePage({
   onOpenSchedule,
   onOpenSettings,
   onOpenAttendanceDevice,
-  onOpenSupervisor
+  onOpenSupervisor,
+  homeFooter
 }: Props) {
   const [bootstrap, setBootstrap] = useState<SimpleBootstrap | null>(null);
   const [selectedAction, setSelectedAction] = useState<SimpleEventInput['eventIntent'] | null>(null);
@@ -1204,6 +1208,7 @@ export function AttendanceSimplePage({
       <button type="button" onClick={onTodayHistory}>ดูประวัติวันนี้</button>
       <span>Online ใช้เวลา Server · Offline ใช้เวลาที่จับบนเครื่องและอาจต้องยืนยันก่อนนับ</span>
     </footer>
+    {homeFooter}
   </section>;
 }
 

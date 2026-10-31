@@ -73,7 +73,7 @@ import './styles.css';
 import './design-system.css';
 import './styles/dashboard.css';
 import { DashboardPage } from './pages/dashboard/DashboardPage';
-import { applyUiPalette } from './ui-palette';
+import { applyUiPalette, fetchUiPalette } from './ui-palette';
 import { LICENSE_BUCKETS, countLicenseBuckets, licenseBuckets, type LicenseBucket } from './components/license-buckets';
 
 
@@ -173,6 +173,9 @@ const SystemHealthPage = React.lazy(() => import('./pages/system-health/SystemHe
 const AccessManagementPage = React.lazy(() => import('./pages/access-management/AccessManagementPage').then((module) => ({ default: module.AccessManagementPage })));
 const AttendanceDevicePage = React.lazy(() => import('./pages/attendance-device/AttendanceDevicePage').then((module) => ({ default: module.AttendanceDevicePage })));
 const PatrolScanPage = React.lazy(() => import('./pages/patrol/PatrolScanPage').then((module) => ({ default: module.PatrolScanPage })));
+const AnnouncementsPage = React.lazy(() => import('./pages/announcements/AnnouncementsPage').then((module) => ({ default: module.AnnouncementsPage })));
+const AnnouncementHomeCard = React.lazy(() => import('./pages/announcements/AnnouncementHomeCard').then((module) => ({ default: module.AnnouncementHomeCard })));
+const AnnouncementPopupHost = React.lazy(() => import('./pages/announcements/AnnouncementPopupHost').then((module) => ({ default: module.AnnouncementPopupHost })));
 const PatrolCenterPage = React.lazy(() => import('./pages/patrol/PatrolCenterPage').then((module) => ({ default: module.PatrolCenterPage })));
 const SecuritySiteManagementPanel = React.lazy(() => import('./components/SecuritySiteManagementPanel').then((module) => ({ default: module.SecuritySiteManagementPanel })));
 const PwaProfilePage = React.lazy(() => import('./pages/pwa-profile/PwaProfilePage').then((module) => ({ default: module.PwaProfilePage })));
@@ -211,6 +214,7 @@ const AuthContext = createContext<Auth | undefined>(undefined);
 const navigation: Array<{ label: string; items: Array<{ id: Page; icon: SmsIconName; label: string }> }> = [
   { label: '', items: [
     { id: 'dashboard', icon: 'dashboard', label: 'ภาพรวม' },
+    { id: 'announcements', icon: 'bell', label: 'ประกาศ' },
     { id: 'approvalCenter', icon: 'bell', label: 'ศูนย์อนุมัติ' }
   ] },
   { label: 'บุคลากร', items: [
@@ -977,7 +981,7 @@ function EmployeeMagicWandModal({
   );
 }
 
-type OperationalPage = Exclude<Page, 'dashboard' | 'dashboardDetails' | 'employees' | 'approvalCenter' | 'attendance' | 'attendanceSupervisor' | 'attendanceHistory' | 'employeeSchedule' | 'attendanceDevice' | 'profile' | 'reportCenter' | 'reports' | 'executiveReport' | 'attendanceReport' | 'shiftSetup' | 'securitySite' | 'settings' | 'patrol' | 'patrolCenter' | 'leavePending' | 'leaveHistory' | 'dataQuality' | 'systemHealth'>;
+type OperationalPage = Exclude<Page, 'dashboard' | 'dashboardDetails' | 'employees' | 'approvalCenter' | 'attendance' | 'attendanceSupervisor' | 'attendanceHistory' | 'employeeSchedule' | 'attendanceDevice' | 'profile' | 'reportCenter' | 'reports' | 'executiveReport' | 'attendanceReport' | 'shiftSetup' | 'securitySite' | 'settings' | 'patrol' | 'patrolCenter' | 'announcements' | 'leavePending' | 'leaveHistory' | 'dataQuality' | 'systemHealth'>;
 
 const tablePages: Record<OperationalPage, { title: string; eyebrow: string; description: string; columns: Array<{ label: string; value: (row: DataRow) => React.ReactNode }> }> = {
   licenses: { title: 'ใบอนุญาตพนักงาน', eyebrow: 'จัดการบุคลากร', description: 'ตรวจสอบประเภท เลขที่ สถานะ และวันหมดอายุใบอนุญาต', columns: [
@@ -2315,7 +2319,7 @@ function Dashboard() {
   useEffect(() => {
     if (!auth.token) return;
     let active = true;
-    api.uiTheme(auth.token).then((result: any) => { if (active && result?.data && !result.data.isDefault) applyUiPalette(result.data.palette); }).catch(() => undefined);
+    fetchUiPalette(auth.token).then((result) => { if (active && result && !result.isDefault) applyUiPalette(result.palette); }).catch(() => undefined);
     return () => { active = false; };
   }, [auth.token]);
 
@@ -2411,14 +2415,14 @@ function Dashboard() {
   }, [activePage, auth.token, auth.user?.id, auth.user?.role, operationPage, dataQualityPageSize, dataQualityFilters, operationRefresh]);
 
   useEffect(() => {
-    if (!auth.token || activePage === 'dashboard' || activePage === 'dashboardDetails' || activePage === 'employees' || activePage === 'approvalCenter' || activePage === 'attendance' || activePage === 'attendanceSupervisor' || activePage === 'attendanceHistory' || activePage === 'employeeSchedule' || activePage === 'attendanceDevice' || activePage === 'profile' || activePage === 'shiftSetup' || activePage === 'schedule' || activePage === 'audit' || activePage === 'dataQuality' || activePage === 'systemHealth' || activePage === 'reportCenter' || activePage === 'reports' || activePage === 'executiveReport' || activePage === 'attendanceReport' || activePage === 'patrol' || activePage === 'patrolCenter' || activePage === 'securitySite') return;
+    if (!auth.token || activePage === 'dashboard' || activePage === 'dashboardDetails' || activePage === 'employees' || activePage === 'approvalCenter' || activePage === 'attendance' || activePage === 'attendanceSupervisor' || activePage === 'attendanceHistory' || activePage === 'employeeSchedule' || activePage === 'attendanceDevice' || activePage === 'profile' || activePage === 'shiftSetup' || activePage === 'schedule' || activePage === 'audit' || activePage === 'dataQuality' || activePage === 'systemHealth' || activePage === 'reportCenter' || activePage === 'reports' || activePage === 'executiveReport' || activePage === 'attendanceReport' || activePage === 'patrol' || activePage === 'patrolCenter' || activePage === 'announcements' || activePage === 'securitySite') return;
     if (activePage === 'users' && !canLoadAccessManagement(auth.user?.role || 'VIEWER')) {
       setOperationLoading(false);
       setOperationError(undefined);
       setOperationResponse({ data: [] });
       return;
     }
-    const loaders: Record<Exclude<Page, 'dashboard' | 'dashboardDetails' | 'employees' | 'approvalCenter' | 'attendance' | 'attendanceSupervisor' | 'attendanceHistory' | 'employeeSchedule' | 'attendanceDevice' | 'profile' | 'shiftSetup' | 'schedule' | 'dataQuality' | 'systemHealth' | 'reportCenter' | 'reports' | 'executiveReport' | 'attendanceReport' | 'patrol' | 'patrolCenter' | 'securitySite'>, (token: string, page: number) => Promise<DataResponse>> = {
+    const loaders: Record<Exclude<Page, 'dashboard' | 'dashboardDetails' | 'employees' | 'approvalCenter' | 'attendance' | 'attendanceSupervisor' | 'attendanceHistory' | 'employeeSchedule' | 'attendanceDevice' | 'profile' | 'shiftSetup' | 'schedule' | 'dataQuality' | 'systemHealth' | 'reportCenter' | 'reports' | 'executiveReport' | 'attendanceReport' | 'patrol' | 'patrolCenter' | 'announcements' | 'securitySite'>, (token: string, page: number) => Promise<DataResponse>> = {
       licenses: api.licenses, approvals: api.scheduleApprovals,
       rules: api.schedulingRules, leave: api.leaveRequests, leavePending: api.leaveRequests, leaveHistory: api.leaveRequests, quota: api.leaveQuotas,
       users: api.users, audit: api.auditEvents, settings: api.systemSettings
@@ -2508,6 +2512,7 @@ function Dashboard() {
     users: 'กำหนดบทบาทและจุดปฏิบัติงานก่อนอนุมัติบัญชี',
     securitySite: 'กำหนดจุดรักษาความปลอดภัย ขอบเขตพื้นที่ การเชื่อมโยงจุดปฏิบัติงาน และวงจรรหัส QR สำหรับลงเวลา',
     patrol: 'สแกน QR ที่ป้ายจุดตรวจ แล้วถ่ายรูปสภาพจุดตรวจ 1 รูปต่อจุด',
+    announcements: 'ข่าวสารและข้อมูลสำคัญสำหรับทีมปฏิบัติงาน',
     patrolCenter: 'ติดตามการตรวจจุดของทุกจุดปฏิบัติงาน จัดการ QR จุดตรวจ และพิมพ์รายงาน',
     settings: 'ตั้งค่าระบบสำหรับค่าที่ผ่านการกำกับ ตรวจสอบความถูกต้อง และบันทึกประวัติ',
     audit: 'ประวัติการใช้งานและการเปลี่ยนแปลงข้อมูล',
@@ -3496,6 +3501,7 @@ function Dashboard() {
         onOpenSettings={() => selectPwaPage('profile')}
         onOpenSchedule={pwaShell ? () => selectPwaPage('employeeSchedule') : undefined}
         onOpenSupervisor={pwaShell && ['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(auth.user?.role || '') && !auth.isViewingAs ? openPwaAttendanceSupervisor : undefined}
+        homeFooter={pwaShell ? <React.Suspense fallback={null}><AnnouncementHomeCard token={auth.token} className="is-pwa" /></React.Suspense> : undefined}
       />;
     }
     if (activePage === 'attendanceSupervisor' && auth.token && ['ADMIN', 'MANAGER', 'SUPERVISOR', 'VIEWER'].includes(auth.user?.role || '') && !auth.isViewingAs) {
@@ -3539,6 +3545,7 @@ function Dashboard() {
       </div>;
     }
     if (activePage === 'patrol' && auth.token) return <PatrolScanPage token={auth.token} />;
+    if (activePage === 'announcements' && auth.token) return <AnnouncementsPage token={auth.token} role={auth.user?.role || 'VIEWER'} />;
     if (activePage === 'patrolCenter' && auth.token) return <PatrolCenterPage token={auth.token} role={auth.user?.role || 'VIEWER'} />;
     if (activePage === 'securitySite' && auth.token) {
       return <SecuritySiteManagementPanel token={auth.token} />;
@@ -3675,6 +3682,7 @@ function Dashboard() {
       </main>
     </div>
     <ToastHost />
+    {auth.token && auth.user?.id && !auth.isViewingAs && <React.Suspense fallback={null}><AnnouncementPopupHost token={auth.token} userId={auth.user.id} /></React.Suspense>}
     {passkeyPanelOpen && auth.token && <React.Suspense fallback={<div className="full-loader" role="status">กำลังโหลดหน้าต่าง…</div>}><PasskeySecurityPanel token={auth.token} onClose={() => setPasskeyPanelOpen(false)} /></React.Suspense>}
     {printData && (
       <div className="print-only">
