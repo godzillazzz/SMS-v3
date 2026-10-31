@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api';
 import { DisplaySettingsPanel } from './DisplaySettingsPanel';
-import { DEFAULT_UI_PALETTE, UI_PALETTE_KEY, applyUiPalette, isValidPalette, type UiPalette } from '../ui-palette';
+import { DEFAULT_UI_PALETTE, UI_PALETTE_KEY, applyUiPalette, fetchUiPalette, type UiPalette } from '../ui-palette';
 
 export function DisplaySettingsSection({ token, canEdit }: { token: string; canEdit: boolean }) {
   const [palette, setPalette] = useState<UiPalette>(DEFAULT_UI_PALETTE);
@@ -9,8 +9,8 @@ export function DisplaySettingsSection({ token, canEdit }: { token: string; canE
   const [loadError, setLoadError] = useState(false);
   useEffect(() => {
     let active = true;
-    api.uiTheme(token)
-      .then((response: any) => { if (active && isValidPalette(response?.data?.palette)) setPalette(response.data.palette); })
+    fetchUiPalette(token)
+      .then((result) => { if (active && result) setPalette(result.palette); })
       .catch(() => { if (active) setLoadError(true); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };

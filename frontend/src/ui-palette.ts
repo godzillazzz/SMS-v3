@@ -84,3 +84,11 @@ export function applyUiPalette(palette: UiPalette | null, doc: Document = docume
   style.textContent = paletteCss(palette);
   if (!existing) doc.head.appendChild(style);
 }
+
+export async function fetchUiPalette(token: string): Promise<{ palette: UiPalette; isDefault: boolean } | null> {
+  const { attendanceAuthenticatedRequest } = await import('./attendance-auth-request');
+  const response = await attendanceAuthenticatedRequest('/ui-theme', token, { method: 'GET', credentials: 'include' });
+  if (!response.ok) throw new Error('UI_THEME_UNAVAILABLE');
+  const payload = await response.json().catch(() => ({}));
+  return payload?.data && isValidPalette(payload.data.palette) ? { palette: payload.data.palette, isDefault: Boolean(payload.data.isDefault) } : null;
+}
