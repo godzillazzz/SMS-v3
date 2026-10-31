@@ -73,6 +73,7 @@ import './styles.css';
 import './design-system.css';
 import './styles/dashboard.css';
 import { DashboardPage } from './pages/dashboard/DashboardPage';
+import { applyUiPalette } from './ui-palette';
 import { LICENSE_BUCKETS, countLicenseBuckets, licenseBuckets, type LicenseBucket } from './components/license-buckets';
 
 
@@ -2309,6 +2310,14 @@ function Dashboard() {
       .catch((reason) => { setDashboardError(toRequestErrorState(reason, 'ไม่สามารถอ่านข้อมูลภาพรวมได้')); resolveDashboardReady(false); })
       .finally(() => setDashboardLoading(false));
   }, [activePage, auth.token, operationRefresh, dashboardFilters.date, dashboardFilters.month, dashboardFilters.department]);
+
+  // Global ADMIN palette (batch 12 B): read once per session token; failure keeps built-in tokens.
+  useEffect(() => {
+    if (!auth.token) return;
+    let active = true;
+    api.uiTheme(auth.token).then((result: any) => { if (active && result?.data && !result.data.isDefault) applyUiPalette(result.data.palette); }).catch(() => undefined);
+    return () => { active = false; };
+  }, [auth.token]);
 
   useEffect(() => {
     if (!auth.token || !['leave', 'leavePending', 'leaveHistory'].includes(activePage)) return;

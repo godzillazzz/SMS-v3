@@ -262,6 +262,7 @@ export const api = {
   scheduleApprovals: (token: string, page = 1) => call(`/schedule-approvals?page=${page}&pageSize=100`, { headers: { Authorization: `Bearer ${token}` } }),
   schedulingRules: (token: string) => call('/scheduling-rules', { headers: { Authorization: `Bearer ${token}` } }),
   ruleChecks: (token: string, month: string) => call(`/rule-checks?month=${encodeURIComponent(month)}`, { headers: { Authorization: `Bearer ${token}` } }),
+  uiTheme: (token: string) => call('/ui-theme', { headers: { Authorization: `Bearer ${token}` } }),
   systemSettings: (token: string) => call('/system-settings', { headers: { Authorization: `Bearer ${token}` } }),
   updateSystemSetting: (token: string, key: string, data: unknown) => call(`/system-settings/${encodeURIComponent(key)}`, { method: 'PUT', body: JSON.stringify(data), headers: { Authorization: `Bearer ${token}` } }),
   leaveRequests: (token: string, page = 1, filters: { year?: number; month?: number; status?: string; employeeId?: string; department?: string; search?: string } = {}) => { const params = new URLSearchParams({ page: String(page), pageSize: '100' }); Object.entries(filters).forEach(([key, value]) => { if (value !== undefined && value !== '') params.set(key, String(value)); }); return call(`/leave-requests?${params.toString()}`, { headers: { Authorization: `Bearer ${token}` } }); },

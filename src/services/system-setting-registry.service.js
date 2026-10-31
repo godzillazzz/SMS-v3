@@ -6,6 +6,7 @@ const { isReservedOperationalSettingKey } = require('./g03-1-multi-year-activati
 const { policySettingDefinitions } = require('./approval-policy.service');
 const { POLICY_KEYS: RETENTION_POLICY_KEYS, RETENTION_TIMEZONE } = require('./data-retention.service');
 const { guardrailMetadata } = require('./system-setting-guardrail.service');
+const { UI_THEME_PALETTE_KEY, DEFAULT_UI_THEME_PALETTE, normalizeUiThemePalette } = require('./ui-theme-palette.service');
 
 const SENSITIVE_SETTING_KEY_PATTERN = /secret|token|password|credential|database|smtp|webhook|channel|access[_-]?key/i;
 
@@ -15,6 +16,7 @@ const GROUPS = Object.freeze({
   APPROVAL: Object.freeze({ id: 'APPROVAL', label: 'Approval Authority & SLA', order: 25 }),
   RETENTION: Object.freeze({ id: 'RETENTION', label: 'Data Retention', order: 27 }),
   NOTIFICATIONS: Object.freeze({ id: 'NOTIFICATIONS', label: 'Notifications', order: 30 }),
+  DISPLAY: Object.freeze({ id: 'DISPLAY', label: 'Display', order: 35 }),
   LEGACY: Object.freeze({ id: 'LEGACY', label: 'Legacy / Read only', order: 90 }),
   PROTECTED: Object.freeze({ id: 'PROTECTED', label: 'Protected Operations', order: 99 })
 });
@@ -251,6 +253,16 @@ const DEFINITIONS = Object.freeze([
     valueType: 'TEXT',
     description: 'เทมเพลตข้อความอัปเดตสถานะการลา (รูปแบบเดิม)',
     constraints: { maxLength: 2000 }
+  }),
+  frozenDefinition({
+    key: UI_THEME_PALETTE_KEY,
+    group: GROUPS.DISPLAY.id,
+    groupLabel: GROUPS.DISPLAY.label,
+    groupOrder: GROUPS.DISPLAY.order,
+    label: 'System colour palette',
+    valueType: 'JSON',
+    description: 'สีของระบบ 7 สี (#RRGGBB) ทุกสีต้องมี contrast อย่างน้อย 4.5:1',
+    constraints: { maxLength: 2000, minContrast: 4.5, defaults: DEFAULT_UI_THEME_PALETTE }
   })
 ]);
 
@@ -291,6 +303,8 @@ function normalizeRegisteredSystemSettingValue(key, value) {
     }
     return normalized;
   }
+
+  if (definition.key === UI_THEME_PALETTE_KEY) return normalizeUiThemePalette(value);
 
   if (definition.valueType === 'TEXT') {
     const text = String(value ?? '');
@@ -371,7 +385,7 @@ function presentSystemSettings(rows = []) {
 }
 
 function registeredSystemSettingGroups() {
-  return [GROUPS.ATTENDANCE, GROUPS.LEAVE, GROUPS.APPROVAL, GROUPS.RETENTION, GROUPS.NOTIFICATIONS].map((group) => ({ ...group }));
+  return [GROUPS.ATTENDANCE, GROUPS.LEAVE, GROUPS.APPROVAL, GROUPS.RETENTION, GROUPS.NOTIFICATIONS, GROUPS.DISPLAY].map((group) => ({ ...group }));
 }
 
 module.exports = {

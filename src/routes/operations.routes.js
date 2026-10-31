@@ -45,6 +45,7 @@ const { parseLeaveMonth } = require('../utils/leave-month-filter');
 const { leaveRequestListWhere } = require('../utils/leave-request-list-scope');
 const { normalizeScheduleTime } = require('../utils/schedule-time');
 const { getDashboardSummary } = require('../services/dashboard.service');
+const { readUiThemePalette } = require('../services/ui-theme-palette.service');
 const { getDashboardDetails } = require('../services/dashboard-detail.service');
 const { getAuditLogPage } = require('../services/audit-log-viewer.service');
 const systemSettingHistoryService = require('../services/system-setting-history.service');
@@ -441,6 +442,14 @@ router.get('/internal/annual-leave-quota-provisioning', async (req, res, next) =
 });
 
 router.use(authenticate);
+
+// Read-only global palette for every signed-in user; exposes the UI_THEME_PALETTE key only.
+router.get('/ui-theme', async (_req, res, next) => {
+  try {
+    res.set('Cache-Control', 'no-store');
+    res.json({ data: await readUiThemePalette(prisma) });
+  } catch (error) { next(error); }
+});
 
 router.get('/dashboard', async (req, res, next) => {
   try {

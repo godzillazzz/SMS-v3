@@ -19,6 +19,7 @@ const ApprovalAuthorityMatrixPanel = React.lazy(() => import('../../components/A
 const PersonnelMasterPanel = React.lazy(() => import('../../components/PersonnelMasterPanel').then((module) => ({ default: module.PersonnelMasterPanel })));
 const DataRetentionCenterPanel = React.lazy(() => import('../../components/DataRetentionCenterPanel').then((module) => ({ default: module.DataRetentionCenterPanel })));
 const ConfigurationRegistryPanel = React.lazy(() => import('../../components/ConfigurationRegistryPanel').then((module) => ({ default: module.ConfigurationRegistryPanel })));
+const DisplaySettingsSection = React.lazy(() => import('../../components/DisplaySettingsSection').then((module) => ({ default: module.DisplaySettingsSection })));
 const NotificationCenterPanel = React.lazy(() => import('../../components/NotificationCenterPanel').then((module) => ({ default: module.NotificationCenterPanel })));
 
 type DataRow = Record<string, unknown>;
@@ -115,6 +116,7 @@ export function SettingsPage({ token, settings, leaveTypes, leaveTypesLoading, l
                 ? <ApprovalAuthorityMatrixPanel token={token} />
                 : section === 'data-retention'
                   ? <DataRetentionCenterPanel token={token} />
+      : section === 'display' ? <DisplaySettingsSection token={token} canEdit />
       : section === 'notifications' ? <><NotificationCenterPanel token={token} /><section className="line-settings-card">
       <div className="line-settings-title"><span aria-hidden="true"><SmsIcon name="bell" size={20} /></span><div><h2>ตั้งค่าการแจ้งเตือน LINE</h2><p>รูปแบบเดิมถูกคงไว้ แต่ credential ต้องตั้งค่าที่ Vercel Environment Variables เท่านั้น</p></div></div>
       <div className="line-secure-grid"><label className="field-group"><span>LINE Access Token / Channel Access Token</span><span className="line-secret-managed" role="status">จัดการผ่าน Vercel Environment Variables</span><small>ระบบไม่แสดงค่า credential ในหน้านี้</small></label><label className="field-group"><span>LINE Group ID / Target ID</span><input type="text" value="จัดการผ่าน deployment configuration" disabled /><small>ตั้งค่าจาก Vercel Environment Variables เมื่อเปิดใช้ provider ที่อนุมัติ</small></label></div>

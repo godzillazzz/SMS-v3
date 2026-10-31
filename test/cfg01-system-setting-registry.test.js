@@ -20,7 +20,7 @@ test('CFG-01 registry has unique governed keys and no secret-bearing setting def
   assert.equal(new Set(DEFINITIONS.map((definition) => definition.key)).size, DEFINITIONS.length);
   for (const definition of DEFINITIONS) {
     assert.equal(isSensitiveSystemSettingKey(definition.key), false, definition.key);
-    assert.ok(['ATTENDANCE', 'LEAVE', 'APPROVAL', 'RETENTION', 'NOTIFICATIONS'].includes(definition.group), definition.key);
+    assert.ok(['ATTENDANCE', 'LEAVE', 'APPROVAL', 'RETENTION', 'NOTIFICATIONS', 'DISPLAY'].includes(definition.group), definition.key);
     if (definition.group === 'APPROVAL') {
       assert.equal(definition.editable, false);
       assert.equal(definition.authority, 'ADMIN_GOVERNED_VIA_APPROVAL_POLICY_API');

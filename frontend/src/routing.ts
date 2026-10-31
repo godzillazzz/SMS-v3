@@ -46,7 +46,8 @@ export const SETTINGS_SECTIONS = [
   { id: 'departments-positions', path: 'departments-positions', label: 'จุดปฏิบัติงานและตำแหน่ง', description: 'ข้อมูลจุดปฏิบัติงานและตำแหน่งที่ใช้ในระบบ' },
   { id: 'approval-permissions', path: 'approval-permissions', label: 'สิทธิ์อนุมัติ', description: 'ผู้ตรวจคำขอและเกณฑ์เวลาอนุมัติ' },
   { id: 'data-retention', path: 'data-retention', label: 'การเก็บรักษาข้อมูล', description: 'ระยะเวลาเก็บข้อมูลภายใต้ขั้นตอนกำกับ' },
-  { id: 'notifications', path: 'notifications', label: 'การแจ้งเตือน', description: 'ช่องทางและข้อความแจ้งเตือน' }
+  { id: 'notifications', path: 'notifications', label: 'การแจ้งเตือน', description: 'ช่องทางและข้อความแจ้งเตือน' },
+  { id: 'display', path: 'display', label: 'การแสดงผล', description: 'ตั้งค่าสีระบบและเลือกโหมดการแสดงผล' }
 ] as const;
 
 export type SettingsSectionId = typeof SETTINGS_SECTIONS[number]['id'];
