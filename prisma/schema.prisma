@@ -1500,3 +1500,23 @@ model PatrolScan {
   @@index([employeeId, scannedAt])
   @@map("patrol_scans")
 }
+
+model Announcement {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  title     String    @db.VarChar(150)
+  body      String    @db.Text
+  category  String    @db.VarChar(20)
+  pinned    Boolean   @default(false)
+  siteId    String?   @map("site_id") @db.Uuid
+  expiresAt DateTime? @map("expires_at") @db.Timestamptz(6)
+  createdBy String    @map("created_by") @db.Uuid
+  updatedBy String?   @map("updated_by") @db.Uuid
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  @@index([deletedAt, pinned, createdAt])
+  @@index([category, expiresAt])
+  @@index([siteId])
+  @@map("announcements")
+}
