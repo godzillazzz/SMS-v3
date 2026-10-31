@@ -1,6 +1,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { api, type SecuritySite } from '../../api';
+import { privateObjectUrl } from '../../private-object-url';
 import { formatRequestErrorMessage } from '../../request-error';
 import { SmsIcon, type SmsIconName } from '../../components/SmsIcon';
 import { PageHeader, SectionCard } from '../../components/layout';
@@ -716,7 +717,8 @@ export function AttendanceSupervisorPage({ token, role, department, employeeAuth
       const result = await attendanceEvidenceView(token, evidenceId);
       const url = result?.data?.url;
       if (!url) throw new Error('ไม่พบ URL หลักฐานภาพ');
-      window.open(url, '_blank', 'noopener,noreferrer');
+      const blobUrl = await privateObjectUrl(token, url);
+      window.open(blobUrl, '_blank', 'noopener,noreferrer');
     } catch (reason) {
       setError(formatRequestErrorMessage(reason, 'ไม่สามารถเปิดหลักฐานภาพ Attendance ได้'));
     }

@@ -91,9 +91,13 @@ function createS3ContractWrappers({ environment = process.env, backend = createS
       const row = await prisma.attendanceEvidence.findUnique({ where: { id }, include: { employee: { select: { id: true, department: true } } } }); if (!row) http(404, 'ATTENDANCE_EVIDENCE_NOT_FOUND', 'Attendance evidence was not found.');
       const scope = scopeForActor(actor, {});
       if (scope.role === 'VIEWER' && row.employeeId !== actor.employeeAuthority?.id) http(403, 'ATTENDANCE_EVIDENCE_FORBIDDEN', 'Attendance evidence is outside the actor scope.');
+      // OWNER policy 2026-10-30: a department is only a place of work; MANAGER/SUPERVISOR supervise every
+      // VIEWER across departments. Only verify actor's linked authority is active/valid.
       if (['MANAGER', 'SUPERVISOR'].includes(scope.role)) {
-        const department = actor.department || actor.employeeAuthority?.department;
-        if (!department || row.employee?.department !== department) http(403, 'ATTENDANCE_EVIDENCE_FORBIDDEN', 'Attendance evidence is outside the actor scope.');
+        const authority = actor.employeeAuthority;
+        if (authority && (authority.isActive !== true || authority.deletedAt)) {
+          http(403, 'ATTENDANCE_EVIDENCE_FORBIDDEN', 'Attendance evidence is outside the actor scope.');
+        }
       }
       const now = clock(); if (row.purgedAt || row.purgeRequestedAt || !row.retentionUntil || new Date(row.retentionUntil) <= now) http(410, 'ATTENDANCE_EVIDENCE_NOT_VIEWABLE', 'Attendance evidence has expired or is no longer viewable.');
       await audit?.log?.({ actorUserId: actor.sub, action: 'UPDATE', entityType: 'AttendanceEvidence', entityId: row.id, metadata: { event: 'PRIVATE_EVIDENCE_VIEW', employeeId: row.employeeId } }).catch(() => undefined);

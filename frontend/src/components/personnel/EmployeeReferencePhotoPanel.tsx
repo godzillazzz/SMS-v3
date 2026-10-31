@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { api } from '../../api';
+import { privateObjectUrl } from '../../private-object-url';
 import { RequestErrorContent, toRequestErrorState, type RequestErrorInput } from '../../request-error';
 import { SmsIcon } from '../SmsIcon';
 import { ATTACHMENT_POLICIES } from '../../lib/attachment-optimizer';
@@ -34,11 +35,20 @@ export function EmployeeReferencePhotoPanel({ token, employeeId, role, onChanged
   const [ackDeleteOld, setAckDeleteOld] = useState(false);
   const localPreview = useMemo(() => file ? URL.createObjectURL(file) : '', [file]);
 
-  useEffect(() => () => { if (localPreview) URL.revokeObjectURL(localPreview); }, [localPreview]);
+  useEffect(() => () => {
+    if (localPreview) URL.revokeObjectURL(localPreview);
+    if (activeUrl && activeUrl.startsWith('blob:')) URL.revokeObjectURL(activeUrl);
+    if (pendingUrl && pendingUrl.startsWith('blob:')) URL.revokeObjectURL(pendingUrl);
+  }, [localPreview, activeUrl, pendingUrl]);
 
   const signedUrl = async (photo?: ReferencePhoto | null) => {
     if (!photo) return '';
-    try { return String((await api.viewEmployeeReferencePhoto(token, photo.id))?.data?.url || ''); } catch { return ''; }
+    try {
+      const rawUrl = String((await api.viewEmployeeReferencePhoto(token, photo.id))?.data?.url || '');
+      return rawUrl ? await privateObjectUrl(token, rawUrl) : '';
+    } catch {
+      return '';
+    }
   };
   const load = async () => {
     setLoading(true); setError(undefined);

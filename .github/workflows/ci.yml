@@ -2,6 +2,18 @@
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - main
+      - fix/serverless-database-reliability
+      - feat/sidebar-custom-palette
+      - feat/owner-batch-12b
+  pull_request:
+    branches:
+      - main
+      - fix/serverless-database-reliability
+      - feat/sidebar-custom-palette
+      - feat/owner-batch-12b
 
 permissions:
   contents: read
