@@ -121,7 +121,7 @@ const PAGE_TITLES: Record<RoutePage, string> = {
 };
 
 const PATH_PAGES = new Map<string, RoutePage>(Object.entries(PAGE_PATHS).map(([page, path]) => [path, page as RoutePage]));
-const PWA_PAGES = new Set<RoutePage>(['attendance', 'attendanceHistory', 'employeeSchedule', 'leave', 'profile', 'attendanceSupervisor']);
+const PWA_PAGES = new Set<RoutePage>(['attendance', 'patrol', 'attendanceHistory', 'employeeSchedule', 'leave', 'profile', 'attendanceSupervisor']);
 
 function normalizePath(pathname: string): string {
   if (pathname === '/' || pathname === '/index.html') return '/app';
