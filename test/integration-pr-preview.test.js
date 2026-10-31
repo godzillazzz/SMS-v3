@@ -96,8 +96,9 @@ test('wrapper fails instead of skipping when provider has no successful Preview'
   assert.deepEqual(errors, ['PREVIEW_RUNTIME_FAILED=EXACT_HEAD_VERCEL_PREVIEW_NOT_READY']);
 });
 
-test('CI is manual-only and does not consume Actions runners for routine push or PR source backups', () => {
+test('CI includes pull_request and push on release branches plus manual dispatch', () => {
   const ci = fs.readFileSync('.github/workflows/ci.yml', 'utf8');
-  assert.match(ci, /^on:\r?\n\s+workflow_dispatch:/m);
-  assert.doesNotMatch(ci, /^\s+(?:push|pull_request|schedule|repository_dispatch):/m);
+  assert.match(ci, /workflow_dispatch:/);
+  assert.match(ci, /push:/);
+  assert.match(ci, /pull_request:/);
 });
