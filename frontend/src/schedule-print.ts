@@ -107,13 +107,28 @@ function preparePrintLayout(frameDocument: Document, orientation: PrintOrientati
   frameDocument.head.append(isolationStyle);
 }
 
+function isTouchOrMobileDevice(): boolean {
+  if (typeof window === 'undefined' || typeof navigator === 'undefined') return false;
+  const ua = navigator.userAgent || '';
+  const isMobileUa = /iPhone|iPad|iPod|Android/i.test(ua);
+  const isIpadOs = navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1;
+  const isTouch = navigator.maxTouchPoints > 0;
+  const isNarrowScreen = window.innerWidth <= 1024;
+  return isMobileUa || isIpadOs || (isTouch && isNarrowScreen);
+}
+
 function createPrintFrame(): { frame: HTMLIFrameElement; frameDocument: Document; frameWindow: Window } {
+  const isMobile = isTouchOrMobileDevice();
   const frame = document.createElement('iframe');
   frame.className = 'schedule-print-frame';
   frame.setAttribute('aria-hidden', 'true');
   frame.setAttribute('tabindex', '-1');
   frame.title = 'Isolated print document';
-  frame.style.cssText = 'position:fixed;left:-10000px;top:0;width:1123px;height:794px;border:0;pointer-events:none;';
+  // On mobile/touch/iPad devices, hidden or zero-size iframes cause .print() to be silently ignored.
+  // We keep it visible at 1px opacity 0.01 fixed in the corner so mobile web engines recognize it as printable.
+  frame.style.cssText = isMobile
+    ? 'position:fixed;right:0;bottom:0;width:1px;height:1px;border:0;opacity:0.01;pointer-events:none;z-index:999999;'
+    : 'position:fixed;left:-10000px;top:0;width:1123px;height:794px;border:0;pointer-events:none;';
   document.body.append(frame);
 
   const frameDocument = frame.contentDocument;
@@ -161,8 +176,17 @@ async function printNodeDocument(
     if (frameDocument.fonts?.ready) await frameDocument.fonts.ready.catch(() => undefined);
     await waitForPaint(frameWindow);
     void frameDocument.body.offsetHeight;
-    if (testPrint) testPrint(frameWindow);
-    else frameWindow.print();
+    if (testPrint) {
+      testPrint(frameWindow);
+    } else {
+      try {
+        frameWindow.focus();
+        frameWindow.print();
+      } catch {
+        // Fallback for mobile WebViews or environments where frame.print() throws
+        window.print();
+      }
+    }
     window.setTimeout(cleanup, FRAME_CLEANUP_DELAY_MS);
   } catch (error) {
     cleanup();
