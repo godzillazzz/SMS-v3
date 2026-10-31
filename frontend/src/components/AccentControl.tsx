@@ -47,7 +47,7 @@ export function AccentControl({ token }: { token?: string }) {
       className={accent === option.value ? 'is-active' : ''}
       style={{ ['--swatch' as string]: option.swatch }}
       aria-pressed={accent === option.value}
-      aria-label={`สีแถบข้าง${option.label}`}
+      aria-label={`สีหลัก${option.label}`}
       title={option.label}
       onClick={() => setAccent(option.value)}
     />)}
