@@ -59,7 +59,7 @@ export function OperationsTodayPanel({ data, loading, error, siteId, onSiteChang
         </select>
       </label>
     </div>
-    {error ? <div className="ops-alert" role="alert">โหลดภาพรวมวันนี้ไม่สำเร็จ ระบบไม่สร้างตัวเลขแทน</div> : partial ? <div className="ops-alert is-warning" role="status">ข้อมูลบางส่วนไม่พร้อม · ช่องที่ไม่มีข้อมูลแสดงเป็น —</div> : null}
+    {error ? <div className="ops-alert" role="alert">โหลดภาพรวมวันนี้ไม่สำเร็จ ระบบไม่สร้างตัวเลขแทน</div> : partial ? <div className="ops-alert is-warning" >ข้อมูลบางส่วนไม่พร้อม · ช่องที่ไม่มีข้อมูลแสดงเป็น —</div> : null}
     <div className="ops-kpis">
       <button type="button" className="ops-kpi" onClick={() => onNavigate('attendanceSupervisor')}><span>เข้างานแล้ว</span><strong>{n(data?.checkedIn)} <small>/ {n(data?.planned)} คน</small></strong><em>ตามแผนวันนี้</em></button>
       <button type="button" className="ops-kpi" onClick={() => onNavigate('attendanceSupervisor')}><span>ยังไม่เช็กอินเลยเวลา</span><strong className={data?.lateNotCheckedIn ? 'is-red' : ''}>{n(data?.lateNotCheckedIn)} <small>คน</small></strong><em className={data?.lateNotCheckedIn ? 'is-red' : ''}>{data?.lateNotCheckedIn ? 'ต้องติดตาม' : `เกินเวลาเริ่มกะ ${data?.graceMinutes ?? 15} นาที`}</em></button>
@@ -69,7 +69,7 @@ export function OperationsTodayPanel({ data, loading, error, siteId, onSiteChang
     <div className="ops-columns">
       <section className="ops-card ops-actions" id="ops-actions" aria-labelledby="ops-actions-title">
         <header><h3 id="ops-actions-title">ต้องจัดการตอนนี้</h3><span className={`ops-badge ${data?.actions?.length ? 'is-red' : 'is-green'}`}>{n(data?.actions?.length ?? 0)} เรื่อง</span></header>
-        {loading ? <p className="ops-empty" role="status">กำลังอ่านข้อมูล…</p> : !data?.actions?.length ? <p className="ops-empty">ไม่มีเรื่องเร่งด่วนในตอนนี้</p>
+        {loading ? <p className="ops-empty" >กำลังอ่านข้อมูล…</p> : !data?.actions?.length ? <p className="ops-empty">ไม่มีเรื่องเร่งด่วนในตอนนี้</p>
           : <div className="ops-rows">{(data.actions || []).map((action) => <button type="button" key={action.type} className="ops-action-row" onClick={() => onNavigate(action.target as DashboardPage)}>
             <span><strong>{action.title}</strong><small>{action.detail}</small></span>
             <span className={`ops-badge ${STATUS_CLASS[action.severity]}`}>{action.severity === 'URGENT' ? `เร่งด่วน · ${n(action.count)} ${action.unit}` : action.severity === 'WATCH' ? 'ติดตาม' : `${n(action.count)} ${action.unit}`}</span>

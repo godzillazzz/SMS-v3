@@ -15,8 +15,8 @@ export function AnnouncementHomeCard({ token, limit = 3, client = announcementCl
   }, [token, limit, client]);
   return <section className={`announcement-home-card ${className}`} aria-labelledby="announcement-home-title">
     <header className="announcement-home-card__head"><h2 id="announcement-home-title">ประกาศล่าสุด</h2>{onOpenAll && <button type="button" className="announcement-home-card__all" onClick={onOpenAll}>ดูทั้งหมด →</button>}</header>
-    {failed ? <p className="announcement-empty" role="status">โหลดประกาศไม่สำเร็จ</p>
-      : !rows ? <p className="announcement-empty" role="status">กำลังโหลดประกาศ…</p>
+    {failed ? <p className="announcement-empty" >โหลดประกาศไม่สำเร็จ</p>
+      : !rows ? <p className="announcement-empty" >กำลังโหลดประกาศ…</p>
       : !rows.length ? <p className="announcement-empty">ยังไม่มีประกาศ</p>
       : <div className="announcement-home-list">{rows.map((row) => <button type="button" key={row.id} className="announcement-home-row" onClick={() => setViewing(row)}>
         <span><strong>{row.title}</strong><small>{ANNOUNCEMENT_CATEGORY_LABELS[row.category]} · {announcementDateLabel(row.createdAt)}</small></span>
