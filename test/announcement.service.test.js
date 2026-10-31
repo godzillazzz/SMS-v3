@@ -53,7 +53,7 @@ function fakePrisma(rows = [], { viewerSites = [SITE_A] } = {}) {
   return { client, audit, state };
 }
 
-const base = (over) => ({ id: over.id, title: over.title || over.id, body: 'b', category: 'GENERAL', pinned: false, siteId: null, expiresAt: null, createdBy: ADMIN.sub, createdAt: new Date('2026-10-30T00:00:00Z'), deletedAt: null, ...over });
+const base = (over) => ({ id: over.id, title: over.title || over.id, body: 'b', category: 'GENERAL', pinned: false, expiresAt: null, createdBy: ADMIN.sub, createdAt: new Date('2026-10-30T00:00:00Z'), deletedAt: null, ...over });
 
 test('bangkokEndOfDay maps a calendar date to the following Bangkok midnight', () => {
   assert.equal(bangkokEndOfDay('2026-10-31').toISOString(), '2026-10-31T17:00:00.000Z');
@@ -84,29 +84,43 @@ test('ADMIN may include expired rows; non-admin includeExpired is ignored', asyn
   assert.equal((await service.list({ actor: MANAGER, query: { includeExpired: true } })).length, 0);
 });
 
-test('site scope: viewer sees global and own-site announcements only', async () => {
-  const rows = [base({ id: 'global' }), base({ id: 'siteA', siteId: SITE_A }), base({ id: 'siteB', siteId: SITE_B })];
-  const { client, audit } = fakePrisma(rows, { viewerSites: [SITE_A] });
+test('every role (lowest VIEWER, unlinked or employee/PWA account) reads ALL live announcements - no site scope', async () => {
+  const rows = [base({ id: 'g1' }), base({ id: 'g2' }), base({ id: 'g3' })];
+  const { client, audit } = fakePrisma(rows);
+  client.shiftAssignment.findMany = async () => { throw new Error('site scope must not be queried'); };
   const service = createAnnouncementService({ prisma: client, audit, clock: () => NOW });
-  const viewer = await service.list({ actor: VIEWER, query: {} });
-  assert.deepEqual(viewer.map((row) => row.id).sort(), ['global', 'siteA']);
-  const manager = await service.list({ actor: MANAGER, query: {} });
-  assert.equal(manager.length, 3);
+  for (const actor of [VIEWER, { sub: 'x', role: 'VIEWER' }, MANAGER, { sub: 's', role: 'SUPERVISOR' }, ADMIN]) {
+    assert.equal((await service.list({ actor, query: {} })).length, 3, actor.role);
+    assert.equal((await service.get({ actor, id: 'g2' })).id, 'g2');
+  }
 });
 
-test('viewer without an employee link sees global announcements only', async () => {
-  const rows = [base({ id: 'global' }), base({ id: 'siteA', siteId: SITE_A })];
-  const { client, audit } = fakePrisma(rows);
+test('get hides deleted rows and expired rows from non-ADMIN', async () => {
+  const { client, audit } = fakePrisma([base({ id: 'exp', expiresAt: new Date('2026-10-30T17:00:00Z') }), base({ id: 'del', deletedAt: NOW })]);
   const service = createAnnouncementService({ prisma: client, audit, clock: () => NOW });
-  const list = await service.list({ actor: { sub: 'x', role: 'VIEWER' }, query: {} });
-  assert.deepEqual(list.map((row) => row.id), ['global']);
+  await assert.rejects(service.get({ actor: VIEWER, id: 'exp' }), (error) => error.statusCode === 404);
+  assert.equal((await service.get({ actor: ADMIN, id: 'exp' })).expired, true);
+  await assert.rejects(service.get({ actor: ADMIN, id: 'del' }), (error) => error.statusCode === 404);
+});
+
+test('every non-ADMIN role is rejected 403 for create/update/remove at the service', async () => {
+  const { client, audit, state } = fakePrisma([base({ id: 'a1' })]);
+  const service = createAnnouncementService({ prisma: client, audit, clock: () => NOW });
+  for (const role of ['VIEWER', 'SUPERVISOR', 'MANAGER']) {
+    const actor = { sub: 'u', role };
+    await assert.rejects(service.create({ actor, input: { title: 't', body: 'b', category: 'GENERAL' } }), (error) => error.statusCode === 403);
+    await assert.rejects(service.update({ actor, id: 'a1', input: { pinned: true } }), (error) => error.statusCode === 403);
+    await assert.rejects(service.remove({ actor, id: 'a1' }), (error) => error.statusCode === 403);
+  }
+  assert.equal(state.audits.length, 0);
+  assert.equal(state.rows[0].deletedAt, null);
 });
 
 test('create/update/remove require ADMIN at the service and are audited; delete is soft', async () => {
   const { client, audit, state } = fakePrisma([]);
   const service = createAnnouncementService({ prisma: client, audit, clock: () => NOW });
   await assert.rejects(service.create({ actor: MANAGER, input: { title: 't', body: 'b', category: 'GENERAL' } }), (error) => error.statusCode === 403);
-  const created = await service.create({ actor: ADMIN, input: { title: '  แจ้ง  ', body: '<b>x</b>', category: 'POLICY', pinned: true, expiresOn: '2026-11-01', siteId: SITE_A } });
+  const created = await service.create({ actor: ADMIN, input: { title: '  แจ้ง  ', body: '<b>x</b>', category: 'POLICY', pinned: true, expiresOn: '2026-11-01' } });
   assert.equal(created.title, 'แจ้ง');
   assert.equal(created.body, '<b>x</b>');
   assert.equal(created.expiresOn, '2026-11-01');
@@ -124,10 +138,9 @@ test('create/update/remove require ADMIN at the service and are audited; delete 
   assert.ok(state.audits.every((entry) => entry.entityType === 'Announcement'));
 });
 
-test('create rejects past expiry dates and unknown sites', async () => {
+test('create rejects past expiry dates', async () => {
   const { client, audit } = fakePrisma([]);
   const service = createAnnouncementService({ prisma: client, audit, clock: () => NOW });
   await assert.rejects(service.create({ actor: ADMIN, input: { title: 't', body: 'b', category: 'GENERAL', expiresOn: '2026-10-30' } }), (error) => error.details?.code === 'ANNOUNCEMENT_EXPIRY_PAST');
   await service.create({ actor: ADMIN, input: { title: 't', body: 'b', category: 'GENERAL', expiresOn: '2026-10-31' } });
-  await assert.rejects(service.create({ actor: ADMIN, input: { title: 't', body: 'b', category: 'GENERAL', siteId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc' } }), (error) => error.details?.code === 'ANNOUNCEMENT_SITE_NOT_FOUND');
 });

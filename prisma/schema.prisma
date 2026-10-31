@@ -1507,7 +1507,6 @@ model Announcement {
   body      String    @db.Text
   category  String    @db.VarChar(20)
   pinned    Boolean   @default(false)
-  siteId    String?   @map("site_id") @db.Uuid
   expiresAt DateTime? @map("expires_at") @db.Timestamptz(6)
   createdBy String    @map("created_by") @db.Uuid
   updatedBy String?   @map("updated_by") @db.Uuid
@@ -1517,6 +1516,5 @@ model Announcement {
 
   @@index([deletedAt, pinned, createdAt])
   @@index([category, expiresAt])
-  @@index([siteId])
   @@map("announcements")
 }

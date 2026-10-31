@@ -1,6 +1,6 @@
 -- Announcements (Owner batch 12 B). Additive only: creates one new table; no existing table,
--- column or row is changed. created_by/updated_by/site_id are validated by the API and kept
--- without foreign keys so the migration never locks or alters users/security_sites.
+-- column or row is changed. created_by/updated_by are set by the API and kept without foreign keys so
+-- the migration never locks or alters users. Every signed-in user reads all announcements (no site scope).
 --
 -- ROLLBACK (manual, Owner approval only; see rollback.sql):
 --   BEGIN;
@@ -15,7 +15,6 @@ CREATE TABLE "announcements" (
     "body" TEXT NOT NULL,
     "category" VARCHAR(20) NOT NULL,
     "pinned" BOOLEAN NOT NULL DEFAULT false,
-    "site_id" UUID,
     "expires_at" TIMESTAMPTZ(6),
     "created_by" UUID NOT NULL,
     "updated_by" UUID,
@@ -29,6 +28,5 @@ CREATE TABLE "announcements" (
 
 CREATE INDEX "announcements_deleted_at_pinned_created_at_idx" ON "announcements"("deleted_at", "pinned", "created_at");
 CREATE INDEX "announcements_category_expires_at_idx" ON "announcements"("category", "expires_at");
-CREATE INDEX "announcements_site_id_idx" ON "announcements"("site_id");
 
 COMMIT;

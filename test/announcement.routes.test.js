@@ -27,6 +27,7 @@ const ID = '44444444-4444-4444-8444-444444444444';
 const calls = [];
 const service = {
   list: async (input) => { calls.push(['list', input]); return [{ id: ID }]; },
+  get: async (input) => { calls.push(['get', input]); return { id: ID }; },
   create: async (input) => { calls.push(['create', input]); return { id: ID }; },
   update: async (input) => { calls.push(['update', input]); return { id: ID }; },
   remove: async (input) => { calls.push(['remove', input]); return { id: ID, deleted: true }; }
@@ -41,13 +42,23 @@ test('GET is open to every authenticated role and validates filters', async () =
   assert.equal((await request(viewer).get('/api/v1/announcements?category=SECRET')).status, 400);
 });
 
-test('POST/PATCH/DELETE are ADMIN-only at the route layer', async () => {
-  const manager = app({ sub: 'u', role: 'MANAGER' }, service);
+test('lowest role reads list and detail', async () => {
+  for (const role of ['VIEWER', 'SUPERVISOR', 'MANAGER', 'ADMIN']) {
+    const server = app({ sub: 'u', role, employeeAuthority: { id: 'e' } }, service);
+    assert.equal((await request(server).get('/api/v1/announcements')).status, 200, role);
+    assert.equal((await request(server).get(`/api/v1/announcements/${ID}`)).status, 200, role);
+  }
+});
+
+test('POST/PATCH/DELETE are ADMIN-only at the route layer (403 for every other role)', async () => {
   const body = { title: 'หัวข้อ', body: 'เนื้อหา', category: 'GENERAL' };
   const before = calls.length;
-  assert.equal((await request(manager).post('/api/v1/announcements').send(body)).status, 403);
-  assert.equal((await request(manager).patch(`/api/v1/announcements/${ID}`).send({ pinned: true })).status, 403);
-  assert.equal((await request(manager).delete(`/api/v1/announcements/${ID}`)).status, 403);
+  for (const role of ['VIEWER', 'SUPERVISOR', 'MANAGER']) {
+    const server = app({ sub: 'u', role }, service);
+    assert.equal((await request(server).post('/api/v1/announcements').send(body)).status, 403, role);
+    assert.equal((await request(server).patch(`/api/v1/announcements/${ID}`).send({ pinned: true })).status, 403, role);
+    assert.equal((await request(server).delete(`/api/v1/announcements/${ID}`)).status, 403, role);
+  }
   assert.equal(calls.length, before);
   const admin = app({ sub: 'u', role: 'ADMIN' }, service);
   assert.equal((await request(admin).post('/api/v1/announcements').send(body)).status, 201);
@@ -58,7 +69,7 @@ test('POST/PATCH/DELETE are ADMIN-only at the route layer', async () => {
 test('validation rejects oversize title, unknown fields, bad ids and bad dates', async () => {
   const admin = app({ sub: 'u', role: 'ADMIN' }, service);
   assert.equal((await request(admin).post('/api/v1/announcements').send({ title: 'x'.repeat(151), body: 'b', category: 'GENERAL' })).status, 400);
-  assert.equal((await request(admin).post('/api/v1/announcements').send({ title: 't', body: 'b', category: 'GENERAL', html: '<x>' })).status, 400);
+  assert.equal((await request(admin).post('/api/v1/announcements').send({ title: 't', body: 'b', category: 'GENERAL', siteId: '44444444-4444-4444-8444-444444444444' })).status, 400);
   assert.equal((await request(admin).post('/api/v1/announcements').send({ title: 't', body: 'b', category: 'GENERAL', expiresOn: '31/10/2026' })).status, 400);
   assert.equal((await request(admin).post('/api/v1/announcements').send({ title: 't', body: 'x'.repeat(5001), category: 'GENERAL' })).status, 400);
   assert.equal((await request(admin).patch('/api/v1/announcements/not-a-uuid').send({ pinned: true })).status, 400);

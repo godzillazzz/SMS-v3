@@ -1,9 +1,8 @@
 'use strict';
 
 // Announcements (Owner batch 12 B, 31 Oct 2026).
-// - Read: every authenticated user, limited by site scope. ADMIN/MANAGER/SUPERVISOR read every site
-//   (same cross-department policy as report-scope.js); other roles read global announcements plus
-//   announcements of the security sites they are rostered on (ShiftAssignment ±30 days).
+// - Read: every authenticated user of every role (incl. employee/PWA accounts) reads ALL live
+//   announcements. Owner decision 31 Oct 2026: no site/department scope filtering.
 // - Write: ADMIN only, enforced here and at the route layer. Every mutation is audited.
 // - Expiry: a calendar date; the announcement stays visible until the end of that day in Asia/Bangkok.
 // - Delete is soft (deletedAt); rows are never physically removed by the API.
@@ -14,10 +13,8 @@ const auditDefault = require('./audit.service');
 const HttpError = require('../utils/http-error');
 
 const ANNOUNCEMENT_CATEGORIES = Object.freeze(['GENERAL', 'POLICY', 'EVENT']);
-const ALL_SITE_ROLES = new Set(['ADMIN', 'MANAGER', 'SUPERVISOR']);
 const BANGKOK_OFFSET_MS = 7 * 3600000;
 const DAY_MS = 86400000;
-const SCOPE_WINDOW_DAYS = 30;
 const DEFAULT_LIMIT = 50;
 
 function http(statusCode, code, message) { return new HttpError(statusCode, message, { code }); }
@@ -61,7 +58,6 @@ function present(row, now) {
     body: row.body,
     category: row.category,
     pinned: Boolean(row.pinned),
-    siteId: row.siteId ?? null,
     expiresAt: row.expiresAt ? new Date(row.expiresAt).toISOString() : null,
     expiresOn: expiresOnOf(row.expiresAt),
     expired: Boolean(row.expiresAt && new Date(row.expiresAt) <= now),
@@ -71,29 +67,6 @@ function present(row, now) {
 }
 
 function createAnnouncementService({ prisma = prismaDefault, audit = auditDefault, clock = () => new Date() } = {}) {
-  async function viewerSiteIds(actor, now) {
-    const employeeId = actor?.employeeAuthority?.id || actor?.employeeId || null;
-    if (!employeeId) return [];
-    const today = new Date(`${bangkokDateText(now)}T00:00:00.000Z`);
-    const rows = await prisma.shiftAssignment.findMany({
-      where: {
-        employeeId,
-        securitySiteId: { not: null },
-        workDate: { gte: new Date(today.getTime() - SCOPE_WINDOW_DAYS * DAY_MS), lte: new Date(today.getTime() + SCOPE_WINDOW_DAYS * DAY_MS) }
-      },
-      select: { securitySiteId: true },
-      distinct: ['securitySiteId']
-    });
-    return [...new Set(rows.map((row) => row.securitySiteId).filter(Boolean))];
-  }
-
-  async function assertSite(client, siteId) {
-    if (!siteId) return null;
-    const site = await client.securitySite.findUnique({ where: { id: siteId }, select: { id: true } });
-    if (!site) throw http(400, 'ANNOUNCEMENT_SITE_NOT_FOUND', 'Security site does not exist.');
-    return siteId;
-  }
-
   function assertFutureExpiry(expiresOn, now) {
     if (expiresOn == null) return null;
     const end = bangkokEndOfDay(expiresOn);
@@ -107,18 +80,19 @@ function createAnnouncementService({ prisma = prismaDefault, audit = auditDefaul
     const and = [{ deletedAt: null }];
     if (!(query.includeExpired && role === 'ADMIN')) and.push({ OR: [{ expiresAt: null }, { expiresAt: { gt: now } }] });
     if (query.category) and.push({ category: query.category });
-    if (!ALL_SITE_ROLES.has(role)) {
-      const sites = await viewerSiteIds(actor, now);
-      and.push({ OR: [{ siteId: null }, ...(sites.length ? [{ siteId: { in: sites } }] : [])] });
-    } else if (query.siteId) {
-      and.push({ OR: [{ siteId: null }, { siteId: { in: [query.siteId] } }] });
-    }
     const rows = await prisma.announcement.findMany({
       where: { AND: and },
       orderBy: [{ pinned: 'desc' }, { createdAt: 'desc' }],
       take: Math.min(Number(query.limit) || DEFAULT_LIMIT, 100)
     });
     return rows.map((row) => present(row, now));
+  }
+
+  async function get({ actor, id }) {
+    const now = clock();
+    const row = await prisma.announcement.findFirst({ where: { id, deletedAt: null } });
+    if (!row || (row.expiresAt && new Date(row.expiresAt) <= now && roleOf(actor) !== 'ADMIN')) throw http(404, 'ANNOUNCEMENT_NOT_FOUND', 'Announcement not found.');
+    return present(row, now);
   }
 
   async function create({ actor, input }) {
@@ -133,9 +107,8 @@ function createAnnouncementService({ prisma = prismaDefault, audit = auditDefaul
       createdBy: actor.sub
     };
     return prisma.$transaction(async (tx) => {
-      data.siteId = await assertSite(tx, input.siteId || null);
       const row = await tx.announcement.create({ data });
-      await audit.log({ actorUserId: actor.sub, action: 'CREATE', entityType: 'Announcement', entityId: row.id, metadata: { category: row.category, pinned: row.pinned, siteId: row.siteId ?? null, expiresOn: expiresOnOf(row.expiresAt) } }, tx);
+      await audit.log({ actorUserId: actor.sub, action: 'CREATE', entityType: 'Announcement', entityId: row.id, metadata: { category: row.category, pinned: row.pinned, expiresOn: expiresOnOf(row.expiresAt) } }, tx);
       return present(row, now);
     });
   }
@@ -160,7 +133,6 @@ function createAnnouncementService({ prisma = prismaDefault, audit = auditDefaul
       }
       if (input.pinned !== undefined) data.pinned = Boolean(input.pinned);
       if (input.expiresOn !== undefined) data.expiresAt = assertFutureExpiry(input.expiresOn, now);
-      if (input.siteId !== undefined) data.siteId = await assertSite(tx, input.siteId || null);
       const row = await tx.announcement.update({ where: { id }, data });
       await audit.log({ actorUserId: actor.sub, action: 'UPDATE', entityType: 'Announcement', entityId: id, metadata: { changedFields: Object.keys(data).filter((key) => key !== 'updatedBy'), pinnedBefore: before.pinned, pinnedAfter: row.pinned } }, tx);
       return present(row, now);
@@ -178,7 +150,7 @@ function createAnnouncementService({ prisma = prismaDefault, audit = auditDefaul
     });
   }
 
-  return { list, create, update, remove };
+  return { list, get, create, update, remove };
 }
 
 module.exports = { createAnnouncementService, bangkokEndOfDay, expiresOnOf, ANNOUNCEMENT_CATEGORIES };

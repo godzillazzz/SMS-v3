@@ -13,13 +13,11 @@ const createInput = z.object({
   body: z.string().trim().min(1).max(5000),
   category,
   pinned: z.boolean().optional(),
-  expiresOn: dateText.nullable().optional(),
-  siteId: uuid.nullable().optional()
+  expiresOn: dateText.nullable().optional()
 }).strict();
 const updateInput = createInput.partial().strict();
 const listQuery = z.object({
   category: category.optional(),
-  siteId: uuid.optional(),
   limit: z.coerce.number().int().min(1).max(100).optional(),
   includeExpired: z.enum(['true', 'false']).optional().transform((value) => value === 'true')
 });
@@ -38,6 +36,12 @@ function createAnnouncementRoutes({
       const query = listQuery.parse(req.query);
       res.set('Cache-Control', 'no-store');
       res.json({ data: await service.list({ actor: req.user, query }) });
+    } catch (error) { next(error); }
+  });
+  router.get('/:id', async (req, res, next) => {
+    try {
+      res.set('Cache-Control', 'no-store');
+      res.json({ data: await service.get({ actor: req.user, id: uuid.parse(req.params.id) }) });
     } catch (error) { next(error); }
   });
   router.post('/', admin, async (req, res, next) => {
