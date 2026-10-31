@@ -179,25 +179,12 @@ async function printNodeDocument(
     if (testPrint) {
       testPrint(frameWindow);
     } else {
-      const isMobile = isTouchOrMobileDevice();
       try {
         frameWindow.focus();
         frameWindow.print();
       } catch {
         // Fallback for mobile WebViews or environments where frame.print() throws
-        window.print();
-      }
-      // On mobile Chrome / Safari, if frameWindow.print() is blocked without throwing,
-      // trigger window.print() as well so the user gets the system print dialog
-      if (isMobile) {
-        window.setTimeout(() => {
-          try {
-            window.focus();
-            window.print();
-          } catch {
-            // ignore
-          }
-        }, 150);
+        // Do not trigger window.print() blindly without user action because it prints the entire webpage
       }
     }
     window.setTimeout(cleanup, FRAME_CLEANUP_DELAY_MS);

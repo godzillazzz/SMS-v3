@@ -40,7 +40,7 @@ describe('batch12 B global colour palette', () => {
       sidebarOptions: [{ id: 'opt-1', label: 'Dark Navy', color: '#102a43' }]
     };
     const css = paletteCss(custom);
-    expect(css).toContain('html[data-theme] .app-shell[data-accent="opt-1"]');
+    expect(css).toContain('html[data-theme] #sms-app[data-accent="opt-1"]');
     expect(css).toContain('--color-sidebar-bg: #102a43');
     expect(css).toContain('--sidebar-active: color-mix(in srgb, #102a43 75%, #ffffff)');
   });

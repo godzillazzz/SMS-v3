@@ -110,14 +110,24 @@ export function paletteCss(palette: UiPaletteWithSidebar) {
   if (Array.isArray(palette.sidebarOptions)) {
     for (const opt of palette.sidebarOptions) {
       // Harmonic sidebar tokens: derive active item and background gradient from opt.color
-      // Using color-mix against white gives a harmonious tinted glow in the same hue family
-      css += `\nhtml[data-theme] .app-shell[data-accent="${opt.id}"] {
+      // Using #sms-app ensures it overrides #sms-app .sidebar .nav-item.active in hrpro-shell.css
+      css += `\nhtml[data-theme] #sms-app[data-accent="${opt.id}"], html[data-theme] .app-shell[data-accent="${opt.id}"] {
   --color-sidebar-bg: ${opt.color};
   --color-sidebar-bg-strong: color-mix(in srgb, ${opt.color} 84%, #000000);
   --sidebar-active: color-mix(in srgb, ${opt.color} 75%, #ffffff);
   --color-sidebar-hover: rgba(255, 255, 255, 0.12);
   --sidebar-item: color-mix(in srgb, ${opt.color} 30%, #ffffff);
   --sidebar-label: color-mix(in srgb, ${opt.color} 50%, #ffffff);
+}
+html[data-theme] #sms-app[data-accent="${opt.id}"] .sidebar .nav-item.active,
+html[data-theme] .app-shell[data-accent="${opt.id}"] .sidebar .nav-item.active {
+  background: color-mix(in srgb, ${opt.color} 75%, #ffffff) !important;
+  color: #ffffff !important;
+}
+html[data-theme] #sms-app[data-accent="${opt.id}"] .sidebar .sidebar-user .avatar,
+html[data-theme] .app-shell[data-accent="${opt.id}"] .sidebar .sidebar-user .avatar {
+  background: color-mix(in srgb, ${opt.color} 75%, #ffffff) !important;
+  color: #ffffff !important;
 }`;
     }
   }
