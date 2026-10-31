@@ -25,7 +25,7 @@
 .ops-badge { display: inline-flex; align-items: center; padding: 2px 10px; border-radius: 999px; border: 1px solid var(--color-border, #dde3ec); font-size: 12px; font-weight: 600; white-space: nowrap; color: var(--color-text-secondary); }
 .ops-badge.is-red { color: var(--color-danger); background: var(--color-danger-soft, #fdecea); border-color: transparent; }
 .ops-badge.is-amber { color: var(--color-warning); background: var(--color-warning-soft, #fdf1e1); border-color: transparent; }
-.ops-badge.is-green { color: var(--color-success); background: var(--color-success-soft, #e6f4ec); border-color: transparent; }
+.ops-badge.is-green { color: #065f46; background: #d1fae5; border-color: transparent; }
 .ops-empty { margin: 0; color: var(--color-text-secondary); font-size: 13px; }
 .ops-sites { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
 .ops-site { padding: 12px; border: 1px solid var(--color-border, #dde3ec); border-radius: 10px; }

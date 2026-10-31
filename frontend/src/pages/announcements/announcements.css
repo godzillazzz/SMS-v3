@@ -53,5 +53,5 @@
 .announcement-home-card { display: grid; gap: 8px; padding: 16px 18px; border: 1px solid var(--color-border, #dde3ec); border-radius: 12px; background: var(--color-surface, #fff); min-width: 0; }
 .announcement-home-card__head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .announcement-home-card__head h2 { margin: 0; font-size: 16px; }
-.announcement-home-card__all { border: 0; background: transparent; color: var(--color-primary); font-size: 13px; font-weight: 600; cursor: pointer; min-height: 32px; }
+.announcement-home-card__all { border: 0; background: transparent; color: #0d5f5a; font-size: 13px; font-weight: 600; cursor: pointer; min-height: 32px; }
 .announcement-home-card.is-pwa { margin: 12px 16px 96px; }
