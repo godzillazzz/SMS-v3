@@ -15,7 +15,12 @@ export type OperationsToday = {
 const STATUS_LABEL: Record<OpsSite['status'], string> = { URGENT: 'เร่งด่วน', WATCH: 'เฝ้าระวัง', NORMAL: 'ปกติ' };
 const STATUS_CLASS: Record<string, string> = { URGENT: 'is-red', WATCH: 'is-amber', NORMAL: 'is-green', INFO: '' };
 const n = (value: number | null | undefined) => value == null ? '—' : new Intl.NumberFormat('th-TH').format(value);
-const time = (iso: string) => new Intl.DateTimeFormat('th-TH', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Bangkok' }).format(new Date(iso));
+const time = (iso?: string | null) => {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return '—';
+  return new Intl.DateTimeFormat('th-TH', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Bangkok' }).format(d);
+};
 
 export async function fetchOperationsToday(token: string, siteId?: string): Promise<OperationsToday> {
   const response = await attendanceAuthenticatedRequest(`/dashboard/operations-today${siteId ? `?siteId=${encodeURIComponent(siteId)}` : ''}`, token, { method: 'GET', credentials: 'include' });
@@ -33,7 +38,13 @@ function siteLine(site: OpsSite) {
 }
 
 export function OperationsTodayPanel({ data, loading, error, siteId, onSiteChange, onNavigate, announcements }: { data?: OperationsToday; loading: boolean; error?: boolean; siteId: string; onSiteChange(siteId: string): void; onNavigate: DashboardNavigate; announcements?: ReactNode }) {
-  const siteCount = data?.sites.filter((site) => site.id).length ?? 0;
+  if (error || (!data && !loading)) {
+    return <section className="ops-today" aria-label="ภาพรวมวันนี้">
+      {error ? <div className="ops-alert" role="alert">โหลดภาพรวมวันนี้ไม่สำเร็จ ระบบไม่สร้างตัวเลขแทน</div> : null}
+      {announcements}
+    </section>;
+  }
+  const siteCount = data?.sites?.filter((site) => site.id).length ?? 0;
   const partial = Boolean(data?.partialErrors?.length);
   return <section className="ops-today" aria-label="ภาพรวมวันนี้">
     <div className="ops-today__head">
@@ -57,9 +68,9 @@ export function OperationsTodayPanel({ data, loading, error, siteId, onSiteChang
     </div>
     <div className="ops-columns">
       <section className="ops-card ops-actions" id="ops-actions" aria-labelledby="ops-actions-title">
-        <header><h3 id="ops-actions-title">ต้องจัดการตอนนี้</h3><span className={`ops-badge ${data?.actions.length ? 'is-red' : 'is-green'}`}>{n(data?.actions.length ?? 0)} เรื่อง</span></header>
-        {loading ? <p className="ops-empty" role="status">กำลังอ่านข้อมูล…</p> : !data?.actions.length ? <p className="ops-empty">ไม่มีเรื่องเร่งด่วนในตอนนี้</p>
-          : <div className="ops-rows">{data.actions.map((action) => <button type="button" key={action.type} className="ops-action-row" onClick={() => onNavigate(action.target as DashboardPage)}>
+        <header><h3 id="ops-actions-title">ต้องจัดการตอนนี้</h3><span className={`ops-badge ${data?.actions?.length ? 'is-red' : 'is-green'}`}>{n(data?.actions?.length ?? 0)} เรื่อง</span></header>
+        {loading ? <p className="ops-empty" role="status">กำลังอ่านข้อมูล…</p> : !data?.actions?.length ? <p className="ops-empty">ไม่มีเรื่องเร่งด่วนในตอนนี้</p>
+          : <div className="ops-rows">{(data.actions || []).map((action) => <button type="button" key={action.type} className="ops-action-row" onClick={() => onNavigate(action.target as DashboardPage)}>
             <span><strong>{action.title}</strong><small>{action.detail}</small></span>
             <span className={`ops-badge ${STATUS_CLASS[action.severity]}`}>{action.severity === 'URGENT' ? `เร่งด่วน · ${n(action.count)} ${action.unit}` : action.severity === 'WATCH' ? 'ติดตาม' : `${n(action.count)} ${action.unit}`}</span>
           </button>)}</div>}
@@ -68,8 +79,8 @@ export function OperationsTodayPanel({ data, loading, error, siteId, onSiteChang
     </div>
     <section className="ops-card" id="ops-sites" aria-labelledby="ops-sites-title">
       <header><h3 id="ops-sites-title">สถานะราย Site</h3><span className="ops-sub">เร่งด่วน = มีคนเลยเวลาไม่เช็กอิน · เฝ้าระวัง = ยังเข้างานไม่ครบ</span></header>
-      {!data?.sites.length ? <p className="ops-empty">{loading ? 'กำลังอ่านข้อมูล…' : 'ไม่มีกะตามแผนวันนี้'}</p>
-        : <div className="ops-sites">{data.sites.map((site) => <div className="ops-site" key={site.id || 'none'}><div><strong>{site.name}</strong> <span className={`ops-badge ${STATUS_CLASS[site.status]}`}>{STATUS_LABEL[site.status]}</span></div><p>{siteLine(site)}</p></div>)}</div>}
+      {!data?.sites?.length ? <p className="ops-empty">{loading ? 'กำลังอ่านข้อมูล…' : 'ไม่มีกะตามแผนวันนี้'}</p>
+        : <div className="ops-sites">{(data.sites || []).map((site) => <div className="ops-site" key={site.id || 'none'}><div><strong>{site.name}</strong> <span className={`ops-badge ${STATUS_CLASS[site.status]}`}>{STATUS_LABEL[site.status]}</span></div><p>{siteLine(site)}</p></div>)}</div>}
     </section>
   </section>;
 }
